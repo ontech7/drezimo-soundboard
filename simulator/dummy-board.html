@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dummy Soundboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=block" rel="stylesheet">
+<style>
+  :root {
+    --mm: 3.7795px;            /* px per mm, overridden by the calibration */
+    --bg: #0d0e10;
+    --panel: #17181c;
+    --panel-2: #1f2026;
+    --line: #2c2e36;
+    --text: #e7e8ec;
+    --muted: #8b8f9c;
+    --accent: #7aa2ff;
+    --ok: #3ddc84;
+    --warn: #ffcc4d;
+    --err: #ff5c5c;
+    --pla: #141417;            /* matte black PLA */
+    --cap: #2a2c31;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Three full-height columns: board | display + log | settings */
+  .app { display: grid; gap: 20px; padding: 20px 16px; height: 100vh;
+    grid-template-columns: auto minmax(380px, 1fr) 320px; grid-template-areas: "board main side"; }
+  .col-board { grid-area: board; overflow: auto; }
+  .col-main { grid-area: main; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .col-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
+  @media (max-width: 1280px) {
+    .app { height: auto; grid-template-columns: auto minmax(360px, 1fr); grid-template-areas: "board main" "board side"; }
+    .col-main { height: calc(100vh - 40px); position: sticky; top: 20px; }
+  }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; grid-template-areas: "board" "main" "side"; }
+    .col-board { overflow: visible; }
+    .col-main { height: auto; position: static; }
+    .col-main .log { height: 50vh; }
+  }
+
+  /* ---------- Case ---------- */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .scale-note { color: var(--muted); font-size: 12px; text-align: center; }
+  .case {
+    position: relative;
+    width: calc(var(--mm) * var(--case-w));
+    height: calc(var(--mm) * var(--case-h));
+    border-radius: calc(var(--mm) * 5);
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 calc(var(--mm) * .1), transparent calc(var(--mm) * .1) calc(var(--mm) * .2)),
+      radial-gradient(120% 80% at 30% 0%, #1b1b1f 0%, var(--pla) 60%);
+    box-shadow:
+      0 calc(var(--mm) * 2) calc(var(--mm) * 6) rgba(0,0,0,.6),
+      inset 0 0 0 calc(var(--mm) * .4) #1e1e22,
+      inset 0 calc(var(--mm) * .3) 0 rgba(255,255,255,.04);
+    user-select: none;
+  }
+  .abs { position: absolute; }
+  .screw {
+    width: calc(var(--mm) * 5.5); height: calc(var(--mm) * 5.5); border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #4a4b52, #1d1e22 70%);
+    box-shadow: inset 0 0 0 calc(var(--mm) * .3) #0a0a0c;
+  }
+  .screw::after { /* M3 hex socket */
+    content: ""; position: absolute; inset: 30%;
+    background: #0b0b0d; clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%);
+  }
+  .usb-port { border-radius: calc(var(--mm) * .5); background: #0a0a0c;
+    box-shadow: inset 0 0 0 calc(var(--mm) * .25) #000; }
+  .engrave { color: #34353b; font-weight: 700; letter-spacing: .04em; text-align: center;
+    font-size: calc(var(--mm) * 2.2);
+    text-shadow: 0 calc(var(--mm) * -.15) 0 rgba(0,0,0,.8), 0 calc(var(--mm) * .15) 0 rgba(255,255,255,.05); }
+
+  /* 1.3" OLED */
+  .oled-window {
+    border-radius: calc(var(--mm) * .8);
+    background: #050506;
+    box-shadow: inset 0 0 0 calc(var(--mm) * .35) #000, 0 0 0 calc(var(--mm) * .5) #1c1c20;
+    display: grid; place-items: center;
+  }
+  .oled-window canvas { width: calc(var(--mm) * var(--oled-w)); height: calc(var(--mm) * var(--oled-h)); image-rendering: auto; }
+
+  /* EC11 encoder */
+  .knob { border-radius: 50%; cursor: grab; touch-action: none;
+    background:
+      radial-gradient(circle, #2f3036 0 58%, transparent 59%),
+      repeating-conic-gradient(#3a3b42 0 4deg, #1a1b1f 4deg 8deg);
+    box-shadow: 0 calc(var(--mm) * .8) calc(var(--mm) * 1.5) rgba(0,0,0,.7), inset 0 0 0 calc(var(--mm) * .3) #101013; }
+  .knob.pressed { transform: scale(.96); }
+  .knob .mark { position: absolute; left: 50%; top: 9%; width: calc(var(--mm) * .7); height: 26%;
+    margin-left: calc(var(--mm) * -.35); border-radius: calc(var(--mm) * .4); background: #d6d8de; }
+  .knob .rot { position: absolute; inset: 0; transition: transform 80ms ease-out; }
+
+  /* MX switches + OEM keycaps */
+  .slot { width: calc(var(--mm) * 19.05); height: calc(var(--mm) * 19.05); display: grid; place-items: center; }
+  .key { position: relative; width: calc(var(--mm) * 18); height: calc(var(--mm) * 18);
+    border-radius: calc(var(--mm) * 1.4); cursor: pointer; touch-action: none;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--cap) 80%, #fff 6%), color-mix(in srgb, var(--cap) 85%, #000));
+    box-shadow:
+      0 0 calc(var(--mm) * 2.2) calc(var(--mm) * .4) var(--glow, transparent),
+      0 calc(var(--mm) * .9) 0 color-mix(in srgb, var(--cap) 60%, #000),
+      0 calc(var(--mm) * 1.4) calc(var(--mm) * 1.2) rgba(0,0,0,.55);
+    transition: transform 40ms, box-shadow 60ms;
+  }
+  .key.down { transform: translateY(calc(var(--mm) * .8)); }
+  .key .top { position: absolute; inset: calc(var(--mm) * 2.4) calc(var(--mm) * 2.6) calc(var(--mm) * 3.2);
+    border-radius: calc(var(--mm) * 2);
+    background: radial-gradient(120% 90% at 50% 30%, color-mix(in srgb, var(--cap) 92%, #fff 10%), var(--cap));
+    display: grid; place-items: center; text-align: center; overflow: hidden; }
+  .key.translucent { background: linear-gradient(180deg, color-mix(in srgb, var(--tint, #888) 45%, #ddd 20%), color-mix(in srgb, var(--tint, #888) 35%, #222)); }
+  .key.translucent .top { background: radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--tint, #888) 60%, #fff 25%), color-mix(in srgb, var(--tint, #888) 40%, #333)); }
+  .legend { font-size: calc(var(--mm) * 1.75); line-height: 1.1; color: color-mix(in srgb, var(--cap) 30%, #fff);
+    padding: 0 calc(var(--mm) * .4); word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .key.fn .legend { font-weight: 700; }
+
+  /* ---------- Panels ---------- */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 10px; }
+  label.field { display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 12px; color: var(--muted); }
+  input[type=password], input[type=text], select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: inherit; min-width: 0; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  button { background: var(--accent); color: #0b1020; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.demo { background: var(--warn); }
+  .dot.err { background: var(--err); }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .statusbar { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding: 12px 16px; }
+  .statusbar .page { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .mid-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .mid-row > .card { flex: 1 1 280px; min-width: 0; padding: 12px; }
+  .mid-row h2 { margin-bottom: 8px; }
+  .overlay-grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 3px; }
+  .overlay-grid div { border: 1px solid var(--line); border-radius: 4px; padding: 2px 3px; height: 30px; overflow: hidden;
+    font-size: 10px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .overlay-grid div.dim { opacity: .45; }
+  .oled-zoom { display: block; width: 100%; max-height: 28vh; aspect-ratio: 2 / 1; object-fit: contain; image-rendering: pixelated; background: #000; border-radius: 6px; }
+  .log-card { flex: 1; display: flex; flex-direction: column; min-height: 240px; }
+  .log-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+  .log-head h2 { margin: 0 auto 0 0; }
+  .log-head label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+  .log-head button { padding: 4px 10px; font-size: 12px; }
+  .log { flex: 1; min-height: 0; overflow: auto; background: #0a0b0d; border-radius: 8px; padding: 8px 10px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .log div { white-space: pre; }
+  .log .pico { color: #9ad1ff; } .log .pc { color: #c3a6ff; } .log .vm { color: #8be0a4; } .log .lg { color: #ffc773; } .log .sys { color: var(--muted); }
+  .log.hide-pico .pico, .log.hide-pc .pc, .log.hide-vm .vm, .log.hide-lg .lg, .log.hide-sys .sys { display: none; }
+  .board-extra { margin-top: 16px; display: grid; gap: 12px; max-width: 460px; margin-inline: auto; }
+  .legend-colors { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 10px; font-size: 12px; align-items: center; }
+  .sw { width: 14px; height: 14px; border-radius: 4px; }
+  .sw.breathe { animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .25; } }
+  .keys-help { font-size: 12px; color: var(--muted); }
+  .keys-help kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, monospace; color: var(--text); }
+  .calib { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10;
+    border: 2px dashed var(--accent); border-radius: calc(var(--mm) * 3); background: rgba(13,14,16,.85);
+    width: calc(var(--mm) * 85.6); height: calc(var(--mm) * 53.98); display: none; place-items: center; text-align: center;
+    color: var(--text); font-size: 12px; padding: 8px; pointer-events: none; }
+  .calib.show { display: grid; }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="col-board">
+    <div class="stage">
+      <div class="case" id="case"></div>
+      <div class="scale-note" id="scaleNote"></div>
+    </div>
+    <div class="board-extra">
+      <div class="legend-colors">
+        <span class="sw" style="background:#000;border:1px solid var(--line)"></span><span>Empty pad</span>
+        <span class="sw" style="background:#2f6bff"></span><span>Sound available</span>
+        <span class="sw" style="background:#ffd21a"></span><span>Just pressed (~200 ms)</span>
+        <span class="sw" style="background:#22e05a"></span><span>Playing</span>
+        <span class="sw breathe" style="background:#22e05a"></span><span>Paused (breathing)</span>
+        <span class="sw" style="background:#5a1010"></span><span>Not in licence</span>
+        <span class="sw" style="background:#ff2a2a"></span><span>Voicemod offline (blinking)</span>
+        <span class="sw" style="background:#ff8c00"></span><span>Fn keys: toggle on (STOP red while sounds play)</span>
+      </div>
+      <div class="keys-help">
+        Pad rows: <kbd>1</kbd>…<kbd>6</kbd> / <kbd>Q</kbd>…<kbd>Y</kbd> / <kbd>A</kbd>…<kbd>H</kbd> / <kbd>Z</kbd>…<kbd>N</kbd> / <kbd>U</kbd>…<kbd>]</kbd> / <kbd>J</kbd>…<kbd>\</kbd> ·
+        Function: <kbd>7</kbd>…<kbd>=</kbd><br>
+        Encoder: <kbd>←</kbd><kbd>→</kbd> rotate, <kbd>Enter</kbd> tap = soundboard menu ·
+        hold <kbd>Enter</kbd> + pad = <b>peek</b> name (or right-click a pad) · hold <kbd>Enter</kbd> + <kbd>←</kbd><kbd>→</kbd> = <b>row overview</b><br>
+        Knob with the mouse: wheel = rotate, click = tap, press and drag = hold + rotate
+      </div>
+    </div>
+  </section>
+
+  <section class="col-main">
+    <div class="card statusbar">
+      <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">Demo</span></span>
+      <span class="status"><span class="dot" id="watchDot"></span><span id="watchText"></span></span>
+      <span class="page" id="pageText"></span>
+    </div>
+
+    <div class="mid-row">
+      <div class="card oled-card">
+        <h2>Display (zoomed)</h2>
+        <canvas class="oled-zoom" id="oledZoom" width="128" height="64"></canvas>
+      </div>
+      <div class="card overlay-card">
+        <h2>PC overlay (bridge app)</h2>
+        <div class="overlay-grid" id="overlayGrid"></div>
+      </div>
+    </div>
+
+    <div class="card log-card">
+      <div class="log-head">
+        <h2>Messages</h2>
+        <label style="color:#9ad1ff"><input type="checkbox" data-log="pico" checked> Pico → PC</label>
+        <label style="color:#c3a6ff"><input type="checkbox" data-log="pc"> LEDs</label>
+        <label style="color:#8be0a4"><input type="checkbox" data-log="vm" checked> Control API</label>
+        <label style="color:#ffc773"><input type="checkbox" data-log="lg" checked> Voicemod log</label>
+        <label style="color:var(--muted)"><input type="checkbox" data-log="sys" checked> System</label>
+        <button class="ghost" id="clearLog">Clear</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <section class="col-side">
+    <div class="card">
+      <h2>Voicemod connection</h2>
+      <div class="row">
+        <label class="field">Client key
+          <input type="password" id="keyInput" placeholder="VOICEMOD_CLIENT_KEY" autocomplete="off">
+        </label>
+      </div>
+      <div class="row">
+        <button id="connectBtn">Connect</button>
+        <button class="ghost" id="demoBtn">Demo mode</button>
+      </div>
+      <p class="hint">The key is stored in this browser only. Demo mode plays no sound.
+        For the real playback state run <code>tools/voicemod_log_bridge.py</code>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Simulation</h2>
+      <div class="row">
+        <label class="field">Fallback duration (no log watcher, unknown sound): <span id="durVal"></span>
+          <input type="range" id="dur" min="0.5" max="10" step="0.5" value="3">
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">LED brightness (firmware cap): <span id="briVal"></span>
+          <input type="range" id="bri" min="10" max="100" step="5" value="60">
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Keycap colour <input type="text" id="capColor" value="#2a2c31"></label>
+        <label class="field">OLED colour
+          <select id="oledColor">
+            <option value="white">White</option>
+            <option value="blue">Blue</option>
+            <option value="dual">Yellow/Blue</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Device language (OLED and engraving)
+          <select id="locale">
+            <option value="en">English</option>
+            <option value="it">Italiano</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="translucent"> Translucent keycaps</label>
+        <label><input type="checkbox" id="names" checked> Names on pads</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1:1 scale</h2>
+      <div class="row">
+        <label class="field">Pixels per mm: <span id="mmVal"></span>
+          <input type="range" id="mm" min="2.5" max="8" step="0.01">
+        </label>
+      </div>
+      <div class="row"><button class="ghost" id="calibBtn">Show credit card (85.6 × 54 mm)</button></div>
+      <div class="calib" id="calib">Hold a card against the screen and adjust until it matches</div>
+    </div>
+  </section>
+</div>
+
+<script>
+// ---------- Geometry (mm) ----------
+const COLS = 6, ROWS = 6, PADS = COLS * ROWS;
+// Must match hardware/scripts/build_pcb.py (the PCB placement is the source of truth)
+const PITCH = 19.05, MARGIN = 8, TOP_H = 38, GAP = 4, LABEL_H = 5;
+const GRID_W = PITCH * COLS, GRID_H = PITCH * ROWS;
+const CASE_W = MARGIN * 2 + GRID_W;
+const Y_TOP = MARGIN, Y_FN = Y_TOP + TOP_H + GAP, Y_LABEL = Y_FN + PITCH, Y_GRID = Y_LABEL + LABEL_H;
+const CASE_H = Y_GRID + GRID_H + MARGIN;
+// 1.3" SH1106 128x64: active area 29.42 x 14.70 mm, window a bit larger than the active area
+const KNOB_D = 15, OLED_ACTIVE_W = 29.42, OLED_ACTIVE_H = 14.70, OLED_WIN_W = 34, OLED_WIN_H = 19;
+// Active-area centre from the module estimate on the PCB (header at y 10.5, glass 9.5 mm below the module top edge)
+const OLED_CX = 77.7, OLED_CY = 9 + 9.5 + OLED_ACTIVE_H / 2;
+const PICO_USB_Y = MARGIN + 14.5;      // Pico lies top-left, micro-USB through the left wall
+const SCREW_INSET = 6.5;               // M3 hole centre to case edge
+const DETENT_DEG = 18; // typical EC11: 20 detents per turn
+const FN_IDS = ["PREV", "NEXT", "STOP", "MUTE", "VOICE", "HEAR"];
+const PAD_KEYS = [..."123456qwertyasdfghzxcvbnuiop[]jkl;'\\"];
+const FN_KEYS_KB = [..."7890-="];
+const COLORS = { off: [0,0,0], blue: [47,107,255], yellow: [255,210,26], green: [34,224,90], dim: [90,16,16], red: [255,42,42],
+                 white: [120,120,130], amber: [255,140,0] };
+const FLASH_MS = 200;
+const LOOP_ON_PRESS_MIN_HOLD_MS = 200; // a key-up right after key-down can leave an orphan sound in Voicemod
+const LOG_CONFIRM_WINDOW_MS = 600;     // max distance between a prediction and the matching log line
+const LOG_CONFIRM_TIMEOUT_MS = 4000;   // unconfirmed prediction -> ask the log watcher for a snapshot
+
+// Device texts (OLED + engraved labels). The friend's unit uses Italian.
+const LOCALES = {
+  en: { ready: "Ready", noSound: "No sound", soundboards: "SOUNDBOARDS", favorites: "★ Favourites",
+        unreachable: "UNREACHABLE", connecting: "CONNECTING...", paused: "PAUSED", loop: "LOOP",
+        muteMe: "MUTE ME", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOICE OFF", hearMe: "HEAR ME",
+        row: "ROW", empty: "EMPTY", locked: "NOT IN LICENCE", stopsOthers: "STOPS OTHERS",
+        modes: { PlayRestart: "ONE-SHOT", PlayOverlap: "OVERLAP", PlayStop: "PLAY/STOP", PlayPause: "PLAY/PAUSE", PlayLoopOnPress: "HOLD" },
+        fn: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"] },
+  it: { ready: "Pronto", noSound: "Nessun suono", soundboards: "SOUNDBOARD", favorites: "★ Preferiti",
+        unreachable: "NON RAGGIUNGIBILE", connecting: "CONNESSIONE...", paused: "PAUSA", loop: "LOOP",
+        muteMe: "MUTO", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOCE OFF", hearMe: "ASCOLTO",
+        row: "RIGA", empty: "VUOTO", locked: "NON IN LICENZA", stopsOthers: "FERMA GLI ALTRI",
+        modes: { PlayRestart: "SINGOLO", PlayOverlap: "SOVRAPPOSTO", PlayStop: "PLAY/STOP", PlayPause: "PLAY/PAUSA", PlayLoopOnPress: "TIENI PREMUTO" },
+        fn: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"] },
+};
+
+const DEMO_DATA = [{"id":"8bd41902-b307-47c1-8f29-15e097c822f6","name":"Voicemod Starter","enabled":true,"sounds":[{"id":"5be0cb51-effa-410b-a66d-597598b9b42e","name":"Alert","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"284181d5-6682-4eeb-b281-87c9341c99cf","name":"Error","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"29ec4456-5f52-41ab-888f-78ef46c46098","name":"BLEEP","enabled":true,"playbackMode":"PlayLoopOnPress","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":true,"favorited":false},{"id":"aa3c387e-4bf7-4da3-b23f-5bb930d6085b","name":"Honk","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"87d1a857-03f6-4573-a11a-0e13d2411bef","name":"Sad Trombone","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"83e8a22d-83bf-4fd5-8e8f-0cc932f7e90e","name":"Fart","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4536e942-5984-4fb7-a90a-ccbf26689e37","name":"Full Motion","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"3cda41a3-1a49-41b6-bd29-e01d84a79e43","name":"Night Call","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"8ecf404c-d76c-4dba-8661-8b589bfbd282","name":"Oasis","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"adc3479e-99f3-414b-b8cd-9e7867b558f8","name":"Hey DJ!","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"abe85bf5-08f2-4d50-966b-373d33c883cb","name":"Stop","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"75df03d1-8874-4235-a2a2-0e19972dc0cc","name":"Trauma medic","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":false,"muteOtherSounds":true,"muteVoice":false,"favorited":false},{"id":"4c5d9b7f-39d5-4638-a3ce-1ece8782fa96","name":"Lil Mod","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":false,"muteOtherSounds":true,"muteVoice":false,"favorited":false},{"id":"1c85f5a7-de32-4027-a6dd-b63e60e5183a","name":"Living Lo-fi","enabled":true,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"daa5fc71-d6f8-4a84-a52e-f5880f78a3ba","name":"Spacey","enabled":true,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"eb016695-1373-4794-93d0-32d38ad72163","name":"The Lovely Guy","enabled":true,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false}]},{"id":"dce944ff-8339-4c6b-85f7-2bd732ee55f2","name":"My first soundboard","enabled":true,"sounds":[{"id":"aa3c387e-4bf7-4da3-b23f-5bb930d6085b","name":"Honk","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"83e8a22d-83bf-4fd5-8e8f-0cc932f7e90e","name":"Fart","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"87d1a857-03f6-4573-a11a-0e13d2411bef","name":"Sad Trombone","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false}]},{"id":"ca544246-d3a3-45f4-9391-ab66df8e7ecc","name":"Prankster","enabled":false,"sounds":[{"id":"81eb5bd8-231a-4860-9420-154edb972434","name":"Psst","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"5be0cb51-effa-410b-a66d-597598b9b42e","name":"Alert","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"284181d5-6682-4eeb-b281-87c9341c99cf","name":"Error","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"aa3c387e-4bf7-4da3-b23f-5bb930d6085b","name":"Honk","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"87d1a857-03f6-4573-a11a-0e13d2411bef","name":"Sad Trombone","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"5256da0e-974c-4fd4-9ebd-3b6cf7ac12ca","name":"Danger","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"5a9bd21a-c397-4ebc-9bb2-bb6b385d5fe6","name":"Crickets","enabled":false,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"66785224-e301-4076-999d-1ecee2e580a1","name":"Rimshot","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"e1bd318c-becc-402d-a4fc-3dc77f1a5ea2","name":"Vibrate","enabled":false,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"adb0545c-85b2-4a60-af4e-a4ba2aabfcec","name":"Ringtone","enabled":false,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"751a7685-e4b3-4518-b447-dbcd98ebb39c","name":"Buzzer","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"be8c9972-3283-4884-95bf-875a4930c971","name":"Doorbell","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"2fee406a-d0c8-4644-b463-05dcd519dfa4","name":"Soft Knock","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"d24ef67b-fbcb-46ec-964c-2e4ffa50de15","name":"Door Opening","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4ad569cd-c211-4e96-af05-12c691b80d8d","name":"Door Slam","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"fab5f7a8-8ca1-481c-a4ab-65d5675b6d0e","name":"Scream","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"63b92ad7-198e-4a48-8d56-8b638b7cab37","name":"Cash Register","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"2eec2ea4-40a4-4ec5-abb9-c50991804c87","name":"Keyboard","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"ba089add-292b-4a87-8273-56386ecc623b","name":"Breathing","enabled":false,"playbackMode":"PlayStop","loop":true,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"adf8c15a-04ab-44c7-938e-21041037b03d","name":"Whispering","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"98b98eba-d444-4e4e-9b32-a88b10dc6e48","name":"Cement Steps","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"048f088d-09f7-4345-9ea6-ca2151921323","name":"Grass Steps","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"bbe29586-fd18-446b-842b-7331536df73e","name":"Sand Steps","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"330d9632-ecea-4c02-ac93-61ebc25fff61","name":"Wood Steps","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4e927634-bfab-4587-beca-d05bc3c9793d","name":"Green Mob","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"32874191-a096-4c8a-bc39-517180f5861e","name":"Slow Clap","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"009c7a24-fa52-4676-b5b4-3855b05c5189","name":"Burp","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"83e8a22d-83bf-4fd5-8e8f-0cc932f7e90e","name":"Fart","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"13c6c3b4-857b-4f59-a58c-0e14a6d9c41e","name":"Flush","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"1d7d5377-3c3d-4692-92a2-b8e5603baf6c","name":"Notification 1","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"2d95ef5d-4efc-4b77-ac80-4a48f50c177f","name":"Notification 2","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"558d108f-32d8-487f-9256-7e7090a4996e","name":"Notification 3","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"12048e75-a807-4d81-a5ca-fc398d01295e","name":"Rewind","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false}]},{"id":"3bfcd252-4cba-4a5d-ab77-2e1c0cd79cfb","name":"EDM","enabled":false,"sounds":[{"id":"4536e942-5984-4fb7-a90a-ccbf26689e37","name":"Full Motion","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"3cda41a3-1a49-41b6-bd29-e01d84a79e43","name":"Night Call","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"8ecf404c-d76c-4dba-8661-8b589bfbd282","name":"Oasis","enabled":true,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"42002f10-15f1-48f9-8f48-69ce69603738","name":"Room 4","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"a8a77934-95aa-4d1d-ae0e-0d0456572673","name":"Only Now","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"bf293bd8-e7e0-4ae4-8349-633388417ee5","name":"Reloading","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"44422b57-dda8-4c9a-a33a-d10dabd75602","name":"My World","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4a4b9256-3a9f-408b-a7f6-f9b38dc2bd4d","name":"Open Dream","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"68c78408-81d3-4e2b-82a2-baef6e97b039","name":"Sun Dance","enabled":false,"playbackMode":"PlayPause","loop":true,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"8b533d88-6a16-4a13-b860-46c17c30860d","name":"Airhorn","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"adc3479e-99f3-414b-b8cd-9e7867b558f8","name":"Hey DJ!","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4c1f38b0-9760-46ee-8853-c2a42c9e6e9e","name":"Rise","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"9a79f9ff-fb9d-4c91-8f9d-1e3dc09c7c36","name":"Scratch","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"38e0888d-f9f4-4314-8f80-91e303e14789","name":"Laser","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"60a7d2ac-fb02-472b-972c-594a39b08fbe","name":"Rewind","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"abe85bf5-08f2-4d50-966b-373d33c883cb","name":"Stop","enabled":true,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"b8f724c3-1fe8-4551-9ab0-d92f3a3fe832","name":"Blast","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"0b14102b-3717-4111-b26f-42ecf784b6b1","name":"Bass Drop","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":true,"muteOtherSounds":false,"muteVoice":false,"favorited":false},{"id":"4ac30256-76a3-4490-8b90-d719dee8a5a4","name":"Crowd","enabled":false,"playbackMode":"PlayRestart","loop":false,"stopOtherSounds":false,"muteOtherSounds":false,"muteVoice":false,"favorited":false}]}];
+const DEMO_DURATIONS = {"00000000-0000-4000-bcd0-000000000001":0.45,"aa3c387e-4bf7-4da3-b23f-5bb930d6085b":0.85,"284181d5-6682-4eeb-b281-87c9341c99cf":1.62,"87d1a857-03f6-4573-a11a-0e13d2411bef":3.29,"83e8a22d-83bf-4fd5-8e8f-0cc932f7e90e":2.89,"adc3479e-99f3-414b-b8cd-9e7867b558f8":5.12};
+
+// ---------- Safe storage ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+const $ = id => document.getElementById(id);
+const L = () => LOCALES[$("locale").value] || LOCALES.en;
+
+// ---------- App state ----------
+const state = {
+  mode: "demo",            // demo | connecting | live | error
+  boards: DEMO_DATA,
+  pages: [],
+  page: 0,
+  menu: null,              // { sel, until }
+  last: null,              // { name, at }
+  flash: new Map(),        // padIdx -> until (performance.now)
+  held: new Map(),         // "p3" / "f1" -> { sound, at }
+  muteForMe: false,
+  voiceChanger: true,      // Voicemod voice changer on/off
+  hearMyself: false,       // Voicemod "Hear myself"
+  watch: null,             // log watcher WebSocket
+  durations: { ...DEMO_DURATIONS }, // sound id -> natural duration in seconds
+  ws: null,
+  retry: null,
+  knobAngle: 0,
+  enc: { down: false, used: false, row: null }, // encoder button held: peek pads / browse rows
+  peek: null,              // { pad, until } name shown on the display without playing
+  ledSent: [],
+};
+
+// ---------- Case DOM ----------
+const caseEl = $("case");
+caseEl.style.setProperty("--case-w", CASE_W);
+caseEl.style.setProperty("--case-h", CASE_H);
+const mmStyle = (el, x, y, w, h) => {
+  el.style.left = `calc(var(--mm) * ${x})`; el.style.top = `calc(var(--mm) * ${y})`;
+  if (w != null) el.style.width = `calc(var(--mm) * ${w})`;
+  if (h != null) el.style.height = `calc(var(--mm) * ${h})`;
+};
+function add(cls, x, y, w, h, parent = caseEl) {
+  const el = document.createElement("div"); el.className = "abs " + cls; mmStyle(el, x, y, w, h); parent.appendChild(el); return el;
+}
+
+// M3 screws at the PCB mounting holes: corners plus the middle of the long sides
+const S = SCREW_INSET, MID_Y = Y_GRID + GRID_H / 2;
+for (const [x, y] of [[S, S], [CASE_W - S, S], [S, CASE_H - S], [CASE_W - S, CASE_H - S], [S, MID_Y], [CASE_W - S, MID_Y]])
+  add("screw", x - 2.75, y - 2.75, 5.5, 5.5);
+
+// Micro-USB opening in the left wall, in line with the Pico's connector
+add("usb-port", -0.6, PICO_USB_Y - 4, 1.6, 8);
+
+// Display window centred on the OLED module's active area (module sits right of the Pico)
+const oledWin = add("oled-window", OLED_CX - OLED_WIN_W / 2, OLED_CY - OLED_WIN_H / 2, OLED_WIN_W, OLED_WIN_H);
+const oledSmall = document.createElement("canvas"); oledSmall.width = 128; oledSmall.height = 64; oledWin.appendChild(oledSmall);
+oledWin.style.setProperty("--oled-w", OLED_ACTIVE_W); oledWin.style.setProperty("--oled-h", OLED_ACTIVE_H);
+
+// Encoder centred on the last column
+const knobX = MARGIN + PITCH * (COLS - 1) + PITCH / 2 - KNOB_D / 2;
+const knob = add("knob", knobX, Y_TOP + (TOP_H - KNOB_D) / 2, KNOB_D, KNOB_D);
+const knobRot = document.createElement("div"); knobRot.className = "rot"; knob.appendChild(knobRot);
+const knobMark = document.createElement("div"); knobMark.className = "mark"; knobRot.appendChild(knobMark);
+
+function makeKey(x, y, onDown, onUp, fn) {
+  const slot = add("slot", x, y);
+  const key = document.createElement("div"); key.className = "key" + (fn ? " fn" : "");
+  const top = document.createElement("div"); top.className = "top";
+  const legend = document.createElement("div"); legend.className = "legend";
+  top.appendChild(legend); key.appendChild(top); slot.appendChild(key);
+  key.addEventListener("pointerdown", e => { e.preventDefault(); key.setPointerCapture(e.pointerId); onDown(); });
+  key.addEventListener("pointerup", () => onUp());
+  key.addEventListener("pointercancel", () => onUp());
+  return { key, legend };
+}
+
+const fnEls = FN_IDS.map((_, i) => {
+  const k = makeKey(MARGIN + PITCH * i, Y_FN, () => fnDown(i), () => fnUp(i), true);
+  k.engrave = add("engrave", MARGIN + PITCH * i, Y_LABEL + 0.8, PITCH, 3);
+  return k;
+});
+const overlayGrid = $("overlayGrid");
+overlayGrid.style.setProperty("--cols", COLS);
+const overlayCells = Array.from({ length: PADS }, () => overlayGrid.appendChild(document.createElement("div")));
+const padEls = Array.from({ length: PADS }, (_, i) => {
+  const c = i % COLS, r = Math.floor(i / COLS);
+  return makeKey(MARGIN + PITCH * c, Y_GRID + PITCH * r, () => padDown(i), () => padUp(i), false);
+});
+// Simulator shortcut: right-click a pad to peek (on the device: hold the encoder and press the pad)
+padEls.forEach((el, i) => el.key.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const s = state.pages[state.page]?.sounds[i];
+  state.peek = { pad: i, until: performance.now() + 2500 };
+  log("sys", `peek pad ${i + 1}: ${s ? s.name : "empty"}`);
+}));
+function applyLocale() {
+  fnEls.forEach((k, i) => { k.legend.textContent = L().fn[i]; k.engrave.textContent = L().fn[i]; });
+  buildPages();
+}
+
+// ---------- Message log ----------
+const logEl = $("log");
+function log(kind, text) {
+  // Follow new messages only when the user is not reading further up
+  const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
+  const line = document.createElement("div"); line.className = kind;
+  const arrow = { pico: "Pico→PC ", pc: "PC→Pico ", vm: "API     ", lg: "VM log  ", sys: "        " }[kind];
+  line.textContent = `${new Date().toLocaleTimeString("en-GB")} ${arrow}  ${text}`;
+  logEl.appendChild(line);
+  while (logEl.childNodes.length > 500) logEl.firstChild.remove();
+  if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+}
+for (const box of document.querySelectorAll("[data-log]")) {
+  const kind = box.dataset.log;
+  box.checked = store.get("log." + kind, String(box.checked)) === "true";
+  const apply = () => { logEl.classList.toggle("hide-" + kind, !box.checked); store.set("log." + kind, String(box.checked)); };
+  box.addEventListener("change", () => { apply(); logEl.scrollTop = logEl.scrollHeight; });
+  apply();
+}
+$("clearLog").addEventListener("click", () => logEl.replaceChildren());
+
+// ---------- Pages ----------
+const soundIndex = new Map(); // id -> sound metadata
+function buildPages() {
+  const prev = state.pages[state.page];
+  soundIndex.clear();
+  for (const b of state.boards) for (const s of b.sounds) soundIndex.set(s.id, s);
+  // Favourites first (deduplicated), then every soundboard in Voicemod's order.
+  const favs = [...new Map(state.boards.flatMap(b => b.sounds).filter(s => s.favorited).map(s => [s.id, s])).values()];
+  const groups = (favs.length ? [{ id: "favorites", name: L().favorites, sounds: favs }] : []).concat(state.boards);
+  const pages = [];
+  for (const b of groups) {
+    const chunks = Math.max(1, Math.ceil(b.sounds.length / PADS));
+    for (let c = 0; c < chunks; c++) {
+      pages.push({ boardId: b.id, name: b.name, part: c + 1, parts: chunks,
+        sounds: Array.from({ length: PADS }, (_, i) => b.sounds[c * PADS + i] || null) });
+    }
+  }
+  state.pages = pages;
+  const keep = prev ? pages.findIndex(p => p.boardId === prev.boardId && p.part === prev.part) : -1;
+  state.page = keep >= 0 ? keep : 0;
+}
+function setPage(i) {
+  const n = state.pages.length; if (!n) return;
+  state.page = ((i % n) + n) % n;
+  log("sys", `page ${state.page + 1}/${n}: ${pageTitle()}`);
+}
+const pageTitle = () => { const p = state.pages[state.page]; return p ? (p.parts > 1 ? `${p.name} ${p.part}/${p.parts}` : p.name) : "—"; };
+
+// ---------- Voicemod Control API ----------
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+function vmSend(action, payload = {}) {
+  if (state.mode !== "live") return;
+  state.ws.send(JSON.stringify({ id: uuid(), action, payload }));
+  if (action !== "getAllSoundboard") log("vm", `→ ${action} ${Object.keys(payload).length ? JSON.stringify(payload) : ""}`);
+}
+function connect() {
+  const key = $("keyInput").value.trim();
+  if (!key) { log("sys", "enter the client key"); return; }
+  store.set("vm.clientKey", key);
+  disconnect(false);
+  setMode("connecting");
+  let ws;
+  try { ws = new WebSocket("ws://localhost:59129/v1/"); } catch { setMode("error"); return; }
+  state.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ id: uuid(), action: "registerClient", payload: { clientKey: key } }));
+  ws.onmessage = ev => onVmMessage(JSON.parse(ev.data));
+  ws.onclose = () => {
+    if (state.ws !== ws) return;
+    if (state.mode === "live" || state.mode === "connecting") {
+      setMode("error");
+      log("sys", "connection lost, retrying in 3 s");
+      state.retry = setTimeout(connect, 3000);
+    }
+  };
+}
+function disconnect(toDemo = true) {
+  clearTimeout(state.retry);
+  if (state.ws) { const ws = state.ws; state.ws = null; ws.close(); }
+  if (toDemo) { state.boards = DEMO_DATA; buildPages(); engine.reset(); setMode("demo"); }
+}
+function onVmMessage(m) {
+  const type = m.actionType || m.action || m.type;
+  const status = m.payload?.status || m.actionObject?.status;
+  if (type === "registerClient" && status) {
+    if (Number(status.code) === 200) {
+      setMode("live"); engine.reset(); log("vm", "← registerClient 200 Authorized");
+      vmSend("getAllSoundboard"); vmSend("getMuteMemeForMeStatus");
+      vmSend("getVoiceChangerStatus"); vmSend("getHearMyselfStatus");
+      requestSnapshot();
+    } else {
+      log("vm", `← registerClient ${status.code} ${status.description}`);
+      disconnect(false); setMode("error"); $("statusText").textContent = "Key rejected";
+    }
+    return;
+  }
+  if (type === "getAllSoundboard" && m.actionObject?.soundboards) {
+    state.boards = m.actionObject.soundboards; buildPages();
+    log("vm", `← getAllSoundboard (${state.boards.length} soundboards)`);
+  } else if ((type === "toggleMuteMemeForMe" || type === "getMuteMemeForMeStatus") && m.actionObject) {
+    state.muteForMe = !!m.actionObject.value;
+    log("vm", `← mute for me: ${state.muteForMe ? "ON" : "OFF"}`);
+  } else if (type === "toggleVoiceChanger" && m.actionObject) {
+    state.voiceChanger = !!m.actionObject.value;
+    log("vm", `← voice changer: ${state.voiceChanger ? "ON" : "OFF"}`);
+  } else if (type === "voiceChangerEnabledEvent" || type === "voiceChangerDisabledEvent") {
+    state.voiceChanger = type === "voiceChangerEnabledEvent";
+  } else if (type === "toggleHearMyVoice" && m.actionObject) {
+    state.hearMyself = !!m.actionObject.value;
+    log("vm", `← hear myself: ${state.hearMyself ? "ON" : "OFF"}`);
+  } else if (type === "getActiveSoundboardProfile" && m.payload?.profileId) {
+    // The user switched soundboard inside Voicemod: follow it, like Voicemod's own UI.
+    const i = state.pages.findIndex(p => p.boardId === m.payload.profileId);
+    log("vm", `← active soundboard changed`);
+    if (i >= 0) setPage(i);
+  }
+}
+function setMode(mode) {
+  state.mode = mode;
+  $("statusDot").className = "dot " + ({ live: "live", demo: "demo", error: "err", connecting: "demo" }[mode]);
+  $("statusText").textContent = { live: "Connected to Voicemod", demo: "Demo (sample data)", error: "Voicemod unreachable", connecting: "Connecting…" }[mode];
+}
+
+// ---------- Sound engine ----------
+// Mirrors Voicemod's per-sound state machine, verified with tools/voicemod_experiments.py:
+//   PlayRestart  press restarts; plays until its natural end (forever if loop)
+//   PlayOverlap  every press adds an instance (inferred, not yet verified)
+//   PlayStop     press toggles play/stop
+//   PlayPause    press toggles play/pause; a paused sound stays active
+//   PlayLoopOnPress  plays while the key is held
+//   stopOtherSounds stops every other sound when the sound starts from stopped
+//   STOP (stopAllMemeSounds) stops everything, paused sounds included
+// A pad press is applied at once as a prediction. When the log watcher runs, the
+// matching log lines (~1 s late) confirm it; anything unexpected (sounds started from
+// Voicemod itself, ends of sounds with unknown duration) corrects the state.
+const watcherLive = () => !!state.watch && state.mode === "live";
+const fallbackMs = () => Number($("dur").value) * 1000;
+const engine = {
+  sounds: new Map(),   // id -> { state: "playing"|"paused", count, startedAt, eta, remaining }
+  changed: new Map(),  // id -> epoch ms of the last change applied to that sound
+  pending: [],         // predicted log lines waiting for confirmation: { type, id, t, repeat }
+  reset() { this.sounds.clear(); this.changed.clear(); this.pending = []; },
+};
+function naturalEta(s, from) {
+  if (!s || s.loop || s.playbackMode === "PlayLoopOnPress") return null;
+  const d = state.durations[s.id];
+  if (d) return from + d * 1000;
+  return watcherLive() ? null : from + fallbackMs(); // with the watcher, wait for the real end
+}
+function setSound(id, entry, t) {
+  if (entry) engine.sounds.set(id, entry); else engine.sounds.delete(id);
+  engine.changed.set(id, t);
+}
+function predict(type, id, t, repeat) { if (watcherLive()) engine.pending.push({ type, id, t, repeat }); }
+
+function pressSound(s, t) {
+  const cur = engine.sounds.get(s.id);
+  if (!cur) {
+    if (s.stopOtherSounds) for (const id of [...engine.sounds.keys()]) { setSound(id, null, t); predict("end", id, t); }
+    setSound(s.id, { state: "playing", count: 1, startedAt: t, eta: naturalEta(s, t) }, t);
+    predict("play", s.id, t, false);
+    return;
+  }
+  predict("play", s.id, t, true);
+  if (cur.state === "paused") {
+    setSound(s.id, { ...cur, state: "playing", eta: cur.remaining != null ? t + cur.remaining : null, remaining: null }, t);
+    return;
+  }
+  switch (s.playbackMode) {
+    case "PlayPause":
+      setSound(s.id, { ...cur, state: "paused", remaining: cur.eta ? cur.eta - t : null, eta: null }, t);
+      break;
+    case "PlayRestart":
+      setSound(s.id, { ...cur, startedAt: t, eta: naturalEta(s, t) }, t);
+      break;
+    case "PlayOverlap": {
+      const eta = naturalEta(s, t);
+      setSound(s.id, { ...cur, count: cur.count + 1, eta: eta && cur.eta ? Math.max(eta, cur.eta) : (eta ?? cur.eta) }, t);
+      break;
+    }
+    default: // PlayStop: a second press stops it
+      setSound(s.id, null, t); predict("end", s.id, t);
+  }
+}
+function releaseSound(s, t) { // PlayLoopOnPress key-up
+  if (!engine.sounds.has(s.id)) return;
+  predict("play", s.id, t, true); predict("end", s.id, t);
+  setSound(s.id, null, t);
+}
+function stopAllSounds(t) {
+  predict("stopAll", null, t);
+  for (const id of [...engine.sounds.keys()]) { setSound(id, null, t); predict("end", id, t); }
+}
+function tickEngine(t) {
+  for (const [id, e] of engine.sounds) {
+    if (e.state === "playing" && e.eta && e.eta <= t) { setSound(id, null, e.eta); predict("end", id, e.eta); }
+  }
+  const expired = engine.pending.filter(p => t - p.t > LOG_CONFIRM_TIMEOUT_MS);
+  if (expired.length) {
+    engine.pending = engine.pending.filter(p => t - p.t <= LOG_CONFIRM_TIMEOUT_MS);
+    log("sys", `${expired.length} prediction(s) not confirmed by the log, resyncing`);
+    requestSnapshot();
+  }
+}
+const soundName = id => soundIndex.get(id)?.name || id?.slice(0, 8);
+function onLogEvent(ev) {
+  const t = ev.t * 1000;
+  if (ev.duration) state.durations[ev.id] = ev.duration;
+  const i = engine.pending.findIndex(p => p.type === ev.type && p.id === (ev.id ?? null)
+    && Math.abs(p.t - t) < LOG_CONFIRM_WINDOW_MS && (p.repeat === undefined || p.repeat === ev.repeat));
+  const label = ev.type === "stopAll" ? "stop all" : `${ev.type} ${soundName(ev.id)} → ${ev.state}${ev.played ? ` after ${ev.played}s` : ""}`;
+  if (i >= 0) { engine.pending.splice(i, 1); log("lg", `${label} (confirmed)`); return; }
+  if (ev.type === "stopAll") {
+    for (const id of [...engine.sounds.keys()]) if ((engine.changed.get(id) ?? 0) <= t + 50) setSound(id, null, t);
+    log("lg", label); return;
+  }
+  // A local change newer than this line wins: the line describes an older moment.
+  if ((engine.changed.get(ev.id) ?? 0) > t + 150) { log("lg", `${label} (stale, ignored)`); return; }
+  log("lg", `${label} (from Voicemod)`);
+  if (ev.state === "stopped") { setSound(ev.id, null, t); return; }
+  const s = soundIndex.get(ev.id), cur = engine.sounds.get(ev.id);
+  const entry = cur ? { ...cur } : { startedAt: t, eta: naturalEta(s, t), remaining: null };
+  if (ev.type === "play" && !ev.repeat) { entry.startedAt = t; entry.eta = naturalEta(s, t); }
+  if (ev.state === "paused" && cur?.state !== "paused") { entry.remaining = entry.eta ? entry.eta - t : null; entry.eta = null; }
+  if (ev.state === "playing" && cur?.state === "paused") { entry.eta = entry.remaining != null ? t + entry.remaining : null; entry.remaining = null; }
+  entry.state = ev.state; entry.count = ev.count;
+  setSound(ev.id, entry, t);
+}
+function onSnapshot(ev) {
+  Object.assign(state.durations, ev.durations);
+  store.set("vm.durations", JSON.stringify(state.durations));
+  if (state.mode !== "live") return;
+  const asOf = ev.asOf * 1000, now = ev.now * 1000;
+  const snap = new Map(ev.sounds.map(x => [x.id, x]));
+  for (const id of new Set([...engine.sounds.keys(), ...snap.keys()])) {
+    if ((engine.changed.get(id) ?? 0) > asOf + 50) continue; // local change newer than the snapshot
+    const x = snap.get(id), s = soundIndex.get(id);
+    if (!x) { if (engine.sounds.has(id)) setSound(id, null, asOf); continue; }
+    const startedAt = x.t * 1000, eta = naturalEta(s, startedAt);
+    // A non-loop sound "playing" past its known duration is a Voicemod orphan: it is silent.
+    if (x.state === "playing" && eta && eta < now - 1000) { if (engine.sounds.has(id)) setSound(id, null, asOf); continue; }
+    setSound(id, { state: x.state, count: x.count, startedAt, eta: x.state === "playing" ? eta : null, remaining: null }, asOf);
+  }
+  engine.pending = engine.pending.filter(p => p.t > asOf);
+  log("lg", `snapshot: ${ev.sounds.length} active sound(s)`);
+}
+
+// ---------- Log watcher (tools/voicemod_log_bridge.py) ----------
+function connectWatcher() {
+  let ws;
+  try { ws = new WebSocket("ws://localhost:59200"); } catch { return; }
+  ws.onopen = () => { state.watch = ws; setWatchStatus(); log("sys", "log watcher connected: real playback state"); };
+  ws.onmessage = ev => {
+    const e = JSON.parse(ev.data);
+    if (e.type === "snapshot") onSnapshot(e);
+    else if (state.mode === "live") onLogEvent(e);
+  };
+  ws.onclose = () => {
+    if (state.watch === ws) { state.watch = null; engine.pending = []; setWatchStatus(); log("sys", "log watcher disconnected: falling back to estimates"); }
+    setTimeout(connectWatcher, 3000);
+  };
+}
+function requestSnapshot() { if (state.watch) state.watch.send(JSON.stringify({ type: "snapshot" })); }
+function setWatchStatus() {
+  $("watchDot").className = "dot " + (state.watch ? "live" : "demo");
+  $("watchText").textContent = state.watch ? "Playback: real (Voicemod log)" : "Playback: estimated (log watcher off)";
+}
+
+// ---------- Pads and function keys ----------
+function padDown(i) {
+  const key = "p" + i;
+  if (state.held.has(key)) return;
+  const s = state.pages[state.page]?.sounds[i] || null;
+  log("pico", `PAD,${i},1`);
+  padEls[i].key.classList.add("down");
+  if (state.enc.down) { // peek: show the name, play nothing
+    state.enc.used = true;
+    state.held.set(key, { peek: true });
+    state.peek = { pad: i, until: performance.now() + 2500 };
+    log("sys", `peek pad ${i + 1}: ${s ? s.name : "empty"}`);
+    return;
+  }
+  state.held.set(key, { sound: s, at: performance.now() }); // the release goes to the same sound even after a page change
+  state.flash.set(i, performance.now() + FLASH_MS);
+  if (!s) return;
+  if (!s.enabled) { log("sys", `"${s.name}" is not included in the current licence`); return; }
+  vmSend("playMeme", { FileName: s.id, IsKeyDown: true });
+  state.last = { name: s.name, at: performance.now() };
+  pressSound(s, Date.now());
+}
+function padUp(i) {
+  const key = "p" + i, held = state.held.get(key);
+  if (!held) return;
+  state.held.delete(key);
+  log("pico", `PAD,${i},0`);
+  padEls[i].key.classList.remove("down");
+  const s = held.sound;
+  if (held.peek) return;
+  // Voicemod treats every playMeme as a new press: only hold-to-play sounds get the key-up.
+  if (!s || !s.enabled || s.playbackMode !== "PlayLoopOnPress") return;
+  const wait = Math.max(0, held.at + LOOP_ON_PRESS_MIN_HOLD_MS - performance.now());
+  setTimeout(() => { vmSend("playMeme", { FileName: s.id, IsKeyDown: false }); releaseSound(s, Date.now()); }, wait);
+}
+function fnDown(i) {
+  const key = "f" + i;
+  if (state.held.has(key)) return;
+  state.held.set(key, {});
+  fnEls[i].key.classList.add("down");
+  log("pico", `BTN,${i},1`);
+  const id = FN_IDS[i];
+  if (id === "PREV") setPage(state.page - 1);
+  if (id === "NEXT") setPage(state.page + 1);
+  if (id === "STOP") { vmSend("stopAllMemeSounds"); stopAllSounds(Date.now()); state.last = { name: L().stop, at: performance.now() }; }
+  if (id === "MUTE") { if (state.mode === "live") vmSend("toggleMuteMemeForMe"); else state.muteForMe = !state.muteForMe; }
+  if (id === "VOICE") { if (state.mode === "live") vmSend("toggleVoiceChanger"); else state.voiceChanger = !state.voiceChanger; }
+  if (id === "HEAR") { if (state.mode === "live") vmSend("toggleHearMyVoice"); else state.hearMyself = !state.hearMyself; }
+}
+function fnUp(i) {
+  if (!state.held.delete("f" + i)) return;
+  fnEls[i].key.classList.remove("down");
+  log("pico", `BTN,${i},0`);
+}
+
+// ---------- Encoder ----------
+// rotate = page (or menu selection) · tap = soundboard menu
+// hold + rotate = row overview (6 pads light up, the display lists their names) · hold + pad = peek
+function encRotate(dir) {
+  state.knobAngle += dir * DETENT_DEG;
+  knobRot.style.transform = `rotate(${state.knobAngle}deg)`;
+  log("pico", `ENC,${dir > 0 ? "+1" : "-1"}`);
+  if (state.enc.down) {
+    state.enc.used = true;
+    const r = state.enc.row;
+    state.enc.row = r === null ? (dir > 0 ? 0 : ROWS - 1) : (r + dir + ROWS) % ROWS;
+    state.peek = null;
+  } else if (state.menu) {
+    state.menu.sel = Math.max(0, Math.min(state.pages.length - 1, state.menu.sel + dir));
+    state.menu.until = performance.now() + 6000;
+  } else setPage(state.page + dir);
+}
+function encPress(down) {
+  if (down === state.enc.down) return;
+  knob.classList.toggle("pressed", down);
+  log("pico", `ENCBTN,${down ? 1 : 0}`);
+  if (down) { state.enc = { down: true, used: false, row: null }; return; }
+  const tap = !state.enc.used;
+  state.enc = { down: false, used: false, row: null };
+  if (!tap) return;
+  if (state.menu) { setPage(state.menu.sel); state.menu = null; }
+  else state.menu = { sel: state.page, until: performance.now() + 6000 };
+}
+// Simulator input: wheel = rotate; press on the knob = push (drag while pressed = push and turn)
+knob.addEventListener("wheel", e => { e.preventDefault(); encRotate(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+let drag = null;
+knob.addEventListener("pointerdown", e => {
+  knob.setPointerCapture(e.pointerId);
+  const r = knob.getBoundingClientRect();
+  drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, acc: 0 };
+  drag.last = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+  encPress(true);
+});
+knob.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+  let d = (a - drag.last) * 180 / Math.PI; if (d > 180) d -= 360; if (d < -180) d += 360;
+  drag.last = a; drag.acc += d;
+  while (Math.abs(drag.acc) >= DETENT_DEG) { const dir = Math.sign(drag.acc); encRotate(dir); drag.acc -= dir * DETENT_DEG; }
+});
+const knobUp = () => { if (drag) { drag = null; encPress(false); } };
+knob.addEventListener("pointerup", knobUp);
+knob.addEventListener("pointercancel", knobUp);
+
+// ---------- Keyboard ----------
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input, select")) return;
+  const k = e.key.toLowerCase();
+  if (PAD_KEYS.includes(k)) { e.preventDefault(); padDown(PAD_KEYS.indexOf(k)); }
+  else if (FN_KEYS_KB.includes(k)) { e.preventDefault(); fnDown(FN_KEYS_KB.indexOf(k)); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); encRotate(1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); encRotate(-1); }
+  else if (e.key === "Enter" && !e.repeat) { e.preventDefault(); encPress(true); }
+});
+document.addEventListener("keyup", e => {
+  const k = e.key.toLowerCase();
+  if (PAD_KEYS.includes(k)) padUp(PAD_KEYS.indexOf(k));
+  else if (FN_KEYS_KB.includes(k)) fnUp(FN_KEYS_KB.indexOf(k));
+  else if (e.key === "Enter") encPress(false);
+});
+
+// ---------- LEDs ----------
+function padColor(i, now) {
+  if (state.mode === "error") return Math.floor(now / 400) % 2 ? COLORS.red : COLORS.off;
+  if (state.enc.down && state.enc.row !== null) { // row overview: selected row white, the rest dimmed
+    if (Math.floor(i / COLS) === state.enc.row) return [200, 200, 210];
+    return padStateColor(i, now).map(v => v * 0.2);
+  }
+  if (state.peek && state.peek.pad === i && state.peek.until > now) return Math.floor(now / 250) % 2 ? [200, 200, 210] : COLORS.off;
+  if ((state.flash.get(i) || 0) > now) return COLORS.yellow;
+  return padStateColor(i, now);
+}
+function padStateColor(i, now) {
+  const s = state.pages[state.page]?.sounds[i];
+  if (!s) return COLORS.off;
+  if (!s.enabled) return COLORS.dim;
+  const e = engine.sounds.get(s.id);
+  if (!e) return COLORS.blue;
+  if (e.state === "paused") { // breathing green, quantised so the LED log stays readable
+    const k = 0.25 + 0.75 * Math.round((0.5 + 0.5 * Math.cos(now / 1400 * 2 * Math.PI)) * 4) / 4;
+    return COLORS.green.map(v => v * k);
+  }
+  return COLORS.green;
+}
+// Function key LEDs mirror Voicemod's toggles; LED indexes PADS..PADS+5 in the chain
+function fnColor(i, now) {
+  if (state.mode === "error") return Math.floor(now / 400) % 2 ? COLORS.red : COLORS.off;
+  switch (FN_IDS[i]) {
+    case "PREV": case "NEXT": return state.pages.length > 1 ? COLORS.white : COLORS.off;
+    case "STOP": return engine.sounds.size ? COLORS.red : COLORS.off;
+    case "MUTE": return state.muteForMe ? COLORS.amber : COLORS.off;
+    case "VOICE": return state.voiceChanger ? COLORS.green : COLORS.off;
+    case "HEAR": return state.hearMyself ? COLORS.green : COLORS.off;
+  }
+  return COLORS.off;
+}
+const rgb = c => `rgb(${c.join(",")})`;
+function renderLeds(now) {
+  const bri = Number($("bri").value) / 100;
+  const translucent = $("translucent").checked;
+  const names = $("names").checked;
+  const leds = [...padEls.map((el, i) => [el, padColor(i, now), true]), ...fnEls.map((el, i) => [el, fnColor(i, now), false])];
+  leds.forEach(([el, color, isPad], i) => {
+    const c = color.map(v => Math.round(v * bri));
+    const on = c.some(v => v > 0);
+    el.key.style.setProperty("--glow", on ? `rgba(${c.join(",")},.9)` : "transparent");
+    el.key.style.setProperty("--tint", on ? rgb(c) : "#777");
+    el.key.classList.toggle("translucent", translucent);
+    if (isPad) {
+      const s = state.pages[state.page]?.sounds[i];
+      const text = names && s ? s.name : "";
+      if (el.legend.textContent !== text) el.legend.textContent = text;
+      const cell = overlayCells[i], name = s ? s.name : "";
+      if (cell.textContent !== name) cell.textContent = name;
+      cell.style.borderColor = on ? rgb(color) : "var(--line)";
+      cell.style.background = on ? `rgba(${color.join(",")},.18)` : "transparent";
+      cell.classList.toggle("dim", !!s && !s.enabled);
+    }
+    // Log colour changes only, as the PC would send them to the Pico
+    const key = c.join(",");
+    if (state.ledSent[i] !== key) { state.ledSent[i] = key; if (state.ledSent.ready) log("pc", `LED,${i},${key}`); }
+  });
+  state.ledSent.ready = true;
+}
+
+// ---------- 128×64 OLED (thresholded, monochrome) ----------
+const off = document.createElement("canvas"); off.width = 128; off.height = 64;
+const octx = off.getContext("2d", { willReadFrequently: true });
+const zoom = $("oledZoom");
+function fit(text, max, font) {
+  octx.font = font; if (octx.measureText(text).width <= max) return text;
+  while (text.length && octx.measureText(text + "…").width > max) text = text.slice(0, -1);
+  return text + "…";
+}
+function statusRight(t) {
+  // Focus on the most recently changed active sound
+  let focus = null, focusAt = -1;
+  for (const [id, e] of engine.sounds) { const at = engine.changed.get(id) ?? 0; if (at > focusAt) { focus = [id, e]; focusAt = at; } }
+  const parts = [];
+  if ([...engine.sounds.keys()].some(id => soundIndex.get(id)?.muteVoice)) parts.push(L().micOff);
+  if (focus) {
+    const [id, e] = focus, s = soundIndex.get(id);
+    if (e.state === "paused") parts.push(L().paused);
+    else if (s?.loop || s?.playbackMode === "PlayLoopOnPress") parts.push(L().loop);
+    else if (e.eta) parts.push(`${(Math.max(0, e.eta - t) / 1000).toFixed(1)}s`);
+  } else if (state.muteForMe) parts.push(L().muteMe);
+  else if (!state.voiceChanger) parts.push(L().voiceOff);
+  else if (state.hearMyself) parts.push(L().hearMe);
+  return parts.join(" ");
+}
+function drawOled(now) {
+  octx.fillStyle = "#000"; octx.fillRect(0, 0, 128, 64);
+  octx.fillStyle = "#fff"; octx.textBaseline = "top";
+  const small = "8px Silkscreen, monospace", big = "16px Silkscreen, monospace";
+  if (state.mode === "error" || state.mode === "connecting") {
+    octx.font = big; octx.textAlign = "center";
+    octx.fillText("VOICEMOD", 64, 14);
+    octx.font = small; octx.fillText(state.mode === "error" ? L().unreachable : L().connecting, 64, 38);
+    octx.textAlign = "left";
+  } else if (state.enc.down && state.enc.row !== null) {
+    drawRowOverview();
+  } else if (state.peek && (state.peek.until > now || state.enc.down)) {
+    drawPeek(state.peek.pad);
+  } else if (state.menu && state.menu.until < now) {
+    state.menu = null;
+    return drawOled(now);
+  } else if (state.menu) {
+    octx.font = small; octx.fillText(L().soundboards, 1, 1);
+    octx.fillRect(0, 11, 128, 1);
+    const start = Math.max(0, Math.min(state.menu.sel - 1, state.pages.length - 4));
+    for (let r = 0; r < 4; r++) {
+      const idx = start + r, p = state.pages[idx]; if (!p) break;
+      const y = 14 + r * 12;
+      const label = p.parts > 1 ? `${p.name} ${p.part}/${p.parts}` : p.name;
+      if (idx === state.menu.sel) { octx.fillRect(0, y - 2, 128, 11); octx.fillStyle = "#000"; }
+      octx.fillText(fit(label, 124, small), 2, y);
+      octx.fillStyle = "#fff";
+    }
+  } else {
+    const p = state.pages[state.page];
+    octx.font = small;
+    const counter = `${state.page + 1}/${state.pages.length}`;
+    const cw = Math.round(octx.measureText(counter).width);
+    octx.fillText(fit(pageTitle(), 127 - cw - 4, small), 1, 1);
+    octx.fillText(counter, 127 - cw, 1);
+    octx.fillRect(0, 11, 128, 1);
+    octx.font = big;
+    const lastName = state.last && now - state.last.at < 8000 ? state.last.name : (p ? L().ready : L().noSound);
+    octx.textAlign = "center"; octx.fillText(fit(lastName, 126, big), 64, 24); octx.textAlign = "left";
+    octx.font = small;
+    octx.fillText({ live: "LIVE", demo: "DEMO" }[state.mode] || "", 1, 55);
+    const right = statusRight(Date.now());
+    const rw = Math.round(octx.measureText(right).width); octx.fillText(right, 127 - rw, 55);
+  }
+  // Threshold -> lit/unlit pixels in the panel colour
+  const src = octx.getImageData(0, 0, 128, 64), out = new ImageData(128, 64);
+  const mode = $("oledColor").value;
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+    const o = (y * 128 + x) * 4, lit = src.data[o] > 127;
+    const col = !lit ? [0, 0, 0] : mode === "white" ? [235, 240, 255] : mode === "blue" ? [90, 200, 255] : (y < 16 ? [255, 214, 60] : [90, 200, 255]);
+    out.data.set([...col, 255], o);
+  }
+  for (const c of [oledSmall, zoom]) c.getContext("2d").putImageData(out, 0, 0);
+}
+
+function invertedHeader(left, right) {
+  octx.fillRect(0, 0, 128, 9); octx.fillStyle = "#000"; octx.font = "8px Silkscreen, monospace";
+  octx.fillText(left, 1, 1);
+  if (right) octx.fillText(right, 127 - Math.round(octx.measureText(right).width), 1);
+  octx.fillStyle = "#fff";
+}
+function drawRowOverview() {
+  const r = state.enc.row, sounds = state.pages[state.page]?.sounds || [];
+  invertedHeader(`${L().row} ${r + 1}/${ROWS}`, `${state.page + 1}/${state.pages.length}`);
+  octx.font = "8px Silkscreen, monospace";
+  for (let c = 0; c < COLS; c++) {
+    const snd = sounds[r * COLS + c];
+    octx.fillText(fit(`${c + 1} ${snd ? snd.name : "-"}`, 126, octx.font), 1, 10 + c * 9);
+  }
+}
+function drawPeek(pad) {
+  const snd = state.pages[state.page]?.sounds[pad];
+  const small = "8px Silkscreen, monospace", big = "16px Silkscreen, monospace";
+  invertedHeader(`R${Math.floor(pad / COLS) + 1} C${pad % COLS + 1}`, `${state.page + 1}/${state.pages.length}`);
+  octx.textAlign = "center";
+  octx.font = big;
+  const name = snd ? snd.name : L().empty;
+  if (octx.measureText(name).width <= 126) octx.fillText(name, 64, 20);
+  else { octx.font = small; octx.fillText(fit(name, 126, small), 64, 24); }
+  octx.textAlign = "left"; octx.font = small;
+  if (!snd) return;
+  const d = state.durations[snd.id];
+  const info = !snd.enabled ? L().locked
+    : [L().modes[snd.playbackMode] || snd.playbackMode, snd.loop && snd.playbackMode !== "PlayLoopOnPress" ? L().loop : (d ? `${d.toFixed(1)}s` : "")].filter(Boolean).join(" ");
+  octx.fillText(fit(info, 126, small), 1, 45);
+  if (snd.stopOtherSounds && snd.enabled) octx.fillText(L().stopsOthers, 1, 55);
+}
+
+// ---------- Settings ----------
+function applyMm(v) {
+  document.documentElement.style.setProperty("--mm", v + "px"); $("mmVal").textContent = Number(v).toFixed(2);
+  $("scaleNote").textContent = `1:1 scale · case ${CASE_W.toFixed(1)} × ${CASE_H.toFixed(1)} mm · key pitch ${PITCH} mm · calibrate with a credit card`;
+}
+$("mm").value = store.get("ui.mm", (96 / 25.4).toFixed(2)); applyMm($("mm").value);
+$("mm").addEventListener("input", e => { applyMm(e.target.value); store.set("ui.mm", e.target.value); });
+$("calibBtn").addEventListener("click", () => $("calib").classList.toggle("show"));
+const bindOut = (id, outId, fmt) => { const f = () => $(outId).textContent = fmt($(id).value); $(id).addEventListener("input", f); f(); };
+bindOut("dur", "durVal", v => `${v} s`);
+bindOut("bri", "briVal", v => `${v}%`);
+$("capColor").value = store.get("ui.cap", "#2a2c31");
+const applyCap = () => { document.documentElement.style.setProperty("--cap", $("capColor").value); store.set("ui.cap", $("capColor").value); };
+$("capColor").addEventListener("change", applyCap); applyCap();
+$("oledColor").value = store.get("ui.oled", "white");
+$("oledColor").addEventListener("change", e => store.set("ui.oled", e.target.value));
+$("locale").value = store.get("ui.locale", "en");
+$("locale").addEventListener("change", e => { store.set("ui.locale", e.target.value); applyLocale(); });
+$("keyInput").value = store.get("vm.clientKey", "");
+$("connectBtn").addEventListener("click", connect);
+$("demoBtn").addEventListener("click", () => { disconnect(true); log("sys", "demo mode"); });
+
+// ---------- Start ----------
+try { Object.assign(state.durations, JSON.parse(store.get("vm.durations", "{}"))); } catch {}
+applyLocale(); setMode("demo"); setWatchStatus();
+log("sys", "dummy board ready");
+connectWatcher();
+if ($("keyInput").value) connect();
+const pageText = $("pageText");
+(function frame(now) {
+  tickEngine(Date.now());
+  renderLeds(now); drawOled(now);
+  const label = `Page ${state.page + 1}/${state.pages.length} · ${pageTitle()}`;
+  if (pageText.textContent !== label) pageText.textContent = label;
+  requestAnimationFrame(frame);
+})(performance.now());
+</script>
+</body>
+</html>

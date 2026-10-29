@@ -1,0 +1,495 @@
+# DIY physical soundboard for Voicemod
+
+> Note: the project is in English. The OLED display texts can be localised; the unit built for the author's friend shows them in Italian.
+
+> Project document  
+> Status: design decided (6×6 layout, custom PCB, USB-only power); measurements of the real parts and PCB design in progress.
+
+**Changelog**
+- 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
+
+## 1. Goal
+
+Build a custom, inexpensive, 3D-printed physical soundboard to use with Voicemod on a PC.
+
+The device will have:
+- **36 sound pads** in a 6×6 grid to trigger sounds.
+- **A row of 6 function keys**: PREV page, NEXT page, STOP, MUTE ME, VOICE, HEAR ME.
+- **An EC11 rotary encoder with push button**: rotate = page, tap = soundboard menu, hold = identify sounds.
+- **42 addressable RGB LEDs** (SK6812 MINI-E, reverse-mount), one under each pad and function key, to show sound availability and status.
+- **A 1.3" OLED display** (128×64, SH1106, I²C) showing the page, the last sound and the playback/device status.
+- **A custom 2-layer PCB** carrying the key matrix, the LEDs and all the electronics.
+- **A single USB cable** to the PC for both data and power: no second power supply.
+- **A desktop bridge app** on the friend's Windows PC that connects the physical controls to Voicemod.
+
+The project favours readily available components, a repairable structure and the ability to extend it in the future. The friend must never need to touch the board: bug fixes ship as bridge-app updates.
+
+### Quality bar: a sellable product
+
+The device must look and feel like a finished commercial product, not a prototype. Every part of the project is held to this bar; "it works" is not enough if it looks or behaves like a hobby build.
+
+**Cost target:** the total parts cost of one unit (PCB and assembly, components, switches, keycaps, enclosure filament, cable) must stay **at or below €50**, otherwise the product makes no sense. Quality comes from design and software, not from expensive parts: every component choice is checked against this target, prefers the fab's basic parts and bulk sources, and avoids paid options that do not change how the product looks or works.
+
+- **Display UI:** a designed interface, not debug text. Consistent layout grid with a 1 px safe margin, one custom pixel font with full Italian accents (à è é ì ò ù), small icons for states (mic off, loop, pause, mute) instead of words where possible, a remaining-time bar, smooth scrolling for long names, short page transitions, double-buffered drawing (no flicker), a boot splash, and clear, actionable error screens (e.g. "Open Voicemod" instead of "WS error").
+- **Display care:** brightness control, dim and blank on idle, pixel shift (see "Burn-in protection").
+- **LEDs:** gamma-corrected colours balanced for equal perceived brightness, short fades (≈100–200 ms) instead of hard on/off, a subtle power-on animation, and a power limiter that dims smoothly with no visible steps.
+- **Enclosure:** ergonomic and soft-edged, but easy to print on a P1S without supports:
+  - rounded visible edges (fillets); bed-facing edges chamfered so they print cleanly;
+  - a slight typing angle built into the shape;
+  - no screws visible from the top: M3 screws enter from the bottom;
+  - seams placed at the back, consistent wall thickness, no support marks on visible faces;
+  - consider printing the top face down on the textured PEI plate for an even matte texture;
+  - tolerances proven with small test prints before the full print.
+- **Connections:** the USB-C cable exits cleanly from the top (back) edge with strain relief; the knob and keycaps sit straight and aligned.
+- **PCB:** colour is irrelevant (cheapest standard option); the silkscreen carries the project name, the logo (to be chosen) and the hardware version.
+- **Desktop app:** one-click installer, auto-start, tray icon, silent auto-update with firmware updates and a progress bar, and a polished settings window. A Windows code-signing certificate is worth evaluating, since unsigned installers trigger SmartScreen warnings.
+
+## 2. General architecture
+
+The system is split into three parts:
+
+1. **Hardware controller — Raspberry Pi Pico RP2040**
+   - Scans the key matrix (36 pads + 6 function keys) and reads the encoder.
+   - Drives the 42 LEDs and the OLED display, following updates from the bridge app.
+   - Communicates with the PC over USB serial.
+   - Enforces the LED power limit in firmware (see section 6).
+   - Can be rebooted into its USB bootloader by a command from the app, so firmware updates do not need physical BOOTSEL access.
+   - The standard Pico RP2040 is sufficient; the Pico W's Wi-Fi is not needed.
+
+2. **Bridge app on the PC (Windows)**
+   - Manages pages (36 sounds each, in Voicemod's soundboard order, plus a Favourites page).
+   - Receives events from the Pico and sends commands to Voicemod through the official Control API.
+   - Includes the Voicemod log watcher, which provides the real playback state (see section 8).
+   - Sends pad colours and display contents to the Pico.
+   - Shows a 6×6 overlay on the PC screen with sound names and live LED colours.
+   - Updates the Pico firmware when needed.
+   - Installed once with an installer and started automatically with Windows.
+
+3. **Voicemod**
+   - Plays sounds; all playback semantics stay inside Voicemod (see "Voicemod soundboard behaviour (verified)").
+   - Integration verified with the official Control API and an official client key; the keyboard-shortcut fallback is no longer needed.
+
+### Expected flow
+
+`Pad / button / encoder → Pico → USB → bridge app → Voicemod`
+
+For visual updates:
+
+`Voicemod (Control API + log) → bridge app → USB → Pico → LEDs + OLED`
+
+## 3. Control mapping
+
+### Main pads
+
+- **36 pads**, arranged in a 6×6 grid.
+- Each page shows 36 sounds, following Voicemod's soundboard order; a **Favourites** page collects the `favorited` sounds.
+- A pad press is exactly a click on the sound in Voicemod.
+- A pad without a sound stays unlit; sounds not included in the licence are shown in dim red and not sent.
+
+### Function keys
+
+A row of **6 function keys** above/below the grid:
+
+| Key | Action | Voicemod Control API | LED |
+|---|---|---|---|
+| PREV | Previous page | — (handled by the app) | Dim white when more pages exist |
+| NEXT | Next page | — (handled by the app) | Dim white when more pages exist |
+| STOP | Stops everything, paused sounds included | `stopAllMemeSounds` | Red while any sound plays |
+| MUTE ME | "Mute for me" on/off | `toggleMuteMemeForMe` | Amber when on |
+| VOICE | Voice changer on/off | `toggleVoiceChanger` | Green when on |
+| HEAR ME | "Hear myself" on/off | `toggleHearMyVoice` | Green when on |
+
+There is no per-sound stop in the API: a single sound is stopped through its own playback mode, as in Voicemod.
+
+### EC11 encoder
+
+Incremental encoder with continuous rotation and integrated push button (3 GPIOs, 3.3 V logic):
+- **rotate** = change page;
+- **tap** = soundboard menu (choose the active soundboard);
+- **hold + press a pad** = peek (see below);
+- **hold + rotate** = row overview (see below).
+
+### Identifying sounds without key displays
+
+The keycaps have no legends or screens, so sounds are identified in other ways:
+
+1. **Peek:** hold the encoder button and press a pad → the display shows the sound's name, the pad flashes, no sound is played.
+2. **Row overview:** hold the encoder button and rotate → one row of 6 pads lights white and the display lists their names.
+3. **PC overlay:** the bridge app shows a 6×6 grid on the PC screen with the names and live LED colours.
+4. **Later:** custom per-sound idle colours set in the app.
+
+Points 1–3 are already implemented in `simulator/dummy-board.html` (peek also via right-click on a pad; the overlay is previewed next to the zoomed display).
+
+## 4. Expected LED and display behaviour
+
+The colours are a project convention implemented in software, based on the state Voicemod actually exposes (Control API + log watcher).
+
+### Pad LEDs
+
+| Pad state | Colour | Meaning |
+|---|---|---|
+| Empty pad | Off | No sound on this pad |
+| Sound available | Blue | The pad has a playable sound |
+| Pad just pressed | Yellow, ~200 ms | Immediate press feedback |
+| Sound playing | Green | Predicted on press, confirmed by the log watcher |
+| Sound paused | Breathing green | `PlayPause` sound paused; still active in Voicemod |
+| Not in licence | Dim red | Sound locked by the licence; not sent |
+| Voicemod unreachable | Blinking red | Control API connection lost or failed |
+
+### Function-key LEDs
+
+Function-key LEDs mirror Voicemod's toggles: STOP red while any sound plays, MUTE ME amber when on, VOICE and HEAR ME green when on, PREV/NEXT dim white when more pages exist.
+
+### LED chain and light path
+
+- LED chain index: **0–35** pads (row by row), **36–41** function keys.
+- The LEDs are reverse-mount SK6812 MINI-E on the PCB bottom, shining up through a cutout into the switch's LED window.
+- The keycaps are opaque OEM double-shot PBT: the light shows as a **halo** around each key (accepted by the author).
+
+### State priority and duration
+
+- The yellow feedback lasts about 200 ms; duration to be tuned.
+- Green is applied immediately on press as a prediction and confirmed (or corrected) by the log watcher; loop sounds stay green until stopped.
+- When the sound ends, the pad returns to blue.
+- Total LED current is capped by the firmware power limiter (section 6): with many LEDs lit at once, brightness is scaled down.
+- Colours must be configurable at a later stage.
+
+### Display (OLED)
+
+- 1.3" OLED, 128×64, SH1106 driver, I²C, 4 pins; active area ≈29.42 × 14.70 mm. Two bought (one spare).
+- **The pin order differs between modules** (VCC-GND-SCL-SDA vs GND-VCC-SCL-SDA): check the silkscreen before wiring.
+- Contents: page name + counter, last sound, remaining time / `LOOP` / `PAUSED` / `MIC OFF` / `MUTE ME` / `VOICE OFF`; sound names for peek and row overview.
+- Texts are localisable; the friend's unit is in Italian.
+- OLED pixels emit their own light (no backlight): perfectly readable in the dark, weakest in direct sunlight.
+
+#### Burn-in protection (firmware)
+
+OLED pixels age with use, and the header text stays in the same place for hours: without protection it leaves a permanent shadow. The firmware applies these rules, in this order of escalation:
+
+| Rule | Behaviour | Default | Adjustable |
+|---|---|---|---|
+| Brightness | Normal display brightness (SH1106 contrast register) | Medium | Yes, 0–100 % |
+| Dim when idle | After N minutes without any key, knob or Voicemod event, drop to low brightness | 1 min | Yes, or off |
+| Blank when idle | After N minutes idle, turn the panel off (SH1106 display-off command, not just black pixels) | 10 min | Yes, or off |
+| Pixel shift | Move the whole image by 1 px every N minutes, cycling through a small pattern (e.g. ±1 px in x and y) so no pixel stays lit in the same spot | On, every 3 min | Yes, on/off and interval |
+
+- **Wake-up:** any key, knob turn or knob press restores full brightness immediately. The input that wakes a blanked display is consumed (it does not play a sound), so the user can wake it safely; a sound started from the PC also wakes it.
+- **Layout margin:** the UI is drawn with a 1 px border free on every side, so the pixel shift never clips text.
+- **Settings:** changed from the desktop app and stored in the board's flash, so they survive a PC change or an app reinstall. The values in the table are only defaults.
+
+## 5. Components
+
+### Owned (keep)
+
+| Component | Quantity/description | Use |
+|---|---|---|
+| Raspberry Pi Pico RP2040 | 1 board, micro-USB | Main controller, soldered directly to the PCB |
+| Mechanical switches | 45 Akko V5 linear (MX-compatible), clear top housing, 5-pin | 36 pads + 6 function keys = 42 used, 3 spare |
+| Keycaps | OEM profile, double-shot PBT, opaque | Pads and function keys (halo lighting) |
+| Rotary encoder | EC11 kit with knobs | Rotation and integrated push button; one is enough |
+| SN74AHCT125N | Kit of 10, DIP-14 | 3.3 V → 5 V level shifting of the LED data signal; one chip, DIP footprint on the PCB |
+| Assorted resistors | Kit, 1/4 W | Spare/prototyping (the 330 Ω data resistor comes with the PCB) |
+| M3 × 10 mm screws | Already owned | Closing the enclosure (6 screws) |
+| Rubber feet | Already owned | Enclosure bottom |
+| Micro-USB cable | Already owned | Data + power to the PC |
+| 3D printer | Bambu Lab P1S | Enclosure, in matte black PLA (or PETG) |
+| Soldering iron | Already owned | Hand-soldered parts |
+
+### To buy
+
+| Component | Quantity/description | Status |
+|---|---|---|
+| 1.3" OLED 128×64, SH1106, I²C | 2 pcs (one spare) | Ordered |
+
+### Comes with the PCB order (assembled by the fab, PCB bottom side)
+
+| Component | Quantity | Use |
+|---|---|---|
+| SK6812 MINI-E reverse-mount RGB LEDs | 42 | One per pad and function key |
+| 100 nF decoupling capacitors | 42 | One per LED |
+| SMD diodes, 1N4148W-class | 42 | Key matrix (anti-ghosting) |
+| Bulk capacitor 47 µF 10 V X5R (1210) | 1 | 5 V LED rail, after the polyfuse |
+| 330 Ω resistor | 1 | In series with the LED data line |
+| Polyfuse | 1, optional | Protection of the USB 5 V rail |
+
+### Not needed any more
+
+Cancel the order if still possible; otherwise they are harmless to keep:
+- WS2812B 5 m LED strip.
+- 1000 µF 10 V electrolytic capacitors.
+- Through-hole 1N4148 diodes.
+- 5 V 2 A power supply.
+- Dupont wires/connectors.
+- Larger perfboard.
+- Heat-set inserts.
+
+### Measure before ordering the PCB
+
+- [ ] Switch LED-window offset from the switch centre (with a caliper, on a real Akko V5).
+- [ ] OLED module outline, mounting holes and pin order (when it arrives).
+- [ ] EC11 pin layout of the kit's encoder.
+- [ ] Pico orientation and USB connector position.
+
+## 6. Electronics, PCB and power
+
+### Custom PCB
+
+- 2-layer PCB from JLCPCB or similar; about 35–70 € for 5 boards including shipping (indicative).
+- **SMD parts assembled by the fab** on the PCB bottom side: LEDs, 100 nF per LED, matrix diodes, 47 µF bulk capacitor, 100 nF for the buffer, 330 Ω data resistor, 0.5 A polyfuse on the LED rail.
+- **Hand-soldered by the author:**
+  - 42 switches, soldered directly. Kailh hot-swap sockets only if the fab can assemble them at a reasonable cost (to check at design time).
+  - Raspberry Pi Pico, soldered directly, with the micro-USB connector toward the case edge.
+  - EC11 encoder.
+  - SN74AHCT125N in its DIP-14 footprint.
+  - OLED header.
+- **Key matrix:** 7 rows × 6 columns (6 pad rows + the function row), one diode per key → 13 GPIOs.
+- **Switch footprint:** Akko V5 are 5-pin (two plastic pegs besides the metal pins): the footprint needs the peg holes. The LED window is in the bottom housing on the side opposite the metal pins, ≈5 mm from the centre per the MX standard: **measure it on the real switch** before placing the LED cutouts.
+- **Board layout** (generated by `hardware/scripts/build_pcb.py`, case frame = origin at the case's top-left outer corner):
+  - Case 130.3 × 196.35 mm; PCB 124.3 × 190.35 mm (3 mm inset: 2.5 mm wall + 0.5 mm clearance), 2 mm corner radius.
+  - Top strip (y 8–46 mm): Pico top-left, horizontal, micro-USB through the left wall; 1.3" OLED module right of it, soldered directly by its header (centre x ≈ 77.7 mm); EC11 above the last column (shaft at 112.775, 27).
+  - SN74AHCT125N under the Pico, close to GP2 and to the first LED of the chain (function key 1).
+  - Bottom side (fab assembly): each LED 5.08 mm south of its switch centre, diode on the east, 100 nF on the west; polyfuse and 47 µF between the Pico's pin rows at the USB end.
+  - 6 M3 holes 6.5 mm from the case edges: 4 corners + middle of the long sides (between pad rows 3 and 4).
+  - Review documents in `hardware/docs/` (`export_docs.py`): schematic PDF, 1:1 A4 fit-check PDFs (top and mirrored bottom, with a 100 mm scale bar), 3D renders, DRC report.
+  - Status: placement done, DRC clean, schematic parity 0; routing waits for caliper measurements (switch LED window, OLED module, EC11, Pico headers).
+- **Level shifter:** the SN74AHCT125N enable pin is active low and must be tied to the correct state; unused inputs must not be left floating. The 330 Ω resistor goes in series with the data line, near the buffer output or the first LED.
+
+### GPIO budget
+
+| Function | GPIOs |
+|---|---|
+| Key matrix (7 rows + 6 columns) | 13 |
+| EC11 encoder (A, B, push button) | 3 |
+| LED data | 1 |
+| I²C to the OLED (SDA, SCL) | 2 |
+| **Total** | **≈19 of 26** |
+
+### Power: USB only
+
+- A single USB cable from the friend's PC powers everything; there is no second power supply.
+- The LEDs are powered from USB 5 V (VBUS), never from the Pico's **3V3** pin.
+- USB 2.0 guarantees 500 mA. The Pico + OLED draw about 60 mA, so the **firmware power limiter caps the total LED current at ≈400 mA**, scaling brightness down when needed.
+- Single-colour states (blue, green) draw about 1/3 of white, so the limiter only dims the LEDs when many of them are lit at once.
+- Large bulk capacitance on VBUS is avoided (inrush current at plug-in): 47 µF after the polyfuse instead of 1000 µF, plus 100 nF next to each LED.
+
+### Power consumption estimate
+
+A single LED at full white draws in the order of tens of mA (check the SK6812 MINI-E datasheet): 42 LEDs at full white would far exceed what USB can supply, which is why the firmware limiter is mandatory and must be active from the first power-up. Normal use (a few green pads over a blue page) stays well below the cap.
+
+## 7. Physical structure and 3D enclosure
+
+- Enclosure 130.3 × 196.35 mm (key pitch 19.05 mm, 38 mm top strip for Pico, OLED and knob), printed in one piece on a Bambu Lab P1S (256 × 256 × 256 mm build volume), in matte black PLA (or PETG).
+- The plate holds the switches; the PCB sits underneath; the bottom is removable for repairs.
+- Closed with 6 M3 × 10 mm screws directly into the plastic (≈2.5 mm pilot holes, thick bosses): corners + middle of the long sides, because the wide plate flexes. Hole centres 6.5 mm from the case edges, matching the PCB. Screws go in from the bottom, so none is visible from the top.
+- Rubber feet on the bottom.
+- Window for the OLED (active area ≈29.42 × 14.70 mm) and a hole for the EC11 knob.
+- USB-C of the RP2040-Zero exits from the top (back) edge, with strain relief for the cable.
+- Ergonomics and finish follow the quality bar in section 1: rounded edges, typing angle, support-free printing.
+- Do not finalise the 3D model before measuring the OLED module, the encoder and the finished PCB.
+
+## 8. Desktop software
+
+The bridge app will have at least these responsibilities:
+
+1. Open the USB serial connection to the Pico.
+2. Receive pad, function key and encoder events.
+3. Map each pad to the current page and sound (36 per page, Voicemod's order, Favourites page).
+4. Send the commands to Voicemod.
+5. Update the LEDs and the display based on the page, press feedback and confirmed states.
+6. Watch the Voicemod log for the real playback state.
+7. Show connection status, active page, last sound and any errors, plus the 6×6 overlay on the PC screen.
+8. Manage an editable configuration without reflashing the Pico; update the Pico firmware when needed (reboot to USB bootloader by command).
+9. Ship as a Windows installer with auto-start; bug fixes are delivered as app updates.
+
+One possible implementation is a Python app with JSON configuration. The protocol between the app and the Pico must be simple, documented and robust against partial messages or connection errors.
+
+### Voicemod integration: to verify early
+
+> Status: done — official key obtained and Control API verified on 2026-10-29 (results below).
+
+Before implementing all the logic, check the installed Voicemod version and the actual availability of an official/local API, any access keys and the commands to trigger sounds. Do not take for granted that the API notifies the start and end of each sound.
+
+If no suitable integration is available, consider hotkeys configurable in Voicemod. The STOP behaviour and the "playing" state depend on the features actually exposed.
+
+**Research of 2026-10-29 (to verify on the PC):** there is an official Voicemod Control API ([reference](https://control-api.voicemod.net/api-reference/)):
+- Local WebSocket `ws://localhost:59129/v1/`, opened by the Voicemod app.
+- Mandatory first message `registerClient` with a `clientKey` **provided by Voicemod** (contact: devservices@voicemod.net). It is unclear whether any key is accepted: to be tested.
+- Useful actions: `getAllSoundboard`, `getMemes`, `getBitmap` (icons), `playMeme` (`FileName` + `IsKeyDown`), `stopAllMemeSounds`, `toggleMuteMemeForMe`.
+- `IsKeyDown` is used for "hold" playback modes (`PlayLoopOnPress` etc.): the firmware must send **both press and release** of the pads.
+- **No playback start/end events are documented**: the "confirmed" green LED is probably not achievable; to be verified by listening to messages after `playMeme`.
+- Global STOP available with `stopAllMemeSounds`.
+- Test script: `tools/voicemod_probe.py`.
+
+**Test of 2026-10-29 on macOS, Voicemod 3.17.42:** port 59129 is open and the server responds `Pending authentication`. With a made-up `clientKey`, `registerClient` returns **401 Unauthorized** and the connection is closed. An official key is required: in the meantime, the fallback is the Pico as a USB keyboard + Voicemod shortcuts.
+
+**Test with official key (2026-10-29, macOS, free licence) — confirmed:**
+- `registerClient` → `200 Authorized`. Key in `.env` (`VOICEMOD_CLIENT_KEY`), excluded from git.
+- `getAllSoundboard`: 36 soundboards; each sound has `id`, `name`, `enabled`, `playbackMode`, `imageURL`, `favorited`. With the free licence only some are enabled (e.g. "Voicemod Starter" with exactly 16 sounds).
+- `getMemes`: 820 sounds; the `FileName` to pass to `playMeme` **matches the sound's `id`** in the soundboards.
+- `playMeme` only receives an acknowledgement (`actionType: playMeme`) for the down and for the up. **No playback start/end event** from the Control API in the following 10 s; the real state comes from Voicemod's log instead (see below).
+- **`IsKeyDown: false` restarts the sound:** Voicemod treats every `playMeme` as a press. The release must be sent **only** for `PlayLoopOnPress` sounds; for the others only the press is sent (otherwise one-shots play twice and Play/Pause stop immediately).
+- **Real state from the log:** `voicemod-desktop.log` records `playSound … id=<id> … repMode=k<Mode>` at start, ``Removes a sound=`<id>` from active sounds`` at the end and `Requested to stop all sounds`. `tools/voicemod_log_bridge.py` tails it and publishes the events on `ws://localhost:59200`, learning durations from the timestamps (e.g. Honk 0.85 s, Error 1.62 s). The file reaches disk with a ~0.5–1 s delay: green lights up immediately on press using the learned duration, and the log acts as confirmation. This is an internal Voicemod format: it may change with updates; Windows path to be verified.
+- **Sound duration:** not exposed by the API. Voicemod downloads sounds into a cache (`cache/<Soundboard> - NN - <Name>.ogg`) but the files are obfuscated/encrypted: we do not decrypt them. Durations are learned from the log instead (see below); a configurable fallback is used only without the log watcher.
+- After playback, Voicemod spontaneously sent `getAllSoundboard`, `getVoices`, `getMemes`: the app must handle unsolicited messages.
+
+### Voicemod soundboard behaviour (verified)
+
+Design rule: **a pad press is exactly a click on the sound in Voicemod**. All playback semantics run inside Voicemod; the device only sends `playMeme` key-down (plus key-up for `PlayLoopOnPress`) and mirrors Voicemod's real state on the LEDs. Verified on 2026-10-29 with `tools/voicemod_experiments.py`, which records commands, Control API messages and log lines on one timeline.
+
+Sound metadata used (from `getAllSoundboard`): `playbackMode`, `loop`, `stopOtherSounds`, `muteOtherSounds`, `muteVoice`, `enabled`, `favorited`.
+
+| Situation | Voicemod behaviour | Log lines |
+|---|---|---|
+| Press, sound stopped | Starts | `playSound id=…` |
+| Several sounds | Play simultaneously (no limit observed) | one start/end pair each |
+| `PlayRestart`, press while playing | Restarts from the beginning; with `loop` it never ends by itself | `processRepMode … soundStatus=kPlaying`, single `Removes` at the end |
+| `PlayStop`, press while playing | Stops | `processRepMode … kPlaying` + `Removes` |
+| `PlayPause`, press while playing | Pauses; **the sound stays active** | `processRepMode … kPlaying`, no `Removes` |
+| Any mode, press while paused | Resumes | `processRepMode … soundStatus=kPaused` |
+| `PlayLoopOnPress` | Plays while held; key-up stops it | start on key-down; `processRepMode` + `Removes` on key-up |
+| `stopOtherSounds` (start from stopped) | Stops every other sound first | `Requested to stop other sounds…` + `Removes` for each |
+| `muteOtherSounds` / `muteVoice` | Handled by Voicemod (ducking / mic mute); nothing in the log | — |
+| STOP (`stopAllMemeSounds`) | Stops everything, paused sounds included. There is no per-sound stop in the API: a single sound is stopped through its own mode, as in Voicemod | `Requested to stop all sounds` + `Removes` for each |
+| `PlayOverlap` | Each press adds an instance (**not verified yet**: no free sound uses it; test with a custom sound) | — |
+
+How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bridge.py`):
+- The log watcher rebuilds Voicemod's per-sound state machine (playing / paused / stopped, instance count) and learns natural durations only from uninterrupted plays.
+- The log reaches the disk ~1 s late, so a press is applied immediately as a **prediction** using the same state machine; the log lines confirm it by timestamp (same PC clock). Lines nobody predicted (sounds started from Voicemod's own window, ends of sounds with unknown duration) correct the state; a prediction not confirmed within 4 s triggers a snapshot resync.
+- LEDs: playing = green, paused = breathing green, loop sounds stay green until stopped. The OLED shows the remaining time, `LOOP`, `PAUSED` and `MIC OFF` while a `muteVoice` sound plays.
+- The release of a `PlayLoopOnPress` pad is delayed to at least 200 ms after the press. A key-up sent while Voicemod was still loading a sound (4 ms after key-down) left an **orphan** entry in Voicemod's active list (`soundStatus=N/A`) that is never removed; it disappears only by restarting Voicemod. The watcher drops orphans on STOP / stopOthers.
+- Also mirrored: Voicemod's soundboard order (one page per 36 sounds), a Favourites page for `favorited` sounds, the active soundboard (`getActiveSoundboardProfile`), "Mute for me", licence-locked sounds (dim red, not sent).
+
+**How to get the key:** from the [control-api.voicemod.net](https://control-api.voicemod.net/) website → "Get your API Key", [Typeform form](https://voicemod.typeform.com/to/Zh5ZHRED); alternatively email devservices@voicemod.net.
+
+**Target environment:** the device is going to a friend who uses **Windows** with paid Voicemod (lifetime licence). Development and first tests on macOS with free Voicemod; Windows build and tests on the desktop PC before delivery. The bridge app runs on the PC (not on the Pico), with a one-time installer and auto-start.
+
+### Tools and simulator
+
+- `simulator/dummy-board.html`: the 6×6 layout at 1:1 scale (case 130.3 × 196.35 mm, same layout as the PCB), with function keys, encoder and display, connectable to Voicemod.
+- `tools/voicemod_log_bridge.py`: Voicemod log watcher, publishes events on `ws://localhost:59200`.
+- `tools/voicemod_experiments.py`: records commands, Control API messages and log lines on one timeline.
+- `tools/voicemod_probe.py`: Control API probe.
+
+## 9. Hardware-software protocol: initial proposal
+
+The dummy board `simulator/dummy-board.html` (1:1 scale, connectable to Voicemod) already uses this convention: `PAD,<0-35>,<1|0>`, `BTN,<0-5>,<1|0>`, `ENC,+1|-1`, `ENCBTN,<1|0>` from the Pico; `LED,<i>,<r>,<g>,<b>` to the Pico, with `i` = 0–35 for the pads and 36–41 for the function keys.
+
+The exact format will be defined when we start the firmware. Points to cover:
+
+- Pico → PC: pad/key press **and release** events (the release is needed for `PlayLoopOnPress`), encoder rotation and button.
+- PC → Pico: LED colours, display contents (page, last sound, status, localised texts), global brightness, and a command to reboot into the USB bootloader for firmware updates.
+- The power limiter runs on the Pico regardless of the colours sent by the PC.
+- Each message ends with a newline; both sides ignore incomplete or invalid messages.
+- The 36 pad indices are numbered 0 to 35 in the firmware (row by row) and 1 to 36 in the user interface, if useful; function keys are 0–5 in `BTN` messages (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME).
+
+These are examples, not an already implemented protocol.
+
+## 10. Work plan
+
+### Phase 1 — Decisions and verification
+- [x] Verify the Voicemod Control API and the log-based playback state.
+- [x] Obtain the official Voicemod client key.
+- [x] Decide the layout: 6×6 pads + 6 function keys + EC11 encoder + display.
+- [x] Choose the display: 1.3" OLED 128×64, SH1106, I²C (2 ordered).
+- [x] Decide the power strategy: USB only, firmware LED power limiter ≈400 mA.
+- [x] Update the simulator to the 6×6 layout at 1:1 scale.
+- [ ] Inventory the owned parts (Pico, switches, keycaps, encoder kit, SN74AHCT125N).
+- [ ] Cancel the parts that are not needed any more, if still possible.
+
+### Phase 2 — Measurements before the PCB
+- [ ] Measure the switch LED-window offset from the centre with a caliper.
+- [ ] Measure the OLED module outline, mounting holes and pin order (when it arrives).
+- [ ] Check the EC11 pin layout from the kit.
+- [ ] Check the Pico orientation and USB connector position.
+- [ ] Check whether the fab can assemble Kailh hot-swap sockets at a reasonable cost.
+
+### Phase 3 — PCB design and order
+- [x] Schematic: 7×6 key matrix with diodes, SK6812 MINI-E chain (0–41) with 100 nF per LED, SN74AHCT125N, 330 Ω data resistor, 47 µF bulk capacitor, 0.5 A polyfuse, encoder, OLED header, Pico (ERC 0, `check_design.py` OK).
+- [ ] Layout: placement done (DRC clean, schematic parity 0); routing after measurements. 2-layer board, LED cutouts aligned with the measured LED window, switch footprints with peg holes, DIP-14 footprint, Pico with USB toward the case edge.
+- [ ] Check the footprints against the real parts (1:1 printout or test plate).
+- [ ] Order 5 boards with SMD assembly on the bottom side.
+
+### Phase 4 — Firmware
+- [ ] Matrix scan with debounce, encoder, serial protocol.
+- [ ] SK6812 driver through the buffer, with the ≈400 mA power limiter.
+- [ ] SH1106 display driver with localisable texts.
+- [ ] Reboot-to-USB-bootloader command for updates from the app.
+
+### Phase 5 — Bridge app (Windows)
+- [ ] Port the simulator logic: pages of 36 sounds, Favourites, function keys, LED and display states.
+- [ ] Verify the Windows path of the Voicemod log.
+- [ ] Peek, row overview and the 6×6 PC overlay (already working in the simulator).
+- [ ] Firmware update from the app.
+- [ ] Installer + auto-start; test connection errors and failed commands.
+- [ ] Later: custom per-sound idle colours.
+
+### Phase 6 — Enclosure and final assembly
+- [ ] Design the enclosure (130.3 × 196.35 mm) on the real measurements; test-print a plate section with a few switches.
+- [ ] Bring up the assembled PCB at low brightness: LEDs, OLED, encoder, a few switches.
+- [ ] Solder all switches, the Pico, the encoder, the buffer and the OLED header.
+- [ ] Print the enclosure on the P1S, mount everything, close it with the 6 screws, add the rubber feet.
+- [ ] Run extended tests on Windows with paid Voicemod before delivery.
+
+## 11. Decisions
+
+### Last decisions (2026-10-29)
+
+- [x] Layout: 6×6 = 36 pads + a row of 6 function keys (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME) + EC11 encoder + display.
+- [x] Voicemod integration: official Control API with key + log watcher for the real playback state.
+- [x] Sound behaviour: a pad press is exactly a click in Voicemod; playback modes verified (see section 8).
+- [x] Encoder: rotate = page, tap = soundboard menu, hold + pad = peek, hold + rotate = row overview.
+- [x] Display: 1.3" OLED 128×64, SH1106, I²C, driven by the Pico.
+- [x] LEDs: 42 SK6812 MINI-E reverse-mount on the PCB bottom; opaque keycaps with halo lighting.
+- [x] Key matrix: 7 × 6 with SMD diodes (13 GPIOs, ≈19 of 26 in total).
+- [x] Custom 2-layer PCB with fab-assembled SMD parts; switches, Pico, encoder, buffer and OLED header hand-soldered.
+- [x] Power: USB only, ≈400 mA LED cap in firmware, 0.5 A polyfuse + 47 µF on the LED rail.
+- [x] Microcontroller: RP2040-Zero clone (USB-C) instead of the Raspberry Pi Pico, mounted on its pin strips (RP2040 and crystal sit on its underside). PCB and pin map to be updated once measured.
+- [x] USB cable exits from the top (back) edge of the case, not from the left side.
+- [x] Enclosure: one-piece print on the P1S, 6 M3 screws into plastic, removable bottom.
+- [x] Updates: through the bridge app, Pico firmware included; the friend never touches the board.
+
+### Still open
+
+- [ ] Switches soldered directly vs Kailh hot-swap sockets (depends on fab assembly cost).
+- [ ] Exact LED-window offset of the Akko V5 (to measure).
+- [ ] Enclosure material: PLA or PETG.
+- [ ] Final serial protocol.
+- [ ] Optional polyfuse on the 5 V rail.
+- [ ] `PlayOverlap` behaviour (test with a custom sound).
+- [ ] Windows path of the Voicemod log.
+
+## 12. Safety and testing rules
+
+- Double-check polarity and connections before powering up.
+- Do not work on the circuit while powered during soldering or modifications.
+- Avoid short circuits between +5 V and GND.
+- The device is powered by USB only: do not add a second 5 V supply and do not feed external power into the Pico's VBUS/VSYS, so the PC's USB port is never back-fed.
+- Never power the LEDs from the Pico's 3V3 pin.
+- Keep the firmware LED power limiter active from the very first power-up; run initial tests at reduced brightness.
+- Do not increase the bulk capacitance on VBUS beyond ~100 µF (USB inrush current); the design uses 47 µF.
+- Verify the actual pinout of the SN74AHCT125N and of the components received: do not rely on physical position alone.
+- Check the OLED pin order on the module's silkscreen before wiring: VCC and GND are swapped between modules.
+- Check the LED orientation and footprints before ordering the assembled PCB.
+- Test the assembled PCB (LEDs, display, encoder, a few switches) before soldering all 42 switches, and do not close the enclosure before testing the firmware, the software and the Voicemod integration.
+
+---
+
+## Quick summary
+
+**Goal:** 6×6 physical soundboard for Voicemod: 36 pads, 6 function keys, EC11 encoder, OLED display.
+
+**Controller:** Raspberry Pi Pico RP2040 on a custom 2-layer PCB.
+
+**Communication:** USB serial to a bridge app on the friend's Windows PC, which talks to the Voicemod Control API and watches the Voicemod log.
+
+**LEDs:** 42 SK6812 MINI-E reverse-mount (0–35 pads, 36–41 function keys), with SN74AHCT125N buffer, 330 Ω resistor, 100 nF per LED, 47 µF bulk capacitor and a 0.5 A polyfuse.
+
+**LED feedback:** off = empty; blue = available; yellow ~200 ms = pressed; green = playing; breathing green = paused; dim red = not in licence; blinking red = Voicemod unreachable.
+
+**Display:** 1.3" OLED 128×64, SH1106, I²C; localisable texts (Italian on the friend's unit).
+
+**Power:** single USB cable; firmware caps the LED current at ≈400 mA.
+
+**Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
+
+**Next steps:** measure the switch LED window, OLED, encoder and Pico; then design and order the PCB.

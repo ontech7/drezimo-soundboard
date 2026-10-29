@@ -1,0 +1,7 @@
+(version 1)
+
+# The stock SK6812MINI-E reverse-mount footprint puts its pads 0.25-0.35 mm from the LED's
+# own window cut-out (by design: the leads sit right at the body). 0.5 mm everywhere else.
+(rule "Board edge"
+  (constraint edge_clearance (min 0.5mm))
+  (condition "!(A.Parent.Reference == 'LED*' || B.Parent.Reference == 'LED*')"))
