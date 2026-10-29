@@ -288,13 +288,16 @@ def build():
 
 
 def write_lib_tables(sch):
-    """Project library tables for the stock KiCad libraries used, so the project opens anywhere."""
+    """Project library tables for the stock KiCad libraries used, plus the project's own footprints
+    (hardware/lib, e.g. the logo), so the project opens anywhere."""
     sym_libs = sorted({lib.split(":")[0] for lib in sch.lib_symbols})
     fp_libs = sorted({p["footprint"].split(":")[0] for p in sch.parts.values() if p["footprint"]})
     sym = ["(sym_lib_table", "\t(version 7)"] + [
         f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_SYMBOL_DIR}}/{n}.kicad_sym")(options "")(descr ""))' for n in sym_libs] + [")"]
     fp = ["(fp_lib_table", "\t(version 7)"] + [
-        f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_FOOTPRINT_DIR}}/{n}.pretty")(options "")(descr ""))' for n in fp_libs] + [")"]
+        f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_FOOTPRINT_DIR}}/{n}.pretty")(options "")(descr ""))' for n in fp_libs] + [
+        '\t(lib (name "Drezimo")(type "KiCad")(uri "${KIPRJMOD}/../lib/drezimo.pretty")(options "")(descr "Project footprints"))',
+        ")"]
     (OUT_DIR / "sym-lib-table").write_text("\n".join(sym) + "\n", encoding="utf-8")
     (OUT_DIR / "fp-lib-table").write_text("\n".join(fp) + "\n", encoding="utf-8")
 

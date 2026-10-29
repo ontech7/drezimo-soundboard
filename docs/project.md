@@ -41,7 +41,8 @@ The device must look and feel like a finished commercial product, not a prototyp
   - consider printing the top face down on the textured PEI plate for an even matte texture;
   - tolerances proven with small test prints before the full print.
 - **Connections:** the USB-C cable exits cleanly from the top (back) edge with strain relief; the knob and keycaps sit straight and aligned.
-- **PCB:** colour is irrelevant (cheapest standard option); the silkscreen carries the project name, the logo (to be chosen) and the hardware version.
+- **PCB:** colour is irrelevant (cheapest standard option); the bottom silkscreen carries the logo (with the project name) and the hardware version.
+- **Logo:** "Pad Grid": the 6×6 pads, with the lit ones drawing a D, next to a custom DREZIMO / SOUNDBOARD wordmark; amber (`#FFB020`) is the only accent colour. Every version shares the same geometry (`assets/logo/`): SVGs for dark and light backgrounds, a single-colour version, the app icon, the OLED boot screen (pixel exact, 4 px margin so pixel shift never clips it) and the KiCad silkscreen footprint. Voicemod's name and mark are deliberately not part of it (trademark).
 - **Desktop app:** one-click installer, auto-start, tray icon, silent auto-update with firmware updates and a progress bar, and a polished settings window. A Windows code-signing certificate is worth evaluating, since unsigned installers trigger SmartScreen warnings.
 
 ## 2. General architecture

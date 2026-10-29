@@ -22,6 +22,9 @@ KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
 FOOTPRINTS = Path("/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints")
 PCB_DIR = Path(__file__).resolve().parent.parent / "pcb"
 BOARD_FILE = PCB_DIR / "drezimo-soundboard.kicad_pcb"
+PROJECT_LIBS = {"Drezimo": PCB_DIR.parent / "lib" / "drezimo.pretty"}   # project footprints (logo)
+
+BOARD_VERSION = "v0.1"            # silkscreen, next to the logo
 
 # ---- Case geometry (must match simulator/dummy-board.html and the enclosure model)
 PITCH = 19.05
@@ -57,6 +60,7 @@ OLED_HEADER_CENTER = (77.7, MARGIN + 2.5)              # module header row (pins
 ENC_SHAFT = (key_center(42)[0], MARGIN + TOP_H / 2)   # knob above the last column
 U2_PIN1 = (PCB_INSET + 5.0, MARGIN + 37.0)             # DIP-14 lying horizontally under the Pico
 MOUNT_INSET = 6.5                                       # hole centre to case outer edge
+LOGO_CENTER = (OLED_HEADER_CENTER[0], MARGIN + 20.0)   # bottom side, behind the OLED module
 
 
 def mm(v):
@@ -75,7 +79,7 @@ def vec(x, y):
 
 def load_fp(fpid):
     lib, name = fpid.split(":")
-    fp = pcbnew.FootprintLoad(str(FOOTPRINTS / f"{lib}.pretty"), name)
+    fp = pcbnew.FootprintLoad(str(PROJECT_LIBS.get(lib, FOOTPRINTS / f"{lib}.pretty")), name)
     if fp is None:
         raise RuntimeError(f"footprint not found: {fpid}")
     fp.SetFPID(pcbnew.LIB_ID(lib, name))
@@ -125,13 +129,14 @@ def shape(board, layer, kind, a, b, width=0.15):
     board.Add(s)
 
 
-def text(board, layer, msg, x, y, size=2.0):
+def text(board, layer, msg, x, y, size=2.0, mirrored=False):
     t = pcbnew.PCB_TEXT(board)
     t.SetText(msg)
     t.SetLayer(layer)
     t.SetPosition(vec(x, y))
     t.SetTextSize(pcbnew.VECTOR2I(mm(size), mm(size)))
     t.SetTextThickness(mm(size * 0.15))
+    t.SetMirrored(mirrored)
     board.Add(t)
 
 
@@ -272,6 +277,13 @@ def main():
 
     for i, (x, y) in enumerate(mounting_holes()):
         place(footprints[f"H{i + 1}"], x, y)
+
+    # --- Logo and hardware version on the bottom silkscreen (board-only, not in the schematic)
+    logo = load_fp("Drezimo:Drezimo_Logo")
+    logo.SetReference("LOGO1")
+    board.Add(logo)
+    place(logo, *LOGO_CENTER, angle=180, bottom=True)   # 0 deg on the bottom reads upside down
+    text(board, pcbnew.B_SilkS, BOARD_VERSION, LOGO_CENTER[0], LOGO_CENTER[1] + 8.0, size=1.5, mirrored=True)
 
     edge_outline(board)
     reference_drawings(board)

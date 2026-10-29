@@ -12,4 +12,5 @@
 	(lib (name "Package_DIP")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Package_DIP.pretty")(options "")(descr ""))
 	(lib (name "Resistor_SMD")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Resistor_SMD.pretty")(options "")(descr ""))
 	(lib (name "Rotary_Encoder")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Rotary_Encoder.pretty")(options "")(descr ""))
+	(lib (name "Drezimo")(type "KiCad")(uri "${KIPRJMOD}/../lib/drezimo.pretty")(options "")(descr "Project footprints"))
 )
