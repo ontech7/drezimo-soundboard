@@ -2921,7 +2921,7 @@
 			(embedded_fonts no)
 		)
 	)
-	(text "DREZIMO SOUNDBOARD - rev A"
+	(text "DREZIMO SOUNDBOARD - v0.2"
 		(exclude_from_sim no)
 		(at 20 20 0)
 		(effects
@@ -2930,7 +2930,7 @@
 			)
 			(justify left top)
 		)
-		(uuid "f432709d-3cb8-5ccc-9aaf-0e8be9068a7e")
+		(uuid "c088ad85-0bcc-5ed7-9839-c77e788dee6d")
 	)
 	(text "36 sound pads (6x6) + 6 function keys + EC11 encoder + 1.3in SH1106 I2C OLED, RP2040-Zero (RP2040, USB-C)."
 		(exclude_from_sim no)
@@ -3064,7 +3064,7 @@
 		)
 		(uuid "e7640e12-8fe7-52e4-b1d8-12caabc98213")
 	)
-	(text "SWITCHES: Kailh CPG151101S11 hot-swap sockets on the PCB bottom (fab assembled); switches are held by the case plate."
+	(text "SWITCHES: soldered to the PCB (plated pin holes, hand-soldered) and held by the case plate."
 		(exclude_from_sim no)
 		(at 20 74.6 0)
 		(effects
@@ -3073,7 +3073,7 @@
 			)
 			(justify left top)
 		)
-		(uuid "88428d7a-6e74-558d-b90d-e37950a43ca7")
+		(uuid "7dce531a-6223-5231-af4d-77c19e25d405")
 	)
 	(text "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND."
 		(exclude_from_sim no)
@@ -3727,6 +3727,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C720075"
+			(at 59.69 270.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "a4c3a256-e0fc-546f-9c4d-548895eb0c7a")
 		)
@@ -3809,7 +3818,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_1210_3225Metric"
+		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric"
 			(at 85.09 270.51 0)
 			(effects
 				(font
@@ -3819,6 +3828,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 85.09 270.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C96123"
 			(at 85.09 270.51 0)
 			(effects
 				(font
@@ -4548,6 +4566,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 224.79 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3152a1d7-ae93-5ada-ace5-079aec31d51e")
 		)
@@ -4640,6 +4667,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 250.19 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C23138"
 			(at 250.19 110.49 0)
 			(effects
 				(font
@@ -5074,7 +5110,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 59.69 0)
 			(effects
 				(font
@@ -5192,6 +5228,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2004d33a-513b-5c95-90ab-ea806174706e")
 		)
@@ -5274,7 +5319,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 59.69 0)
 			(effects
 				(font
@@ -5392,6 +5437,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6a7d0490-e1cb-5f84-8d88-15288d996771")
 		)
@@ -5474,7 +5528,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 59.69 0)
 			(effects
 				(font
@@ -5592,6 +5646,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "df64a6c5-b488-57bd-a72d-d1f104e7c562")
 		)
@@ -5674,7 +5737,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 59.69 0)
 			(effects
 				(font
@@ -5792,6 +5855,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "b17ebd27-6a25-5a6b-89aa-609a56934fc2")
 		)
@@ -5874,7 +5946,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 59.69 0)
 			(effects
 				(font
@@ -5992,6 +6064,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "a370f746-640b-5d15-aba3-a5ea86589fa7")
 		)
@@ -6074,7 +6155,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 59.69 0)
 			(effects
 				(font
@@ -6192,6 +6273,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "f8141c27-9f56-571f-8507-6566278dba55")
 		)
@@ -6274,7 +6364,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 87.63 0)
 			(effects
 				(font
@@ -6392,6 +6482,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "821ab50a-8456-50f9-9eb7-5c05e5434bc6")
 		)
@@ -6474,7 +6573,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 87.63 0)
 			(effects
 				(font
@@ -6592,6 +6691,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "25ddf3ec-9fd7-5d01-b2f3-ff85da99704f")
 		)
@@ -6674,7 +6782,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 87.63 0)
 			(effects
 				(font
@@ -6792,6 +6900,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c28ae1a5-09d6-5104-8dda-cd9a16770d99")
 		)
@@ -6874,7 +6991,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 87.63 0)
 			(effects
 				(font
@@ -6992,6 +7109,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "cc371d57-382d-5801-99a7-19ab8309465a")
 		)
@@ -7074,7 +7200,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 87.63 0)
 			(effects
 				(font
@@ -7192,6 +7318,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "97453672-ddca-5ab4-a0ad-636aea083377")
 		)
@@ -7274,7 +7409,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 87.63 0)
 			(effects
 				(font
@@ -7392,6 +7527,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2f94880a-3ea8-5bb2-90a7-09b5d0ead912")
 		)
@@ -7474,7 +7618,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 115.57 0)
 			(effects
 				(font
@@ -7592,6 +7736,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6232f1f9-d129-544b-bb82-fa9cd9f39037")
 		)
@@ -7674,7 +7827,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 115.57 0)
 			(effects
 				(font
@@ -7792,6 +7945,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "a59d38dd-aa45-576a-89d5-dbb2cf3246ed")
 		)
@@ -7874,7 +8036,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 115.57 0)
 			(effects
 				(font
@@ -7992,6 +8154,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "050b4505-c558-52a4-805f-c01813733ae7")
 		)
@@ -8074,7 +8245,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 115.57 0)
 			(effects
 				(font
@@ -8192,6 +8363,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "bc271826-10ff-5100-9950-b43744319b6d")
 		)
@@ -8274,7 +8454,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 115.57 0)
 			(effects
 				(font
@@ -8392,6 +8572,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6c3fa047-8367-510f-9424-558873731700")
 		)
@@ -8474,7 +8663,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 115.57 0)
 			(effects
 				(font
@@ -8592,6 +8781,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "d9bc27e8-ce5d-5c04-9379-8d8629a500c5")
 		)
@@ -8674,7 +8872,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 143.51 0)
 			(effects
 				(font
@@ -8792,6 +8990,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3e8128ef-5a91-5ca7-becd-caec36713a8c")
 		)
@@ -8874,7 +9081,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 143.51 0)
 			(effects
 				(font
@@ -8992,6 +9199,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "aff2de81-de73-5188-9d64-5ce825d57e86")
 		)
@@ -9074,7 +9290,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 143.51 0)
 			(effects
 				(font
@@ -9192,6 +9408,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6702eba4-dbf7-5f32-9f71-c6fbd394c06f")
 		)
@@ -9274,7 +9499,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 143.51 0)
 			(effects
 				(font
@@ -9392,6 +9617,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "8d1b0676-f214-52b8-870a-1d057252d603")
 		)
@@ -9474,7 +9708,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 143.51 0)
 			(effects
 				(font
@@ -9592,6 +9826,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "a9617376-73a2-5d20-a14a-e7990d6f41c6")
 		)
@@ -9674,7 +9917,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 143.51 0)
 			(effects
 				(font
@@ -9792,6 +10035,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3a231a82-51a3-51a0-b5be-90db7f3f035d")
 		)
@@ -9874,7 +10126,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 171.45 0)
 			(effects
 				(font
@@ -9992,6 +10244,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c519c248-a303-580d-9c32-5c81855fe7d6")
 		)
@@ -10074,7 +10335,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 171.45 0)
 			(effects
 				(font
@@ -10192,6 +10453,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "ed156915-2b91-5ca0-83e5-34b3d87fb4b3")
 		)
@@ -10274,7 +10544,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 171.45 0)
 			(effects
 				(font
@@ -10392,6 +10662,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "209751bf-951a-554d-91de-8fdca8a031ab")
 		)
@@ -10474,7 +10753,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 171.45 0)
 			(effects
 				(font
@@ -10592,6 +10871,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "8a0d887e-40a0-505f-9138-7dec2eb41d6a")
 		)
@@ -10674,7 +10962,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 171.45 0)
 			(effects
 				(font
@@ -10792,6 +11080,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "7553daae-465d-5922-bed7-1ab2a2038009")
 		)
@@ -10874,7 +11171,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 171.45 0)
 			(effects
 				(font
@@ -10992,6 +11289,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 171.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "95918af8-ef48-57c9-8852-c075dea598ac")
 		)
@@ -11074,7 +11380,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 199.39 0)
 			(effects
 				(font
@@ -11192,6 +11498,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "0be4b0ae-7222-5c4e-a829-30abc066f844")
 		)
@@ -11274,7 +11589,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 199.39 0)
 			(effects
 				(font
@@ -11392,6 +11707,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c86bb389-a708-50a6-90c3-3f23f850cf0e")
 		)
@@ -11474,7 +11798,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 199.39 0)
 			(effects
 				(font
@@ -11592,6 +11916,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "efb8c3bb-a92d-5bee-bde5-0a359c50dc35")
 		)
@@ -11674,7 +12007,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 199.39 0)
 			(effects
 				(font
@@ -11792,6 +12125,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "e8adba69-eff7-5ac9-9d03-c5a2014f076e")
 		)
@@ -11874,7 +12216,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 199.39 0)
 			(effects
 				(font
@@ -11992,6 +12334,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c326f8a0-dffc-5b29-b530-1996018eaa75")
 		)
@@ -12074,7 +12425,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 199.39 0)
 			(effects
 				(font
@@ -12192,6 +12543,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 199.39 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1e391004-7b64-5c28-8028-79c9b96b79fe")
 		)
@@ -12274,7 +12634,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 340.36 228.6 0)
 			(effects
 				(font
@@ -12392,6 +12752,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 359.41 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "08412642-8fad-5dac-8291-eb2378deac0f")
 		)
@@ -12474,7 +12843,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 384.81 228.6 0)
 			(effects
 				(font
@@ -12592,6 +12961,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 405.13 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "f6f8031f-08b6-5fe7-8b4f-8bb692867f02")
 		)
@@ -12674,7 +13052,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 430.53 228.6 0)
 			(effects
 				(font
@@ -12792,6 +13170,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 449.58 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "df16d0ab-6455-59cd-ae34-7f8c13d548d7")
 		)
@@ -12874,7 +13261,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 474.98 228.6 0)
 			(effects
 				(font
@@ -12992,6 +13379,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 495.3 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "760c6b95-e59f-55f0-8755-6d9cdb155690")
 		)
@@ -13074,7 +13470,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 519.43 228.6 0)
 			(effects
 				(font
@@ -13192,6 +13588,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 539.75 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6fc425c1-01a0-50a6-808c-974e3ec2e630")
 		)
@@ -13274,7 +13679,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
+		(property "Footprint" "Drezimo:SW_MX_PCB"
 			(at 565.15 228.6 0)
 			(effects
 				(font
@@ -13392,6 +13797,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C81598"
+			(at 585.47 228.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "09a886c3-9d85-5593-bac4-4a5c34f2430d")
 		)
@@ -13484,6 +13898,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 330.2 0)
 			(effects
 				(font
@@ -13640,6 +14063,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "badbcc85-6ed7-5e72-aa2c-6e1ffa7c582f")
 		)
@@ -13732,6 +14164,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 369.57 0)
 			(effects
 				(font
@@ -13888,6 +14329,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "84581ab6-f4c5-5104-b1a2-68af314a8767")
 		)
@@ -13980,6 +14430,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 369.57 0)
 			(effects
 				(font
@@ -14136,6 +14595,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "f8c5f3bb-1228-57f7-a37e-eae5ac2a59fa")
 		)
@@ -14228,6 +14696,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 369.57 0)
 			(effects
 				(font
@@ -14384,6 +14861,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "8a82a6c0-c710-56d2-bc78-ff489db45d67")
 		)
@@ -14476,6 +14962,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 369.57 0)
 			(effects
 				(font
@@ -14632,6 +15127,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "21f3038e-9958-5386-a287-e0c6b3a436c5")
 		)
@@ -14724,6 +15228,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 369.57 0)
 			(effects
 				(font
@@ -14880,6 +15393,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "010b16ed-1878-59c2-925f-bf13dbd8aa33")
 		)
@@ -14972,6 +15494,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 369.57 0)
 			(effects
 				(font
@@ -15128,6 +15659,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 608.33 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "60f7903f-a294-5716-97b4-11df55ca4fbe")
 		)
@@ -15220,6 +15760,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 369.57 0)
 			(effects
 				(font
@@ -15376,6 +15925,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1d10b392-c7c4-5f23-a1d6-aa3b09c971bf")
 		)
@@ -15468,6 +16026,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 410.21 0)
 			(effects
 				(font
@@ -15624,6 +16191,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1a28d6ae-c183-5124-9c1c-6aca26044e5b")
 		)
@@ -15716,6 +16292,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 410.21 0)
 			(effects
 				(font
@@ -15872,6 +16457,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "96b6059f-3391-5813-a8b0-8ab4f7fd5b7c")
 		)
@@ -15964,6 +16558,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 410.21 0)
 			(effects
 				(font
@@ -16120,6 +16723,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1e0ba118-5696-5133-8dc3-285e99d5d3bf")
 		)
@@ -16212,6 +16824,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 410.21 0)
 			(effects
 				(font
@@ -16368,6 +16989,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "e0698a6f-390c-544e-a940-1f06fa5b280c")
 		)
@@ -16460,6 +17090,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 410.21 0)
 			(effects
 				(font
@@ -16616,6 +17255,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1f4777b5-017d-5b8e-9e51-75f7e420fa54")
 		)
@@ -16708,6 +17356,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 410.21 0)
 			(effects
 				(font
@@ -16864,6 +17521,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 608.33 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "627504f6-04b7-526f-bd31-d96557bb010d")
 		)
@@ -16956,6 +17622,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 410.21 0)
 			(effects
 				(font
@@ -17112,6 +17787,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3181cbbd-3072-549b-af3a-62dc2d5ddec4")
 		)
@@ -17204,6 +17888,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 449.58 0)
 			(effects
 				(font
@@ -17360,6 +18053,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "4dcbc693-1c15-5e3e-89c9-67d3c9973393")
 		)
@@ -17452,6 +18154,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 449.58 0)
 			(effects
 				(font
@@ -17608,6 +18319,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "08703a70-bd7a-5de0-aae7-9ab198018f3d")
 		)
@@ -17700,6 +18420,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 449.58 0)
 			(effects
 				(font
@@ -17856,6 +18585,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2040517f-a55b-5ed6-a2b9-3471db6c3f52")
 		)
@@ -17948,6 +18686,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 449.58 0)
 			(effects
 				(font
@@ -18104,6 +18851,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1497f748-dbfb-52aa-ab0c-13c8715893fd")
 		)
@@ -18196,6 +18952,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 449.58 0)
 			(effects
 				(font
@@ -18352,6 +19117,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "ea62b028-5c83-5070-912b-f0e78fcaa9cf")
 		)
@@ -18444,6 +19218,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 449.58 0)
 			(effects
 				(font
@@ -18600,6 +19383,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 608.33 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "b9fe34cd-efeb-581a-99e1-c86d3695e4f6")
 		)
@@ -18692,6 +19484,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 449.58 0)
 			(effects
 				(font
@@ -18848,6 +19649,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "b03b6d0a-6d30-5a5f-985e-ae959491129c")
 		)
@@ -18940,6 +19750,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 490.22 0)
 			(effects
 				(font
@@ -19096,6 +19915,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "e20ebee2-fc58-5d1f-9322-f6f1255fe4ea")
 		)
@@ -19188,6 +20016,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 490.22 0)
 			(effects
 				(font
@@ -19344,6 +20181,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2b374c2c-4447-5a44-b91e-fff1069ae36d")
 		)
@@ -19436,6 +20282,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 490.22 0)
 			(effects
 				(font
@@ -19592,6 +20447,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "e00e9204-7ece-5e62-884d-d8e51e615d21")
 		)
@@ -19684,6 +20548,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 490.22 0)
 			(effects
 				(font
@@ -19840,6 +20713,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "daaf794c-97f7-5f29-a4b3-dcb0dbf403fc")
 		)
@@ -19932,6 +20814,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 490.22 0)
 			(effects
 				(font
@@ -20088,6 +20979,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c37f4afd-4e14-55cb-b920-5ebdde4a33d0")
 		)
@@ -20180,6 +21080,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 490.22 0)
 			(effects
 				(font
@@ -20336,6 +21245,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 608.33 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c6c9bc0b-29ed-5299-b3a9-1e66160f243b")
 		)
@@ -20428,6 +21346,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 490.22 0)
 			(effects
 				(font
@@ -20584,6 +21511,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "b8b69381-dbb2-526c-b2bf-7051550beadf")
 		)
@@ -20676,6 +21612,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 529.59 0)
 			(effects
 				(font
@@ -20832,6 +21777,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3c294eb3-b1ea-5524-8691-46589828f4ff")
 		)
@@ -20924,6 +21878,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 529.59 0)
 			(effects
 				(font
@@ -21080,6 +22043,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "9bd786dc-36e1-58c6-898f-a97f4e224222")
 		)
@@ -21172,6 +22144,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 529.59 0)
 			(effects
 				(font
@@ -21328,6 +22309,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "b528c308-4751-5025-b331-ba9da4529ac3")
 		)
@@ -21420,6 +22410,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 529.59 0)
 			(effects
 				(font
@@ -21576,6 +22575,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "bc25ce90-5a71-5cbc-b765-b0e490d3757d")
 		)
@@ -21668,6 +22676,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 529.59 0)
 			(effects
 				(font
@@ -21824,6 +22841,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "34298e0e-ea4e-51e3-ab96-339c77e3fddf")
 		)
@@ -21916,6 +22942,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 529.59 0)
 			(effects
 				(font
@@ -22072,6 +23107,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 608.33 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "fe643811-c9f4-5277-9080-6a5fdd8a1080")
 		)
@@ -22164,6 +23208,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 640.08 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 640.08 529.59 0)
 			(effects
 				(font
@@ -22303,6 +23356,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 657.86 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "97b0d120-ce19-5ba9-a178-051b5ae99ef6")
 		)
@@ -22395,6 +23457,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 340.36 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 340.36 330.2 0)
 			(effects
 				(font
@@ -22551,6 +23622,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 358.14 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "4a7abd5e-5a65-57b5-9666-4920782cb7a0")
 		)
@@ -22643,6 +23723,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 389.89 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 389.89 330.2 0)
 			(effects
 				(font
@@ -22799,6 +23888,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 407.67 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "0ac8eb5c-7c66-531f-b721-97f0aec2f742")
 		)
@@ -22891,6 +23989,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 439.42 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 439.42 330.2 0)
 			(effects
 				(font
@@ -23047,6 +24154,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 457.2 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "0bba68a1-4d73-5f4c-9edf-9f6e3a559261")
 		)
@@ -23139,6 +24255,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 490.22 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 490.22 330.2 0)
 			(effects
 				(font
@@ -23295,6 +24420,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 508 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3160673b-5e07-5416-9667-391f62dcbb0c")
 		)
@@ -23387,6 +24521,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 539.75 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 539.75 330.2 0)
 			(effects
 				(font
@@ -23543,6 +24686,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 557.53 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "9721604f-de98-528e-b30c-6c07fe9dd047")
 		)
@@ -23635,6 +24787,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 590.55 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C5149201"
 			(at 590.55 330.2 0)
 			(effects
 				(font
@@ -23783,6 +24944,15 @@
 			)
 		)
 		(property "Datasheet" "~"
+			(at 608.33 330.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C14663"
 			(at 608.33 330.2 0)
 			(effects
 				(font

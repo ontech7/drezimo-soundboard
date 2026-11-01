@@ -67,7 +67,7 @@ def main():
         check(len(nets.get(k, ())) == 2, f"net {k} must have exactly SW{n}.2 and D{n}.A")
         check(net_of(f"D{n}", 1) == f"ROW{row}", f"D{n} cathode should be ROW{row}, is {net_of(f'D{n}', 1)}")
         check(comps.get(f"D{n}") == "Diode_SMD:D_SOD-123", f"D{n} footprint")
-        check(comps.get(f"SW{n}") == "Drezimo:SW_MX_Hotswap_Kailh", f"SW{n} footprint (hot-swap socket)")
+        check(comps.get(f"SW{n}") == "Drezimo:SW_MX_PCB", f"SW{n} footprint (soldered MX switch)")
     for c in range(6):
         check(len(nets[f"COL{c}"]) == 7 + 1, f"COL{c} must reach 7 switches + the MCU")
     for r in range(7):

@@ -3,12 +3,14 @@
 > Note: the project is in English. The OLED display texts can be localised; the unit built for the author's friend shows them in Italian.
 
 > Project document  
-> Status: design decided (6×6 layout, custom PCB, USB-only power); real parts measured and fit-checked on paper, PCB fully routed (DRC clean). Next: fab files and the order.
+> Status: design decided (6×6 layout, custom PCB, USB-only power); real parts measured and fit-checked on paper, PCB fully routed (DRC clean), JLCPCB fab files generated. Next: the order.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
 - 2026-11-01: parts measured; PCB moved to the RP2040-Zero (USB-C through the back edge), LED cut-outs at the measured 4.47 mm, OLED header VCC-GND-SCL-SDA.
 - 2026-11-01: 1:1 paper fit check passed; Kailh hot-swap sockets (fab assembled) instead of soldered switches; PCB fully routed with GND pours on both layers; 5 mm PCB corners.
+- 2026-11-01: JLCPCB fab files (`export_fab.py`); LCSC parts chosen, 47 µF moved to a 1206 Basic part; the LED needs Standard PCBA.
+- 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
 
 ## 1. Goal
 
@@ -206,15 +208,16 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 
 ### Comes with the PCB order (assembled by the fab, PCB bottom side)
 
-| Component | Quantity | Use |
-|---|---|---|
-| Kailh CPG151101S11 MX hot-swap sockets (LCSC C2803348) | 42 | One per switch: switches plug in and out without soldering |
-| SK6812 MINI-E reverse-mount RGB LEDs | 42 | One per pad and function key |
-| 100 nF decoupling capacitors | 42 | One per LED |
-| SMD diodes, 1N4148W-class | 42 | Key matrix (anti-ghosting) |
-| Bulk capacitor 47 µF 10 V X5R (1210) | 1 | 5 V LED rail, after the polyfuse |
-| 330 Ω resistor | 1 | In series with the LED data line |
-| Polyfuse | 1, optional | Protection of the USB 5 V rail |
+| Component | Quantity | LCSC | Use |
+|---|---|---|---|
+| SK6812MINI-E reverse-mount RGB LED (OPSCO) | 42 | C5149201 (Extended) | One per pad and function key |
+| 100 nF 50 V X7R 0603 | 43 | C14663 (Basic) | One per LED, plus one for the SN74AHCT125N |
+| 1N4148W, SOD-123 | 42 | C81598 (Basic) | Key matrix (anti-ghosting) |
+| 47 µF 10 V X5R 1206 | 1 | C96123 (Basic) | 5 V LED rail, after the polyfuse |
+| 330 Ω 1 % 0603 | 1 | C23138 (Basic) | In series with the LED data line |
+| PTC 0.5 A hold / 1 A trip, 1206 | 1 | C720075 (Extended) | Protection of the USB 5 V rail |
+
+Stock and Basic/Extended class checked on 2026-11-01.
 
 ### Not needed any more
 
@@ -239,21 +242,24 @@ Cancel the order if still possible; otherwise they are harmless to keep:
 ### Custom PCB
 
 - 2-layer PCB from JLCPCB or similar; about 35–70 € for 5 boards including shipping (indicative).
-- **SMD parts assembled by the fab** on the PCB bottom side: Kailh hot-swap sockets, LEDs, 100 nF per LED, matrix diodes, 47 µF bulk capacitor, 100 nF for the buffer, 330 Ω data resistor, 0.5 A polyfuse on the LED rail.
+- **Fab files** (`hardware/scripts/export_fab.py`, into `hardware/fab/`): Gerber + Excellon zip (PTH and NPTH in separate files), assembly BOM with the LCSC part numbers (read from each symbol's `LCSC` field) and the placement file (CPL). Gerbers, drill and CPL share the drill/place origin. CPL positions are the centre of each part's pads, and bottom rotations follow JLCPCB's convention, checked against each part's JLCPCB footprint.
+- **Assembly at JLCPCB:** bottom side only, **Standard PCBA**: the SK6812MINI-E is a "Standard only" part (≈ $34 of fixed setup and stencil fees per order, Oct 2026, plus $3 for each Extended part line). In the placement preview check that each LED's pin-1 dot is on the chamfered corner of its silkscreen outline and each diode's cathode on the silkscreen bar.
+- **SMD parts assembled by the fab** on the PCB bottom side: LEDs, 100 nF per LED, matrix diodes, 47 µF bulk capacitor, 100 nF for the buffer, 330 Ω data resistor, 0.5 A polyfuse on the LED rail.
 - **Hand-soldered by the author:**
+  - The 42 switches, from the bottom.
   - RP2040-Zero on its 2.54 mm pin strips, under the PCB with the USB-C face down and the chip side towards the board, USB-C at the back edge. Trim the pin ends on the top side to 2 mm at most.
   - EC11 encoder.
   - SN74AHCT125N in its DIP-14 footprint.
   - OLED module, soldered by its own header.
 - **Key matrix:** 7 rows × 6 columns (6 pad rows + the function row), one diode per key → 13 GPIOs.
-- **Switches:** plugged into Kailh hot-swap sockets soldered by the fab on the bottom (≈5–7 € per board): no switch soldering, and a broken switch is swapped in seconds. The case plate holds the switches, so they do not come out with the keycaps. The footprint (`hardware/lib/drezimo.pretty/SW_MX_Hotswap_Kailh`) has the peg holes of 5-pin switches like the Akko V5. The LED window is in the bottom housing on the side opposite the metal pins: 6.00 × 2.04 mm, centred 4.47 mm from the switch centre (measured), which is where the LED cut-outs are.
+- **Switches:** soldered to the PCB in 1.5 mm plated holes (the Kailh hot-swap socket was out of stock at JLCPCB), and held by the case plate too. The footprint (`hardware/lib/drezimo.pretty/SW_MX_PCB`) has the peg holes of 5-pin switches like the Akko V5. The LED window is in the bottom housing on the side opposite the metal pins: 6.00 × 2.04 mm, centred 4.47 mm from the switch centre (measured), which is where the LED cut-outs are.
 - **Board layout** (generated by `hardware/scripts/build_pcb.py`, case frame = origin at the case's top-left outer corner):
   - Case 130.3 × 196.35 mm; PCB 124.3 × 190.35 mm (3 mm inset: 2.5 mm wall + 0.5 mm clearance), 5 mm corner radius (the case can round its corners up to ≈8 mm).
   - Top strip (y 8–46 mm): RP2040-Zero top-left, hanging under the board on its pin strips, USB-C through the back wall (connector centre x = 30 mm, receptacle face 2.27 mm from the case's outer edge); 1.3" OLED module right of it, soldered directly by its header (header centre x = 77.7 mm); EC11 above the last column (shaft at 112.775, 27).
   - GPIO map, chosen so that no two routes cross: ROW0–5 = GP5–GP0 and ROW6 (function keys) = GP6 on the module's left column, fed by the ROW bus coming up the left edge; COL0–5 = GP9–GP14 on its 5-pin row, facing the keys; I²C0 SDA/SCL = GP28/GP29 and encoder A/B/switch = GP26/GP15/GP27 on its right column, facing the OLED and the knob; LED data = GP8; GP7 spare.
   - SN74AHCT125N upright below-left of the module; gate 3 (pins 8–10) drives the LEDs because it sits next to the first LED of the chain (function key 1).
   - LED chain: every row left to right (function row, then pad rows 0–5); the end of each row returns to the start of the next one.
-  - Bottom side (fab assembly): hot-swap socket north of each switch centre, LED 4.47 mm south, diode west under the socket, 100 nF east next to the LED's VDD; polyfuse and 47 µF on the 5 V trunk that runs down the right of the module.
+  - Bottom side (fab assembly): switch pins north of each switch centre, LED 4.47 mm south, diode west of pin 2, 100 nF east next to the LED's VDD; polyfuse and 47 µF on the 5 V trunk that runs down the right of the module.
   - 6 M3 holes 6.5 mm from the case edges: 4 corners + middle of the long sides (between pad rows 3 and 4).
   - Review documents in `hardware/docs/` (`export_docs.py`): schematic PDF, 1:1 A4 fit-check PDFs (top and mirrored bottom, with a 100 mm scale bar), 3D renders, DRC report.
   - Routing (generated too): F.Cu carries the COL and +5V_LED columns and the top-strip signals, B.Cu the ROW trunks and bus and the LED chain; both layers are GND pours, stitched by two vias per key. 0.25 mm signals (0.2 mm for the ROW bus squeezed past the middle mounting hole), 0.4–0.8 mm for +5V_LED.
@@ -407,14 +413,14 @@ These are examples, not an already implemented protocol.
 - [x] Measure the OLED module outline, mounting holes and pin order.
 - [x] Check the EC11 pin layout from the kit.
 - [x] Measure the RP2040-Zero (pin grid, USB-C position, 5V = VBUS, boots with a C-to-C cable).
-- [x] Check whether the fab can assemble Kailh hot-swap sockets at a reasonable cost (yes: ≈5–7 € per board).
+- [x] Check whether the fab can assemble Kailh hot-swap sockets (yes, but out of stock at order time: switches are soldered instead).
 
 ### Phase 3 — PCB design and order
 - [x] Schematic: 7×6 key matrix with diodes, SK6812 MINI-E chain (0–41) with 100 nF per LED, SN74AHCT125N, 330 Ω data resistor, 47 µF bulk capacitor, 0.5 A polyfuse, encoder, OLED header, RP2040-Zero (ERC 0, `check_design.py` OK).
-- [x] Layout: placed on the measured parts and fully routed (DRC clean, schematic parity 0). 2-layer board, LED cut-outs on the measured LED window, Kailh hot-swap sockets, DIP-14 footprint, RP2040-Zero under the board with its USB-C at the back edge, GND pours on both layers.
+- [x] Layout: placed on the measured parts and fully routed (DRC clean, schematic parity 0). 2-layer board, LED cut-outs on the measured LED window, soldered MX switches, DIP-14 footprint, RP2040-Zero under the board with its USB-C at the back edge, GND pours on both layers.
 - [x] Check the footprints against the real parts (1:1 printout: switches, keycap spacing, OLED, encoder, RP2040-Zero).
-- [ ] Generate the fab files (Gerbers, drill, BOM and placement for assembly) and check the parts' availability at the fab.
-- [ ] Order 5 boards with SMD assembly on the bottom side.
+- [x] Generate the fab files (Gerbers, drill, BOM and placement for assembly) and check the parts' availability at the fab.
+- [ ] Order 5 boards with SMD assembly on the bottom side (Standard PCBA).
 
 ### Phase 4 — Firmware
 - [ ] Matrix scan with debounce, encoder, serial protocol.
@@ -433,7 +439,7 @@ These are examples, not an already implemented protocol.
 ### Phase 6 — Enclosure and final assembly
 - [ ] Design the enclosure (130.3 × 196.35 mm) on the real measurements; test-print a plate section with a few switches.
 - [ ] Bring up the assembled PCB at low brightness: LEDs, OLED, encoder, a few switches.
-- [ ] Solder the RP2040-Zero, the encoder, the buffer and the OLED module; plug in the switches.
+- [ ] Solder the switches, the RP2040-Zero, the encoder, the buffer and the OLED module.
 - [ ] Print the enclosure on the P1S, mount everything, close it with the 6 screws, add the rubber feet.
 - [ ] Run extended tests on Windows with paid Voicemod before delivery.
 
@@ -448,7 +454,7 @@ These are examples, not an already implemented protocol.
 - [x] Display: 1.3" OLED 128×64, SH1106, I²C, driven by the RP2040.
 - [x] LEDs: 42 SK6812 MINI-E reverse-mount on the PCB bottom; opaque keycaps with halo lighting.
 - [x] Key matrix: 7 × 6 with SMD diodes (13 GPIOs, 19 of 20 in total).
-- [x] Custom 2-layer PCB with fab-assembled SMD parts and hot-swap sockets; RP2040-Zero, encoder, buffer and OLED module hand-soldered, switches plugged in.
+- [x] Custom 2-layer PCB with fab-assembled SMD parts; switches, RP2040-Zero, encoder, buffer and OLED module hand-soldered.
 - [x] Power: USB only, ≈400 mA LED cap in firmware, 0.5 A polyfuse + 47 µF on the LED rail.
 - [x] Microcontroller: RP2040-Zero clone (USB-C) instead of the Raspberry Pi Pico, mounted on its pin strips under the PCB (RP2040 and crystal sit on its underside). PCB and pin map updated to the measured part (2026-11-01).
 - [x] USB cable exits from the top (back) edge of the case, not from the left side.
@@ -497,4 +503,4 @@ These are examples, not an already implemented protocol.
 
 **Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
 
-**Next steps:** fab files (Gerbers, BOM, placement) and the PCB order with assembly.
+**Next steps:** the PCB order with bottom-side assembly; meanwhile, firmware bring-up on a breadboard.

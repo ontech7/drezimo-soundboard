@@ -22,3 +22,4 @@ hardware/pcb/netlist.net
 hardware/pcb/erc.json
 hardware/pcb/drc.json
 hardware/docs/
+hardware/fab/

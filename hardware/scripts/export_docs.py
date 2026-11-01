@@ -47,7 +47,7 @@ def main():
     report = json.loads(drc.read_text(encoding="utf-8"))
     print("DRC violations:", dict(Counter(v["type"] for v in report["violations"])) or "none")
     print("schematic parity issues:", len(report["schematic_parity"]))
-    print("unrouted connections:", len(report["unconnected_items"]), "(expected until routing)")
+    print("unrouted connections:", len(report["unconnected_items"]))
     print("wrote", ", ".join(sorted(p.name for p in OUT.iterdir())))
 
 

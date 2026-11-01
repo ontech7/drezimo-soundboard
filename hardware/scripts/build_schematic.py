@@ -125,7 +125,8 @@ class Schematic:
         node.append([Sym("instances"), [Sym("project"), PROJECT,
                      [Sym("path"), "/" + ROOT_UUID, [Sym("reference"), ref], [Sym("unit"), unit]]]])
         self.items.append(node)
-        part = self.parts.setdefault(ref, {"value": value, "footprint": footprint, "lib": sym_id, "pins": {}, "uuid": uid("sym", ref, 1)})
+        part = self.parts.setdefault(ref, {"value": value, "footprint": footprint, "lib": sym_id, "pins": {},
+                                           "uuid": uid("sym", ref, 1), "fields": dict(fields or {})})
         return Placed(self, ref, x, y, angle, pins, part)
 
     def wire(self, a, b):
@@ -178,16 +179,32 @@ class Placed:
 
 
 # ---------------------------------------------------------------- the circuit
-FP_MX = "Drezimo:SW_MX_Hotswap_Kailh"
+FP_MX = "Drezimo:SW_MX_PCB"
 FP_LED = "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
 FP_D = "Diode_SMD:D_SOD-123"
 FP_C0603 = "Capacitor_SMD:C_0603_1608Metric"
+
+# LCSC part numbers of the parts the fab assembles (JLCPCB library, checked 2026-11-01). They go into
+# each symbol's "LCSC" field, then onto the board footprints, where export_fab.py reads them.
+# Basic parts carry no loading fee; the LED is Extended and needs Standard PCBA.
+LCSC = {
+    "led": "C5149201",      # OPSCO SK6812MINI-E (Extended)
+    "diode": "C81598",      # 1N4148W, SOD-123 (Basic)
+    "100n": "C14663",       # 100 nF 50 V X7R 0603 (Basic)
+    "47u": "C96123",        # 47 uF 10 V X5R 1206 (Basic)
+    "330r": "C23138",       # 330 R 1 % 0603 (Basic)
+    "ptc": "C720075",       # PTC 0.5 A hold / 1 A trip, 1206 (Extended)
+}
+
+
+def lcsc(kind):
+    return {"LCSC": LCSC[kind]}
 
 
 def build():
     sch = Schematic()
     notes = [
-        "DREZIMO SOUNDBOARD - rev A",
+        "DREZIMO SOUNDBOARD - v0.2",
         "36 sound pads (6x6) + 6 function keys + EC11 encoder + 1.3in SH1106 I2C OLED, RP2040-Zero (RP2040, USB-C).",
         "Powered only by the PC USB port (VBUS). LED current capped in firmware at ~400 mA total.",
         "",
@@ -200,7 +217,7 @@ def build():
         "  i.e. every row left to right: function row, then pad rows 0..5. Firmware maps chain index -> key.",
         "  GP8 (3.3 V) -> 74AHCT125 gate 3 (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
         "GPIO: COL0-5 = GP9-14, ROW0-5 = GP5-GP0, ROW6 = GP6, ENC A/B/SW = GP26/GP15/GP27, I2C0 SDA/SCL = GP28/GP29, LED = GP8.",
-        "SWITCHES: Kailh CPG151101S11 hot-swap sockets on the PCB bottom (fab assembled); switches are held by the case plate.",
+        "SWITCHES: soldered to the PCB (plated pin holes, hand-soldered) and held by the case plate.",
         "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND.",
         "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low.",
     ]
@@ -216,10 +233,10 @@ def build():
             u1.net(pin, net)
 
     # --- Power: polyfuse on the LED rail, bulk + flags
-    f1 = sch.place("Device", "Polyfuse", "F1", "PTC 0.5A hold", "Fuse:Fuse_1206_3216Metric", 60, 270)
+    f1 = sch.place("Device", "Polyfuse", "F1", "PTC 0.5A hold", "Fuse:Fuse_1206_3216Metric", 60, 270, fields=lcsc("ptc"))
     f1.net(1, "VBUS")
     f1.net(2, "+5V_LED")
-    c43 = sch.place("Device", "C", "C43", "47uF 10V X5R", "Capacitor_SMD:C_1210_3225Metric", 85, 270)
+    c43 = sch.place("Device", "C", "C43", "47uF 10V X5R", "Capacitor_SMD:C_1206_3216Metric", 85, 270, fields=lcsc("47u"))
     c43.net(1, "+5V_LED")
     c43.net(2, "GND")
     # GND, VBUS and +3V3 are driven by the module's power pins; only the fused LED rail needs a flag.
@@ -239,10 +256,10 @@ def build():
     u2e = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", 200, 110, unit=5)
     u2e.net(14, "+5V_LED")
     u2e.net(7, "GND")
-    c44 = sch.place("Device", "C", "C44", "100nF", FP_C0603, 225, 110)
+    c44 = sch.place("Device", "C", "C44", "100nF", FP_C0603, 225, 110, fields=lcsc("100n"))
     c44.net(1, "+5V_LED")
     c44.net(2, "GND")
-    r1 = sch.place("Device", "R", "R1", "330R", "Resistor_SMD:R_0603_1608Metric", 250, 110)
+    r1 = sch.place("Device", "R", "R1", "330R", "Resistor_SMD:R_0603_1608Metric", 250, 110, fields=lcsc("330r"))
     r1.net(1, "LED_DIN_5V")
     r1.net(2, LED_CHAIN_NETS[0])
 
@@ -261,7 +278,7 @@ def build():
         sw = sch.place("Switch", "SW_Push", f"SW{n}", FN_KEYS[n - 37] if n > 36 else f"PAD {n - 1}", FP_MX, cx, cy)
         sw.net(1, f"COL{col}")
         sw.net(2, f"K{n}")
-        d = sch.place("Device", "D", f"D{n}", "1N4148W", FP_D, cx + 20, cy, angle=180)  # anode left, cathode right
+        d = sch.place("Device", "D", f"D{n}", "1N4148W", FP_D, cx + 20, cy, angle=180, fields=lcsc("diode"))  # anode left, cathode right
         d.net(2, f"K{n}")
         d.net(1, f"ROW{row}")
 
@@ -270,7 +287,7 @@ def build():
         k = CHAIN_ORDER.index(n)
         gx, gy = key_cell(k)
         x, y = 340 + gx * 50, 330 + gy * 40
-        led = sch.place("LED", "SK6812MINI-E", f"LED{n}", "SK6812MINI-E", FP_LED, x, y)
+        led = sch.place("LED", "SK6812MINI-E", f"LED{n}", "SK6812MINI-E", FP_LED, x, y, fields=lcsc("led"))
         led.net(2, LED_CHAIN_NETS[k])                       # DIN
         if k + 1 < len(CHAIN_ORDER):
             led.net(4, LED_CHAIN_NETS[k + 1])               # DOUT
@@ -278,7 +295,7 @@ def build():
             led.nc(4)                                       # end of chain
         led.net(3, "+5V_LED")
         led.net(1, "GND")
-        c = sch.place("Device", "C", f"C{n}", "100nF", FP_C0603, x + 17.78, y)
+        c = sch.place("Device", "C", f"C{n}", "100nF", FP_C0603, x + 17.78, y, fields=lcsc("100n"))
         c.net(1, "+5V_LED")
         c.net(2, "GND")
 

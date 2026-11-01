@@ -24,7 +24,7 @@ PCB_DIR = Path(__file__).resolve().parent.parent / "pcb"
 BOARD_FILE = PCB_DIR / "drezimo-soundboard.kicad_pcb"
 PROJECT_LIBS = {"Drezimo": PCB_DIR.parent / "lib" / "drezimo.pretty"}   # project footprints (RP2040-Zero, logo)
 
-BOARD_VERSION = "v0.1"            # silkscreen, next to the logo
+BOARD_VERSION = "v0.2"            # silkscreen, next to the logo
 
 # ---- Case geometry (must match simulator/dummy-board.html and the enclosure model)
 PITCH = 19.05
@@ -66,8 +66,8 @@ LOGO_CENTER = (OLED_HEADER_CENTER[0], MARGIN + 20.0)   # bottom side, behind the
 TRUNK_X = 39.8                                          # VBUS / +5V_LED trunk (bottom), right of the module
 
 
-# Per-key parts around the switch centre (bottom side). The socket terminals sit north of the
-# centre, the LED window south: diode west under socket pad 2, cap east next to the LED's VDD pad.
+# Per-key parts around the switch centre (bottom side). The switch pins sit north of the centre,
+# the LED window south: diode west of pin 2, cap east next to the LED's VDD pad.
 def DIODE_AT(cx, cy):
     return cx - 7.3, cy + 1.4
 
@@ -199,15 +199,15 @@ def mounting_holes():
 
 
 # JLCPCB standard 2-layer process, with margin. Board-level values are the floor that
-# custom rules cannot go below, so the floors are the exceptions (LED cut-out edge 0.2 mm, JLCPCB's
-# routed-edge minimum; hot-swap holes 0.4 mm) and the .kicad_dru restores 0.5 mm for everything else.
+# custom rules cannot go below, so the floor is the exception (LED cut-out edge 0.2 mm, JLCPCB's
+# routed-edge minimum) and the .kicad_dru restores 0.5 mm for everything else.
 DESIGN_RULES = {
     "min_clearance": 0.15,
     "min_track_width": 0.15,
     "min_via_diameter": 0.6,
     "min_through_hole_diameter": 0.3,
     "min_via_annular_width": 0.15,
-    "min_hole_to_hole": 0.4,
+    "min_hole_to_hole": 0.5,
     "min_hole_clearance": 0.25,
     "min_copper_edge_clearance": 0.2,
 }
@@ -218,12 +218,6 @@ CUSTOM_RULES = """(version 1)
 (rule "Board edge"
   (constraint edge_clearance (min 0.5mm))
   (condition "!(A.Parent.Reference == 'LED*' || B.Parent.Reference == 'LED*')"))
-
-# The standard 5-pin hot-swap layout leaves 0.44 mm between a peg hole and a pin hole (both NPTH,
-# same footprint, made by JLCPCB on countless keyboards). 0.5 mm everywhere else.
-(rule "Hole to hole"
-  (constraint hole_to_hole (min 0.5mm))
-  (condition "!(A.Parent.Reference == 'SW*' && B.Parent.Reference == 'SW*')"))
 """
 
 
@@ -258,7 +252,7 @@ F_CU, B_CU = pcbnew.F_Cu, pcbnew.B_Cu
 W_SIG, W_STUB, W_PWR, W_BUS, W_ROWBUS = 0.25, 0.4, 0.5, 0.8, 0.2
 VIA_D, VIA_DRILL = 0.6, 0.3
 
-COL_X = 7.9           # COL column (F.Cu), its via right of socket pad 1
+COL_X = 7.9           # COL column (F.Cu), its via right of switch pin 1
 V5_X, V5_Y = 8.9, 6.9  # +5V_LED column (F.Cu, clears hole H6) and the per-key via under the LED
 ROW_Y = 8.0           # ROW trunk (B.Cu), below the LEDs
 RET_Y = 10.5          # LED chain going back from the end of a row (B.Cu), below the ROW trunk
@@ -315,14 +309,14 @@ def col_center_x(col):
 
 
 def route_keys(r):
-    """Per key: socket -> COL via, socket -> diode -> ROW trunk, LED and cap to the GND vias and +5V via."""
+    """Per key: switch -> COL via, switch -> diode -> ROW trunk, LED and cap to the GND vias and +5V via."""
     for n, (row, col) in KEYS.items():
         cx, cy = key_center(n)
         r.track(f"COL{col}", [r.pad(f"SW{n}", 1), (cx + COL_X, cy - 5.08)])
         r.via(f"COL{col}", cx + COL_X, cy - 5.08)
         ax, ay = r.pad(f"D{n}", 2)
         kx, ky = r.pad(f"D{n}", 1)
-        r.track(f"K{n}", [(ax, cy - 2.54), (ax, ay)])                  # from inside socket pad 2 to the anode
+        r.track(f"K{n}", [r.pad(f"SW{n}", 2), (ax, cy - 2.54), (ax, ay)])   # pin 2 west, then down to the anode
         r.track(f"ROW{row}", [(kx, ky), (kx, cy + ROW_Y)])
         gx, gy = r.pad(f"LED{n}", 1)
         r.track("GND", [(gx, gy), (gx, cy + 2.35)])
@@ -500,6 +494,11 @@ def main():
         fp = load_fp(part["footprint"])
         fp.SetReference(ref)
         fp.SetValue(part["value"])
+        for name, value in part["fields"].items():          # e.g. LCSC, read by export_fab.py
+            fp.SetField(name, value)
+            field = fp.GetField(name)
+            field.SetVisible(False)                          # new fields default to visible silkscreen
+            field.SetLayer(pcbnew.F_Fab)
         fp.SetPath(pcbnew.KIID_PATH("/" + part["uuid"]))
         board.Add(fp)
         for pad in fp.Pads():
@@ -508,13 +507,16 @@ def main():
                 pad.SetNet(nets[net])
         footprints[ref] = fp
 
-    # --- Switch sockets, LEDs, diodes and caps (all on the bottom, assembled by the fab).
+    # --- Switches (top, hand-soldered); LEDs, diodes and caps (bottom, assembled by the fab).
     # On the bottom, 90 deg puts pad 2 of a 2-pad part on top and 270 deg puts pad 1 on top.
     for n in KEYS:
         cx, cy = key_center(n)
-        place(footprints[f"SW{n}"], cx, cy)                          # hot-swap socket, origin = switch centre
+        place(footprints[f"SW{n}"], cx, cy)                          # origin = switch centre
         place(footprints[f"LED{n}"], cx, cy + LED_OFFSET_Y, bottom=True)
-        place(footprints[f"D{n}"], *DIODE_AT(cx, cy), angle=90, bottom=True)     # anode up, next to socket pad 2
+        label = footprints[f"LED{n}"].Reference()                   # unlocked: it would read mirrored from below
+        label.SetTextAngleDegrees(0)
+        label.SetPosition(vec(cx, cy + LED_OFFSET_Y + 2.8))         # clear of the LED outline
+        place(footprints[f"D{n}"], *DIODE_AT(cx, cy), angle=90, bottom=True)     # anode up, level with pin 2
         place(footprints[f"C{n}"], *CAP_AT(cx, cy), bottom=True)                 # +5V pad next to the LED's VDD
         for ref in (f"D{n}", f"C{n}"):                               # no room for their labels between the holes
             footprints[ref].Reference().SetVisible(False)

@@ -5,9 +5,3 @@
 (rule "Board edge"
   (constraint edge_clearance (min 0.5mm))
   (condition "!(A.Parent.Reference == 'LED*' || B.Parent.Reference == 'LED*')"))
-
-# The standard 5-pin hot-swap layout leaves 0.44 mm between a peg hole and a pin hole (both NPTH,
-# same footprint, made by JLCPCB on countless keyboards). 0.5 mm everywhere else.
-(rule "Hole to hole"
-  (constraint hole_to_hole (min 0.5mm))
-  (condition "!(A.Parent.Reference == 'SW*' && B.Parent.Reference == 'SW*')"))
