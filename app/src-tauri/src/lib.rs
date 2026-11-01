@@ -41,14 +41,19 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building the app")
-        .run(|app, event| match event {
-            // The app lives on with no window; Quit in the tray menu exits with a code
-            RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
-            // Opened again from Finder while running
-            #[cfg(target_os = "macos")]
-            RunEvent::Reopen { .. } => window::open(app),
-            _ => {}
-        });
+        .run(on_run_event);
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn on_run_event(app: &AppHandle, event: RunEvent) {
+    match event {
+        // The app lives on with no window; Quit in the tray menu exits with a code
+        RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
+        // Opened again from Finder while running
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => window::open(app),
+        _ => {}
+    }
 }
 
 fn on_board_event(app: &AppHandle, event: BoardEvent) {
