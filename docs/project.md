@@ -335,6 +335,8 @@ Electron would have reused the simulator's JavaScript as is; Tauri means rewriti
 
 Board link (`app/src-tauri/src/board.rs`): every second the app lists the serial ports of Raspberry Pi devices (USB vendor 2E8A) and opens each one with DTR on; a port that answers `HELLO` with `DREZIMO,<version>` is the board, the others are skipped until unplugged. When the board goes away the search resumes.
 
+Settings window (`app/src-tauri/src/window.rs`): built on demand, hidden with the app's dark background until the page reports its first complete frame (about 170 ms on an M-series Mac, release build), so it never flashes white. A closed window is only hidden for 5 minutes, for an instant reopen, then destroyed to give its memory back. The app opens it when started by hand and stays in the tray when started at login (`--autostart`).
+
 PC overlay: drawn by the Rust core in a native transparent, click-through, always-on-top window rather than a webview, so it never sleeps and appears at once; position (monitor, one of nine anchors or dragged), opacity and timing are configurable. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that.
 
 ### Voicemod integration: to verify early

@@ -25,7 +25,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .tooltip("Drezimo Soundboard")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => crate::open_window(app),
+            "open" => crate::window::open(app),
             "quit" => app.exit(0),
             _ => {}
         })

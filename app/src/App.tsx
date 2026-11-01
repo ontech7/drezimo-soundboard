@@ -1,27 +1,36 @@
-import logo from "./assets/drezimo-logo.svg";
+import { useEffect } from "react";
+// Inline markup rather than an <img>: nothing left to load once the page is built
+import logo from "./assets/drezimo-logo.svg?raw";
 import { useBoardActivity, useBoardStatus } from "./board";
+import { windowReady } from "./window";
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 export default function App() {
   const status = useBoardStatus();
   const activity = useBoardActivity(12);
-  const connected = status?.connected ?? false;
+
+  // The first frame waits for the board status, so the window never shows a state that changes at once
+  useEffect(() => {
+    if (status) windowReady();
+  }, [status]);
+
+  if (!status) return null;
 
   return (
     <main>
       <header>
-        <img className="logo" src={logo} alt="Drezimo Soundboard" />
+        <div className="logo" role="img" aria-label="Drezimo Soundboard" dangerouslySetInnerHTML={{ __html: logo }} />
       </header>
 
       <section className="card">
         <h2>Board</h2>
         <div className="status">
-          <span className={`dot ${connected ? "on" : ""}`} />
+          <span className={`dot ${status.connected ? "on" : ""}`} />
           <div>
-            <p className="status-title">{connected ? "Connected" : "Looking for the board…"}</p>
+            <p className="status-title">{status.connected ? "Connected" : "Looking for the board…"}</p>
             <p className="muted">
-              {connected ? `Firmware ${status?.firmware} · ${status?.port}` : "Plug the board into a USB port."}
+              {status.connected ? `Firmware ${status.firmware} · ${status.port}` : "Plug the board into a USB port."}
             </p>
           </div>
         </div>
