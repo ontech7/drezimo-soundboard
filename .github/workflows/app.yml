@@ -1,0 +1,40 @@
+name: App
+
+on:
+  push:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+
+jobs:
+  check:
+    # Windows: the platform the app ships to, and the one not tested locally
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+      - run: yarn install --frozen-lockfile
+      - run: yarn prettier --check src
+      # Type check and the frontend build, which the Rust build embeds
+      - run: yarn build
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - run: cargo fmt --check
+        working-directory: app/src-tauri
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: app/src-tauri
+      - run: cargo test
+        working-directory: app/src-tauri
