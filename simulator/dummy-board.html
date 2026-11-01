@@ -699,6 +699,7 @@ function onLogEvent(ev) {
   const s = soundIndex.get(ev.id), cur = engine.sounds.get(ev.id);
   const entry = cur ? { ...cur } : { startedAt: t, eta: naturalEta(s, t), remaining: null };
   if (ev.type === "play" && !ev.repeat) { entry.startedAt = t; entry.eta = naturalEta(s, t); }
+  if (ev.type === "play" && !ev.repeat && ev.state === "playing" && s) state.last = { name: s.name, at: performance.now() };
   if (ev.state === "paused" && cur?.state !== "paused") { entry.remaining = entry.eta ? entry.eta - t : null; entry.eta = null; }
   if (ev.state === "playing" && cur?.state === "paused") { entry.eta = entry.remaining != null ? t + entry.remaining : null; entry.remaining = null; }
   entry.state = ev.state; entry.count = ev.count;

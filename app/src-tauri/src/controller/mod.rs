@@ -505,7 +505,11 @@ impl Controller {
                 ..
             }
         );
-        unpredicted && started
+        let started_elsewhere = unpredicted && started;
+        if let Some(sound) = sound.filter(|_| started_elsewhere) {
+            self.last = Some((sound.name.clone(), now));
+        }
+        started_elsewhere
     }
 
     /// Takes what plays from the log, when followed.

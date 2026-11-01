@@ -550,3 +550,15 @@ fn shows_no_counter_without_soundboards() {
     };
     assert_eq!((counter.as_str(), name.as_str()), ("", ENGLISH.no_sound));
 }
+
+#[test]
+fn shows_the_name_of_a_sound_started_from_the_computer() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.log_input(LogInput::Opened(Vec::new()), now);
+    controller.log_input(LogInput::Lines(vec![played_in_log("honk", SystemTime::now())]), now);
+    controller.update(now);
+    let Screen::Home { name, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, "HONK");
+}
