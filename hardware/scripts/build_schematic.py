@@ -178,7 +178,7 @@ class Placed:
 
 
 # ---------------------------------------------------------------- the circuit
-FP_MX = "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+FP_MX = "Drezimo:SW_MX_Hotswap_Kailh"
 FP_LED = "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
 FP_D = "Diode_SMD:D_SOD-123"
 FP_C0603 = "Capacitor_SMD:C_0603_1608Metric"
@@ -197,11 +197,12 @@ def build():
         "  Function keys: PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME.",
         "LEDS: SK6812MINI-E reverse mount on the PCB bottom, under each switch window (south side, 4.47 mm from centre, measured).",
         "  LEDn sits under SWn. Data chain order: " + " ".join(f"{k}" for k in CHAIN_ORDER[:12]) + " ...",
-        "  i.e. function row L->R, then pad rows serpentine (row 0 R->L, row 1 L->R, ...). Firmware maps chain index -> key.",
-        "  GP0 (3.3 V) -> 74AHCT125 gate A (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
-        "GPIO: COL0-5 = GP1-6, ROW0-6 = GP7-13, ENC A/B/SW = GP28/GP29/GP14, I2C1 SDA/SCL = GP26/GP27, LED data = GP0.",
+        "  i.e. every row left to right: function row, then pad rows 0..5. Firmware maps chain index -> key.",
+        "  GP8 (3.3 V) -> 74AHCT125 gate 3 (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
+        "GPIO: COL0-5 = GP9-14, ROW0-5 = GP5-GP0, ROW6 = GP6, ENC A/B/SW = GP26/GP15/GP27, I2C0 SDA/SCL = GP28/GP29, LED = GP8.",
+        "SWITCHES: Kailh CPG151101S11 hot-swap sockets on the PCB bottom (fab assembled); switches are held by the case plate.",
         "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND.",
-        "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low. J2 = optional expansion header, spare GP15 (not fitted).",
+        "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low.",
     ]
     for i, line in enumerate(notes):
         sch.text(line, 20, 20 + i * 4.2)
@@ -225,12 +226,12 @@ def build():
     flag = sch.place("power", "PWR_FLAG", "#FLG01", "PWR_FLAG", "", 110, 265)
     flag.net(1, "+5V_LED")
 
-    # --- LED level shifter: 74AHCT125, gate A used, gates B-D parked
-    u2a = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", 200, 70, unit=1)
-    u2a.net(1, "GND")            # 1OE active low -> enabled
-    u2a.net(2, "LED_DIN_3V3")    # 1A from GP0
-    u2a.net(3, "LED_DIN_5V")     # 1Y
-    for unit, (oe, a, y), x in ((2, (4, 5, 6), 230), (3, (10, 9, 8), 260), (4, (13, 12, 11), 290)):
+    # --- LED level shifter: 74AHCT125, gate 3 used (pins 8-10, next to the first LED), the others parked
+    u2c = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", 200, 70, unit=3)
+    u2c.net(10, "GND")           # 3OE active low -> enabled
+    u2c.net(9, "LED_DIN_3V3")    # 3A from GP8
+    u2c.net(8, "LED_DIN_5V")     # 3Y
+    for unit, (oe, a, y), x in ((1, (1, 2, 3), 230), (2, (4, 5, 6), 260), (4, (13, 12, 11), 290)):
         g = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", x, 70, unit=unit)
         g.net(oe, "+5V_LED")     # disabled
         g.net(a, "GND")          # input not floating
@@ -245,7 +246,7 @@ def build():
     r1.net(1, "LED_DIN_5V")
     r1.net(2, LED_CHAIN_NETS[0])
 
-    # --- OLED, encoder, expansion header
+    # --- OLED, encoder
     # The module's own straight header goes through these 4 holes and is soldered: no socket on the PCB
     j1 = sch.place("Connector_Generic", "Conn_01x04", "J1", "OLED 1.3in SH1106 I2C", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical", 200, 165)
     for pin, net in ((1, "+3V3"), (2, "GND"), (3, "SCL"), (4, "SDA")):
@@ -253,9 +254,6 @@ def build():
     enc = sch.place("Device", "RotaryEncoder_Switch_MP", "ENC1", "EC11 encoder + switch", "Rotary_Encoder:RotaryEncoder_Alps_EC11E-Switch_Vertical_H20mm", 205, 205)
     for pin, net in (("A", "ENC_A"), ("B", "ENC_B"), ("C", "GND"), ("S1", "ENC_SW"), ("S2", "GND"), ("MP", "GND")):
         enc.net(pin, net)
-    j2 = sch.place("Connector_Generic", "Conn_01x03", "J2", "Expansion (not fitted)", "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical", 200, 245, dnp=True)
-    for pin, net in ((1, "+3V3"), (2, "EXP_GP15"), (3, "GND")):
-        j2.net(pin, net)
 
     # --- Key matrix
     for n, (row, col) in KEYS.items():

@@ -2179,193 +2179,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Connector_Generic:Conn_01x03"
-			(pin_names
-				(offset 1.016)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(in_pos_files yes)
-			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "J"
-				(at 0 5.08 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "Conn_01x03"
-				(at 0 -5.08 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Description" "Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_keywords" "connector"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_fp_filters" "Connector*:*_1x??_*"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "Conn_01x03_1_1"
-				(rectangle
-					(start -1.27 3.81)
-					(end 1.27 -3.81)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type background)
-					)
-				)
-				(rectangle
-					(start -1.27 2.667)
-					(end 0 2.413)
-					(stroke
-						(width 0.1524)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(rectangle
-					(start -1.27 0.127)
-					(end 0 -0.127)
-					(stroke
-						(width 0.1524)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(rectangle
-					(start -1.27 -2.413)
-					(end 0 -2.667)
-					(stroke
-						(width 0.1524)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(pin passive line
-					(at -5.08 2.54 0)
-					(length 3.81)
-					(name "Pin_1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -5.08 0 0)
-					(length 3.81)
-					(name "Pin_2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -5.08 -2.54 0)
-					(length 3.81)
-					(name "Pin_3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "Switch:SW_Push"
 			(pin_numbers
 				(hide yes)
@@ -3207,7 +3020,7 @@
 		)
 		(uuid "68b6e6d9-a873-5812-bae5-6beb77b5db93")
 	)
-	(text "  LEDn sits under SWn. Data chain order: 37 38 39 40 41 42 6 5 4 3 2 1 ..."
+	(text "  LEDn sits under SWn. Data chain order: 37 38 39 40 41 42 1 2 3 4 5 6 ..."
 		(exclude_from_sim no)
 		(at 20 57.8 0)
 		(effects
@@ -3218,7 +3031,7 @@
 		)
 		(uuid "17b432e2-73af-5e0f-bf93-dd848348d686")
 	)
-	(text "  i.e. function row L->R, then pad rows serpentine (row 0 R->L, row 1 L->R, ...). Firmware maps chain index -> key."
+	(text "  i.e. every row left to right: function row, then pad rows 0..5. Firmware maps chain index -> key."
 		(exclude_from_sim no)
 		(at 20 62 0)
 		(effects
@@ -3227,9 +3040,9 @@
 			)
 			(justify left top)
 		)
-		(uuid "c2d778da-da9d-5cab-890d-72fc6dfe515e")
+		(uuid "bece1a0e-44d5-509f-80b7-30d49e61563f")
 	)
-	(text "  GP0 (3.3 V) -> 74AHCT125 gate A (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED."
+	(text "  GP8 (3.3 V) -> 74AHCT125 gate 3 (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED."
 		(exclude_from_sim no)
 		(at 20 66.2 0)
 		(effects
@@ -3238,9 +3051,9 @@
 			)
 			(justify left top)
 		)
-		(uuid "5339dd97-0986-5895-9e19-bb2141d91479")
+		(uuid "3f5c8c4b-68af-5c97-8b12-dcb54f6d51be")
 	)
-	(text "GPIO: COL0-5 = GP1-6, ROW0-6 = GP7-13, ENC A/B/SW = GP28/GP29/GP14, I2C1 SDA/SCL = GP26/GP27, LED data = GP0."
+	(text "GPIO: COL0-5 = GP9-14, ROW0-5 = GP5-GP0, ROW6 = GP6, ENC A/B/SW = GP26/GP15/GP27, I2C0 SDA/SCL = GP28/GP29, LED = GP8."
 		(exclude_from_sim no)
 		(at 20 70.4 0)
 		(effects
@@ -3249,9 +3062,9 @@
 			)
 			(justify left top)
 		)
-		(uuid "67202d45-5b69-5081-8dbd-52808832b5b5")
+		(uuid "e7640e12-8fe7-52e4-b1d8-12caabc98213")
 	)
-	(text "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND."
+	(text "SWITCHES: Kailh CPG151101S11 hot-swap sockets on the PCB bottom (fab assembled); switches are held by the case plate."
 		(exclude_from_sim no)
 		(at 20 74.6 0)
 		(effects
@@ -3260,9 +3073,9 @@
 			)
 			(justify left top)
 		)
-		(uuid "fe60fe96-4cc2-5105-863b-c7804dcf1b0d")
+		(uuid "88428d7a-6e74-558d-b90d-e37950a43ca7")
 	)
-	(text "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low. J2 = optional expansion header, spare GP15 (not fitted)."
+	(text "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND."
 		(exclude_from_sim no)
 		(at 20 78.8 0)
 		(effects
@@ -3271,7 +3084,18 @@
 			)
 			(justify left top)
 		)
-		(uuid "b80603c8-136f-5a2f-9c9c-6898622cc844")
+		(uuid "ff187bf5-b9be-51d4-ac7a-579812b82af9")
+	)
+	(text "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low."
+		(exclude_from_sim no)
+		(at 20 83 0)
+		(effects
+			(font
+				(size 1.8 1.8)
+			)
+			(justify left top)
+		)
+		(uuid "0441ed36-a085-56b9-aca8-a1a3397bb391")
 	)
 	(symbol
 		(lib_id "Drezimo:RP2040-Zero")
@@ -3468,7 +3292,7 @@
 		)
 		(uuid "ea63afd2-8c29-5108-9dcb-c4bd7e6ece85")
 	)
-	(label "ENC_B"
+	(label "SCL"
 		(at 64.77 156.21 180)
 		(effects
 			(font
@@ -3476,7 +3300,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "3d5c2b39-110b-57c5-8217-89d691505fb7")
+		(uuid "6519c495-0463-55d8-b4cb-5dab7550f19d")
 	)
 	(wire
 		(pts
@@ -3489,7 +3313,7 @@
 		)
 		(uuid "72be178b-e9d3-554c-9429-81a9f9eb1ef4")
 	)
-	(label "ENC_A"
+	(label "SDA"
 		(at 64.77 153.67 180)
 		(effects
 			(font
@@ -3497,7 +3321,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "7fe9b55b-6547-5c0b-a479-2a5b94888d3d")
+		(uuid "f00b28e9-0e9f-5193-8032-22309738c2a6")
 	)
 	(wire
 		(pts
@@ -3510,7 +3334,7 @@
 		)
 		(uuid "5e62626b-dde8-5920-adc9-d8c93900ac9b")
 	)
-	(label "SCL"
+	(label "ENC_SW"
 		(at 64.77 151.13 180)
 		(effects
 			(font
@@ -3518,7 +3342,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "8198290f-6935-59de-9269-ba5ecb50d2f7")
+		(uuid "264b9ba5-c912-5697-bf50-014d264a5d90")
 	)
 	(wire
 		(pts
@@ -3531,7 +3355,7 @@
 		)
 		(uuid "38989487-d9c8-5508-a046-d3cb54cb1066")
 	)
-	(label "SDA"
+	(label "ENC_A"
 		(at 64.77 148.59 180)
 		(effects
 			(font
@@ -3539,7 +3363,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "4c4a9e41-c841-5726-bc9c-a3296e5665cc")
+		(uuid "244035a7-05e4-5b64-b4ce-9b40eae63e82")
 	)
 	(wire
 		(pts
@@ -3552,7 +3376,7 @@
 		)
 		(uuid "5882de13-cb7f-5e2e-bf87-b55588771b1e")
 	)
-	(label "EXP_GP15"
+	(label "ENC_B"
 		(at 64.77 163.83 180)
 		(effects
 			(font
@@ -3560,7 +3384,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "6409ef78-aa62-5e2b-bd74-fd96c249b278")
+		(uuid "da490c1f-8a35-5824-a5d9-f33cfbfe8a63")
 	)
 	(wire
 		(pts
@@ -3573,7 +3397,7 @@
 		)
 		(uuid "4034d76a-d305-5f09-918e-a731841c39cf")
 	)
-	(label "ENC_SW"
+	(label "COL5"
 		(at 64.77 161.29 180)
 		(effects
 			(font
@@ -3581,7 +3405,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "c51e8872-23dc-51e8-abfb-a564e3d36bda")
+		(uuid "9b046a07-a4cf-5bf4-93cf-ecf3a301b937")
 	)
 	(wire
 		(pts
@@ -3594,7 +3418,7 @@
 		)
 		(uuid "1adb56a7-6541-5b35-8631-0984abad93e4")
 	)
-	(label "ROW6"
+	(label "COL4"
 		(at 95.25 173.99 0)
 		(effects
 			(font
@@ -3602,7 +3426,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "7af9fa59-d5e5-5024-85c8-8f776420945a")
+		(uuid "2af6d1eb-e728-50eb-a373-2de2fef47505")
 	)
 	(wire
 		(pts
@@ -3615,7 +3439,7 @@
 		)
 		(uuid "9d417f3b-e4d9-57e3-9f28-e997900b1c00")
 	)
-	(label "ROW5"
+	(label "COL3"
 		(at 95.25 171.45 0)
 		(effects
 			(font
@@ -3623,7 +3447,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "8fc543bd-a96e-5f23-9fb2-573d45a05b32")
+		(uuid "89679ebe-34d6-55fa-889d-b7c89f0138a5")
 	)
 	(wire
 		(pts
@@ -3636,7 +3460,7 @@
 		)
 		(uuid "2962766e-3cdc-5559-b954-4468ff434bae")
 	)
-	(label "ROW4"
+	(label "COL2"
 		(at 95.25 168.91 0)
 		(effects
 			(font
@@ -3644,7 +3468,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "8765b245-9731-5f9a-970a-086065472ed2")
+		(uuid "d6ee56d1-07c3-5959-b087-d93a4ee16b54")
 	)
 	(wire
 		(pts
@@ -3657,7 +3481,7 @@
 		)
 		(uuid "e8b80b57-4240-5486-ae78-f7c718122359")
 	)
-	(label "ROW3"
+	(label "COL1"
 		(at 95.25 166.37 0)
 		(effects
 			(font
@@ -3665,7 +3489,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "b31a0890-0eae-5015-8641-f131f4830d77")
+		(uuid "195734e2-8e1c-512c-a009-2151ed5d1c48")
 	)
 	(wire
 		(pts
@@ -3678,7 +3502,7 @@
 		)
 		(uuid "83d63c63-51c8-5f76-bfd2-c94f0a7a21e7")
 	)
-	(label "ROW2"
+	(label "COL0"
 		(at 95.25 163.83 0)
 		(effects
 			(font
@@ -3686,7 +3510,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "5a9675bf-c6b4-5514-9430-aa3e3d97d293")
+		(uuid "4a124e59-4bee-5684-94b3-f45111feacd0")
 	)
 	(wire
 		(pts
@@ -3699,7 +3523,7 @@
 		)
 		(uuid "ea0d7345-fadf-59c2-8923-be2cff4188b1")
 	)
-	(label "ROW1"
+	(label "LED_DIN_3V3"
 		(at 95.25 161.29 0)
 		(effects
 			(font
@@ -3707,28 +3531,11 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "9b6d9e22-fe6b-5cd5-b006-08428104aa70")
+		(uuid "f6a696d7-423a-56f0-a7e3-2beafac03450")
 	)
-	(wire
-		(pts
-			(xy 92.71 158.75)
-			(xy 95.25 158.75)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3521f147-5b6f-5640-9cdd-eefd06dbdc8e")
-	)
-	(label "ROW0"
-		(at 95.25 158.75 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "3e23de43-0b6d-5594-9579-7ab1ba95e38b")
+	(no_connect
+		(at 92.71 158.75)
+		(uuid "4d106f4b-316f-51a8-a852-4e2b5e141764")
 	)
 	(wire
 		(pts
@@ -3741,7 +3548,7 @@
 		)
 		(uuid "2929213d-0e9f-5774-8889-f2dc853cd273")
 	)
-	(label "COL5"
+	(label "ROW6"
 		(at 95.25 156.21 0)
 		(effects
 			(font
@@ -3749,7 +3556,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "38239a0a-d4cc-50e4-af5a-144967e8de43")
+		(uuid "a6f1b33e-9e1a-5ab0-80a3-e00ebb0543e9")
 	)
 	(wire
 		(pts
@@ -3762,7 +3569,7 @@
 		)
 		(uuid "92f23f60-b16b-5468-9aec-d36b6371301a")
 	)
-	(label "COL4"
+	(label "ROW0"
 		(at 95.25 153.67 0)
 		(effects
 			(font
@@ -3770,7 +3577,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "e536e02c-0dc4-5767-9b55-49fa65fc40ae")
+		(uuid "7b678e79-67c5-5eb5-a01a-e807abc3f446")
 	)
 	(wire
 		(pts
@@ -3783,7 +3590,7 @@
 		)
 		(uuid "5dc5a644-05b6-5f21-a718-ad22933aa340")
 	)
-	(label "COL3"
+	(label "ROW1"
 		(at 95.25 151.13 0)
 		(effects
 			(font
@@ -3791,7 +3598,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "4dd6d9e2-605b-55d0-84c7-9b9d2acf302c")
+		(uuid "9ea898e4-bee4-500a-b7db-c3ec9267eaea")
 	)
 	(wire
 		(pts
@@ -3804,7 +3611,7 @@
 		)
 		(uuid "82ea5084-60dd-55d0-ba3f-8176e3e728b9")
 	)
-	(label "COL2"
+	(label "ROW2"
 		(at 95.25 148.59 0)
 		(effects
 			(font
@@ -3812,7 +3619,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "9ad69349-e551-5200-8840-374b9e3109f0")
+		(uuid "21d293de-2c04-59db-b238-dae6a1e6d713")
 	)
 	(wire
 		(pts
@@ -3825,7 +3632,7 @@
 		)
 		(uuid "2afb25af-74cf-5cc3-ad78-8f9df6954452")
 	)
-	(label "COL1"
+	(label "ROW3"
 		(at 95.25 146.05 0)
 		(effects
 			(font
@@ -3833,7 +3640,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "186ff986-ec45-5958-82c1-0af127204879")
+		(uuid "52bb0864-5a23-53a4-a9f0-276901daca27")
 	)
 	(wire
 		(pts
@@ -3846,7 +3653,7 @@
 		)
 		(uuid "51faa84c-50e8-5cdd-b32e-37c36dc4f9f6")
 	)
-	(label "COL0"
+	(label "ROW4"
 		(at 95.25 143.51 0)
 		(effects
 			(font
@@ -3854,7 +3661,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "c421dec2-7817-5b07-926c-cdbbc78707ff")
+		(uuid "8edbf0b5-5937-5e7d-b58d-709ec838af1f")
 	)
 	(wire
 		(pts
@@ -3867,7 +3674,7 @@
 		)
 		(uuid "99da8710-e7ee-54f7-95af-62319b0b4be8")
 	)
-	(label "LED_DIN_3V3"
+	(label "ROW5"
 		(at 95.25 140.97 0)
 		(effects
 			(font
@@ -3875,7 +3682,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "5b209c4f-231a-56ea-9aa9-7b7ab3da4537")
+		(uuid "23130de6-7c8d-57d3-8a00-68bbc370e0fd")
 	)
 	(symbol
 		(lib_id "Device:Polyfuse")
@@ -4156,12 +3963,12 @@
 	(symbol
 		(lib_id "74xx:74AHCT125")
 		(at 199.39 69.85 0)
-		(unit 1)
+		(unit 3)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d7e3e026-16b9-510f-b066-9b1e6adb0af5")
+		(uuid "ee62754a-20dd-5759-a1f7-b57fd59cc71e")
 		(property "Reference" "U2"
 			(at 199.39 66.85 0)
 			(effects
@@ -4196,20 +4003,20 @@
 				(hide yes)
 			)
 		)
-		(pin "1"
-			(uuid "f07f5a8a-1484-5797-a5a3-f2eb44c78a47")
+		(pin "8"
+			(uuid "7293f2bd-5cd8-5b20-b5a5-fb2676dc9bdf")
 		)
-		(pin "2"
-			(uuid "94d25c74-064e-5d88-89d8-3745edb6e797")
+		(pin "9"
+			(uuid "1faa048b-fa71-5f1d-98cf-b45bc289454d")
 		)
-		(pin "3"
-			(uuid "9314b14a-be62-513a-b0ce-3c77dbb3f463")
+		(pin "10"
+			(uuid "656b8147-a4ea-51dc-9916-c5a88d33e5b0")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
 					(reference "U2")
-					(unit 1)
+					(unit 3)
 				)
 			)
 		)
@@ -4280,12 +4087,12 @@
 	(symbol
 		(lib_id "74xx:74AHCT125")
 		(at 229.87 69.85 0)
-		(unit 2)
+		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1d4f3037-a58f-5bec-afed-022c10ccef9a")
+		(uuid "d7e3e026-16b9-510f-b066-9b1e6adb0af5")
 		(property "Reference" "U2"
 			(at 229.87 66.85 0)
 			(effects
@@ -4320,20 +4127,20 @@
 				(hide yes)
 			)
 		)
-		(pin "4"
-			(uuid "270fdaa6-d4c5-5f9f-bff6-0e2fe2f192cf")
+		(pin "1"
+			(uuid "f07f5a8a-1484-5797-a5a3-f2eb44c78a47")
 		)
-		(pin "5"
-			(uuid "ba971072-19e1-528c-a9b5-bde714172569")
+		(pin "2"
+			(uuid "94d25c74-064e-5d88-89d8-3745edb6e797")
 		)
-		(pin "6"
-			(uuid "3cece9cc-8542-5ff3-987a-a30e915f6333")
+		(pin "3"
+			(uuid "9314b14a-be62-513a-b0ce-3c77dbb3f463")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
 					(reference "U2")
-					(unit 2)
+					(unit 1)
 				)
 			)
 		)
@@ -4387,12 +4194,12 @@
 	(symbol
 		(lib_id "74xx:74AHCT125")
 		(at 260.35 69.85 0)
-		(unit 3)
+		(unit 2)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ee62754a-20dd-5759-a1f7-b57fd59cc71e")
+		(uuid "1d4f3037-a58f-5bec-afed-022c10ccef9a")
 		(property "Reference" "U2"
 			(at 260.35 66.85 0)
 			(effects
@@ -4427,20 +4234,20 @@
 				(hide yes)
 			)
 		)
-		(pin "8"
-			(uuid "7293f2bd-5cd8-5b20-b5a5-fb2676dc9bdf")
+		(pin "4"
+			(uuid "270fdaa6-d4c5-5f9f-bff6-0e2fe2f192cf")
 		)
-		(pin "9"
-			(uuid "1faa048b-fa71-5f1d-98cf-b45bc289454d")
+		(pin "5"
+			(uuid "ba971072-19e1-528c-a9b5-bde714172569")
 		)
-		(pin "10"
-			(uuid "656b8147-a4ea-51dc-9916-c5a88d33e5b0")
+		(pin "6"
+			(uuid "3cece9cc-8542-5ff3-987a-a30e915f6333")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
 					(reference "U2")
-					(unit 3)
+					(unit 2)
 				)
 			)
 		)
@@ -5243,130 +5050,6 @@
 		(uuid "9e4a67e6-a343-5ed5-8d5f-8002e510b1c4")
 	)
 	(symbol
-		(lib_id "Connector_Generic:Conn_01x03")
-		(at 199.39 245.11 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp yes)
-		(uuid "eb25b7e7-d4a8-5892-8aa8-3f23f89474bc")
-		(property "Reference" "J2"
-			(at 199.39 242.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "Expansion (not fitted)"
-			(at 199.39 240.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
-			(at 199.39 245.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 199.39 245.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "cc2b2073-26ee-5aa2-8c0f-514dbe5bff65")
-		)
-		(pin "2"
-			(uuid "56c536d7-3c48-587f-84bb-a675b833e450")
-		)
-		(pin "3"
-			(uuid "a4b515dd-dc1f-5f22-8118-ddd40adff615")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "J2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 194.31 242.57)
-			(xy 191.77 242.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1f4dec9-56e4-5031-bb36-d5c1444e9d33")
-	)
-	(label "+3V3"
-		(at 191.77 242.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "e2106fdd-eb15-5162-9512-4ca8a199686a")
-	)
-	(wire
-		(pts
-			(xy 194.31 245.11)
-			(xy 191.77 245.11)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "922f18c7-fef4-5fed-afb7-24a954b5f3a8")
-	)
-	(label "EXP_GP15"
-		(at 191.77 245.11 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "25eb8dbb-3522-5611-8d26-39124adbb90c")
-	)
-	(wire
-		(pts
-			(xy 194.31 247.65)
-			(xy 191.77 247.65)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "eef5695c-b1ce-5562-bb51-48093ecda91f")
-	)
-	(label "GND"
-		(at 191.77 247.65 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "b44bbaf7-b74d-5119-88d3-192539eb549f")
-	)
-	(symbol
 		(lib_id "Switch:SW_Push")
 		(at 340.36 59.69 0)
 		(unit 1)
@@ -5391,7 +5074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 59.69 0)
 			(effects
 				(font
@@ -5591,7 +5274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 59.69 0)
 			(effects
 				(font
@@ -5791,7 +5474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 59.69 0)
 			(effects
 				(font
@@ -5991,7 +5674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 59.69 0)
 			(effects
 				(font
@@ -6191,7 +5874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 59.69 0)
 			(effects
 				(font
@@ -6391,7 +6074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 59.69 0)
 			(effects
 				(font
@@ -6591,7 +6274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 87.63 0)
 			(effects
 				(font
@@ -6791,7 +6474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 87.63 0)
 			(effects
 				(font
@@ -6991,7 +6674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 87.63 0)
 			(effects
 				(font
@@ -7191,7 +6874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 87.63 0)
 			(effects
 				(font
@@ -7391,7 +7074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 87.63 0)
 			(effects
 				(font
@@ -7591,7 +7274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 87.63 0)
 			(effects
 				(font
@@ -7791,7 +7474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 115.57 0)
 			(effects
 				(font
@@ -7991,7 +7674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 115.57 0)
 			(effects
 				(font
@@ -8191,7 +7874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 115.57 0)
 			(effects
 				(font
@@ -8391,7 +8074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 115.57 0)
 			(effects
 				(font
@@ -8591,7 +8274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 115.57 0)
 			(effects
 				(font
@@ -8791,7 +8474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 115.57 0)
 			(effects
 				(font
@@ -8991,7 +8674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 143.51 0)
 			(effects
 				(font
@@ -9191,7 +8874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 143.51 0)
 			(effects
 				(font
@@ -9391,7 +9074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 143.51 0)
 			(effects
 				(font
@@ -9591,7 +9274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 143.51 0)
 			(effects
 				(font
@@ -9791,7 +9474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 143.51 0)
 			(effects
 				(font
@@ -9991,7 +9674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 143.51 0)
 			(effects
 				(font
@@ -10191,7 +9874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 171.45 0)
 			(effects
 				(font
@@ -10391,7 +10074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 171.45 0)
 			(effects
 				(font
@@ -10591,7 +10274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 171.45 0)
 			(effects
 				(font
@@ -10791,7 +10474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 171.45 0)
 			(effects
 				(font
@@ -10991,7 +10674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 171.45 0)
 			(effects
 				(font
@@ -11191,7 +10874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 171.45 0)
 			(effects
 				(font
@@ -11391,7 +11074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 199.39 0)
 			(effects
 				(font
@@ -11591,7 +11274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 199.39 0)
 			(effects
 				(font
@@ -11791,7 +11474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 199.39 0)
 			(effects
 				(font
@@ -11991,7 +11674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 199.39 0)
 			(effects
 				(font
@@ -12191,7 +11874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 199.39 0)
 			(effects
 				(font
@@ -12391,7 +12074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 199.39 0)
 			(effects
 				(font
@@ -12591,7 +12274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 340.36 228.6 0)
 			(effects
 				(font
@@ -12791,7 +12474,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 384.81 228.6 0)
 			(effects
 				(font
@@ -12991,7 +12674,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 430.53 228.6 0)
 			(effects
 				(font
@@ -13191,7 +12874,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 474.98 228.6 0)
 			(effects
 				(font
@@ -13391,7 +13074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 519.43 228.6 0)
 			(effects
 				(font
@@ -13591,7 +13274,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB"
+		(property "Footprint" "Drezimo:SW_MX_Hotswap_Kailh"
 			(at 565.15 228.6 0)
 			(effects
 				(font
@@ -13768,7 +13451,7 @@
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")
-		(at 539.75 369.57 0)
+		(at 640.08 330.2 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -13776,1246 +13459,6 @@
 		(dnp no)
 		(uuid "f611d95e-8aea-526f-9647-a7ac7de2a649")
 		(property "Reference" "LED1"
-			(at 539.75 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 539.75 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 539.75 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 539.75 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "98c254f8-5900-5201-a0b3-0f81f9bc8a5f")
-		)
-		(pin "2"
-			(uuid "a2600e39-800e-5a63-951b-e672c84acc22")
-		)
-		(pin "3"
-			(uuid "93c2d44e-d4c6-5269-aaa6-4642d3334ab3")
-		)
-		(pin "4"
-			(uuid "af23d2ce-6fb8-57fe-b3f2-82c0380b66b3")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 532.13 369.57)
-			(xy 529.59 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "13d68fb1-1e0b-59e4-8f87-454634c275b3")
-	)
-	(label "LED_D11"
-		(at 529.59 369.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "3c75f70b-fefa-56fc-85b1-2881f8a62901")
-	)
-	(wire
-		(pts
-			(xy 547.37 369.57)
-			(xy 549.91 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "5475399f-fe9b-59a1-b2af-a34d1438d4a4")
-	)
-	(label "LED_D12"
-		(at 549.91 369.57 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "d0e17def-e566-5601-a93e-7d678821fd0c")
-	)
-	(wire
-		(pts
-			(xy 539.75 361.95)
-			(xy 539.75 359.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7c89338d-7046-56ff-8cb8-287bbcf7435c")
-	)
-	(label "+5V_LED"
-		(at 539.75 359.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "0cd6c66c-53e1-528f-89e6-fa8838eaa7b0")
-	)
-	(wire
-		(pts
-			(xy 539.75 377.19)
-			(xy 539.75 379.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9b8c5ce4-16d1-5d10-9598-8433bccdd57b")
-	)
-	(label "GND"
-		(at 539.75 379.73 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "293a826a-a06f-543b-b744-7cb358829191")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 557.53 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "c0890efa-aaaa-5667-a935-4a5f5fd24c90")
-		(property "Reference" "C1"
-			(at 557.53 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 557.53 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 557.53 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 557.53 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "badbcc85-6ed7-5e72-aa2c-6e1ffa7c582f")
-		)
-		(pin "2"
-			(uuid "d32f32a5-2bfd-54c0-b76f-366c6f98ed21")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 557.53 365.76)
-			(xy 557.53 363.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "60a5554f-a5fb-5566-8e0d-45609eddb2d9")
-	)
-	(label "+5V_LED"
-		(at 557.53 363.22 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "dcfc1212-2286-56c4-99a2-7c409ab0ed9d")
-	)
-	(wire
-		(pts
-			(xy 557.53 373.38)
-			(xy 557.53 375.92)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "52a92dc0-0cea-53ed-b661-e3a0e71b032f")
-	)
-	(label "GND"
-		(at 557.53 375.92 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "78df0f7a-54be-596f-b2f6-ad452372fdad")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 490.22 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "5ec7f558-e691-5490-911d-27c0b6f33ecb")
-		(property "Reference" "LED2"
-			(at 490.22 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 490.22 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 490.22 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 490.22 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "67de9686-798b-5339-8d14-549b03b46c37")
-		)
-		(pin "2"
-			(uuid "afea3f8b-94ac-5caa-966d-047670b655b9")
-		)
-		(pin "3"
-			(uuid "4ad56573-4ee1-519b-acd7-82d26d7f3b7d")
-		)
-		(pin "4"
-			(uuid "85a51eea-54f5-5f40-bd63-d91904460e2b")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 482.6 369.57)
-			(xy 480.06 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "93060793-8de5-5a50-b33a-68a6406019f0")
-	)
-	(label "LED_D10"
-		(at 480.06 369.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "9fd81eb7-f262-5e92-a151-ae99ef392219")
-	)
-	(wire
-		(pts
-			(xy 497.84 369.57)
-			(xy 500.38 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d9fdff38-86d7-54d3-ac0d-cec8e98e0bec")
-	)
-	(label "LED_D11"
-		(at 500.38 369.57 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "5f0b06a6-46d9-5674-88ca-2153476f88d4")
-	)
-	(wire
-		(pts
-			(xy 490.22 361.95)
-			(xy 490.22 359.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "814a9751-8013-5123-84ae-18e990db964d")
-	)
-	(label "+5V_LED"
-		(at 490.22 359.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "f9a6e134-0673-5b2b-bed1-a2e0a92eb310")
-	)
-	(wire
-		(pts
-			(xy 490.22 377.19)
-			(xy 490.22 379.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f17d5c37-b090-5b0e-ac71-5e988bf2f408")
-	)
-	(label "GND"
-		(at 490.22 379.73 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "bc42cd2b-48bb-50b7-83fe-0c2e56c3fe30")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 508 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "6adbf954-24c0-5010-a965-5ca9a0849be3")
-		(property "Reference" "C2"
-			(at 508 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 508 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 508 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 508 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "84581ab6-f4c5-5104-b1a2-68af314a8767")
-		)
-		(pin "2"
-			(uuid "845f06ce-d3cd-5b14-9ffd-10e6cf34b0a2")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 508 365.76)
-			(xy 508 363.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2b9387f3-9ff8-5da8-8255-a1e7821b6d49")
-	)
-	(label "+5V_LED"
-		(at 508 363.22 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "488dfbc3-600b-5d3f-a991-77c692a8b057")
-	)
-	(wire
-		(pts
-			(xy 508 373.38)
-			(xy 508 375.92)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "82bde3a2-36ca-5305-a3cf-be49cf958740")
-	)
-	(label "GND"
-		(at 508 375.92 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "9aeed802-4b8c-5b90-9980-3b9bb3e4935e")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 439.42 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "d7dc1d1d-708a-57c0-86dc-b62641eafc87")
-		(property "Reference" "LED3"
-			(at 439.42 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 439.42 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 439.42 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 439.42 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "6a3166bc-453e-5171-b53d-9dfc5da2a600")
-		)
-		(pin "2"
-			(uuid "8f4eebe3-9993-5ccf-8bc5-a9fadd00df84")
-		)
-		(pin "3"
-			(uuid "56365989-3031-515d-bc03-c7a330b65cc1")
-		)
-		(pin "4"
-			(uuid "dd57a89b-6b9b-5455-9d99-950e3036797e")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 431.8 369.57)
-			(xy 429.26 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b281aa40-7d68-5080-b7c3-57e908882266")
-	)
-	(label "LED_D9"
-		(at 429.26 369.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "8d824b3c-775c-5c2d-bd52-c55c663a5c22")
-	)
-	(wire
-		(pts
-			(xy 447.04 369.57)
-			(xy 449.58 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "187358ef-0ccb-5357-8597-ebcaa56d2a44")
-	)
-	(label "LED_D10"
-		(at 449.58 369.57 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "019428e7-13f9-58a5-8a17-2b5132f6fd62")
-	)
-	(wire
-		(pts
-			(xy 439.42 361.95)
-			(xy 439.42 359.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "461a3f02-f4bc-5796-86d2-926f839a6b35")
-	)
-	(label "+5V_LED"
-		(at 439.42 359.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "0eefc5d8-8e66-501a-ac0e-ee8369492cd8")
-	)
-	(wire
-		(pts
-			(xy 439.42 377.19)
-			(xy 439.42 379.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ef7dc8c6-1004-5f26-8011-0ad7aa2f754a")
-	)
-	(label "GND"
-		(at 439.42 379.73 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "66076676-cb1d-5d88-9034-6dea417c9489")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 457.2 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "dd8bc9d5-fff4-5a70-ae4c-3515190e850d")
-		(property "Reference" "C3"
-			(at 457.2 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 457.2 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 457.2 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 457.2 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "f8c5f3bb-1228-57f7-a37e-eae5ac2a59fa")
-		)
-		(pin "2"
-			(uuid "2e648ac7-c17e-525e-90e9-15fe4addf8a0")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 457.2 365.76)
-			(xy 457.2 363.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "05c15634-ce19-522a-9a5e-c607dfc7acea")
-	)
-	(label "+5V_LED"
-		(at 457.2 363.22 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "ebd7d907-8604-553c-b37b-fcd90bd7d209")
-	)
-	(wire
-		(pts
-			(xy 457.2 373.38)
-			(xy 457.2 375.92)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "afa2b712-5bf9-5306-8a79-56ab7c97d8f0")
-	)
-	(label "GND"
-		(at 457.2 375.92 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "772d4bb0-2bef-5732-a290-14a6ee279787")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 389.89 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "10761da0-a193-5afc-855b-21c816fbffce")
-		(property "Reference" "LED4"
-			(at 389.89 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 389.89 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 389.89 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 389.89 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "d5eedb47-f729-5362-b98b-f53a4f79d61f")
-		)
-		(pin "2"
-			(uuid "d08447b5-7950-5ba6-a805-d7c16d59edda")
-		)
-		(pin "3"
-			(uuid "2760105f-fd5b-5698-ba98-81142d216641")
-		)
-		(pin "4"
-			(uuid "854d1dca-53ad-5f52-a60e-98778a1d68d3")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED4")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 382.27 369.57)
-			(xy 379.73 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e0a1fbd4-d419-56de-90fb-8eabe78a4369")
-	)
-	(label "LED_D8"
-		(at 379.73 369.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "dc9f75b4-1824-5727-b475-3362910bab49")
-	)
-	(wire
-		(pts
-			(xy 397.51 369.57)
-			(xy 400.05 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "96b60a5a-e3a5-50be-8387-6bf2230d3dc6")
-	)
-	(label "LED_D9"
-		(at 400.05 369.57 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "7259c294-6b8a-516c-bd91-9b60655f0d66")
-	)
-	(wire
-		(pts
-			(xy 389.89 361.95)
-			(xy 389.89 359.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "5f2091c7-a4a9-5c83-be04-db5efdf7faf7")
-	)
-	(label "+5V_LED"
-		(at 389.89 359.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "80b538be-3096-5787-9e3e-c45b5c256717")
-	)
-	(wire
-		(pts
-			(xy 389.89 377.19)
-			(xy 389.89 379.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c6feae87-2c9b-5fca-b746-b0d66a270c6f")
-	)
-	(label "GND"
-		(at 389.89 379.73 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "5cc32a89-2959-59ef-b6d7-ee587e325a15")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 407.67 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "5e723694-f61e-5f59-b6ea-d09e8107dd2e")
-		(property "Reference" "C4"
-			(at 407.67 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 407.67 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 407.67 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 407.67 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "8a82a6c0-c710-56d2-bc78-ff489db45d67")
-		)
-		(pin "2"
-			(uuid "31d0ddd6-b8ff-5c95-8759-4df77e54ab5d")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C4")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 407.67 365.76)
-			(xy 407.67 363.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "84dddb3e-46e2-5db3-8b7f-69aa45bdf9cd")
-	)
-	(label "+5V_LED"
-		(at 407.67 363.22 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "4eddf612-fcb7-5e46-aedc-75e76653e510")
-	)
-	(wire
-		(pts
-			(xy 407.67 373.38)
-			(xy 407.67 375.92)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cdeaf6a8-d8b7-5211-b6db-71ac6d99f66c")
-	)
-	(label "GND"
-		(at 407.67 375.92 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "2c951c92-e060-5d6d-9b5f-27a625f56341")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 340.36 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2e3813d7-7e34-5300-b6b1-5d0350a5ce44")
-		(property "Reference" "LED5"
-			(at 340.36 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 340.36 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 340.36 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 340.36 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "64cc8305-45a2-52c3-9ac3-408f9ffb3894")
-		)
-		(pin "2"
-			(uuid "85693072-6a63-5232-8732-e524730a9c94")
-		)
-		(pin "3"
-			(uuid "b8f70d25-f420-5672-b6cd-b2e30ff87e8c")
-		)
-		(pin "4"
-			(uuid "83456c1a-615b-5365-8617-1bbd752de4a6")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 332.74 369.57)
-			(xy 330.2 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4e2be181-93bc-565a-a62e-ebd789a4abc8")
-	)
-	(label "LED_D7"
-		(at 330.2 369.57 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "b3d343fb-c3d7-585f-a7e0-ea54cdd4b96e")
-	)
-	(wire
-		(pts
-			(xy 347.98 369.57)
-			(xy 350.52 369.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "feecaf84-3ffe-5868-892c-4c499921fbb7")
-	)
-	(label "LED_D8"
-		(at 350.52 369.57 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "e2f28370-f2b4-541d-8aaf-412dbe2bae13")
-	)
-	(wire
-		(pts
-			(xy 340.36 361.95)
-			(xy 340.36 359.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "eb166212-09de-52c4-a8c3-f270acf7501e")
-	)
-	(label "+5V_LED"
-		(at 340.36 359.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "0ddcf685-a513-5d70-9560-f9f4a5acafa2")
-	)
-	(wire
-		(pts
-			(xy 340.36 377.19)
-			(xy 340.36 379.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e5d7f9b2-9383-5316-80f1-5e8e1d6f5e9a")
-	)
-	(label "GND"
-		(at 340.36 379.73 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "b9959b9e-b2ff-5310-a233-a6e0263c6762")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 358.14 369.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "9b4d5217-5596-579a-b90a-f2fdba49f328")
-		(property "Reference" "C5"
-			(at 358.14 366.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 358.14 364.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 358.14 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 358.14 369.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "21f3038e-9958-5386-a287-e0c6b3a436c5")
-		)
-		(pin "2"
-			(uuid "a2690bf3-0c82-5000-b45c-6d8f4e90e870")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 358.14 365.76)
-			(xy 358.14 363.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f8898b8e-3823-5f64-b139-b0dfca6eee2e")
-	)
-	(label "+5V_LED"
-		(at 358.14 363.22 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a93402fc-1c1d-5a80-a663-c9f10947e5d2")
-	)
-	(wire
-		(pts
-			(xy 358.14 373.38)
-			(xy 358.14 375.92)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f1528a89-4b2c-5475-b30c-40d20cb2afbb")
-	)
-	(label "GND"
-		(at 358.14 375.92 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "466a9d6d-10d8-5afd-9957-6c1314bf180d")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 640.08 330.2 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "ee150350-9868-5d0d-bbb0-70804f841f43")
-		(property "Reference" "LED6"
 			(at 640.08 327.2 0)
 			(effects
 				(font
@@ -15050,21 +13493,21 @@
 			)
 		)
 		(pin "1"
-			(uuid "4369154a-c812-517d-a4ea-4cf339421eb3")
+			(uuid "98c254f8-5900-5201-a0b3-0f81f9bc8a5f")
 		)
 		(pin "2"
-			(uuid "3878f0cd-b28a-5267-b37d-7b874bb7f3fd")
+			(uuid "a2600e39-800e-5a63-951b-e672c84acc22")
 		)
 		(pin "3"
-			(uuid "58cd2617-efc8-5375-a76e-a1d449be1f26")
+			(uuid "93c2d44e-d4c6-5269-aaa6-4642d3334ab3")
 		)
 		(pin "4"
-			(uuid "5b2f121c-3809-5b64-a1c5-f8660cd9eae3")
+			(uuid "af23d2ce-6fb8-57fe-b3f2-82c0380b66b3")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED6")
+					(reference "LED1")
 					(unit 1)
 				)
 			)
@@ -15162,8 +13605,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "26d04a98-32ff-5e90-9520-375c8a5dcd66")
-		(property "Reference" "C6"
+		(uuid "c0890efa-aaaa-5667-a935-4a5f5fd24c90")
+		(property "Reference" "C1"
 			(at 657.86 327.2 0)
 			(effects
 				(font
@@ -15198,15 +13641,15 @@
 			)
 		)
 		(pin "1"
-			(uuid "010b16ed-1878-59c2-925f-bf13dbd8aa33")
+			(uuid "badbcc85-6ed7-5e72-aa2c-6e1ffa7c582f")
 		)
 		(pin "2"
-			(uuid "c4210b62-3e25-542d-80fc-c485439465e0")
+			(uuid "d32f32a5-2bfd-54c0-b76f-366c6f98ed21")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C6")
+					(reference "C1")
 					(unit 1)
 				)
 			)
@@ -15253,6 +13696,1246 @@
 			(justify right bottom)
 		)
 		(uuid "17e0d463-5580-597f-9b15-cd46268220af")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 340.36 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "5ec7f558-e691-5490-911d-27c0b6f33ecb")
+		(property "Reference" "LED2"
+			(at 340.36 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 340.36 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 340.36 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 340.36 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "67de9686-798b-5339-8d14-549b03b46c37")
+		)
+		(pin "2"
+			(uuid "afea3f8b-94ac-5caa-966d-047670b655b9")
+		)
+		(pin "3"
+			(uuid "4ad56573-4ee1-519b-acd7-82d26d7f3b7d")
+		)
+		(pin "4"
+			(uuid "85a51eea-54f5-5f40-bd63-d91904460e2b")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 332.74 369.57)
+			(xy 330.2 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4e2be181-93bc-565a-a62e-ebd789a4abc8")
+	)
+	(label "LED_D7"
+		(at 330.2 369.57 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "b3d343fb-c3d7-585f-a7e0-ea54cdd4b96e")
+	)
+	(wire
+		(pts
+			(xy 347.98 369.57)
+			(xy 350.52 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "feecaf84-3ffe-5868-892c-4c499921fbb7")
+	)
+	(label "LED_D8"
+		(at 350.52 369.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e2f28370-f2b4-541d-8aaf-412dbe2bae13")
+	)
+	(wire
+		(pts
+			(xy 340.36 361.95)
+			(xy 340.36 359.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "eb166212-09de-52c4-a8c3-f270acf7501e")
+	)
+	(label "+5V_LED"
+		(at 340.36 359.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "0ddcf685-a513-5d70-9560-f9f4a5acafa2")
+	)
+	(wire
+		(pts
+			(xy 340.36 377.19)
+			(xy 340.36 379.73)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e5d7f9b2-9383-5316-80f1-5e8e1d6f5e9a")
+	)
+	(label "GND"
+		(at 340.36 379.73 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "b9959b9e-b2ff-5310-a233-a6e0263c6762")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 358.14 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6adbf954-24c0-5010-a965-5ca9a0849be3")
+		(property "Reference" "C2"
+			(at 358.14 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 358.14 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 358.14 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 358.14 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "84581ab6-f4c5-5104-b1a2-68af314a8767")
+		)
+		(pin "2"
+			(uuid "845f06ce-d3cd-5b14-9ffd-10e6cf34b0a2")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 358.14 365.76)
+			(xy 358.14 363.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f8898b8e-3823-5f64-b139-b0dfca6eee2e")
+	)
+	(label "+5V_LED"
+		(at 358.14 363.22 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "a93402fc-1c1d-5a80-a663-c9f10947e5d2")
+	)
+	(wire
+		(pts
+			(xy 358.14 373.38)
+			(xy 358.14 375.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f1528a89-4b2c-5475-b30c-40d20cb2afbb")
+	)
+	(label "GND"
+		(at 358.14 375.92 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "466a9d6d-10d8-5afd-9957-6c1314bf180d")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 389.89 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d7dc1d1d-708a-57c0-86dc-b62641eafc87")
+		(property "Reference" "LED3"
+			(at 389.89 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 389.89 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 389.89 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 389.89 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6a3166bc-453e-5171-b53d-9dfc5da2a600")
+		)
+		(pin "2"
+			(uuid "8f4eebe3-9993-5ccf-8bc5-a9fadd00df84")
+		)
+		(pin "3"
+			(uuid "56365989-3031-515d-bc03-c7a330b65cc1")
+		)
+		(pin "4"
+			(uuid "dd57a89b-6b9b-5455-9d99-950e3036797e")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 382.27 369.57)
+			(xy 379.73 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e0a1fbd4-d419-56de-90fb-8eabe78a4369")
+	)
+	(label "LED_D8"
+		(at 379.73 369.57 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "dc9f75b4-1824-5727-b475-3362910bab49")
+	)
+	(wire
+		(pts
+			(xy 397.51 369.57)
+			(xy 400.05 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "96b60a5a-e3a5-50be-8387-6bf2230d3dc6")
+	)
+	(label "LED_D9"
+		(at 400.05 369.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7259c294-6b8a-516c-bd91-9b60655f0d66")
+	)
+	(wire
+		(pts
+			(xy 389.89 361.95)
+			(xy 389.89 359.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5f2091c7-a4a9-5c83-be04-db5efdf7faf7")
+	)
+	(label "+5V_LED"
+		(at 389.89 359.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "80b538be-3096-5787-9e3e-c45b5c256717")
+	)
+	(wire
+		(pts
+			(xy 389.89 377.19)
+			(xy 389.89 379.73)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c6feae87-2c9b-5fca-b746-b0d66a270c6f")
+	)
+	(label "GND"
+		(at 389.89 379.73 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5cc32a89-2959-59ef-b6d7-ee587e325a15")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 407.67 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "dd8bc9d5-fff4-5a70-ae4c-3515190e850d")
+		(property "Reference" "C3"
+			(at 407.67 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 407.67 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 407.67 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 407.67 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "f8c5f3bb-1228-57f7-a37e-eae5ac2a59fa")
+		)
+		(pin "2"
+			(uuid "2e648ac7-c17e-525e-90e9-15fe4addf8a0")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 407.67 365.76)
+			(xy 407.67 363.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "84dddb3e-46e2-5db3-8b7f-69aa45bdf9cd")
+	)
+	(label "+5V_LED"
+		(at 407.67 363.22 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "4eddf612-fcb7-5e46-aedc-75e76653e510")
+	)
+	(wire
+		(pts
+			(xy 407.67 373.38)
+			(xy 407.67 375.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cdeaf6a8-d8b7-5211-b6db-71ac6d99f66c")
+	)
+	(label "GND"
+		(at 407.67 375.92 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "2c951c92-e060-5d6d-9b5f-27a625f56341")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 439.42 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "10761da0-a193-5afc-855b-21c816fbffce")
+		(property "Reference" "LED4"
+			(at 439.42 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 439.42 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 439.42 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 439.42 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d5eedb47-f729-5362-b98b-f53a4f79d61f")
+		)
+		(pin "2"
+			(uuid "d08447b5-7950-5ba6-a805-d7c16d59edda")
+		)
+		(pin "3"
+			(uuid "2760105f-fd5b-5698-ba98-81142d216641")
+		)
+		(pin "4"
+			(uuid "854d1dca-53ad-5f52-a60e-98778a1d68d3")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 431.8 369.57)
+			(xy 429.26 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b281aa40-7d68-5080-b7c3-57e908882266")
+	)
+	(label "LED_D9"
+		(at 429.26 369.57 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "8d824b3c-775c-5c2d-bd52-c55c663a5c22")
+	)
+	(wire
+		(pts
+			(xy 447.04 369.57)
+			(xy 449.58 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "187358ef-0ccb-5357-8597-ebcaa56d2a44")
+	)
+	(label "LED_D10"
+		(at 449.58 369.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "019428e7-13f9-58a5-8a17-2b5132f6fd62")
+	)
+	(wire
+		(pts
+			(xy 439.42 361.95)
+			(xy 439.42 359.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "461a3f02-f4bc-5796-86d2-926f839a6b35")
+	)
+	(label "+5V_LED"
+		(at 439.42 359.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "0eefc5d8-8e66-501a-ac0e-ee8369492cd8")
+	)
+	(wire
+		(pts
+			(xy 439.42 377.19)
+			(xy 439.42 379.73)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ef7dc8c6-1004-5f26-8011-0ad7aa2f754a")
+	)
+	(label "GND"
+		(at 439.42 379.73 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "66076676-cb1d-5d88-9034-6dea417c9489")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 457.2 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "5e723694-f61e-5f59-b6ea-d09e8107dd2e")
+		(property "Reference" "C4"
+			(at 457.2 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 457.2 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 457.2 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 457.2 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "8a82a6c0-c710-56d2-bc78-ff489db45d67")
+		)
+		(pin "2"
+			(uuid "31d0ddd6-b8ff-5c95-8759-4df77e54ab5d")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 457.2 365.76)
+			(xy 457.2 363.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "05c15634-ce19-522a-9a5e-c607dfc7acea")
+	)
+	(label "+5V_LED"
+		(at 457.2 363.22 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "ebd7d907-8604-553c-b37b-fcd90bd7d209")
+	)
+	(wire
+		(pts
+			(xy 457.2 373.38)
+			(xy 457.2 375.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "afa2b712-5bf9-5306-8a79-56ab7c97d8f0")
+	)
+	(label "GND"
+		(at 457.2 375.92 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "772d4bb0-2bef-5732-a290-14a6ee279787")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 490.22 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2e3813d7-7e34-5300-b6b1-5d0350a5ce44")
+		(property "Reference" "LED5"
+			(at 490.22 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 490.22 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 490.22 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 490.22 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "64cc8305-45a2-52c3-9ac3-408f9ffb3894")
+		)
+		(pin "2"
+			(uuid "85693072-6a63-5232-8732-e524730a9c94")
+		)
+		(pin "3"
+			(uuid "b8f70d25-f420-5672-b6cd-b2e30ff87e8c")
+		)
+		(pin "4"
+			(uuid "83456c1a-615b-5365-8617-1bbd752de4a6")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 482.6 369.57)
+			(xy 480.06 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "93060793-8de5-5a50-b33a-68a6406019f0")
+	)
+	(label "LED_D10"
+		(at 480.06 369.57 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "9fd81eb7-f262-5e92-a151-ae99ef392219")
+	)
+	(wire
+		(pts
+			(xy 497.84 369.57)
+			(xy 500.38 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d9fdff38-86d7-54d3-ac0d-cec8e98e0bec")
+	)
+	(label "LED_D11"
+		(at 500.38 369.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "5f0b06a6-46d9-5674-88ca-2153476f88d4")
+	)
+	(wire
+		(pts
+			(xy 490.22 361.95)
+			(xy 490.22 359.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "814a9751-8013-5123-84ae-18e990db964d")
+	)
+	(label "+5V_LED"
+		(at 490.22 359.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "f9a6e134-0673-5b2b-bed1-a2e0a92eb310")
+	)
+	(wire
+		(pts
+			(xy 490.22 377.19)
+			(xy 490.22 379.73)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f17d5c37-b090-5b0e-ac71-5e988bf2f408")
+	)
+	(label "GND"
+		(at 490.22 379.73 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "bc42cd2b-48bb-50b7-83fe-0c2e56c3fe30")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 508 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9b4d5217-5596-579a-b90a-f2fdba49f328")
+		(property "Reference" "C5"
+			(at 508 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 508 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 508 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 508 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "21f3038e-9958-5386-a287-e0c6b3a436c5")
+		)
+		(pin "2"
+			(uuid "a2690bf3-0c82-5000-b45c-6d8f4e90e870")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 508 365.76)
+			(xy 508 363.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2b9387f3-9ff8-5da8-8255-a1e7821b6d49")
+	)
+	(label "+5V_LED"
+		(at 508 363.22 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "488dfbc3-600b-5d3f-a991-77c692a8b057")
+	)
+	(wire
+		(pts
+			(xy 508 373.38)
+			(xy 508 375.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "82bde3a2-36ca-5305-a3cf-be49cf958740")
+	)
+	(label "GND"
+		(at 508 375.92 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "9aeed802-4b8c-5b90-9980-3b9bb3e4935e")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 539.75 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "ee150350-9868-5d0d-bbb0-70804f841f43")
+		(property "Reference" "LED6"
+			(at 539.75 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 539.75 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 539.75 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 539.75 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4369154a-c812-517d-a4ea-4cf339421eb3")
+		)
+		(pin "2"
+			(uuid "3878f0cd-b28a-5267-b37d-7b874bb7f3fd")
+		)
+		(pin "3"
+			(uuid "58cd2617-efc8-5375-a76e-a1d449be1f26")
+		)
+		(pin "4"
+			(uuid "5b2f121c-3809-5b64-a1c5-f8660cd9eae3")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 532.13 369.57)
+			(xy 529.59 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "13d68fb1-1e0b-59e4-8f87-454634c275b3")
+	)
+	(label "LED_D11"
+		(at 529.59 369.57 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "3c75f70b-fefa-56fc-85b1-2881f8a62901")
+	)
+	(wire
+		(pts
+			(xy 547.37 369.57)
+			(xy 549.91 369.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5475399f-fe9b-59a1-b2af-a34d1438d4a4")
+	)
+	(label "LED_D12"
+		(at 549.91 369.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d0e17def-e566-5601-a93e-7d678821fd0c")
+	)
+	(wire
+		(pts
+			(xy 539.75 361.95)
+			(xy 539.75 359.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7c89338d-7046-56ff-8cb8-287bbcf7435c")
+	)
+	(label "+5V_LED"
+		(at 539.75 359.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "0cd6c66c-53e1-528f-89e6-fa8838eaa7b0")
+	)
+	(wire
+		(pts
+			(xy 539.75 377.19)
+			(xy 539.75 379.73)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9b8c5ce4-16d1-5d10-9598-8433bccdd57b")
+	)
+	(label "GND"
+		(at 539.75 379.73 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "293a826a-a06f-543b-b744-7cb358829191")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 557.53 369.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "26d04a98-32ff-5e90-9520-375c8a5dcd66")
+		(property "Reference" "C6"
+			(at 557.53 366.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 557.53 364.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 557.53 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 557.53 369.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "010b16ed-1878-59c2-925f-bf13dbd8aa33")
+		)
+		(pin "2"
+			(uuid "c4210b62-3e25-542d-80fc-c485439465e0")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 557.53 365.76)
+			(xy 557.53 363.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "60a5554f-a5fb-5566-8e0d-45609eddb2d9")
+	)
+	(label "+5V_LED"
+		(at 557.53 363.22 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "dcfc1212-2286-56c4-99a2-7c409ab0ed9d")
+	)
+	(wire
+		(pts
+			(xy 557.53 373.38)
+			(xy 557.53 375.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "52a92dc0-0cea-53ed-b661-e3a0e71b032f")
+	)
+	(label "GND"
+		(at 557.53 375.92 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "78df0f7a-54be-596f-b2f6-ad452372fdad")
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")
@@ -16744,7 +16427,7 @@
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")
-		(at 439.42 449.58 0)
+		(at 539.75 410.21 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -16752,1246 +16435,6 @@
 		(dnp no)
 		(uuid "f9bd7725-b08b-5157-9123-fe50a2d440e8")
 		(property "Reference" "LED13"
-			(at 439.42 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 439.42 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 439.42 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 439.42 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "d9cea42b-580d-5645-a1c1-f609fbd37fc5")
-		)
-		(pin "2"
-			(uuid "4c12a7db-3466-5002-aa74-3f91ecb5ed25")
-		)
-		(pin "3"
-			(uuid "3d7898b3-3203-5a5f-9316-565f78b74aef")
-		)
-		(pin "4"
-			(uuid "3ccdc9bd-4716-592d-9619-371c5548bc69")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED13")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 431.8 449.58)
-			(xy 429.26 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ec8c476a-56a6-5277-bac6-ff0604112a4e")
-	)
-	(label "LED_D23"
-		(at 429.26 449.58 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "fea735de-ad34-50d3-83ff-c47a50bc2eaa")
-	)
-	(wire
-		(pts
-			(xy 447.04 449.58)
-			(xy 449.58 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7d4cf9cd-9e56-59ff-be61-10024b55e4f0")
-	)
-	(label "LED_D24"
-		(at 449.58 449.58 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "dac3a18b-8513-5634-849e-90c0b7e63cf5")
-	)
-	(wire
-		(pts
-			(xy 439.42 441.96)
-			(xy 439.42 439.42)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a2175446-9f30-5811-8ef1-73390b771935")
-	)
-	(label "+5V_LED"
-		(at 439.42 439.42 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "fe3136b2-6cf8-5124-bd7f-022fa308106c")
-	)
-	(wire
-		(pts
-			(xy 439.42 457.2)
-			(xy 439.42 459.74)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "53b7b8e5-0643-5efa-8ce8-8431faec5c41")
-	)
-	(label "GND"
-		(at 439.42 459.74 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "f05de059-057b-5a42-ac06-a8b2cd2674ef")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 457.2 449.58 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "78b5e8a7-6ce1-5eb1-a539-80c68624b41b")
-		(property "Reference" "C13"
-			(at 457.2 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 457.2 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 457.2 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 457.2 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "1f4777b5-017d-5b8e-9e51-75f7e420fa54")
-		)
-		(pin "2"
-			(uuid "33fc910f-b43f-5c17-8873-f404a822e79b")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C13")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 457.2 445.77)
-			(xy 457.2 443.23)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "de2fe159-cb65-552f-9c2d-c590bb1f91f6")
-	)
-	(label "+5V_LED"
-		(at 457.2 443.23 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "fbc27c34-3bcf-5d22-b48c-bb7c9b83e819")
-	)
-	(wire
-		(pts
-			(xy 457.2 453.39)
-			(xy 457.2 455.93)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "50766910-d808-5108-b005-230025792747")
-	)
-	(label "GND"
-		(at 457.2 455.93 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "b50e46d2-df36-5b4e-beee-d2bc3733b039")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 389.89 449.58 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "5c6ba1c2-5a9c-574f-92ea-8db041e96098")
-		(property "Reference" "LED14"
-			(at 389.89 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 389.89 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 389.89 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 389.89 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "07770bba-4cd8-5f12-85a8-f4d84b32f86c")
-		)
-		(pin "2"
-			(uuid "406f1b87-c5a6-5d85-8201-180b99df0473")
-		)
-		(pin "3"
-			(uuid "686939e6-2c4b-5088-8616-f88ecc115ed2")
-		)
-		(pin "4"
-			(uuid "e7a6cf5f-0fb9-5bb9-8804-1e5c51bd00d9")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED14")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 382.27 449.58)
-			(xy 379.73 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c73b4f84-c41b-522e-8478-9e8426ca0828")
-	)
-	(label "LED_D22"
-		(at 379.73 449.58 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "88ccacbc-bdea-5ebc-915d-2ca220b17b97")
-	)
-	(wire
-		(pts
-			(xy 397.51 449.58)
-			(xy 400.05 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1c27a652-1d46-5651-93ed-690812633b51")
-	)
-	(label "LED_D23"
-		(at 400.05 449.58 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "0a15fe0e-5b8e-5c1d-967a-b80d93b75f48")
-	)
-	(wire
-		(pts
-			(xy 389.89 441.96)
-			(xy 389.89 439.42)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e76a308d-25ef-51b5-a8dc-9915acad3499")
-	)
-	(label "+5V_LED"
-		(at 389.89 439.42 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "97914cfa-ac54-5321-b742-f0252d7ccf28")
-	)
-	(wire
-		(pts
-			(xy 389.89 457.2)
-			(xy 389.89 459.74)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1550bdf4-f231-5b40-a10a-c51e9744fb1b")
-	)
-	(label "GND"
-		(at 389.89 459.74 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "89a31726-f429-540b-948f-4ecf53b31134")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 407.67 449.58 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "e5422266-addb-5daf-a5a9-fbd50bfc9a5d")
-		(property "Reference" "C14"
-			(at 407.67 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 407.67 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 407.67 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 407.67 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "627504f6-04b7-526f-bd31-d96557bb010d")
-		)
-		(pin "2"
-			(uuid "c071a784-0b9f-5362-9873-1e0d638ba55d")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C14")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 407.67 445.77)
-			(xy 407.67 443.23)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "02cd8462-d608-5a7b-9b4e-51c892f1d33e")
-	)
-	(label "+5V_LED"
-		(at 407.67 443.23 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "d170caae-ee0f-5aaf-b5a8-884bb42f1941")
-	)
-	(wire
-		(pts
-			(xy 407.67 453.39)
-			(xy 407.67 455.93)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "608af165-6876-534d-8eef-82b6e2fe4126")
-	)
-	(label "GND"
-		(at 407.67 455.93 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "7fc06acb-8198-5cba-95bd-ec57324e573b")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 340.36 449.58 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a204fab0-c8f1-5134-b2f0-c08aecc13fda")
-		(property "Reference" "LED15"
-			(at 340.36 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 340.36 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 340.36 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 340.36 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "f6c6d712-3675-5bd8-a1b1-defe66606d96")
-		)
-		(pin "2"
-			(uuid "0ced882e-c94f-570e-9465-5cf328a0a1d7")
-		)
-		(pin "3"
-			(uuid "36541d13-5845-5730-b773-3875bfb3b6e7")
-		)
-		(pin "4"
-			(uuid "2e4d7910-f7f3-541a-8d1f-d3e5afcbc3e6")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED15")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 332.74 449.58)
-			(xy 330.2 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2aa37402-ce41-5b38-bfcc-d8fc1db47132")
-	)
-	(label "LED_D21"
-		(at 330.2 449.58 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "da464800-072b-50e3-a19d-16522a461a17")
-	)
-	(wire
-		(pts
-			(xy 347.98 449.58)
-			(xy 350.52 449.58)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "33a56dff-ab45-5ff3-af23-1f5e0ae651dd")
-	)
-	(label "LED_D22"
-		(at 350.52 449.58 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "6c0e3049-0177-535b-9b81-a5c11f947377")
-	)
-	(wire
-		(pts
-			(xy 340.36 441.96)
-			(xy 340.36 439.42)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1a7490e9-73e2-5667-b6ab-309a866cfc64")
-	)
-	(label "+5V_LED"
-		(at 340.36 439.42 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "06d1ae6b-db5b-5df1-b532-7e2d56e6116b")
-	)
-	(wire
-		(pts
-			(xy 340.36 457.2)
-			(xy 340.36 459.74)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3c4d53c0-f5a7-5d9a-adb6-d3eaa6ce1890")
-	)
-	(label "GND"
-		(at 340.36 459.74 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "cd35b414-b221-580f-bb26-08f5fb8d2e8f")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 358.14 449.58 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2adbcd6b-bcce-525e-9a80-7c9b6afa8acb")
-		(property "Reference" "C15"
-			(at 358.14 446.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 358.14 444.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 358.14 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 358.14 449.58 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "3181cbbd-3072-549b-af3a-62dc2d5ddec4")
-		)
-		(pin "2"
-			(uuid "edd4096f-c57d-566d-b526-bcffdb43e82c")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C15")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 358.14 445.77)
-			(xy 358.14 443.23)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "14b43778-b6c6-538a-be91-cb9007156d8d")
-	)
-	(label "+5V_LED"
-		(at 358.14 443.23 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "09626c0b-b251-5ec9-b806-573288e00ad0")
-	)
-	(wire
-		(pts
-			(xy 358.14 453.39)
-			(xy 358.14 455.93)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "da210fb8-65c6-5c6d-bb3d-d0aa03cd0fc5")
-	)
-	(label "GND"
-		(at 358.14 455.93 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "16c2ea64-1fe1-5ac5-93c8-62d1caf4215a")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 640.08 410.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "116eafd9-da68-5e6a-8da7-0aa5ae1aab4b")
-		(property "Reference" "LED16"
-			(at 640.08 407.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 640.08 405.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 640.08 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 640.08 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "9aef3a54-f2e7-5d89-a4c0-a2cdf0c71d10")
-		)
-		(pin "2"
-			(uuid "8a5afefd-5b80-5d4b-a3c7-0c4456bfa2f5")
-		)
-		(pin "3"
-			(uuid "e889e6fb-0e31-5f40-88dd-7f20cea4d734")
-		)
-		(pin "4"
-			(uuid "40c281be-ea06-5af7-bd9a-63cb51163025")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED16")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 632.46 410.21)
-			(xy 629.92 410.21)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "33449a91-9d34-5e20-9b78-dbfc0c1bf548")
-	)
-	(label "LED_D20"
-		(at 629.92 410.21 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "6d15c461-24a7-5ed3-9a0e-429fae47dee1")
-	)
-	(wire
-		(pts
-			(xy 647.7 410.21)
-			(xy 650.24 410.21)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "74118229-af87-57b4-ab80-53b117040ad5")
-	)
-	(label "LED_D21"
-		(at 650.24 410.21 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "be6ad56f-c2ad-5c6c-9443-590c26ef9ed5")
-	)
-	(wire
-		(pts
-			(xy 640.08 402.59)
-			(xy 640.08 400.05)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c8a90e51-9733-582d-bebc-3793cc67e4d8")
-	)
-	(label "+5V_LED"
-		(at 640.08 400.05 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "0434ae5f-7b27-523a-a578-8c7c31218655")
-	)
-	(wire
-		(pts
-			(xy 640.08 417.83)
-			(xy 640.08 420.37)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e3ccd193-bc31-503c-aee8-6a642baed62e")
-	)
-	(label "GND"
-		(at 640.08 420.37 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "8171f359-0c1d-554f-98d5-b28f3ac2d599")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 657.86 410.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2717f0b4-828d-57b5-b4a1-a3303a6692a0")
-		(property "Reference" "C16"
-			(at 657.86 407.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 657.86 405.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 657.86 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 657.86 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "4dcbc693-1c15-5e3e-89c9-67d3c9973393")
-		)
-		(pin "2"
-			(uuid "a20b1050-57e2-511e-9b7f-c0a96b5b6114")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C16")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 657.86 406.4)
-			(xy 657.86 403.86)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d7d4665b-cd96-5a06-b4a5-123a8ee6caae")
-	)
-	(label "+5V_LED"
-		(at 657.86 403.86 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "ffdb3a04-df74-541c-ba3c-9d2601c8de9e")
-	)
-	(wire
-		(pts
-			(xy 657.86 414.02)
-			(xy 657.86 416.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "51403004-67fd-56f8-a4bc-bdc3590e49e1")
-	)
-	(label "GND"
-		(at 657.86 416.56 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "6d05ea34-0e83-532b-bd93-ce95608af9ad")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 590.55 410.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "ab4d11d7-ebfc-59be-8705-3559a129aad9")
-		(property "Reference" "LED17"
-			(at 590.55 407.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 590.55 405.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 590.55 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 590.55 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "d2ac592f-10ad-5ab7-81fa-7a685b399f0a")
-		)
-		(pin "2"
-			(uuid "b0c3f7e0-cb28-5c3b-b474-c1a6e3ecde2d")
-		)
-		(pin "3"
-			(uuid "bda67298-346e-54b5-bcc2-938c1842c8f1")
-		)
-		(pin "4"
-			(uuid "420d1d3f-2247-5083-a0f7-563514208b87")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED17")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 582.93 410.21)
-			(xy 580.39 410.21)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "af8303e9-cd7d-5e09-b8e1-3111a6f79f13")
-	)
-	(label "LED_D19"
-		(at 580.39 410.21 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "1afd7088-a980-5304-ab79-ae85b3bd919e")
-	)
-	(wire
-		(pts
-			(xy 598.17 410.21)
-			(xy 600.71 410.21)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "63eae825-4c21-5c8f-b001-ae279298ba5e")
-	)
-	(label "LED_D20"
-		(at 600.71 410.21 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "9f8ae7dc-bd5b-5d85-b276-03f56e9990c5")
-	)
-	(wire
-		(pts
-			(xy 590.55 402.59)
-			(xy 590.55 400.05)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0d0f4252-7a30-50bb-a324-5c5ca834fc42")
-	)
-	(label "+5V_LED"
-		(at 590.55 400.05 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "3332d2d0-aba8-5b4e-a0df-368509c83b79")
-	)
-	(wire
-		(pts
-			(xy 590.55 417.83)
-			(xy 590.55 420.37)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a3d619c9-0b0f-5f5b-a32a-59cd2e701f5b")
-	)
-	(label "GND"
-		(at 590.55 420.37 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "dd7482c0-3005-58c7-b403-10a57c5697df")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 608.33 410.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "918f58e3-40e2-57db-b9b1-03fec731d1ca")
-		(property "Reference" "C17"
-			(at 608.33 407.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 608.33 405.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 608.33 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 608.33 410.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "08703a70-bd7a-5de0-aae7-9ab198018f3d")
-		)
-		(pin "2"
-			(uuid "3ab9b34e-90ae-5fa6-91a8-206788f01927")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C17")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 608.33 406.4)
-			(xy 608.33 403.86)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cb62f336-6db2-59bc-ba5d-8460ce76367f")
-	)
-	(label "+5V_LED"
-		(at 608.33 403.86 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "608c5804-cdcb-5b69-baa6-05d0a309ca66")
-	)
-	(wire
-		(pts
-			(xy 608.33 414.02)
-			(xy 608.33 416.56)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0e3afbdd-8820-553b-8c1b-d533bf720187")
-	)
-	(label "GND"
-		(at 608.33 416.56 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "8ced4eee-f154-5a89-88db-68686c5f23c1")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 539.75 410.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "b511b696-eff4-5f3d-9f2d-fe1e89b482a6")
-		(property "Reference" "LED18"
 			(at 539.75 407.21 0)
 			(effects
 				(font
@@ -18026,21 +16469,21 @@
 			)
 		)
 		(pin "1"
-			(uuid "ead195e6-f2c3-5c57-beb3-e1195e0d6835")
+			(uuid "d9cea42b-580d-5645-a1c1-f609fbd37fc5")
 		)
 		(pin "2"
-			(uuid "b7b2d2b2-79d8-528b-96c0-771c66d00092")
+			(uuid "4c12a7db-3466-5002-aa74-3f91ecb5ed25")
 		)
 		(pin "3"
-			(uuid "502a6123-6931-5ad8-b724-166e79650a69")
+			(uuid "3d7898b3-3203-5a5f-9316-565f78b74aef")
 		)
 		(pin "4"
-			(uuid "d5d6598c-35e3-5c3d-90fc-4a71061f65af")
+			(uuid "3ccdc9bd-4716-592d-9619-371c5548bc69")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED18")
+					(reference "LED13")
 					(unit 1)
 				)
 			)
@@ -18138,8 +16581,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ac2cecdb-d6de-5dd0-9a1c-9e5badbfcd26")
-		(property "Reference" "C18"
+		(uuid "78b5e8a7-6ce1-5eb1-a539-80c68624b41b")
+		(property "Reference" "C13"
 			(at 557.53 407.21 0)
 			(effects
 				(font
@@ -18174,15 +16617,15 @@
 			)
 		)
 		(pin "1"
-			(uuid "2040517f-a55b-5ed6-a2b9-3471db6c3f52")
+			(uuid "1f4777b5-017d-5b8e-9e51-75f7e420fa54")
 		)
 		(pin "2"
-			(uuid "b513c598-ac51-5820-bc9e-fe668c893144")
+			(uuid "33fc910f-b43f-5c17-8873-f404a822e79b")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C18")
+					(reference "C13")
 					(unit 1)
 				)
 			)
@@ -18229,6 +16672,1246 @@
 			(justify right bottom)
 		)
 		(uuid "a3ea104a-02d6-5162-8c27-fe16fcfe70e5")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 590.55 410.21 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "5c6ba1c2-5a9c-574f-92ea-8db041e96098")
+		(property "Reference" "LED14"
+			(at 590.55 407.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 590.55 405.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 590.55 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 590.55 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "07770bba-4cd8-5f12-85a8-f4d84b32f86c")
+		)
+		(pin "2"
+			(uuid "406f1b87-c5a6-5d85-8201-180b99df0473")
+		)
+		(pin "3"
+			(uuid "686939e6-2c4b-5088-8616-f88ecc115ed2")
+		)
+		(pin "4"
+			(uuid "e7a6cf5f-0fb9-5bb9-8804-1e5c51bd00d9")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 582.93 410.21)
+			(xy 580.39 410.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "af8303e9-cd7d-5e09-b8e1-3111a6f79f13")
+	)
+	(label "LED_D19"
+		(at 580.39 410.21 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "1afd7088-a980-5304-ab79-ae85b3bd919e")
+	)
+	(wire
+		(pts
+			(xy 598.17 410.21)
+			(xy 600.71 410.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63eae825-4c21-5c8f-b001-ae279298ba5e")
+	)
+	(label "LED_D20"
+		(at 600.71 410.21 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9f8ae7dc-bd5b-5d85-b276-03f56e9990c5")
+	)
+	(wire
+		(pts
+			(xy 590.55 402.59)
+			(xy 590.55 400.05)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0d0f4252-7a30-50bb-a324-5c5ca834fc42")
+	)
+	(label "+5V_LED"
+		(at 590.55 400.05 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "3332d2d0-aba8-5b4e-a0df-368509c83b79")
+	)
+	(wire
+		(pts
+			(xy 590.55 417.83)
+			(xy 590.55 420.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a3d619c9-0b0f-5f5b-a32a-59cd2e701f5b")
+	)
+	(label "GND"
+		(at 590.55 420.37 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "dd7482c0-3005-58c7-b403-10a57c5697df")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 608.33 410.21 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e5422266-addb-5daf-a5a9-fbd50bfc9a5d")
+		(property "Reference" "C14"
+			(at 608.33 407.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 608.33 405.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 608.33 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 608.33 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "627504f6-04b7-526f-bd31-d96557bb010d")
+		)
+		(pin "2"
+			(uuid "c071a784-0b9f-5362-9873-1e0d638ba55d")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 608.33 406.4)
+			(xy 608.33 403.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cb62f336-6db2-59bc-ba5d-8460ce76367f")
+	)
+	(label "+5V_LED"
+		(at 608.33 403.86 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "608c5804-cdcb-5b69-baa6-05d0a309ca66")
+	)
+	(wire
+		(pts
+			(xy 608.33 414.02)
+			(xy 608.33 416.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0e3afbdd-8820-553b-8c1b-d533bf720187")
+	)
+	(label "GND"
+		(at 608.33 416.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "8ced4eee-f154-5a89-88db-68686c5f23c1")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 640.08 410.21 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "a204fab0-c8f1-5134-b2f0-c08aecc13fda")
+		(property "Reference" "LED15"
+			(at 640.08 407.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 640.08 405.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 640.08 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 640.08 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "f6c6d712-3675-5bd8-a1b1-defe66606d96")
+		)
+		(pin "2"
+			(uuid "0ced882e-c94f-570e-9465-5cf328a0a1d7")
+		)
+		(pin "3"
+			(uuid "36541d13-5845-5730-b773-3875bfb3b6e7")
+		)
+		(pin "4"
+			(uuid "2e4d7910-f7f3-541a-8d1f-d3e5afcbc3e6")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED15")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 632.46 410.21)
+			(xy 629.92 410.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "33449a91-9d34-5e20-9b78-dbfc0c1bf548")
+	)
+	(label "LED_D20"
+		(at 629.92 410.21 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "6d15c461-24a7-5ed3-9a0e-429fae47dee1")
+	)
+	(wire
+		(pts
+			(xy 647.7 410.21)
+			(xy 650.24 410.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "74118229-af87-57b4-ab80-53b117040ad5")
+	)
+	(label "LED_D21"
+		(at 650.24 410.21 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "be6ad56f-c2ad-5c6c-9443-590c26ef9ed5")
+	)
+	(wire
+		(pts
+			(xy 640.08 402.59)
+			(xy 640.08 400.05)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c8a90e51-9733-582d-bebc-3793cc67e4d8")
+	)
+	(label "+5V_LED"
+		(at 640.08 400.05 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "0434ae5f-7b27-523a-a578-8c7c31218655")
+	)
+	(wire
+		(pts
+			(xy 640.08 417.83)
+			(xy 640.08 420.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e3ccd193-bc31-503c-aee8-6a642baed62e")
+	)
+	(label "GND"
+		(at 640.08 420.37 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "8171f359-0c1d-554f-98d5-b28f3ac2d599")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 657.86 410.21 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2adbcd6b-bcce-525e-9a80-7c9b6afa8acb")
+		(property "Reference" "C15"
+			(at 657.86 407.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 657.86 405.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 657.86 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 657.86 410.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3181cbbd-3072-549b-af3a-62dc2d5ddec4")
+		)
+		(pin "2"
+			(uuid "edd4096f-c57d-566d-b526-bcffdb43e82c")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C15")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 657.86 406.4)
+			(xy 657.86 403.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d7d4665b-cd96-5a06-b4a5-123a8ee6caae")
+	)
+	(label "+5V_LED"
+		(at 657.86 403.86 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "ffdb3a04-df74-541c-ba3c-9d2601c8de9e")
+	)
+	(wire
+		(pts
+			(xy 657.86 414.02)
+			(xy 657.86 416.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "51403004-67fd-56f8-a4bc-bdc3590e49e1")
+	)
+	(label "GND"
+		(at 657.86 416.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "6d05ea34-0e83-532b-bd93-ce95608af9ad")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 340.36 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "116eafd9-da68-5e6a-8da7-0aa5ae1aab4b")
+		(property "Reference" "LED16"
+			(at 340.36 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 340.36 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 340.36 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 340.36 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "9aef3a54-f2e7-5d89-a4c0-a2cdf0c71d10")
+		)
+		(pin "2"
+			(uuid "8a5afefd-5b80-5d4b-a3c7-0c4456bfa2f5")
+		)
+		(pin "3"
+			(uuid "e889e6fb-0e31-5f40-88dd-7f20cea4d734")
+		)
+		(pin "4"
+			(uuid "40c281be-ea06-5af7-bd9a-63cb51163025")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED16")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 332.74 449.58)
+			(xy 330.2 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2aa37402-ce41-5b38-bfcc-d8fc1db47132")
+	)
+	(label "LED_D21"
+		(at 330.2 449.58 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "da464800-072b-50e3-a19d-16522a461a17")
+	)
+	(wire
+		(pts
+			(xy 347.98 449.58)
+			(xy 350.52 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "33a56dff-ab45-5ff3-af23-1f5e0ae651dd")
+	)
+	(label "LED_D22"
+		(at 350.52 449.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6c0e3049-0177-535b-9b81-a5c11f947377")
+	)
+	(wire
+		(pts
+			(xy 340.36 441.96)
+			(xy 340.36 439.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1a7490e9-73e2-5667-b6ab-309a866cfc64")
+	)
+	(label "+5V_LED"
+		(at 340.36 439.42 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "06d1ae6b-db5b-5df1-b532-7e2d56e6116b")
+	)
+	(wire
+		(pts
+			(xy 340.36 457.2)
+			(xy 340.36 459.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3c4d53c0-f5a7-5d9a-adb6-d3eaa6ce1890")
+	)
+	(label "GND"
+		(at 340.36 459.74 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "cd35b414-b221-580f-bb26-08f5fb8d2e8f")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 358.14 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2717f0b4-828d-57b5-b4a1-a3303a6692a0")
+		(property "Reference" "C16"
+			(at 358.14 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 358.14 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 358.14 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 358.14 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4dcbc693-1c15-5e3e-89c9-67d3c9973393")
+		)
+		(pin "2"
+			(uuid "a20b1050-57e2-511e-9b7f-c0a96b5b6114")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C16")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 358.14 445.77)
+			(xy 358.14 443.23)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "14b43778-b6c6-538a-be91-cb9007156d8d")
+	)
+	(label "+5V_LED"
+		(at 358.14 443.23 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "09626c0b-b251-5ec9-b806-573288e00ad0")
+	)
+	(wire
+		(pts
+			(xy 358.14 453.39)
+			(xy 358.14 455.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "da210fb8-65c6-5c6d-bb3d-d0aa03cd0fc5")
+	)
+	(label "GND"
+		(at 358.14 455.93 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "16c2ea64-1fe1-5ac5-93c8-62d1caf4215a")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 389.89 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "ab4d11d7-ebfc-59be-8705-3559a129aad9")
+		(property "Reference" "LED17"
+			(at 389.89 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 389.89 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 389.89 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 389.89 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d2ac592f-10ad-5ab7-81fa-7a685b399f0a")
+		)
+		(pin "2"
+			(uuid "b0c3f7e0-cb28-5c3b-b474-c1a6e3ecde2d")
+		)
+		(pin "3"
+			(uuid "bda67298-346e-54b5-bcc2-938c1842c8f1")
+		)
+		(pin "4"
+			(uuid "420d1d3f-2247-5083-a0f7-563514208b87")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED17")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 382.27 449.58)
+			(xy 379.73 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c73b4f84-c41b-522e-8478-9e8426ca0828")
+	)
+	(label "LED_D22"
+		(at 379.73 449.58 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "88ccacbc-bdea-5ebc-915d-2ca220b17b97")
+	)
+	(wire
+		(pts
+			(xy 397.51 449.58)
+			(xy 400.05 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1c27a652-1d46-5651-93ed-690812633b51")
+	)
+	(label "LED_D23"
+		(at 400.05 449.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "0a15fe0e-5b8e-5c1d-967a-b80d93b75f48")
+	)
+	(wire
+		(pts
+			(xy 389.89 441.96)
+			(xy 389.89 439.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e76a308d-25ef-51b5-a8dc-9915acad3499")
+	)
+	(label "+5V_LED"
+		(at 389.89 439.42 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "97914cfa-ac54-5321-b742-f0252d7ccf28")
+	)
+	(wire
+		(pts
+			(xy 389.89 457.2)
+			(xy 389.89 459.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1550bdf4-f231-5b40-a10a-c51e9744fb1b")
+	)
+	(label "GND"
+		(at 389.89 459.74 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "89a31726-f429-540b-948f-4ecf53b31134")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 407.67 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "918f58e3-40e2-57db-b9b1-03fec731d1ca")
+		(property "Reference" "C17"
+			(at 407.67 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 407.67 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 407.67 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 407.67 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "08703a70-bd7a-5de0-aae7-9ab198018f3d")
+		)
+		(pin "2"
+			(uuid "3ab9b34e-90ae-5fa6-91a8-206788f01927")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C17")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 407.67 445.77)
+			(xy 407.67 443.23)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "02cd8462-d608-5a7b-9b4e-51c892f1d33e")
+	)
+	(label "+5V_LED"
+		(at 407.67 443.23 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d170caae-ee0f-5aaf-b5a8-884bb42f1941")
+	)
+	(wire
+		(pts
+			(xy 407.67 453.39)
+			(xy 407.67 455.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "608af165-6876-534d-8eef-82b6e2fe4126")
+	)
+	(label "GND"
+		(at 407.67 455.93 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "7fc06acb-8198-5cba-95bd-ec57324e573b")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 439.42 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b511b696-eff4-5f3d-9f2d-fe1e89b482a6")
+		(property "Reference" "LED18"
+			(at 439.42 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 439.42 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 439.42 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 439.42 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ead195e6-f2c3-5c57-beb3-e1195e0d6835")
+		)
+		(pin "2"
+			(uuid "b7b2d2b2-79d8-528b-96c0-771c66d00092")
+		)
+		(pin "3"
+			(uuid "502a6123-6931-5ad8-b724-166e79650a69")
+		)
+		(pin "4"
+			(uuid "d5d6598c-35e3-5c3d-90fc-4a71061f65af")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED18")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 431.8 449.58)
+			(xy 429.26 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ec8c476a-56a6-5277-bac6-ff0604112a4e")
+	)
+	(label "LED_D23"
+		(at 429.26 449.58 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "fea735de-ad34-50d3-83ff-c47a50bc2eaa")
+	)
+	(wire
+		(pts
+			(xy 447.04 449.58)
+			(xy 449.58 449.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7d4cf9cd-9e56-59ff-be61-10024b55e4f0")
+	)
+	(label "LED_D24"
+		(at 449.58 449.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "dac3a18b-8513-5634-849e-90c0b7e63cf5")
+	)
+	(wire
+		(pts
+			(xy 439.42 441.96)
+			(xy 439.42 439.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a2175446-9f30-5811-8ef1-73390b771935")
+	)
+	(label "+5V_LED"
+		(at 439.42 439.42 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "fe3136b2-6cf8-5124-bd7f-022fa308106c")
+	)
+	(wire
+		(pts
+			(xy 439.42 457.2)
+			(xy 439.42 459.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "53b7b8e5-0643-5efa-8ce8-8431faec5c41")
+	)
+	(label "GND"
+		(at 439.42 459.74 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "f05de059-057b-5a42-ac06-a8b2cd2674ef")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 457.2 449.58 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "ac2cecdb-d6de-5dd0-9a1c-9e5badbfcd26")
+		(property "Reference" "C18"
+			(at 457.2 446.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 457.2 444.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 457.2 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 457.2 449.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2040517f-a55b-5ed6-a2b9-3471db6c3f52")
+		)
+		(pin "2"
+			(uuid "b513c598-ac51-5820-bc9e-fe668c893144")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C18")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 457.2 445.77)
+			(xy 457.2 443.23)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "de2fe159-cb65-552f-9c2d-c590bb1f91f6")
+	)
+	(label "+5V_LED"
+		(at 457.2 443.23 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "fbc27c34-3bcf-5d22-b48c-bb7c9b83e819")
+	)
+	(wire
+		(pts
+			(xy 457.2 453.39)
+			(xy 457.2 455.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "50766910-d808-5108-b005-230025792747")
+	)
+	(label "GND"
+		(at 457.2 455.93 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "b50e46d2-df36-5b4e-beee-d2bc3733b039")
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")
@@ -19720,7 +19403,7 @@
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")
-		(at 340.36 529.59 0)
+		(at 439.42 490.22 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -19728,1246 +19411,6 @@
 		(dnp no)
 		(uuid "07187b75-fc82-538d-9581-bc7aee4c2505")
 		(property "Reference" "LED25"
-			(at 340.36 526.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 340.36 524.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 340.36 529.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 340.36 529.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "57df5d0f-7c53-5fa0-ac89-9ad8814268aa")
-		)
-		(pin "2"
-			(uuid "8de1729f-dbbe-545f-a689-44be69e0f564")
-		)
-		(pin "3"
-			(uuid "24b6c65e-4446-583e-b1c8-23aa8fcf9dc1")
-		)
-		(pin "4"
-			(uuid "bdd74e43-e72f-5b1f-848b-53e1c3663365")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED25")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 332.74 529.59)
-			(xy 330.2 529.59)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3504ff9c-6746-5589-a162-8ec1b84457fa")
-	)
-	(label "LED_D35"
-		(at 330.2 529.59 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "bff5c4db-6e9c-5814-a31d-9d7981b73788")
-	)
-	(wire
-		(pts
-			(xy 347.98 529.59)
-			(xy 350.52 529.59)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1f735fdd-6a72-5e96-95fe-cf675c44038e")
-	)
-	(label "LED_D36"
-		(at 350.52 529.59 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "cea8715f-4b80-52cc-8e29-c928a37e7421")
-	)
-	(wire
-		(pts
-			(xy 340.36 521.97)
-			(xy 340.36 519.43)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e066434d-bef6-55ba-8828-01a970a68402")
-	)
-	(label "+5V_LED"
-		(at 340.36 519.43 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "e52637df-b376-5610-8281-13f9e7f33abd")
-	)
-	(wire
-		(pts
-			(xy 340.36 537.21)
-			(xy 340.36 539.75)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "48595833-2d9a-5e9e-ada7-328188004d79")
-	)
-	(label "GND"
-		(at 340.36 539.75 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "fcef5506-cedb-5708-950a-4861f780b5b9")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 358.14 529.59 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "9994a50b-0d5b-573d-9aff-fcf32f0c9b3c")
-		(property "Reference" "C25"
-			(at 358.14 526.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 358.14 524.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 358.14 529.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 358.14 529.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "e00e9204-7ece-5e62-884d-d8e51e615d21")
-		)
-		(pin "2"
-			(uuid "030fff0a-74da-5c9d-88e3-75aace6029c3")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C25")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 358.14 525.78)
-			(xy 358.14 523.24)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "fc765567-3d38-565d-8f48-b3e110157745")
-	)
-	(label "+5V_LED"
-		(at 358.14 523.24 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "93947722-2f74-5b72-abc8-8a8886d95a53")
-	)
-	(wire
-		(pts
-			(xy 358.14 533.4)
-			(xy 358.14 535.94)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c9be66f0-e5ec-535f-a6f9-b501920d6b1c")
-	)
-	(label "GND"
-		(at 358.14 535.94 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "f8122a0e-836f-5fda-aee6-99f36e750fb9")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 640.08 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "42f43f5f-4818-566c-8a68-a7867cdc48ce")
-		(property "Reference" "LED26"
-			(at 640.08 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 640.08 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 640.08 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 640.08 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "b8b63be8-230a-5055-895c-61f0a605eb24")
-		)
-		(pin "2"
-			(uuid "7f840c12-f9a2-5b69-8ea7-ab892af6be09")
-		)
-		(pin "3"
-			(uuid "c3fc06e3-d2ef-577f-b9b0-e09997e498b7")
-		)
-		(pin "4"
-			(uuid "3f358b8a-8007-5d09-a66b-0dd30ef0dd9b")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED26")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 632.46 490.22)
-			(xy 629.92 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cf1fafb4-1efd-513d-888b-d236984e6c38")
-	)
-	(label "LED_D34"
-		(at 629.92 490.22 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "da39109c-dff9-5fe0-bd26-f85ec2c8aab3")
-	)
-	(wire
-		(pts
-			(xy 647.7 490.22)
-			(xy 650.24 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "98135e44-d9d5-5465-90ec-74e256794c55")
-	)
-	(label "LED_D35"
-		(at 650.24 490.22 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "c3fa097e-172b-542e-94f8-6635a2f9a308")
-	)
-	(wire
-		(pts
-			(xy 640.08 482.6)
-			(xy 640.08 480.06)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "11b72558-b82b-51ef-bbb7-abc96836718a")
-	)
-	(label "+5V_LED"
-		(at 640.08 480.06 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "134b6851-baec-5b31-a46b-6fe31d9dff78")
-	)
-	(wire
-		(pts
-			(xy 640.08 497.84)
-			(xy 640.08 500.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a6e74510-53ac-5f4e-9501-3f41239838b9")
-	)
-	(label "GND"
-		(at 640.08 500.38 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c250346a-d913-5a3d-8c50-90cccf37085c")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 657.86 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "7986671b-c040-5c8f-ad19-bba415e65b0b")
-		(property "Reference" "C26"
-			(at 657.86 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 657.86 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 657.86 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 657.86 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "daaf794c-97f7-5f29-a4b3-dcb0dbf403fc")
-		)
-		(pin "2"
-			(uuid "bee648cb-0eaf-5ca1-9703-82d0bbb4106e")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C26")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 657.86 486.41)
-			(xy 657.86 483.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b8799d3f-625c-520d-95cb-3f5dc9dd7b57")
-	)
-	(label "+5V_LED"
-		(at 657.86 483.87 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "c5631e33-516b-519c-974d-cf05d622d604")
-	)
-	(wire
-		(pts
-			(xy 657.86 494.03)
-			(xy 657.86 496.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "56ea3560-22e3-5bfb-b08f-bd0983f199f7")
-	)
-	(label "GND"
-		(at 657.86 496.57 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c3348d23-e895-555a-9f1b-ecaf3d126cfc")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 590.55 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "44e607ad-35ee-57c9-a722-50d4bc0c4aa0")
-		(property "Reference" "LED27"
-			(at 590.55 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 590.55 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 590.55 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 590.55 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "5542a752-e8bc-5a7d-b8a0-8e41e31af44d")
-		)
-		(pin "2"
-			(uuid "fb4c884e-a8a2-5c9d-90af-cefaf42d5aa2")
-		)
-		(pin "3"
-			(uuid "a912e826-f2f8-5fd7-bc65-3ae8b5925dd6")
-		)
-		(pin "4"
-			(uuid "9513445c-cc49-500d-9657-094a17130c1d")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED27")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 582.93 490.22)
-			(xy 580.39 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "71f14728-9786-5552-9077-8b1d971605f5")
-	)
-	(label "LED_D33"
-		(at 580.39 490.22 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "2729056c-d44a-5489-a287-07ab735fbc25")
-	)
-	(wire
-		(pts
-			(xy 598.17 490.22)
-			(xy 600.71 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6ceee551-ec84-5225-a951-136dfda29cfb")
-	)
-	(label "LED_D34"
-		(at 600.71 490.22 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "3479301c-338b-5efa-a529-c4e5a3bcd94e")
-	)
-	(wire
-		(pts
-			(xy 590.55 482.6)
-			(xy 590.55 480.06)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "711f1af9-bdc3-5e00-99a6-eb98dc0a9744")
-	)
-	(label "+5V_LED"
-		(at 590.55 480.06 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "31d53e76-067c-58d1-a81b-d139c7d0d3a2")
-	)
-	(wire
-		(pts
-			(xy 590.55 497.84)
-			(xy 590.55 500.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6b06f517-2ef6-55da-a926-6988d01dcd85")
-	)
-	(label "GND"
-		(at 590.55 500.38 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c74f3d52-012d-59ae-b9c6-b2665229697e")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 608.33 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "c3aa5693-9569-5509-a19e-5f0301dbfccd")
-		(property "Reference" "C27"
-			(at 608.33 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 608.33 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 608.33 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 608.33 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "c37f4afd-4e14-55cb-b920-5ebdde4a33d0")
-		)
-		(pin "2"
-			(uuid "77566dbd-4323-5104-8b86-144491664f27")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C27")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 608.33 486.41)
-			(xy 608.33 483.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "64ce2d0b-11cc-50d7-902d-11e1851e10be")
-	)
-	(label "+5V_LED"
-		(at 608.33 483.87 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "9bd292fa-4462-5adb-8486-18cafcdf5864")
-	)
-	(wire
-		(pts
-			(xy 608.33 494.03)
-			(xy 608.33 496.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cc1374e0-311d-5799-8965-ed40f080afb1")
-	)
-	(label "GND"
-		(at 608.33 496.57 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "d3e28b27-344f-5912-bda5-dc6e32394fae")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 539.75 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2357ef41-4971-5539-82d2-a73cdccf77c8")
-		(property "Reference" "LED28"
-			(at 539.75 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 539.75 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 539.75 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 539.75 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "4777876f-adae-59af-9da4-675832f82e4c")
-		)
-		(pin "2"
-			(uuid "5ad47cc9-df55-56ef-a3f9-a02fe880122c")
-		)
-		(pin "3"
-			(uuid "51b81241-5c54-54a6-95f0-736bd51a5e22")
-		)
-		(pin "4"
-			(uuid "0ec96fd1-0de8-5aca-981a-0c8bff09ffbc")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED28")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 532.13 490.22)
-			(xy 529.59 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "779cec57-d341-51ff-8e0a-fada4884d8ca")
-	)
-	(label "LED_D32"
-		(at 529.59 490.22 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "4aab5cfa-91c3-5ded-891e-8945e2c3da05")
-	)
-	(wire
-		(pts
-			(xy 547.37 490.22)
-			(xy 549.91 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d32feac9-5055-5e1f-b3bf-df2809df48ff")
-	)
-	(label "LED_D33"
-		(at 549.91 490.22 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "618a8799-d9d1-53a9-9192-e286221ccfd3")
-	)
-	(wire
-		(pts
-			(xy 539.75 482.6)
-			(xy 539.75 480.06)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "fe555adf-a559-5483-b4c5-df92999daa4d")
-	)
-	(label "+5V_LED"
-		(at 539.75 480.06 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "32cecdd8-c582-5367-9f3b-03d114e32dac")
-	)
-	(wire
-		(pts
-			(xy 539.75 497.84)
-			(xy 539.75 500.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "30ae38fb-0a42-5e78-b05d-3e12153fbfd3")
-	)
-	(label "GND"
-		(at 539.75 500.38 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "7fef90c0-6bf3-5316-a633-82263988c2ac")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 557.53 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "fc8d3846-3e85-5687-8979-4b7c4590e877")
-		(property "Reference" "C28"
-			(at 557.53 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 557.53 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 557.53 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 557.53 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "c6c9bc0b-29ed-5299-b3a9-1e66160f243b")
-		)
-		(pin "2"
-			(uuid "bd801725-f5cd-536e-9215-3728e6abaecd")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C28")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 557.53 486.41)
-			(xy 557.53 483.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0a5629db-e48f-56eb-a400-9aaaf399cb4c")
-	)
-	(label "+5V_LED"
-		(at 557.53 483.87 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "5969e9f0-4f5b-53b8-a695-c5ef89c54e86")
-	)
-	(wire
-		(pts
-			(xy 557.53 494.03)
-			(xy 557.53 496.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6d1e04e4-7f8e-5b1e-ab60-fcc2a5bd842f")
-	)
-	(label "GND"
-		(at 557.53 496.57 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c6454747-c1e6-51f6-94b8-43498b03b51f")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 490.22 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "f00fe2ba-2b25-5a35-aeed-6c5fc5fa4ad0")
-		(property "Reference" "LED29"
-			(at 490.22 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "SK6812MINI-E"
-			(at 490.22 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
-			(at 490.22 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 490.22 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "56744e4d-92dd-5a52-96cf-10cdaa34d1c8")
-		)
-		(pin "2"
-			(uuid "9d8a5298-9fe5-5baf-b6fc-b5b04338cfda")
-		)
-		(pin "3"
-			(uuid "e536b936-c36e-5c5a-9a1c-561538d02816")
-		)
-		(pin "4"
-			(uuid "cf186a72-4145-56b2-8eda-8f56c5982ade")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED29")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 482.6 490.22)
-			(xy 480.06 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "bdb0b804-6cd3-5fe0-a1ec-363d5aad6e75")
-	)
-	(label "LED_D31"
-		(at 480.06 490.22 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c5c80b19-d480-52cf-bb3c-d13a12b26e20")
-	)
-	(wire
-		(pts
-			(xy 497.84 490.22)
-			(xy 500.38 490.22)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d3416547-e58b-5ba7-b8e0-56fb67bd017b")
-	)
-	(label "LED_D32"
-		(at 500.38 490.22 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a30ee93a-3b82-51e9-b93a-0b0a76aad33b")
-	)
-	(wire
-		(pts
-			(xy 490.22 482.6)
-			(xy 490.22 480.06)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "68c3aabb-04f9-5fd0-a48c-2495f362b4f5")
-	)
-	(label "+5V_LED"
-		(at 490.22 480.06 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "2499014e-9c73-504b-9f53-787aaa5f87b9")
-	)
-	(wire
-		(pts
-			(xy 490.22 497.84)
-			(xy 490.22 500.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a96d61b6-2851-5b84-9b83-421affc355c7")
-	)
-	(label "GND"
-		(at 490.22 500.38 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "ab1cd61a-31a1-502d-b4b2-0ba6eef18ef3")
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 508 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "204ebcc4-60c7-58c9-a73b-a477bf3189c1")
-		(property "Reference" "C29"
-			(at 508 487.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100nF"
-			(at 508 485.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 508 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 508 490.22 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "b8b69381-dbb2-526c-b2bf-7051550beadf")
-		)
-		(pin "2"
-			(uuid "ee31cf74-c6e2-5562-b4c1-509531bb3d09")
-		)
-		(instances
-			(project "drezimo-soundboard"
-				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C29")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 508 486.41)
-			(xy 508 483.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0b5d3f1a-ddba-5280-ad7c-01abb794a053")
-	)
-	(label "+5V_LED"
-		(at 508 483.87 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "157fd85c-4689-59d1-a06c-ecabb0eeeadd")
-	)
-	(wire
-		(pts
-			(xy 508 494.03)
-			(xy 508 496.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b2a42b90-c805-5ff4-8f5e-2223e38b8282")
-	)
-	(label "GND"
-		(at 508 496.57 270)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "c1b23fd4-e84c-57ad-98c2-1584b8c4f19b")
-	)
-	(symbol
-		(lib_id "LED:SK6812MINI-E")
-		(at 439.42 490.22 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "c09572c3-9e92-5abe-8a1f-51f648be86b2")
-		(property "Reference" "LED30"
 			(at 439.42 487.22 0)
 			(effects
 				(font
@@ -21002,21 +19445,21 @@
 			)
 		)
 		(pin "1"
-			(uuid "ea9bce5e-a093-5502-a9ae-ca28c8f08f8a")
+			(uuid "57df5d0f-7c53-5fa0-ac89-9ad8814268aa")
 		)
 		(pin "2"
-			(uuid "08206eee-aeaa-5a66-b1f3-57b8128b6a07")
+			(uuid "8de1729f-dbbe-545f-a689-44be69e0f564")
 		)
 		(pin "3"
-			(uuid "9eedb817-0900-5c28-ace0-48e94d30bdb2")
+			(uuid "24b6c65e-4446-583e-b1c8-23aa8fcf9dc1")
 		)
 		(pin "4"
-			(uuid "267266c9-7013-5027-9d01-9e9c25c8a886")
+			(uuid "bdd74e43-e72f-5b1f-848b-53e1c3663365")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "LED30")
+					(reference "LED25")
 					(unit 1)
 				)
 			)
@@ -21114,8 +19557,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b6aae428-88bf-50bd-807f-2e953d02729c")
-		(property "Reference" "C30"
+		(uuid "9994a50b-0d5b-573d-9aff-fcf32f0c9b3c")
+		(property "Reference" "C25"
 			(at 457.2 487.22 0)
 			(effects
 				(font
@@ -21150,15 +19593,15 @@
 			)
 		)
 		(pin "1"
-			(uuid "3c294eb3-b1ea-5524-8691-46589828f4ff")
+			(uuid "e00e9204-7ece-5e62-884d-d8e51e615d21")
 		)
 		(pin "2"
-			(uuid "7dca102e-6ed8-509e-9f9b-438325174b0c")
+			(uuid "030fff0a-74da-5c9d-88e3-75aace6029c3")
 		)
 		(instances
 			(project "drezimo-soundboard"
 				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
-					(reference "C30")
+					(reference "C25")
 					(unit 1)
 				)
 			)
@@ -21205,6 +19648,1246 @@
 			(justify right bottom)
 		)
 		(uuid "05491e78-ddb0-57e7-a4a0-e5063c88425d")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 490.22 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "42f43f5f-4818-566c-8a68-a7867cdc48ce")
+		(property "Reference" "LED26"
+			(at 490.22 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 490.22 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 490.22 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 490.22 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b8b63be8-230a-5055-895c-61f0a605eb24")
+		)
+		(pin "2"
+			(uuid "7f840c12-f9a2-5b69-8ea7-ab892af6be09")
+		)
+		(pin "3"
+			(uuid "c3fc06e3-d2ef-577f-b9b0-e09997e498b7")
+		)
+		(pin "4"
+			(uuid "3f358b8a-8007-5d09-a66b-0dd30ef0dd9b")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 482.6 490.22)
+			(xy 480.06 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bdb0b804-6cd3-5fe0-a1ec-363d5aad6e75")
+	)
+	(label "LED_D31"
+		(at 480.06 490.22 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c5c80b19-d480-52cf-bb3c-d13a12b26e20")
+	)
+	(wire
+		(pts
+			(xy 497.84 490.22)
+			(xy 500.38 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d3416547-e58b-5ba7-b8e0-56fb67bd017b")
+	)
+	(label "LED_D32"
+		(at 500.38 490.22 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "a30ee93a-3b82-51e9-b93a-0b0a76aad33b")
+	)
+	(wire
+		(pts
+			(xy 490.22 482.6)
+			(xy 490.22 480.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "68c3aabb-04f9-5fd0-a48c-2495f362b4f5")
+	)
+	(label "+5V_LED"
+		(at 490.22 480.06 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2499014e-9c73-504b-9f53-787aaa5f87b9")
+	)
+	(wire
+		(pts
+			(xy 490.22 497.84)
+			(xy 490.22 500.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a96d61b6-2851-5b84-9b83-421affc355c7")
+	)
+	(label "GND"
+		(at 490.22 500.38 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "ab1cd61a-31a1-502d-b4b2-0ba6eef18ef3")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 508 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7986671b-c040-5c8f-ad19-bba415e65b0b")
+		(property "Reference" "C26"
+			(at 508 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 508 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 508 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 508 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "daaf794c-97f7-5f29-a4b3-dcb0dbf403fc")
+		)
+		(pin "2"
+			(uuid "bee648cb-0eaf-5ca1-9703-82d0bbb4106e")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 508 486.41)
+			(xy 508 483.87)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0b5d3f1a-ddba-5280-ad7c-01abb794a053")
+	)
+	(label "+5V_LED"
+		(at 508 483.87 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "157fd85c-4689-59d1-a06c-ecabb0eeeadd")
+	)
+	(wire
+		(pts
+			(xy 508 494.03)
+			(xy 508 496.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b2a42b90-c805-5ff4-8f5e-2223e38b8282")
+	)
+	(label "GND"
+		(at 508 496.57 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c1b23fd4-e84c-57ad-98c2-1584b8c4f19b")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 539.75 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "44e607ad-35ee-57c9-a722-50d4bc0c4aa0")
+		(property "Reference" "LED27"
+			(at 539.75 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 539.75 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 539.75 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 539.75 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "5542a752-e8bc-5a7d-b8a0-8e41e31af44d")
+		)
+		(pin "2"
+			(uuid "fb4c884e-a8a2-5c9d-90af-cefaf42d5aa2")
+		)
+		(pin "3"
+			(uuid "a912e826-f2f8-5fd7-bc65-3ae8b5925dd6")
+		)
+		(pin "4"
+			(uuid "9513445c-cc49-500d-9657-094a17130c1d")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED27")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 532.13 490.22)
+			(xy 529.59 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "779cec57-d341-51ff-8e0a-fada4884d8ca")
+	)
+	(label "LED_D32"
+		(at 529.59 490.22 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4aab5cfa-91c3-5ded-891e-8945e2c3da05")
+	)
+	(wire
+		(pts
+			(xy 547.37 490.22)
+			(xy 549.91 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d32feac9-5055-5e1f-b3bf-df2809df48ff")
+	)
+	(label "LED_D33"
+		(at 549.91 490.22 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "618a8799-d9d1-53a9-9192-e286221ccfd3")
+	)
+	(wire
+		(pts
+			(xy 539.75 482.6)
+			(xy 539.75 480.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fe555adf-a559-5483-b4c5-df92999daa4d")
+	)
+	(label "+5V_LED"
+		(at 539.75 480.06 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "32cecdd8-c582-5367-9f3b-03d114e32dac")
+	)
+	(wire
+		(pts
+			(xy 539.75 497.84)
+			(xy 539.75 500.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "30ae38fb-0a42-5e78-b05d-3e12153fbfd3")
+	)
+	(label "GND"
+		(at 539.75 500.38 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "7fef90c0-6bf3-5316-a633-82263988c2ac")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 557.53 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c3aa5693-9569-5509-a19e-5f0301dbfccd")
+		(property "Reference" "C27"
+			(at 557.53 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 557.53 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 557.53 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 557.53 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c37f4afd-4e14-55cb-b920-5ebdde4a33d0")
+		)
+		(pin "2"
+			(uuid "77566dbd-4323-5104-8b86-144491664f27")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C27")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 557.53 486.41)
+			(xy 557.53 483.87)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0a5629db-e48f-56eb-a400-9aaaf399cb4c")
+	)
+	(label "+5V_LED"
+		(at 557.53 483.87 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "5969e9f0-4f5b-53b8-a695-c5ef89c54e86")
+	)
+	(wire
+		(pts
+			(xy 557.53 494.03)
+			(xy 557.53 496.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6d1e04e4-7f8e-5b1e-ab60-fcc2a5bd842f")
+	)
+	(label "GND"
+		(at 557.53 496.57 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c6454747-c1e6-51f6-94b8-43498b03b51f")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 590.55 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2357ef41-4971-5539-82d2-a73cdccf77c8")
+		(property "Reference" "LED28"
+			(at 590.55 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 590.55 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 590.55 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 590.55 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4777876f-adae-59af-9da4-675832f82e4c")
+		)
+		(pin "2"
+			(uuid "5ad47cc9-df55-56ef-a3f9-a02fe880122c")
+		)
+		(pin "3"
+			(uuid "51b81241-5c54-54a6-95f0-736bd51a5e22")
+		)
+		(pin "4"
+			(uuid "0ec96fd1-0de8-5aca-981a-0c8bff09ffbc")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED28")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 582.93 490.22)
+			(xy 580.39 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "71f14728-9786-5552-9077-8b1d971605f5")
+	)
+	(label "LED_D33"
+		(at 580.39 490.22 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "2729056c-d44a-5489-a287-07ab735fbc25")
+	)
+	(wire
+		(pts
+			(xy 598.17 490.22)
+			(xy 600.71 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6ceee551-ec84-5225-a951-136dfda29cfb")
+	)
+	(label "LED_D34"
+		(at 600.71 490.22 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "3479301c-338b-5efa-a529-c4e5a3bcd94e")
+	)
+	(wire
+		(pts
+			(xy 590.55 482.6)
+			(xy 590.55 480.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "711f1af9-bdc3-5e00-99a6-eb98dc0a9744")
+	)
+	(label "+5V_LED"
+		(at 590.55 480.06 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "31d53e76-067c-58d1-a81b-d139c7d0d3a2")
+	)
+	(wire
+		(pts
+			(xy 590.55 497.84)
+			(xy 590.55 500.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6b06f517-2ef6-55da-a926-6988d01dcd85")
+	)
+	(label "GND"
+		(at 590.55 500.38 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c74f3d52-012d-59ae-b9c6-b2665229697e")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 608.33 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "fc8d3846-3e85-5687-8979-4b7c4590e877")
+		(property "Reference" "C28"
+			(at 608.33 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 608.33 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 608.33 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 608.33 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c6c9bc0b-29ed-5299-b3a9-1e66160f243b")
+		)
+		(pin "2"
+			(uuid "bd801725-f5cd-536e-9215-3728e6abaecd")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C28")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 608.33 486.41)
+			(xy 608.33 483.87)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "64ce2d0b-11cc-50d7-902d-11e1851e10be")
+	)
+	(label "+5V_LED"
+		(at 608.33 483.87 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9bd292fa-4462-5adb-8486-18cafcdf5864")
+	)
+	(wire
+		(pts
+			(xy 608.33 494.03)
+			(xy 608.33 496.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cc1374e0-311d-5799-8965-ed40f080afb1")
+	)
+	(label "GND"
+		(at 608.33 496.57 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "d3e28b27-344f-5912-bda5-dc6e32394fae")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 640.08 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "f00fe2ba-2b25-5a35-aeed-6c5fc5fa4ad0")
+		(property "Reference" "LED29"
+			(at 640.08 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 640.08 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 640.08 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 640.08 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "56744e4d-92dd-5a52-96cf-10cdaa34d1c8")
+		)
+		(pin "2"
+			(uuid "9d8a5298-9fe5-5baf-b6fc-b5b04338cfda")
+		)
+		(pin "3"
+			(uuid "e536b936-c36e-5c5a-9a1c-561538d02816")
+		)
+		(pin "4"
+			(uuid "cf186a72-4145-56b2-8eda-8f56c5982ade")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED29")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 632.46 490.22)
+			(xy 629.92 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cf1fafb4-1efd-513d-888b-d236984e6c38")
+	)
+	(label "LED_D34"
+		(at 629.92 490.22 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "da39109c-dff9-5fe0-bd26-f85ec2c8aab3")
+	)
+	(wire
+		(pts
+			(xy 647.7 490.22)
+			(xy 650.24 490.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "98135e44-d9d5-5465-90ec-74e256794c55")
+	)
+	(label "LED_D35"
+		(at 650.24 490.22 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "c3fa097e-172b-542e-94f8-6635a2f9a308")
+	)
+	(wire
+		(pts
+			(xy 640.08 482.6)
+			(xy 640.08 480.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "11b72558-b82b-51ef-bbb7-abc96836718a")
+	)
+	(label "+5V_LED"
+		(at 640.08 480.06 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "134b6851-baec-5b31-a46b-6fe31d9dff78")
+	)
+	(wire
+		(pts
+			(xy 640.08 497.84)
+			(xy 640.08 500.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a6e74510-53ac-5f4e-9501-3f41239838b9")
+	)
+	(label "GND"
+		(at 640.08 500.38 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c250346a-d913-5a3d-8c50-90cccf37085c")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 657.86 490.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "204ebcc4-60c7-58c9-a73b-a477bf3189c1")
+		(property "Reference" "C29"
+			(at 657.86 487.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 657.86 485.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 657.86 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 657.86 490.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b8b69381-dbb2-526c-b2bf-7051550beadf")
+		)
+		(pin "2"
+			(uuid "ee31cf74-c6e2-5562-b4c1-509531bb3d09")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C29")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 657.86 486.41)
+			(xy 657.86 483.87)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b8799d3f-625c-520d-95cb-3f5dc9dd7b57")
+	)
+	(label "+5V_LED"
+		(at 657.86 483.87 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "c5631e33-516b-519c-974d-cf05d622d604")
+	)
+	(wire
+		(pts
+			(xy 657.86 494.03)
+			(xy 657.86 496.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "56ea3560-22e3-5bfb-b08f-bd0983f199f7")
+	)
+	(label "GND"
+		(at 657.86 496.57 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c3348d23-e895-555a-9f1b-ecaf3d126cfc")
+	)
+	(symbol
+		(lib_id "LED:SK6812MINI-E")
+		(at 340.36 529.59 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c09572c3-9e92-5abe-8a1f-51f648be86b2")
+		(property "Reference" "LED30"
+			(at 340.36 526.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SK6812MINI-E"
+			(at 340.36 524.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount"
+			(at 340.36 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 340.36 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ea9bce5e-a093-5502-a9ae-ca28c8f08f8a")
+		)
+		(pin "2"
+			(uuid "08206eee-aeaa-5a66-b1f3-57b8128b6a07")
+		)
+		(pin "3"
+			(uuid "9eedb817-0900-5c28-ace0-48e94d30bdb2")
+		)
+		(pin "4"
+			(uuid "267266c9-7013-5027-9d01-9e9c25c8a886")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "LED30")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 332.74 529.59)
+			(xy 330.2 529.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3504ff9c-6746-5589-a162-8ec1b84457fa")
+	)
+	(label "LED_D35"
+		(at 330.2 529.59 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "bff5c4db-6e9c-5814-a31d-9d7981b73788")
+	)
+	(wire
+		(pts
+			(xy 347.98 529.59)
+			(xy 350.52 529.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1f735fdd-6a72-5e96-95fe-cf675c44038e")
+	)
+	(label "LED_D36"
+		(at 350.52 529.59 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "cea8715f-4b80-52cc-8e29-c928a37e7421")
+	)
+	(wire
+		(pts
+			(xy 340.36 521.97)
+			(xy 340.36 519.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e066434d-bef6-55ba-8828-01a970a68402")
+	)
+	(label "+5V_LED"
+		(at 340.36 519.43 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e52637df-b376-5610-8281-13f9e7f33abd")
+	)
+	(wire
+		(pts
+			(xy 340.36 537.21)
+			(xy 340.36 539.75)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "48595833-2d9a-5e9e-ada7-328188004d79")
+	)
+	(label "GND"
+		(at 340.36 539.75 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "fcef5506-cedb-5708-950a-4861f780b5b9")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 358.14 529.59 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b6aae428-88bf-50bd-807f-2e953d02729c")
+		(property "Reference" "C30"
+			(at 358.14 526.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF"
+			(at 358.14 524.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 358.14 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 358.14 529.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3c294eb3-b1ea-5524-8691-46589828f4ff")
+		)
+		(pin "2"
+			(uuid "7dca102e-6ed8-509e-9f9b-438325174b0c")
+		)
+		(instances
+			(project "drezimo-soundboard"
+				(path "/a921a0d7-bc9f-519e-b53f-a8a1a1ccfca9"
+					(reference "C30")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 358.14 525.78)
+			(xy 358.14 523.24)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fc765567-3d38-565d-8f48-b3e110157745")
+	)
+	(label "+5V_LED"
+		(at 358.14 523.24 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "93947722-2f74-5b72-abc8-8a8886d95a53")
+	)
+	(wire
+		(pts
+			(xy 358.14 533.4)
+			(xy 358.14 535.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c9be66f0-e5ec-535f-a6f9-b501920d6b1c")
+	)
+	(label "GND"
+		(at 358.14 535.94 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "f8122a0e-836f-5fda-aee6-99f36e750fb9")
 	)
 	(symbol
 		(lib_id "LED:SK6812MINI-E")

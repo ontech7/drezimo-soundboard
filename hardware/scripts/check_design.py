@@ -67,7 +67,7 @@ def main():
         check(len(nets.get(k, ())) == 2, f"net {k} must have exactly SW{n}.2 and D{n}.A")
         check(net_of(f"D{n}", 1) == f"ROW{row}", f"D{n} cathode should be ROW{row}, is {net_of(f'D{n}', 1)}")
         check(comps.get(f"D{n}") == "Diode_SMD:D_SOD-123", f"D{n} footprint")
-        check(comps.get(f"SW{n}") == "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB", f"SW{n} footprint")
+        check(comps.get(f"SW{n}") == "Drezimo:SW_MX_Hotswap_Kailh", f"SW{n} footprint (hot-swap socket)")
     for c in range(6):
         check(len(nets[f"COL{c}"]) == 7 + 1, f"COL{c} must reach 7 switches + the MCU")
     for r in range(7):
@@ -89,12 +89,12 @@ def main():
         check(net_of(f"C{n}", 1) == "+5V_LED" and net_of(f"C{n}", 2) == "GND", f"C{n} decoupling across +5V_LED/GND")
         check(comps.get(ref) == "LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount", f"{ref} footprint")
 
-    # 3. Level shifter 74AHCT125 (pinout: 1 1OE, 2 1A, 3 1Y, 7 GND, 14 VCC; 4/10/13 OE, 5/9/12 A, 6/8/11 Y)
-    check(net_of("U2", 1) == "GND", "U2 1OE low (gate enabled)")
-    check(net_of("U2", 2) == "LED_DIN_3V3", "U2 1A from GP0")
-    check(net_of("U2", 3) == "LED_DIN_5V" == net_of("R1", 1), "U2 1Y to R1")
+    # 3. Level shifter 74AHCT125 (pinout: 7 GND, 14 VCC; OE/A/Y = 1/2/3, 4/5/6, 10/9/8, 13/12/11); gate 3 used
+    check(net_of("U2", 10) == "GND", "U2 3OE low (gate enabled)")
+    check(net_of("U2", 9) == "LED_DIN_3V3", "U2 3A from GP8")
+    check(net_of("U2", 8) == "LED_DIN_5V" == net_of("R1", 1), "U2 3Y to R1")
     check(net_of("U2", 14) == "+5V_LED" and net_of("U2", 7) == "GND", "U2 powered from the 5 V LED rail")
-    for oe, a in ((4, 5), (10, 9), (13, 12)):
+    for oe, a in ((1, 2), (4, 5), (13, 12)):
         check(net_of("U2", oe) == "+5V_LED", f"U2 pin {oe} (OE) high: spare gate disabled")
         check(net_of("U2", a) == "GND", f"U2 pin {a} (A) tied low")
     check(comps.get("U2") == "Package_DIP:DIP-14_W7.62mm", "U2 is the owned DIP-14 part")
@@ -114,7 +114,7 @@ def main():
     check({p: net_of("ENC1", p) for p in ("A", "B", "C", "S1", "S2", "MP")} ==
           {"A": "ENC_A", "B": "ENC_B", "C": "GND", "S1": "ENC_SW", "S2": "GND", "MP": "GND"}, "encoder wiring")
     check(not any(net_of(f"LED{n}", 3) == "VBUS" for n in KEYS), "LEDs only on the fused rail")
-    check(len(nets["+3V3"]) == 3, "+3V3 only feeds the OLED and the expansion header")
+    check(len(nets["+3V3"]) == 2, "+3V3 only feeds the OLED")
 
     # 5. No accidental single-node nets (typos in labels)
     for name, nodes in nets.items():

@@ -12,12 +12,9 @@ FN_KEYS = ["PREV", "NEXT", "STOP", "MUTE ME", "VOICE", "HEAR ME"]
 KEYS = {r * COLS + c + 1: (r, c) for r in range(ROWS) for c in range(COLS)}
 KEYS.update({ROWS * COLS + c + 1: (FN_ROW, c) for c in range(COLS)})
 
-# LED data chain: function row left->right, then pad rows serpentine
-# (row 0 right->left, row 1 left->right, ...). Keeps every hop between neighbours.
-CHAIN_ORDER = list(range(37, 43))
-for r in range(ROWS):
-    row = [r * COLS + c + 1 for c in range(COLS)]
-    CHAIN_ORDER += row[::-1] if r % 2 == 0 else row
+# LED data chain: every row left->right (function row, then pad rows 0..5). All LEDs share one
+# orientation and one routing pattern; the end of each row returns to the start of the next one.
+CHAIN_ORDER = list(range(37, 43)) + list(range(1, ROWS * COLS + 1))
 assert sorted(CHAIN_ORDER) == list(range(1, 43))
 
 # Net feeding the DIN of the k-th LED in the chain (LED_D0 comes from R1).
@@ -31,42 +28,43 @@ def key_cell(chain_index):
 
 # RP2040-Zero pad -> net (None = not connected). Pads are numbered counter-clockwise from 5V,
 # looking at the module's USB-C face (see hardware/lib/drezimo.pretty/RP2040-Zero.kicad_mod).
-# The left column (COL0..5, ROW0..1, LED data) and the 5-pin row (ROW2..6) face the key matrix;
-# the right column (power, I2C, encoder) faces the OLED and the knob.
+# Chosen for routing, seen from above: the left column takes the ROW bus coming up the left edge
+# (outermost bus line on the top pin), the 5-pin row takes COL0..5 coming up from the keys, the
+# right column (power, I2C, encoder) faces the OLED and the knob.
 ZERO_PINS = {
     1: "VBUS",          # 5V = USB VBUS (measured 5.02 V: no diode on the module)
     2: "GND",
     3: "+3V3",          # on-board LDO output (OLED supply)
-    4: "ENC_B",         # GP29
-    5: "ENC_A",         # GP28
-    6: "SCL",           # GP27 I2C1 SCL
-    7: "SDA",           # GP26 I2C1 SDA
-    8: "EXP_GP15",      # GP15 (expansion header)
-    9: "ENC_SW",        # GP14
-    10: "ROW6",         # GP13 function keys
-    11: "ROW5",         # GP12
-    12: "ROW4",         # GP11
-    13: "ROW3",         # GP10
-    14: "ROW2",         # GP9
-    15: "ROW1",         # GP8
-    16: "ROW0",         # GP7
-    17: "COL5",         # GP6
-    18: "COL4",         # GP5
-    19: "COL3",         # GP4
-    20: "COL2",         # GP3
-    21: "COL1",         # GP2
-    22: "COL0",         # GP1
-    23: "LED_DIN_3V3",  # GP0  LED data, through the 74AHCT125
+    4: "SCL",           # GP29 I2C0 SCL
+    5: "SDA",           # GP28 I2C0 SDA
+    6: "ENC_SW",        # GP27
+    7: "ENC_A",         # GP26
+    8: "ENC_B",         # GP15
+    9: "COL5",          # GP14
+    10: "COL4",         # GP13
+    11: "COL3",         # GP12
+    12: "COL2",         # GP11
+    13: "COL1",         # GP10
+    14: "COL0",         # GP9
+    15: "LED_DIN_3V3",  # GP8  LED data, through the 74AHCT125
+    16: None,           # GP7  spare
+    17: "ROW6",         # GP6  function keys
+    18: "ROW0",         # GP5
+    19: "ROW1",         # GP4
+    20: "ROW2",         # GP3
+    21: "ROW3",         # GP2
+    22: "ROW4",         # GP1
+    23: "ROW5",         # GP0
 }
 
 # Firmware-facing GPIO map (documentation and future firmware config)
 GPIO = {
-    "COLS": [1, 2, 3, 4, 5, 6],
-    "ROWS": [7, 8, 9, 10, 11, 12, 13],
-    "LED_DATA": 0,
-    "I2C_SDA": 26,
-    "I2C_SCL": 27,
-    "ENC_A": 28,
-    "ENC_B": 29,
-    "ENC_SW": 14,
+    "COLS": [9, 10, 11, 12, 13, 14],
+    "ROWS": [5, 4, 3, 2, 1, 0, 6],
+    "LED_DATA": 8,
+    "I2C_SDA": 28,
+    "I2C_SCL": 29,
+    "ENC_A": 26,
+    "ENC_B": 15,
+    "ENC_SW": 27,
 }
