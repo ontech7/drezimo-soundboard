@@ -6,6 +6,7 @@
   --muted: #8b8b94;
   --amber: #ffb020;
   --ok: #22e05a;
+  --error: #ff2a2a;
 
   color-scheme: dark;
   font-family:
@@ -87,20 +88,25 @@ p {
   height: 10px;
   border-radius: 50%;
   background: var(--amber);
-  animation: searching 1.4s ease-in-out infinite;
+  animation: waiting 1.4s ease-in-out infinite;
 }
 
-.dot.busy {
+.dot.warning {
   animation: none;
 }
 
-.dot.connected {
+.dot.ok {
   background: var(--ok);
   box-shadow: 0 0 8px var(--ok);
   animation: none;
 }
 
-@keyframes searching {
+.dot.error {
+  background: var(--error);
+  animation: none;
+}
+
+@keyframes waiting {
   50% {
     opacity: 0.3;
   }

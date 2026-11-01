@@ -1,17 +1,25 @@
 //! The menu bar (macOS) or notification area (Windows) icon, where the app lives.
 
 use crate::board::BoardStatus;
+use crate::device::Status;
+use crate::voicemod::VoicemodStatus;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 
-struct StatusItem(MenuItem<Wry>);
+struct StatusItems {
+    board: MenuItem<Wry>,
+    voicemod: MenuItem<Wry>,
+}
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let status = MenuItem::with_id(app, "status", status_text(&BoardStatus::default()), false, None::<&str>)?;
+    let status = Status::default();
+    let board = MenuItem::with_id(app, "board", board_text(&status.board), false, None::<&str>)?;
+    let voicemod = MenuItem::with_id(app, "voicemod", voicemod_text(status.voicemod), false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Drezimo Soundboard", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&status, &PredefinedMenuItem::separator(app)?, &open, &quit])?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&board, &voicemod, &separator, &open, &quit])?;
 
     // macOS draws a black template image in the menu bar colour; Windows shows the app icon
     #[cfg(target_os = "macos")]
@@ -30,18 +38,30 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
-    app.manage(StatusItem(status));
+    app.manage(StatusItems { board, voicemod });
     Ok(())
 }
 
-pub fn show_status(app: &AppHandle, status: &BoardStatus) {
-    let _ = app.state::<StatusItem>().0.set_text(status_text(status));
+pub fn show_status(app: &AppHandle, status: &Status) {
+    let items = app.state::<StatusItems>();
+    let _ = items.board.set_text(board_text(&status.board));
+    let _ = items.voicemod.set_text(voicemod_text(status.voicemod));
 }
 
-fn status_text(status: &BoardStatus) -> String {
+fn board_text(status: &BoardStatus) -> String {
     match status {
         BoardStatus::Searching => "Looking for the board…".to_string(),
         BoardStatus::Busy { .. } => "Board in use by another program".to_string(),
         BoardStatus::Connected { firmware, .. } => format!("Board connected · firmware {firmware}"),
+    }
+}
+
+fn voicemod_text(status: VoicemodStatus) -> &'static str {
+    match status {
+        VoicemodStatus::Connecting => "Connecting to Voicemod…",
+        VoicemodStatus::Connected => "Voicemod connected",
+        VoicemodStatus::Unreachable => "Voicemod is not running",
+        VoicemodStatus::KeyRejected => "Voicemod refused the connection",
+        VoicemodStatus::MissingKey => "Built without a Voicemod key",
     }
 }

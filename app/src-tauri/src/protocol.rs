@@ -1,9 +1,45 @@
-//! Messages sent by the board, as described in docs/project.md, section 9.
+//! The messages between the board and the app, as described in docs/project.md, section 9.
 
 use serde::Serialize;
 
 pub const PAD_COUNT: u8 = 36;
 pub const BUTTON_COUNT: u8 = 6;
+/// The pads' LEDs come first in the chain, then the function keys'
+pub const LED_COUNT: usize = (PAD_COUNT + BUTTON_COUNT) as usize;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Led {
+    pub color: [u8; 3],
+    pub effect: Effect,
+}
+
+/// Animated by the board, so the effects stay smooth whatever the USB timing
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Effect {
+    Solid,
+    Breathe,
+    Blink,
+}
+
+impl Led {
+    pub const OFF: Self = Self::solid([0, 0, 0]);
+
+    pub const fn solid(color: [u8; 3]) -> Self {
+        Self {
+            color,
+            effect: Effect::Solid,
+        }
+    }
+
+    pub fn message(&self, index: usize) -> String {
+        let [r, g, b] = self.color;
+        match self.effect {
+            Effect::Solid => format!("LED,{index},{r},{g},{b}"),
+            Effect::Breathe => format!("LED,{index},{r},{g},{b},BREATHE"),
+            Effect::Blink => format!("LED,{index},{r},{g},{b},BLINK"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -134,6 +170,16 @@ mod tests {
                 pressed: false
             })
         );
+    }
+
+    #[test]
+    fn writes_led_messages() {
+        assert_eq!(Led::solid([47, 107, 255]).message(0), "LED,0,47,107,255");
+        let blinking = Led {
+            color: [255, 42, 42],
+            effect: Effect::Blink,
+        };
+        assert_eq!(blinking.message(41), "LED,41,255,42,42,BLINK");
     }
 
     #[test]

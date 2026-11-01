@@ -1,33 +1,74 @@
 import { useEffect } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
-import { type BoardStatus, useBoardActivity, useBoardStatus } from "./board";
+import { useBoardActivity } from "./board";
+import { type BoardStatus, type PageSummary, type VoicemodStatus, useStatus } from "./status";
 import { windowReady } from "./window";
 
-const STATUS_TITLES: Record<BoardStatus["state"], string> = {
-  searching: "Looking for the board…",
-  busy: "Board in use by another program",
-  connected: "Connected",
-};
+interface Line {
+  dot: "waiting" | "warning" | "ok" | "error";
+  title: string;
+  detail: string;
+}
 
-function statusDetail(status: BoardStatus): string {
+function boardLine(status: BoardStatus): Line {
   switch (status.state) {
     case "searching":
-      return "Plug the board into a USB port.";
+      return { dot: "waiting", title: "Looking for the board…", detail: "Plug the board into a USB port." };
     case "busy":
-      return "Close the other program and the app connects by itself.";
+      return {
+        dot: "warning",
+        title: "Board in use by another program",
+        detail: "Close the other program and the app connects by itself.",
+      };
     case "connected":
-      return `Firmware ${status.firmware} · ${status.port}`;
+      return { dot: "ok", title: "Connected", detail: `Firmware ${status.firmware} · ${status.port}` };
   }
+}
+
+function voicemodLine(status: VoicemodStatus, page: PageSummary | null): Line {
+  switch (status.state) {
+    case "connecting":
+      return { dot: "waiting", title: "Connecting to Voicemod…", detail: "" };
+    case "connected":
+      return { dot: "ok", title: "Connected", detail: page ? pageText(page) : "Loading the soundboards…" };
+    case "unreachable":
+      return {
+        dot: "waiting",
+        title: "Voicemod is not running",
+        detail: "Open Voicemod and the app connects by itself.",
+      };
+    case "keyRejected":
+      return { dot: "error", title: "Voicemod refused the connection", detail: "Update the app to the latest version." };
+    case "missingKey":
+      return { dot: "error", title: "No Voicemod key", detail: "This build was made without VOICEMOD_CLIENT_KEY." };
+  }
+}
+
+function pageText(page: PageSummary): string {
+  const name = page.parts > 1 ? `${page.name} ${page.part}/${page.parts}` : page.name;
+  return `${name} · page ${page.number} of ${page.count}`;
+}
+
+function StatusLine({ line }: { line: Line }) {
+  return (
+    <div className="status">
+      <span className={`dot ${line.dot}`} />
+      <div>
+        <p className="status-title">{line.title}</p>
+        {line.detail && <p className="muted">{line.detail}</p>}
+      </div>
+    </div>
+  );
 }
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 export default function App() {
-  const status = useBoardStatus();
+  const status = useStatus();
   const activity = useBoardActivity(12);
 
-  // The first frame waits for the board status, so the window never shows a state that changes at once
+  // The first frame waits for the status, so the window never shows a state that changes at once
   useEffect(() => {
     if (status) windowReady();
   }, [status]);
@@ -42,13 +83,12 @@ export default function App() {
 
       <section className="card">
         <h2>Board</h2>
-        <div className="status">
-          <span className={`dot ${status.state}`} />
-          <div>
-            <p className="status-title">{STATUS_TITLES[status.state]}</p>
-            <p className="muted">{statusDetail(status)}</p>
-          </div>
-        </div>
+        <StatusLine line={boardLine(status.board)} />
+      </section>
+
+      <section className="card">
+        <h2>Voicemod</h2>
+        <StatusLine line={voicemodLine(status.voicemod, status.page)} />
       </section>
 
       <section className="card activity">

@@ -77,6 +77,8 @@ yarn tauri build   # installer for the current platform
 cd src-tauri && cargo test
 ```
 
+The Voicemod client key is built into the app: put `VOICEMOD_CLIENT_KEY=<key>` in a `.env` file at the repository root (git ignores it) or set it in the environment. Without it the app builds and runs, but cannot reach Voicemod.
+
 Close the simulator page before running the app: only one program at a time can hold the board's serial port.
 
 ## Tools

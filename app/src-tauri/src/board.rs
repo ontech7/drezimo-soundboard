@@ -98,6 +98,9 @@ impl BoardLink {
                 match connect(port) {
                     Ok(connection) => {
                         *attempt = PortAttempts::default();
+                        // Messages queued while no board was connected are stale; the ones sent once it is reported
+                        // connected are not
+                        while self.outgoing.try_recv().is_ok() {}
                         let connected = BoardStatus::Connected {
                             port: port.clone(),
                             firmware: connection.firmware.clone(),
@@ -129,8 +132,6 @@ impl BoardLink {
 
     /// Runs a session with a connected board until it goes away.
     fn run(&self, path: &str, mut connection: Connection, on_event: &impl Fn(BoardEvent)) {
-        // Messages queued while no board was connected are stale
-        while self.outgoing.try_recv().is_ok() {}
         if let Err(error) = self.exchange(connection.port.as_mut(), &mut connection.lines, on_event) {
             eprintln!("board on {path} disconnected: {error}");
         }
