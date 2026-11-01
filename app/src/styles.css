@@ -90,7 +90,11 @@ p {
   animation: searching 1.4s ease-in-out infinite;
 }
 
-.dot.on {
+.dot.busy {
+  animation: none;
+}
+
+.dot.connected {
   background: var(--ok);
   box-shadow: 0 0 8px var(--ok);
   animation: none;

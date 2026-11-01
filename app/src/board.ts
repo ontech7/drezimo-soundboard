@@ -2,11 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 
-export interface BoardStatus {
-  connected: boolean;
-  port: string | null;
-  firmware: string | null;
-}
+export type BoardStatus =
+  { state: "searching" } | { state: "busy"; port: string } | { state: "connected"; port: string; firmware: string };
 
 export type BoardMessage =
   | { type: "hello"; firmware: string }
@@ -25,14 +22,26 @@ export interface Activity {
 
 const BUTTON_NAMES = ["PREV", "NEXT", "STOP", "MUTE ME", "VOICE", "HEAR ME"];
 
+let nextActivityId = 0;
+
 export function useBoardStatus(): BoardStatus | null {
   const [status, setStatus] = useState<BoardStatus | null>(null);
 
   useEffect(() => {
-    invoke<BoardStatus>("board_status").then(setStatus);
-    const unlisten = listen<BoardStatus>("board-status", (event) => setStatus(event.payload));
+    // Listening first, then asking: an event that arrives meanwhile is newer than the answer
+    let updated = false;
+    const unlisten = listen<BoardStatus>("board-status", (event) => {
+      updated = true;
+      setStatus(event.payload);
+    });
+    unlisten
+      .then(() => invoke<BoardStatus>("board_status"))
+      .then((current) => {
+        if (!updated) setStatus(current);
+      })
+      .catch((error) => console.error("cannot follow the board status", error));
     return () => {
-      unlisten.then((stop) => stop());
+      unlisten.then((stop) => stop()).catch(() => {});
     };
   }, []);
 
@@ -43,13 +52,13 @@ export function useBoardActivity(limit: number): Activity[] {
   const [activity, setActivity] = useState<Activity[]>([]);
 
   useEffect(() => {
-    let nextId = 0;
     const unlisten = listen<BoardMessage>("board-message", (event) => {
       const text = describe(event.payload);
-      if (text) setActivity((items) => [{ id: nextId++, at: new Date(), text }, ...items].slice(0, limit));
+      if (text) setActivity((items) => [{ id: nextActivityId++, at: new Date(), text }, ...items].slice(0, limit));
     });
+    unlisten.catch((error) => console.error("cannot follow the board activity", error));
     return () => {
-      unlisten.then((stop) => stop());
+      unlisten.then((stop) => stop()).catch(() => {});
     };
   }, [limit]);
 

@@ -19,16 +19,35 @@ pub enum BoardMessage {
 
 impl BoardMessage {
     pub fn parse(line: &str) -> Option<Self> {
-        let fields: Vec<&str> = line.trim().split(',').collect();
+        let line = line.trim();
+        // A text field is always the last one and may contain commas
+        if let Some(firmware) = line.strip_prefix("DREZIMO,") {
+            return Some(Self::Hello {
+                firmware: firmware.to_string(),
+            });
+        }
+        if let Some(reason) = line.strip_prefix("ERR,") {
+            return Some(Self::Error {
+                reason: reason.to_string(),
+            });
+        }
+
+        let fields: Vec<&str> = line.split(',').collect();
         let message = match fields.as_slice() {
-            ["DREZIMO", firmware] => Self::Hello { firmware: firmware.to_string() },
-            ["PAD", index, state] => Self::Pad { index: parse_index(index, PAD_COUNT)?, pressed: parse_pressed(state)? },
-            ["BTN", index, state] => Self::Button { index: parse_index(index, BUTTON_COUNT)?, pressed: parse_pressed(state)? },
+            ["PAD", index, state] => Self::Pad {
+                index: parse_index(index, PAD_COUNT)?,
+                pressed: parse_pressed(state)?,
+            },
+            ["BTN", index, state] => Self::Button {
+                index: parse_index(index, BUTTON_COUNT)?,
+                pressed: parse_pressed(state)?,
+            },
             ["ENC", "+1"] => Self::Encoder { step: 1 },
             ["ENC", "-1"] => Self::Encoder { step: -1 },
-            ["ENCBTN", state] => Self::EncoderButton { pressed: parse_pressed(state)? },
+            ["ENCBTN", state] => Self::EncoderButton {
+                pressed: parse_pressed(state)?,
+            },
             ["OK"] => Self::Ok,
-            ["ERR", reason] => Self::Error { reason: reason.to_string() },
             _ => return None,
         };
         Some(message)
@@ -54,14 +73,36 @@ mod tests {
     #[test]
     fn parses_every_board_message() {
         let cases = [
-            ("DREZIMO,0.2.0", BoardMessage::Hello { firmware: "0.2.0".into() }),
-            ("PAD,35,1", BoardMessage::Pad { index: 35, pressed: true }),
-            ("BTN,0,0", BoardMessage::Button { index: 0, pressed: false }),
+            (
+                "DREZIMO,0.2.0",
+                BoardMessage::Hello {
+                    firmware: "0.2.0".into(),
+                },
+            ),
+            (
+                "PAD,35,1",
+                BoardMessage::Pad {
+                    index: 35,
+                    pressed: true,
+                },
+            ),
+            (
+                "BTN,0,0",
+                BoardMessage::Button {
+                    index: 0,
+                    pressed: false,
+                },
+            ),
             ("ENC,+1", BoardMessage::Encoder { step: 1 }),
             ("ENC,-1", BoardMessage::Encoder { step: -1 }),
             ("ENCBTN,1", BoardMessage::EncoderButton { pressed: true }),
             ("OK", BoardMessage::Ok),
-            ("ERR,unknown message", BoardMessage::Error { reason: "unknown message".into() }),
+            (
+                "ERR,unknown message",
+                BoardMessage::Error {
+                    reason: "unknown message".into(),
+                },
+            ),
         ];
         for (line, expected) in cases {
             assert_eq!(BoardMessage::parse(line), Some(expected), "{line}");
@@ -69,13 +110,46 @@ mod tests {
     }
 
     #[test]
+    fn keeps_commas_in_text_fields() {
+        assert_eq!(
+            BoardMessage::parse("DREZIMO,0.3.0,beta"),
+            Some(BoardMessage::Hello {
+                firmware: "0.3.0,beta".into()
+            })
+        );
+        assert_eq!(
+            BoardMessage::parse("ERR,bad value, expected 0-100"),
+            Some(BoardMessage::Error {
+                reason: "bad value, expected 0-100".into()
+            })
+        );
+    }
+
+    #[test]
     fn accepts_line_endings() {
-        assert_eq!(BoardMessage::parse("PAD,3,0\r\n"), Some(BoardMessage::Pad { index: 3, pressed: false }));
+        assert_eq!(
+            BoardMessage::parse("PAD,3,0\r\n"),
+            Some(BoardMessage::Pad {
+                index: 3,
+                pressed: false
+            })
+        );
     }
 
     #[test]
     fn rejects_malformed_lines() {
-        for line in ["", "PAD,36,1", "PAD,1", "PAD,1,2", "PAD,-1,1", "BTN,6,1", "ENC,+2", "ENC,1", "PAD,1,1,1", "HELLO"] {
+        for line in [
+            "",
+            "PAD,36,1",
+            "PAD,1",
+            "PAD,1,2",
+            "PAD,-1,1",
+            "BTN,6,1",
+            "ENC,+2",
+            "ENC,1",
+            "PAD,1,1,1",
+            "HELLO",
+        ] {
             assert_eq!(BoardMessage::parse(line), None, "{line:?}");
         }
     }

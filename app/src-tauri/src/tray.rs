@@ -1,6 +1,6 @@
 //! The menu bar (macOS) or notification area (Windows) icon, where the app lives.
 
-use crate::BoardStatus;
+use crate::board::BoardStatus;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
@@ -39,8 +39,9 @@ pub fn show_status(app: &AppHandle, status: &BoardStatus) {
 }
 
 fn status_text(status: &BoardStatus) -> String {
-    match &status.firmware {
-        Some(firmware) if status.connected => format!("Board connected · firmware {firmware}"),
-        _ => "Looking for the board…".to_string(),
+    match status {
+        BoardStatus::Searching => "Looking for the board…".to_string(),
+        BoardStatus::Busy { .. } => "Board in use by another program".to_string(),
+        BoardStatus::Connected { firmware, .. } => format!("Board connected · firmware {firmware}"),
     }
 }

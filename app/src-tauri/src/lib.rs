@@ -3,22 +3,13 @@ mod protocol;
 mod tray;
 mod window;
 
-use board::{Board, BoardEvent};
+use board::{Board, BoardEvent, BoardStatus};
 use protocol::BoardMessage;
-use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
-/// Passed when the app starts at login: it then stays in the tray instead of opening its window.
+/// Passed by the login item (autostart, still to come): the app then starts in the tray without opening its window
 const AUTOSTART_ARG: &str = "--autostart";
-
-#[derive(Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BoardStatus {
-    connected: bool,
-    port: Option<String>,
-    firmware: Option<String>,
-}
 
 #[tauri::command]
 fn board_status(status: State<Mutex<BoardStatus>>) -> BoardStatus {
@@ -38,10 +29,10 @@ pub fn run() {
 
             app.manage(Mutex::new(BoardStatus::default()));
             tray::create(app.handle())?;
-            let (board, outgoing) = Board::new();
+            let (board, link) = Board::new();
             app.manage(board);
             let handle = app.handle().clone();
-            board::start(outgoing, move |event| on_board_event(&handle, event));
+            link.start(move |event| on_board_event(&handle, event));
 
             if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
                 window::open(app.handle());
@@ -62,18 +53,20 @@ pub fn run() {
 
 fn on_board_event(app: &AppHandle, event: BoardEvent) {
     match event {
-        BoardEvent::Connected { port, firmware } => {
+        BoardEvent::Status(status) => {
             // Development aid: the module's own LED copies pad 1, the one lit by the key echo below
             #[cfg(debug_assertions)]
-            app.state::<Board>().send("DEVLED,MIRROR,0");
-            set_status(app, BoardStatus { connected: true, port: Some(port), firmware: Some(firmware) });
+            if matches!(status, BoardStatus::Connected { .. }) {
+                app.state::<Board>().send("DEVLED,MIRROR,0");
+            }
+            set_status(app, status);
         }
-        BoardEvent::Disconnected => set_status(app, BoardStatus::default()),
         BoardEvent::Message(message) => {
             // Until the sound engine exists, a pressed pad simply lights up while held
             if let BoardMessage::Pad { index, pressed } = message {
                 let level = if pressed { 255 } else { 0 };
-                app.state::<Board>().send(format!("LED,{index},{level},{level},{level}"));
+                app.state::<Board>()
+                    .send(format!("LED,{index},{level},{level},{level}"));
             }
             let _ = app.emit("board-message", message);
         }
@@ -81,7 +74,8 @@ fn on_board_event(app: &AppHandle, event: BoardEvent) {
 }
 
 fn set_status(app: &AppHandle, status: BoardStatus) {
+    // Stored before it is announced, so a window asking for it in between gets the new status
+    *app.state::<Mutex<BoardStatus>>().lock().unwrap() = status.clone();
     tray::show_status(app, &status);
     let _ = app.emit("board-status", &status);
-    *app.state::<Mutex<BoardStatus>>().lock().unwrap() = status;
 }

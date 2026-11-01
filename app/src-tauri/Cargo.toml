@@ -18,6 +18,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serialport = "4"
+# Timers on the async runtime Tauri already runs
+tokio = { version = "1", features = ["time"] }
 
 [profile.release]
 opt-level = "z"
