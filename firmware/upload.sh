@@ -4,7 +4,11 @@
 set -e
 cd "$(dirname "$0")"
 
-arduino-cli compile --profile rp2040-zero --output-dir build drezimo
+# --clean: the cached core would otherwise keep the USB name it was first built with
+arduino-cli compile --profile rp2040-zero --output-dir build --clean \
+  --build-property 'build.usb_manufacturer="Drezimo"' \
+  --build-property 'build.usb_product="Drezimo Soundboard"' \
+  drezimo
 
 port=$(ls /dev/cu.usbmodem* 2>/dev/null | head -n 1 || true)
 if [ -n "$port" ]; then

@@ -383,32 +383,53 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 - `tools/voicemod_experiments.py`: records commands, Control API messages and log lines on one timeline.
 - `tools/voicemod_probe.py`: Control API probe.
 
-## 9. Hardware-software protocol: initial proposal
+## 9. Board ↔ app protocol (proposal, under review)
 
-The dummy board `simulator/dummy-board.html` (1:1 scale, connectable to Voicemod) already uses this convention: `PAD,<0-35>,<1|0>`, `BTN,<0-5>,<1|0>`, `ENC,+1|-1`, `ENCBTN,<1|0>` from the board; `LED,<i>,<r>,<g>,<b>` to the board, with `i` = 0–35 for the pads and 36–41 for the function keys.
+USB serial, plain text: one message per line (`\n`, `\r\n` accepted), fields separated by commas, message name first. Names are uppercase; the board also accepts lowercase. A text field, when present, is always the last one and may contain commas. Lines longer than 2100 characters are dropped. Indices follow the simulator: pads 0–35 row by row from the top-left, function keys 0–5 (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME), LEDs 0–35 for the pads and 36–41 for the function keys. The firmware maps them to the physical matrix and LED chain.
 
-The exact format will be defined when we start the firmware. Points to cover:
+### Board → app
 
-- Board → PC: pad/key press **and release** events (the release is needed for `PlayLoopOnPress`), encoder rotation and button.
-- PC → board: LED colours, display contents (page, last sound, status, localised texts), global brightness, and a command to reboot into the USB bootloader for firmware updates.
-- The power limiter runs on the board regardless of the colours sent by the PC.
-- Each message ends with a newline; both sides ignore incomplete or invalid messages.
-- The 36 pad indices are numbered 0 to 35 in the firmware (row by row) and 1 to 36 in the user interface, if useful; function keys are 0–5 in `BTN` messages (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME).
+| Message | Sent when |
+|---|---|
+| `PAD,<0-35>,<1/0>` | A pad is pressed / released |
+| `BTN,<0-5>,<1/0>` | A function key is pressed / released |
+| `ENC,<+1/-1>` | The knob turns one step clockwise / anticlockwise |
+| `ENCBTN,<1/0>` | The knob is pressed / released |
 
-These are examples, not an already implemented protocol.
+The board reports raw inputs only. Page changes, peek, row overview and the soundboard menu are decided by the app, as in the simulator. One exception: the input that wakes a blanked display is swallowed by the board (press and release), so waking the display never plays a sound.
 
-Implemented so far (firmware 0.1.0, PC → board, each answered on one line):
+### App → board
 
-| Message | Reply | |
+| Message | Reply | Effect |
 |---|---|---|
-| `HELLO` | `DREZIMO,<firmware version>` | Lets the app find the board among the serial ports |
+| `HELLO` | `DREZIMO,<firmware version>` | Handshake: the app finds the board and decides whether to update its firmware |
+| `LED,<0-41>,<r>,<g>,<b>[,<effect>]` | – | Sets one LED. Effect: `SOLID` (default), `BREATHE` (paused sound), `BLINK` (Voicemod unreachable) |
+| `BRIGHT,<0-100>` | – | Global LED brightness, applied before the power limiter |
+| `DISPLAY,<2048 hex digits>` | – | A full 128×64 frame, 1 bit per pixel, in the SH1106 layout: 8 bands of 8 rows, 128 bytes each, least significant bit on top |
+| `WAKE` | – | Restores the display brightness (a Voicemod event, such as a sound started from the PC) |
+| `SET,<name>,<value>` | `OK` | A display setting, saved in flash: `OLED_BRIGHTNESS` 0–100, `OLED_DIM_AFTER` and `OLED_OFF_AFTER` in minutes (0 = never), `OLED_SHIFT` in minutes (0 = off) |
+| `SETTINGS` | `SETTINGS,<brightness>,<dim>,<off>,<shift>` | Reads the saved settings back |
 | `BOOT` | `OK` | Reboots into the USB bootloader for a firmware update |
-| `DEVLED,<r>,<g>,<b>` | `OK` | Development only: the module's own RGB LED (GP16) to a fixed colour |
-| `DEVLED,CYCLE` | `OK` | Development only: the module LED back to its colour cycle |
+| `DEVLED,<r>,<g>,<b>` / `DEVLED,CYCLE` | – | Development only: the module's own RGB LED (GP16), which faces the PCB in the finished device |
 
-Anything else gets `ERR,unknown message`. Messages are case-insensitive.
+Invalid messages get `ERR,<reason>` and change nothing. Messages without a reply are fire-and-forget, so a page change (42 `LED` lines) does not flood the link with acknowledgements.
 
-The firmware is built as a generic RP2040 board (USB ID 2E8A:F00A). The Waveshare RP2040 Zero board definition reuses the bootloader's ID (2E8A:0003), and after an upload macOS never brings up the serial port until the cable is replugged.
+Implemented so far (firmware 0.1.0): `HELLO`, `BOOT`, `DEVLED`.
+
+### Division of work
+
+- **The app draws the display.** It renders the 128×64 frame, as the simulator already does on a canvas, and sends it whole. Layout, fonts, localised texts and the PC overlay preview all live in one place, and changing the UI never needs a firmware update. A frame is 2 KB and is sent only when the picture changes (about 10 per second while a countdown runs), which is nothing for USB.
+- **The board keeps what must be immediate or work without the PC:**
+  - the LED effects and the ≈400 mA power limiter, so animations stay smooth whatever the USB timing;
+  - the burn-in protection: dimming, blanking and the 1 px pixel shift (the app leaves a 1 px margin);
+  - its own screens: the boot logo, and "waiting for the PC" when no app is connected. That screen is the logo plus an animation, with no text, so the firmware needs no translations.
+- **Connection:** the board considers the app connected while the serial port is open (DTR on). When the port closes, it turns the LEDs off and shows the waiting screen again.
+
+### USB identity and firmware protection
+
+- The board identifies itself as **Drezimo Soundboard** (manufacturer **Drezimo**). `firmware/upload.sh` sets these names at build time. USB ID 2E8A:F00A for now; a dedicated product ID can be requested for free from Raspberry Pi, for open-source RP2040 projects.
+- On Windows the Device Manager lists the port as "USB Serial Device (COMx)", the name of Windows' own serial driver. The product name shows in the device's details and in the Settings device list, and the app shows its own status.
+- The firmware can only be replaced from the USB bootloader. The board gets there through `BOOT`, a 1200-baud open-and-close of the port (the Arduino upload convention), picotool's reset request, or the BOOT button held while plugging in (inside the case). Even then nothing changes until a firmware file is written. A board left in the bootloader by mistake (it shows up as the RPI-RP2 drive) returns to normal when unplugged, with its firmware intact. The bootloader's own name, RPI-RP2, lives in the chip's ROM and cannot be changed; it appears only during an update, which the app drives.
 
 ## 10. Work plan
 

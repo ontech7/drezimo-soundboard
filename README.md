@@ -62,7 +62,7 @@ Requires [`arduino-cli`](https://arduino.github.io/arduino-cli/) (`brew install 
 ./firmware/upload.sh   # build, then upload to the connected board
 ```
 
-The script works with the firmware running (it sends `BOOT` to reach the bootloader) or with the board already in bootloader mode: a blank module, or one plugged in while holding BOOT. It uploads with `picotool`; on macOS, copying the `.uf2` onto the RPI-RP2 drive can hang.
+The script works with the firmware running (it sends `BOOT` to reach the bootloader) or with the board already in bootloader mode: a blank module, or one plugged in while holding BOOT. It uploads with `picotool`; on macOS, copying the `.uf2` onto the RPI-RP2 drive can hang. It also sets the name the PC shows for the device: **Drezimo Soundboard**.
 
 ## Tools
 
