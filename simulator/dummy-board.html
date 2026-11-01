@@ -225,7 +225,7 @@
       <div class="log-head">
         <h2>Messages</h2>
         <label style="color:#9ad1ff"><input type="checkbox" data-log="pico" checked> Board → PC</label>
-        <label style="color:#c3a6ff"><input type="checkbox" data-log="pc"> LEDs</label>
+        <label style="color:#c3a6ff"><input type="checkbox" data-log="pc"> PC → Board</label>
         <label style="color:#8be0a4"><input type="checkbox" data-log="vm" checked> Control API</label>
         <label style="color:#ffc773"><input type="checkbox" data-log="lg" checked> Voicemod log</label>
         <label style="color:var(--muted)"><input type="checkbox" data-log="sys" checked> System</label>
@@ -249,6 +249,21 @@
       </div>
       <p class="hint">The key is stored in this browser only. Demo mode plays no sound.
         For the real playback state run <code>tools/voicemod_log_bridge.py</code>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Real board (USB)</h2>
+      <div class="row">
+        <button id="boardBtn">Connect board</button>
+        <span class="status"><span class="dot" id="boardDot"></span><span id="boardText">Not connected</span></span>
+      </div>
+      <div class="row">
+        <label class="field">Module LED, for tests without the PCB
+          <select id="devLed"></select>
+        </label>
+      </div>
+      <p class="hint">Chrome or Edge. The page then acts as the bridge app: the board gets the LEDs and the display,
+        and its keys play here. Close the page before uploading new firmware.</p>
     </div>
 
     <div class="card">
@@ -894,64 +909,167 @@ function powerUp() { // the USB cable is plugged in
   clearTimeout(board.connectTimer);
   board.app = false;
   board.logoSince = performance.now();
+  setBoardLink(false);
   if ($("appRunning").checked) board.connectTimer = setTimeout(appConnected, APP_CONNECT_DELAY_MS);
 }
 function appConnected() {
   board.app = true;
   state.ledSent = []; // the app sends its whole LED state on connection
-  log("sys", `bridge app connected: HELLO → DREZIMO,${FIRMWARE_VERSION}`);
+  if (serial.port) setBoardLink(true);
+  else log("sys", `bridge app connected: HELLO → DREZIMO,${FIRMWARE_VERSION} (simulated board)`);
 }
 function appClosed() {
   clearTimeout(board.connectTimer);
   board.app = false;
   board.logoSince = performance.now();
+  setBoardLink(false);
   log("sys", "bridge app closed: the board shows its own screen");
 }
 
-// ---------- LEDs ----------
-function padColor(i, now) {
-  if (!board.app) return logoPadLit(i, now - board.logoSince) ? LOGO_AMBER : COLORS.off;
-  if (state.mode === "error") return Math.floor(now / 400) % 2 ? COLORS.red : COLORS.off;
-  if (state.enc.down && state.enc.row !== null) { // row overview: selected row white, the rest dimmed
-    if (Math.floor(i / COLS) === state.enc.row) return [200, 200, 210];
-    return padStateColor(i, now).map(v => v * 0.2);
-  }
-  if (state.peek && state.peek.pad === i && state.peek.until > now) return Math.floor(now / 250) % 2 ? [200, 200, 210] : COLORS.off;
-  if ((state.flash.get(i) || 0) > now) return COLORS.yellow;
-  return padStateColor(i, now);
+// ---------- Real board over Web Serial ----------
+// The page plays the bridge app for a real board (docs/project.md, section 9): it holds the port
+// open with DTR on while the app runs, sends LED changes and display frames, and plays the keys.
+const FRAME_MIN_MS = 50;
+const serial = { port: null, writer: null, reader: null, linked: false, version: null, frameSent: "", frameAt: 0 };
+const textEncoder = new TextEncoder();
+
+function boardSend(line) {
+  if (serial.writer) serial.writer.write(textEncoder.encode(line + "\n")).catch(() => {});
 }
-function padStateColor(i, now) {
-  const s = state.pages[state.page]?.sounds[i];
-  if (!s) return COLORS.off;
-  if (!s.enabled) return COLORS.dim;
-  const e = engine.sounds.get(s.id);
-  if (!e) return COLORS.blue;
-  if (e.state === "paused") { // breathing green, quantised so the LED log stays readable
-    const k = 0.25 + 0.75 * Math.round((0.5 + 0.5 * Math.cos(now / 1400 * 2 * Math.PI)) * 4) / 4;
-    return COLORS.green.map(v => v * k);
+async function openBoard(port) {
+  try { await port.open({ baudRate: 115200 }); }
+  catch (e) { log("sys", `board: ${e.message}`); return; }
+  serial.port = port;
+  serial.writer = port.writable.getWriter();
+  log("sys", "board connected over USB");
+  readBoard();
+  setBoardLink(board.app);
+}
+async function readBoard() {
+  const reader = serial.port.readable.getReader(), decoder = new TextDecoder();
+  serial.reader = reader;
+  let buffer = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      lines.forEach(line => onBoardLine(line.trim()));
+    }
+  } catch {} // unplugged
+  reader.releaseLock();
+  closeBoard();
+}
+async function closeBoard() {
+  const { port, writer } = serial;
+  Object.assign(serial, { port: null, writer: null, reader: null, linked: false, version: null });
+  setBoardStatus();
+  log("sys", "board disconnected");
+  try { writer.releaseLock(); await port.close(); } catch {}
+}
+// DTR tells the board whether the app is running; with it on, the app sends its whole state
+async function setBoardLink(on) {
+  serial.linked = false;
+  setBoardStatus();
+  if (!serial.port) return;
+  try { await serial.port.setSignals({ dataTerminalReady: on }); } catch { return; }
+  if (!on || !board.app) return;
+  Object.assign(serial, { linked: true, frameSent: "" });
+  state.ledSent = [];
+  boardSend("HELLO");
+  boardSend(`BRIGHT,${$("bri").value}`);
+  sendDevLed();
+}
+function onBoardLine(line) {
+  const [name, a, b] = line.split(",");
+  if (name === "DREZIMO") { serial.version = a; setBoardStatus(); log("sys", `board answered: firmware ${a}`); }
+  else if (name === "ERR") log("sys", `board: ${line}`);
+  else if (name === "PAD") Number(b) ? padDown(Number(a)) : padUp(Number(a));
+  else if (name === "BTN") Number(b) ? fnDown(Number(a)) : fnUp(Number(a));
+  else if (name === "ENC") encRotate(Number(a));
+  else if (name === "ENCBTN") encPress(a === "1");
+}
+function setBoardStatus() {
+  $("boardBtn").textContent = serial.port ? "Disconnect" : "Connect board";
+  $("boardDot").className = "dot " + (serial.version ? "live" : serial.port ? "demo" : "");
+  $("boardText").textContent = !serial.port ? "Not connected"
+    : !board.app ? "Connected, bridge app off"
+    : serial.version ? `Drezimo firmware ${serial.version}` : "Connected, waiting for the board";
+}
+function sendDevLed() {
+  const mirrored = $("devLed").value;
+  boardSend(mirrored === "" ? "DEVLED,0,0,0" : `DEVLED,MIRROR,${mirrored}`);
+}
+function sendFrame(pixels) {
+  const now = performance.now();
+  if (now - serial.frameAt < FRAME_MIN_MS) return;
+  const bytes = new Uint8Array(1024);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++)
+    if (pixels[(y * 128 + x) * 4] > 127) bytes[(y >> 3) * 128 + x] |= 1 << (y & 7);
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+  if (hex === serial.frameSent) return;
+  Object.assign(serial, { frameSent: hex, frameAt: now });
+  boardSend("DISPLAY," + hex);
+  log("pc", "DISPLAY,<frame>");
+}
+
+// ---------- LEDs ----------
+// What the app sends for each LED: a colour, and an effect the firmware animates
+const led = (color, effect = "SOLID") => ({ color, effect });
+function padLed(i, now) {
+  if (state.mode === "error") return led(COLORS.red, "BLINK");
+  if (state.enc.down && state.enc.row !== null) { // row overview: selected row white, the rest dimmed
+    if (Math.floor(i / COLS) === state.enc.row) return led([200, 200, 210]);
+    const base = padStateLed(i);
+    return led(base.color.map(v => Math.round(v * 0.2)), base.effect);
   }
-  return COLORS.green;
+  if (state.peek && state.peek.pad === i && state.peek.until > now) return led([200, 200, 210], "BLINK");
+  if ((state.flash.get(i) || 0) > now) return led(COLORS.yellow);
+  return padStateLed(i);
+}
+function padStateLed(i) {
+  const s = state.pages[state.page]?.sounds[i];
+  if (!s) return led(COLORS.off);
+  if (!s.enabled) return led(COLORS.dim);
+  const e = engine.sounds.get(s.id);
+  if (!e) return led(COLORS.blue);
+  return led(COLORS.green, e.state === "paused" ? "BREATHE" : "SOLID");
 }
 // Function key LEDs mirror Voicemod's toggles; LED indexes PADS..PADS+5 in the chain
-function fnColor(i, now) {
-  if (!board.app) return COLORS.off;
-  if (state.mode === "error") return Math.floor(now / 400) % 2 ? COLORS.red : COLORS.off;
+function fnLed(i) {
+  if (state.mode === "error") return led(COLORS.red, "BLINK");
   switch (FN_IDS[i]) {
-    case "PREV": case "NEXT": return state.pages.length > 1 ? COLORS.white : COLORS.off;
-    case "STOP": return engine.sounds.size ? COLORS.red : COLORS.off;
-    case "MUTE": return state.muteForMe ? COLORS.amber : COLORS.off;
-    case "VOICE": return state.voiceChanger ? COLORS.green : COLORS.off;
-    case "HEAR": return state.hearMyself ? COLORS.green : COLORS.off;
+    case "PREV": case "NEXT": return led(state.pages.length > 1 ? COLORS.white : COLORS.off);
+    case "STOP": return led(engine.sounds.size ? COLORS.red : COLORS.off);
+    case "MUTE": return led(state.muteForMe ? COLORS.amber : COLORS.off);
+    case "VOICE": return led(state.voiceChanger ? COLORS.green : COLORS.off);
+    case "HEAR": return led(state.hearMyself ? COLORS.green : COLORS.off);
   }
-  return COLORS.off;
+  return led(COLORS.off);
 }
+// While no app is connected the board lights the logo's D on the pads by itself
+function boardLed(i, now) {
+  return led(i < PADS && logoPadLit(i, now - board.logoSince) ? LOGO_AMBER : COLORS.off);
+}
+// Same effects as firmware/drezimo/leds.cpp
+function effectLevel(effect, now) {
+  if (effect === "BREATHE") return 0.25 + 0.75 * (0.5 + 0.5 * Math.cos(now % 1400 / 1400 * 2 * Math.PI));
+  if (effect === "BLINK") return now % 800 >= 400 ? 1 : 0;
+  return 1;
+}
+const ledMessage = (i, { color, effect }) => `LED,${i},${color.join(",")}${effect === "SOLID" ? "" : "," + effect}`;
 const rgb = c => `rgb(${c.join(",")})`;
 function renderLeds(now) {
   const bri = Number($("bri").value) / 100;
   const translucent = $("translucent").checked;
   const names = $("names").checked;
-  const leds = [...padEls.map((el, i) => [el, padColor(i, now), true]), ...fnEls.map((el, i) => [el, fnColor(i, now), false])];
-  leds.forEach(([el, color, isPad], i) => {
+  [...padEls, ...fnEls].forEach((el, i) => {
+    const isPad = i < PADS;
+    const target = !board.app ? boardLed(i, now) : isPad ? padLed(i, now) : fnLed(i - PADS);
+    const level = effectLevel(target.effect, now);
+    const color = target.color.map(v => Math.round(v * level));
     const c = color.map(v => Math.round(v * bri));
     const on = c.some(v => v > 0);
     el.key.style.setProperty("--glow", on ? `rgba(${c.join(",")},.9)` : "transparent");
@@ -968,11 +1086,14 @@ function renderLeds(now) {
       cell.style.background = lit ? `rgba(${color.join(",")},.18)` : "transparent";
       cell.classList.toggle("dim", !!s && !s.enabled);
     }
-    // Log colour changes only, as the PC would send them to the board
-    const key = c.join(",");
-    if (state.ledSent[i] !== key) { state.ledSent[i] = key; if (state.ledSent.ready && board.app) log("pc", `LED,${i},${key}`); }
+    if (!board.app) return;
+    // Send changes only, as the app does
+    const message = ledMessage(i, target);
+    if (state.ledSent[i] === message) return;
+    state.ledSent[i] = message;
+    log("pc", message);
+    if (serial.linked) boardSend(message);
   });
-  state.ledSent.ready = true;
 }
 
 // ---------- 128×64 OLED (thresholded, monochrome) ----------
@@ -1055,6 +1176,7 @@ function drawOled(now) {
     out.data.set([...col, 255], o);
   }
   for (const c of [oledSmall, zoom]) c.getContext("2d").putImageData(out, 0, 0);
+  if (serial.linked && board.app) sendFrame(src.data);
 }
 
 function invertedHeader(left, right) {
@@ -1113,6 +1235,23 @@ $("connectBtn").addEventListener("click", connect);
 $("demoBtn").addEventListener("click", () => { disconnect(true); log("sys", "demo mode"); });
 $("appRunning").addEventListener("change", e => e.target.checked ? appConnected() : appClosed());
 $("replugBtn").addEventListener("click", () => { log("sys", "USB replugged"); powerUp(); });
+$("bri").addEventListener("input", () => { if (serial.linked) boardSend(`BRIGHT,${$("bri").value}`); });
+$("devLed").append(new Option("Off", ""), ...Array.from({ length: PADS }, (_, i) => new Option(`Copies pad ${i + 1}`, i)),
+  ...FN_IDS.map((id, i) => new Option(`Copies ${id}`, PADS + i)));
+$("devLed").addEventListener("change", sendDevLed);
+$("boardBtn").addEventListener("click", async () => {
+  if (serial.port) { serial.reader?.cancel(); return; } // the read loop then closes the port
+  try { openBoard(await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x2e8a }] })); }
+  catch {} // picker closed
+});
+if ("serial" in navigator) {
+  // Like the real app: reconnect to a board this page was already allowed to use
+  navigator.serial.getPorts().then(ports => { if (ports[0] && !serial.port) openBoard(ports[0]); });
+  navigator.serial.addEventListener("connect", e => { if (!serial.port) openBoard(e.target); });
+} else {
+  $("boardBtn").disabled = true;
+  $("boardText").textContent = "Needs Chrome or Edge";
+}
 
 // ---------- Start ----------
 try { Object.assign(state.durations, JSON.parse(store.get("vm.durations", "{}"))); } catch {}

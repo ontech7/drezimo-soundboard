@@ -331,9 +331,9 @@ void setup() {
 }
 
 void loop() {
+  updateConnection();  // before the messages: a new connection clears the LEDs the app then sends
   readMessages();
   inputScan(onInput);
-  updateConnection();
 
   bool pcAsleep = tud_suspended();
   displaySuspend(pcAsleep);

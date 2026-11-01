@@ -12,6 +12,7 @@
 - 2026-11-01: JLCPCB fab files (`export_fab.py`); LCSC parts chosen, 47 µF moved to a 1206 Basic part; the LED needs Standard PCBA.
 - 2026-11-01: firmware bring-up on a bare RP2040-Zero (`firmware/`): USB serial messages, module LED, reboot to the bootloader and upload with one script.
 - 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
+- 2026-11-01: the simulator drives a real board over Web Serial (Chrome/Edge), as the bridge app will.
 - 2026-11-01: firmware 0.2.0 implements the board ↔ app protocol (section 9): keys and encoder, LED effects with the power limiter, app-drawn display frames, burn-in protection, saved settings, and an animated logo on the display and the pads while no app is connected, also in the simulator.
 
 ## 1. Goal
@@ -380,7 +381,7 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 
 ### Tools and simulator
 
-- `simulator/dummy-board.html`: the 6×6 layout at 1:1 scale (case 130.3 × 196.35 mm, same layout as the PCB), with function keys, encoder and display, connectable to Voicemod. It also plays the board's own screen at power-up and when the "Bridge app running" switch is off ("Replug USB" replays it), pixel for pixel as the firmware draws it: the logo data is generated together with `firmware/drezimo/logo_bitmap.h`.
+- `simulator/dummy-board.html`: the 6×6 layout at 1:1 scale (case 130.3 × 196.35 mm, same layout as the PCB), with function keys, encoder and display, connectable to Voicemod. It also plays the board's own screen at power-up and when the "Bridge app running" switch is off ("Replug USB" replays it), pixel for pixel as the firmware draws it: the logo data is generated together with `firmware/drezimo/logo_bitmap.h`. With **Connect board** (Chrome or Edge, Web Serial) the page plays the bridge app for a real board: DTR on while the "Bridge app running" switch is on, `HELLO`, LED changes as colour and effect, display frames when the picture changes, `BRIGHT` from the brightness slider, and the board's keys and knob drive the page. The module LED can copy any LED of the chain, to see the effects without the PCB.
 - `tools/voicemod_log_bridge.py`: Voicemod log watcher, publishes events on `ws://localhost:59200`.
 - `tools/voicemod_experiments.py`: records commands, Control API messages and log lines on one timeline.
 - `tools/voicemod_probe.py`: Control API probe.
