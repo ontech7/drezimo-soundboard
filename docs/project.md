@@ -14,6 +14,7 @@
 - 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
 - 2026-11-01: firmware 0.2.0 implements the board ↔ app protocol (section 9): keys and encoder, LED effects with the power limiter, app-drawn display frames, burn-in protection, saved settings, and an animated logo on the display and the pads while no app is connected, also in the simulator.
 - 2026-11-01: the simulator drives a real board over Web Serial (Chrome/Edge), as the bridge app will.
+- 2026-11-01: bridge app started with Tauri 2 (Rust core, measured against Electron): tray icon, automatic board search, handshake.
 
 ## 1. Goal
 
@@ -317,7 +318,24 @@ The bridge app will have at least these responsibilities:
 8. Manage an editable configuration without reflashing the board; update its firmware when needed (reboot to USB bootloader by command).
 9. Ship as a Windows installer with auto-start; bug fixes are delivered as app updates.
 
-One possible implementation is a Python app with JSON configuration. The protocol between the app and the board must be simple, documented and robust against partial messages or connection errors.
+### Implementation: `app/` (Tauri 2, logic in Rust)
+
+A tray app for macOS and Windows, built with Tauri 2. All the logic runs in the Rust core process, which keeps working with no window open; the window (settings, status) is a small React page that exists only while it is open. Chosen over Electron after measuring both on macOS (minimal apps, release builds, memory summed over every process of the app):
+
+| | Electron 45 | Tauri 2.12 |
+|---|---|---|
+| App size | 252 MB | 3.9 MB |
+| Compressed installer | 124 MB | 2.2 MB |
+| Memory, window open | 92 MB | 64 MB |
+| Memory, no window (the tray case) | 39 MB | 35 MB |
+
+Electron would have reused the simulator's JavaScript as is; Tauri means rewriting that logic in Rust, accepted in exchange for a small, self-contained app. Two constraints shape the design:
+- On Windows a hidden Tauri webview is throttled and may be suspended after a few minutes, and Tauri cannot turn that off there. Nothing that must keep running lives in a webview.
+- macOS's webview has no Web Serial: the board link uses the `serialport` crate (tested on the bare module: found by its USB ID, DTR, handshake).
+
+Board link (`app/src-tauri/src/board.rs`): every second the app lists the serial ports of Raspberry Pi devices (USB vendor 2E8A) and opens each one with DTR on; a port that answers `HELLO` with `DREZIMO,<version>` is the board, the others are skipped until unplugged. When the board goes away the search resumes.
+
+PC overlay: drawn by the Rust core in a native transparent, click-through, always-on-top window rather than a webview, so it never sleeps and appears at once; position (monitor, one of nine anchors or dragged), opacity and timing are configurable. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that.
 
 ### Voicemod integration: to verify early
 
@@ -468,7 +486,8 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] SH1106 driver for the app's frames, burn-in protection, animated logo (written; to be tested on the OLED). The texts are drawn by the app, so they are localised there.
 - [x] Reboot-to-USB-bootloader command for updates from the app (`BOOT`, tested with `firmware/upload.sh`).
 
-### Phase 5 — Bridge app (Windows)
+### Phase 5 — Bridge app (macOS and Windows)
+- [x] Tauri app skeleton: tray icon, board found automatically, handshake and live activity (`app/`).
 - [ ] Port the simulator logic: pages of 36 sounds, Favourites, function keys, LED and display states.
 - [ ] Verify the Windows path of the Voicemod log.
 - [ ] Peek, row overview and the 6×6 PC overlay (already working in the simulator).
@@ -500,11 +519,11 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] USB cable exits from the top (back) edge of the case, not from the left side.
 - [x] Enclosure: one-piece print on the P1S, 6 M3 screws into plastic, removable bottom.
 - [x] Updates: through the bridge app, board firmware included; the friend never touches the board.
+- [x] Bridge app: Tauri 2 for macOS and Windows, all logic in Rust, settings window in React (2026-11-01; measurements in section 8).
 
 ### Still open
 
 - [ ] Enclosure material: PLA or PETG.
-- [ ] Final serial protocol.
 - [ ] Optional polyfuse on the 5 V rail.
 - [ ] `PlayOverlap` behaviour (test with a custom sound).
 - [ ] Windows path of the Voicemod log.

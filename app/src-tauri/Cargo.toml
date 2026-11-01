@@ -1,0 +1,27 @@
+[package]
+name = "drezimo"
+version = "0.1.0"
+description = "Drezimo Soundboard: the bridge between the board and Voicemod"
+authors = ["ontech7"]
+edition = "2024"
+
+# Desktop only: just the rlib (staticlib and cdylib are for mobile targets)
+[lib]
+name = "drezimo_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serialport = "4"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
