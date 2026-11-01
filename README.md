@@ -7,7 +7,7 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** work in progress. The PCB (v0.2) is designed and ordered; the firmware is at the bring-up stage on a bare RP2040-Zero. The desktop app is not started yet.
+**Status:** work in progress. The PCB (v0.2) is designed and ordered; the firmware implements the board ↔ app protocol and waits for the PCB for the hardware tests. The desktop app is not started yet.
 
 ## Hardware
 

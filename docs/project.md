@@ -12,6 +12,7 @@
 - 2026-11-01: JLCPCB fab files (`export_fab.py`); LCSC parts chosen, 47 µF moved to a 1206 Basic part; the LED needs Standard PCBA.
 - 2026-11-01: firmware bring-up on a bare RP2040-Zero (`firmware/`): USB serial messages, module LED, reboot to the bootloader and upload with one script.
 - 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
+- 2026-11-01: firmware 0.2.0 implements the board ↔ app protocol (section 9): keys and encoder, LED effects with the power limiter, app-drawn display frames, burn-in protection, saved settings, and an animated logo on the display and the pads while no app is connected, also in the simulator.
 
 ## 1. Goal
 
@@ -378,12 +379,12 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 
 ### Tools and simulator
 
-- `simulator/dummy-board.html`: the 6×6 layout at 1:1 scale (case 130.3 × 196.35 mm, same layout as the PCB), with function keys, encoder and display, connectable to Voicemod.
+- `simulator/dummy-board.html`: the 6×6 layout at 1:1 scale (case 130.3 × 196.35 mm, same layout as the PCB), with function keys, encoder and display, connectable to Voicemod. It also plays the board's own screen at power-up and when the "Bridge app running" switch is off ("Replug USB" replays it), pixel for pixel as the firmware draws it: the logo data is generated together with `firmware/drezimo/logo_bitmap.h`.
 - `tools/voicemod_log_bridge.py`: Voicemod log watcher, publishes events on `ws://localhost:59200`.
 - `tools/voicemod_experiments.py`: records commands, Control API messages and log lines on one timeline.
 - `tools/voicemod_probe.py`: Control API probe.
 
-## 9. Board ↔ app protocol (proposal, under review)
+## 9. Board ↔ app protocol
 
 USB serial, plain text: one message per line (`\n`, `\r\n` accepted), fields separated by commas, message name first. Names are uppercase; the board also accepts lowercase. A text field, when present, is always the last one and may contain commas. Lines longer than 2100 characters are dropped. Indices follow the simulator: pads 0–35 row by row from the top-left, function keys 0–5 (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME), LEDs 0–35 for the pads and 36–41 for the function keys. The firmware maps them to the physical matrix and LED chain.
 
@@ -407,23 +408,24 @@ The board reports raw inputs only. Page changes, peek, row overview and the soun
 | `BRIGHT,<0-100>` | – | Global LED brightness, applied before the power limiter |
 | `DISPLAY,<2048 hex digits>` | – | A full 128×64 frame, 1 bit per pixel, in the SH1106 layout: 8 bands of 8 rows, 128 bytes each, least significant bit on top |
 | `WAKE` | – | Restores the display brightness (a Voicemod event, such as a sound started from the PC) |
-| `SET,<name>,<value>` | `OK` | A display setting, saved in flash: `OLED_BRIGHTNESS` 0–100, `OLED_DIM_AFTER` and `OLED_OFF_AFTER` in minutes (0 = never), `OLED_SHIFT` in minutes (0 = off) |
+| `SET,<name>,<value>` | `OK` | A display setting, saved in flash: `OLED_BRIGHTNESS` 0–100, `OLED_DIM_AFTER` and `OLED_OFF_AFTER` in minutes without input (0 = never), `OLED_SHIFT` in minutes (0 = off); minutes go up to 1440. Defaults 50, 1, 10, 3 |
 | `SETTINGS` | `SETTINGS,<brightness>,<dim>,<off>,<shift>` | Reads the saved settings back |
 | `BOOT` | `OK` | Reboots into the USB bootloader for a firmware update |
-| `DEVLED,<r>,<g>,<b>` / `DEVLED,CYCLE` | – | Development only: the module's own RGB LED (GP16), which faces the PCB in the finished device |
+| `DEVLED,<r>,<g>,<b>` / `DEVLED,MIRROR,<0-41>` | – | Development only: the module's own RGB LED (GP16), which faces the PCB in the finished device. `MIRROR` copies one LED of the chain, to try the effects without the PCB. Off at power-up |
 
-Invalid messages get `ERR,<reason>` and change nothing. Messages without a reply are fire-and-forget, so a page change (42 `LED` lines) does not flood the link with acknowledgements.
+Invalid messages change nothing and get `ERR,unknown message` (also the sign of a firmware older than the app) or `ERR,invalid arguments`. Messages without a reply are fire-and-forget, so a page change (42 `LED` lines) does not flood the link with acknowledgements.
 
-Implemented so far (firmware 0.1.0): `HELLO`, `BOOT`, `DEVLED`.
+All of the above is implemented in firmware 0.2.0. Tested on the bare module: every message, the errors, settings kept across a reboot, the LED effects through `DEVLED,MIRROR`. Keys, encoder, LED chain and display wait for the PCB.
 
 ### Division of work
 
 - **The app draws the display.** It renders the 128×64 frame, as the simulator already does on a canvas, and sends it whole. Layout, fonts, localised texts and the PC overlay preview all live in one place, and changing the UI never needs a firmware update. A frame is 2 KB and is sent only when the picture changes (about 10 per second while a countdown runs), which is nothing for USB.
 - **The board keeps what must be immediate or work without the PC:**
   - the LED effects and the ≈400 mA power limiter, so animations stay smooth whatever the USB timing;
-  - the burn-in protection: dimming, blanking and the 1 px pixel shift (the app leaves a 1 px margin);
-  - its own screens: the boot logo, and "waiting for the PC" when no app is connected. That screen is the logo plus an animation, with no text, so the firmware needs no translations.
-- **Connection:** the board considers the app connected while the serial port is open (DTR on). When the port closes, it turns the LEDs off and shows the waiting screen again.
+  - the burn-in protection: dimming, blanking and the 1 px pixel shift (the app leaves a 1 px margin). The timers count from the last key, knob or `WAKE`. Only an input that wakes a *blank* display is swallowed; on a dimmed one it works normally;
+  - its own screen, shown at power-up and whenever no app is connected, with no text, so the firmware needs no translations. A light wave crosses the 6×6 grid of the logo and leaves the D lit, the wordmark slides in, then three small pads blink in turn while it waits. The real pads play the same wave and keep the D lit in amber, so the keyboard itself shows the logo; they go dark with the display when it blanks. The animation is drawn by code from the 1 KB wordmark bitmap (`logo_bitmap.h`).
+- **Connection:** the board considers the app connected while the serial port is open with DTR on (the app must enable DTR: .NET's `SerialPort` leaves it off by default). On connection the board turns the LEDs off and waits for the app's state; the logo stays on the display until the first `DISPLAY` frame. When the port closes, it shows its own screen again.
+- **PC asleep:** while USB is suspended, the display and the LEDs are off.
 
 ### USB identity and firmware protection
 
@@ -455,12 +457,13 @@ Implemented so far (firmware 0.1.0): `HELLO`, `BOOT`, `DEVLED`.
 - [x] Layout: placed on the measured parts and fully routed (DRC clean, schematic parity 0). 2-layer board, LED cut-outs on the measured LED window, soldered MX switches, DIP-14 footprint, RP2040-Zero under the board with its USB-C at the back edge, GND pours on both layers.
 - [x] Check the footprints against the real parts (1:1 printout: switches, keycap spacing, OLED, encoder, RP2040-Zero).
 - [x] Generate the fab files (Gerbers, drill, BOM and placement for assembly) and check the parts' availability at the fab.
-- [ ] Order 5 boards with SMD assembly on the bottom side (Standard PCBA).
+- [x] Order the boards with SMD assembly on the bottom side (Standard PCBA): 2 assembled v0.2 boards. A first order of 5 bare v0.1 boards went out by mistake.
 
 ### Phase 4 — Firmware
-- [ ] Matrix scan with debounce, encoder, serial protocol.
-- [ ] SK6812 driver through the buffer, with the ≈400 mA power limiter.
-- [ ] SH1106 display driver with localisable texts.
+- [x] Serial protocol (section 9), settings in flash.
+- [x] Matrix scan with 5 ms debounce, encoder with interrupts (written; to be tested on the PCB).
+- [x] SK6812 driver with effects and the ≈400 mA power limiter (tested through the module LED).
+- [x] SH1106 driver for the app's frames, burn-in protection, animated logo (written; to be tested on the OLED). The texts are drawn by the app, so they are localised there.
 - [x] Reboot-to-USB-bootloader command for updates from the app (`BOOT`, tested with `firmware/upload.sh`).
 
 ### Phase 5 — Bridge app (Windows)
