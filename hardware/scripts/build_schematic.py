@@ -13,11 +13,12 @@ import math
 import uuid
 from pathlib import Path
 
-from design import CHAIN_ORDER, FN_KEYS, KEYS, LED_CHAIN_NETS, PICO_PINS, key_cell
+from design import CHAIN_ORDER, FN_KEYS, KEYS, LED_CHAIN_NETS, ZERO_PINS, key_cell
 from sexpr import Sym, dump, find, first, parse
 
 KICAD_SYMBOLS = Path("/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols")
 OUT_DIR = Path(__file__).resolve().parent.parent / "pcb"
+PROJECT_SYMBOLS = {"Drezimo": OUT_DIR.parent / "lib" / "drezimo.kicad_sym"}   # project symbols (RP2040-Zero)
 PROJECT = "drezimo-soundboard"
 ROOT_UUID = str(uuid.uuid5(uuid.NAMESPACE_URL, "drezimo-soundboard/root"))
 GRID = 1.27
@@ -38,7 +39,8 @@ _lib_cache = {}
 
 def lib_root(lib):
     if lib not in _lib_cache:
-        _lib_cache[lib] = parse((KICAD_SYMBOLS / f"{lib}.kicad_sym").read_text(encoding="utf-8"))
+        path = PROJECT_SYMBOLS.get(lib, KICAD_SYMBOLS / f"{lib}.kicad_sym")
+        _lib_cache[lib] = parse(path.read_text(encoding="utf-8"))
     return _lib_cache[lib]
 
 
@@ -186,26 +188,27 @@ def build():
     sch = Schematic()
     notes = [
         "DREZIMO SOUNDBOARD - rev A",
-        "36 sound pads (6x6) + 6 function keys + EC11 encoder + 1.3in SH1106 I2C OLED, Raspberry Pi Pico (RP2040).",
+        "36 sound pads (6x6) + 6 function keys + EC11 encoder + 1.3in SH1106 I2C OLED, RP2040-Zero (RP2040, USB-C).",
         "Powered only by the PC USB port (VBUS). LED current capped in firmware at ~400 mA total.",
         "",
         "KEY MATRIX: 7 rows x 6 cols, one 1N4148W per key. Diode anode on the switch side, cathode on the ROW.",
         "  Scan: drive one ROW low at a time, read COLs with pull-ups. Rows 0-5 = pads, row 6 = function keys.",
         "  SW1..SW36 = pads row-major from top-left (pad index 0..35), SW37..SW42 = function keys left to right.",
         "  Function keys: PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME.",
-        "LEDS: SK6812MINI-E reverse mount on the PCB bottom, under each switch window (south side, ~5 mm from centre).",
+        "LEDS: SK6812MINI-E reverse mount on the PCB bottom, under each switch window (south side, 4.47 mm from centre, measured).",
         "  LEDn sits under SWn. Data chain order: " + " ".join(f"{k}" for k in CHAIN_ORDER[:12]) + " ...",
         "  i.e. function row L->R, then pad rows serpentine (row 0 R->L, row 1 L->R, ...). Firmware maps chain index -> key.",
-        "  GPIO2 (3.3 V) -> 74AHCT125 gate A (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
-        "OLED J1 pin order GND-VCC-SCL-SDA (as on the bought module) - CHECK THE MODULE SILKSCREEN before ordering.",
-        "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low. J2 = optional expansion/debug header (not fitted).",
+        "  GP0 (3.3 V) -> 74AHCT125 gate A (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
+        "GPIO: COL0-5 = GP1-6, ROW0-6 = GP7-13, ENC A/B/SW = GP28/GP29/GP14, I2C1 SDA/SCL = GP26/GP27, LED data = GP0.",
+        "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND.",
+        "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low. J2 = optional expansion header, spare GP15 (not fitted).",
     ]
     for i, line in enumerate(notes):
         sch.text(line, 20, 20 + i * 4.2)
 
-    # --- Raspberry Pi Pico
-    u1 = sch.place("MCU_Module", "RaspberryPi_Pico", "U1", "Raspberry Pi Pico", "Module:RaspberryPi_Pico_Common_Unspecified", 80, 160)
-    for pin, net in PICO_PINS.items():
+    # --- RP2040-Zero (on 2.54 mm pin headers, under the board)
+    u1 = sch.place("Drezimo", "RP2040-Zero", "U1", "RP2040-Zero", "Drezimo:RP2040-Zero", 80, 160)
+    for pin, net in ZERO_PINS.items():
         if net is None:
             u1.nc(pin)
         else:
@@ -218,14 +221,14 @@ def build():
     c43 = sch.place("Device", "C", "C43", "47uF 10V X5R", "Capacitor_SMD:C_1210_3225Metric", 85, 270)
     c43.net(1, "+5V_LED")
     c43.net(2, "GND")
-    # GND, VBUS and +3V3 are driven by the Pico's power pins; only the fused LED rail needs a flag.
+    # GND, VBUS and +3V3 are driven by the module's power pins; only the fused LED rail needs a flag.
     flag = sch.place("power", "PWR_FLAG", "#FLG01", "PWR_FLAG", "", 110, 265)
     flag.net(1, "+5V_LED")
 
     # --- LED level shifter: 74AHCT125, gate A used, gates B-D parked
     u2a = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", 200, 70, unit=1)
     u2a.net(1, "GND")            # 1OE active low -> enabled
-    u2a.net(2, "LED_DIN_3V3")    # 1A from GPIO2
+    u2a.net(2, "LED_DIN_3V3")    # 1A from GP0
     u2a.net(3, "LED_DIN_5V")     # 1Y
     for unit, (oe, a, y), x in ((2, (4, 5, 6), 230), (3, (10, 9, 8), 260), (4, (13, 12, 11), 290)):
         g = sch.place("74xx", "74AHCT125", "U2", "74AHCT125", "Package_DIP:DIP-14_W7.62mm", x, 70, unit=unit)
@@ -243,14 +246,15 @@ def build():
     r1.net(2, LED_CHAIN_NETS[0])
 
     # --- OLED, encoder, expansion header
-    j1 = sch.place("Connector_Generic", "Conn_01x04", "J1", "OLED 1.3in SH1106 I2C", "Connector_PinSocket_2.54mm:PinSocket_1x04_P2.54mm_Vertical", 200, 165)
-    for pin, net in ((1, "GND"), (2, "+3V3"), (3, "SCL"), (4, "SDA")):
+    # The module's own straight header goes through these 4 holes and is soldered: no socket on the PCB
+    j1 = sch.place("Connector_Generic", "Conn_01x04", "J1", "OLED 1.3in SH1106 I2C", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical", 200, 165)
+    for pin, net in ((1, "+3V3"), (2, "GND"), (3, "SCL"), (4, "SDA")):
         j1.net(pin, net)
     enc = sch.place("Device", "RotaryEncoder_Switch_MP", "ENC1", "EC11 encoder + switch", "Rotary_Encoder:RotaryEncoder_Alps_EC11E-Switch_Vertical_H20mm", 205, 205)
     for pin, net in (("A", "ENC_A"), ("B", "ENC_B"), ("C", "GND"), ("S1", "ENC_SW"), ("S2", "GND"), ("MP", "GND")):
         enc.net(pin, net)
-    j2 = sch.place("Connector_Generic", "Conn_01x04", "J2", "Expansion (not fitted)", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical", 200, 245, dnp=True)
-    for pin, net in ((1, "+3V3"), (2, "EXP_GP0"), (3, "EXP_GP1"), (4, "GND")):
+    j2 = sch.place("Connector_Generic", "Conn_01x03", "J2", "Expansion (not fitted)", "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical", 200, 245, dnp=True)
+    for pin, net in ((1, "+3V3"), (2, "EXP_GP15"), (3, "GND")):
         j2.net(pin, net)
 
     # --- Key matrix
@@ -288,12 +292,15 @@ def build():
 
 
 def write_lib_tables(sch):
-    """Project library tables for the stock KiCad libraries used, plus the project's own footprints
-    (hardware/lib, e.g. the logo), so the project opens anywhere."""
+    """Project library tables for the stock KiCad libraries used, plus the project's own symbols and
+    footprints (hardware/lib: RP2040-Zero, logo), so the project opens anywhere."""
     sym_libs = sorted({lib.split(":")[0] for lib in sch.lib_symbols})
-    fp_libs = sorted({p["footprint"].split(":")[0] for p in sch.parts.values() if p["footprint"]})
+    fp_libs = sorted({p["footprint"].split(":")[0] for p in sch.parts.values() if p["footprint"]} - {"Drezimo"})
     sym = ["(sym_lib_table", "\t(version 7)"] + [
-        f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_SYMBOL_DIR}}/{n}.kicad_sym")(options "")(descr ""))' for n in sym_libs] + [")"]
+        f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_SYMBOL_DIR}}/{n}.kicad_sym")(options "")(descr ""))'
+        for n in sym_libs if n not in PROJECT_SYMBOLS] + [
+        '\t(lib (name "Drezimo")(type "KiCad")(uri "${KIPRJMOD}/../lib/drezimo.kicad_sym")(options "")(descr "Project symbols"))',
+        ")"]
     fp = ["(fp_lib_table", "\t(version 7)"] + [
         f'\t(lib (name "{n}")(type "KiCad")(uri "${{KICAD10_FOOTPRINT_DIR}}/{n}.pretty")(options "")(descr ""))' for n in fp_libs] + [
         '\t(lib (name "Drezimo")(type "KiCad")(uri "${KIPRJMOD}/../lib/drezimo.pretty")(options "")(descr "Project footprints"))',

@@ -219,7 +219,7 @@
     <div class="card log-card">
       <div class="log-head">
         <h2>Messages</h2>
-        <label style="color:#9ad1ff"><input type="checkbox" data-log="pico" checked> Pico → PC</label>
+        <label style="color:#9ad1ff"><input type="checkbox" data-log="pico" checked> Board → PC</label>
         <label style="color:#c3a6ff"><input type="checkbox" data-log="pc"> LEDs</label>
         <label style="color:#8be0a4"><input type="checkbox" data-log="vm" checked> Control API</label>
         <label style="color:#ffc773"><input type="checkbox" data-log="lg" checked> Voicemod log</label>
@@ -304,11 +304,12 @@ const GRID_W = PITCH * COLS, GRID_H = PITCH * ROWS;
 const CASE_W = MARGIN * 2 + GRID_W;
 const Y_TOP = MARGIN, Y_FN = Y_TOP + TOP_H + GAP, Y_LABEL = Y_FN + PITCH, Y_GRID = Y_LABEL + LABEL_H;
 const CASE_H = Y_GRID + GRID_H + MARGIN;
-// 1.3" SH1106 128x64: active area 29.42 x 14.70 mm, window a bit larger than the active area
-const KNOB_D = 15, OLED_ACTIVE_W = 29.42, OLED_ACTIVE_H = 14.70, OLED_WIN_W = 34, OLED_WIN_H = 19;
-// Active-area centre from the module estimate on the PCB (header at y 10.5, glass 9.5 mm below the module top edge)
-const OLED_CX = 77.7, OLED_CY = 9 + 9.5 + OLED_ACTIVE_H / 2;
-const PICO_USB_Y = MARGIN + 14.5;      // Pico lies top-left, micro-USB through the left wall
+// 1.3" SH1106 128x64 as measured: pixel area 29.71 x 14.90 mm, window a bit larger than it; knob 14.4 mm
+const KNOB_D = 14.4, OLED_ACTIVE_W = 29.71, OLED_ACTIVE_H = 14.90, OLED_WIN_W = 34, OLED_WIN_H = 19;
+// Pixel-area centre: module top edge at y 8.81 (header at y 10.5), glass 6.24 mm below it, pixels ~1.9 mm below the glass top
+const OLED_CX = 77.7, OLED_CY = 8.81 + 6.24 + 1.9 + OLED_ACTIVE_H / 2;
+const USB_X = 30;                      // RP2040-Zero under the board, USB-C through the back (top) wall
+const USB_OPENING_W = 12;              // room for the plug's overmould
 const SCREW_INSET = 6.5;               // M3 hole centre to case edge
 const DETENT_DEG = 18; // typical EC11: 20 detents per turn
 const FN_IDS = ["PREV", "NEXT", "STOP", "MUTE", "VOICE", "HEAR"];
@@ -389,10 +390,10 @@ const S = SCREW_INSET, MID_Y = Y_GRID + GRID_H / 2;
 for (const [x, y] of [[S, S], [CASE_W - S, S], [S, CASE_H - S], [CASE_W - S, CASE_H - S], [S, MID_Y], [CASE_W - S, MID_Y]])
   add("screw", x - 2.75, y - 2.75, 5.5, 5.5);
 
-// Micro-USB opening in the left wall, in line with the Pico's connector
-add("usb-port", -0.6, PICO_USB_Y - 4, 1.6, 8);
+// USB-C opening in the back wall, in line with the RP2040-Zero's connector
+add("usb-port", USB_X - USB_OPENING_W / 2, -0.6, USB_OPENING_W, 1.6);
 
-// Display window centred on the OLED module's active area (module sits right of the Pico)
+// Display window centred on the OLED module's pixel area
 const oledWin = add("oled-window", OLED_CX - OLED_WIN_W / 2, OLED_CY - OLED_WIN_H / 2, OLED_WIN_W, OLED_WIN_H);
 const oledSmall = document.createElement("canvas"); oledSmall.width = 128; oledSmall.height = 64; oledWin.appendChild(oledSmall);
 oledWin.style.setProperty("--oled-w", OLED_ACTIVE_W); oledWin.style.setProperty("--oled-h", OLED_ACTIVE_H);
@@ -445,7 +446,7 @@ function log(kind, text) {
   // Follow new messages only when the user is not reading further up
   const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
   const line = document.createElement("div"); line.className = kind;
-  const arrow = { pico: "Pico→PC ", pc: "PC→Pico ", vm: "API     ", lg: "VM log  ", sys: "        " }[kind];
+  const arrow = { pico: "Board→PC", pc: "PC→Board", vm: "API     ", lg: "VM log  ", sys: "        " }[kind];
   line.textContent = `${new Date().toLocaleTimeString("en-GB")} ${arrow}  ${text}`;
   logEl.appendChild(line);
   while (logEl.childNodes.length > 500) logEl.firstChild.remove();
@@ -885,7 +886,7 @@ function renderLeds(now) {
       cell.style.background = on ? `rgba(${color.join(",")},.18)` : "transparent";
       cell.classList.toggle("dim", !!s && !s.enabled);
     }
-    // Log colour changes only, as the PC would send them to the Pico
+    // Log colour changes only, as the PC would send them to the board
     const key = c.join(",");
     if (state.ledSent[i] !== key) { state.ledSent[i] = key; if (state.ledSent.ready) log("pc", `LED,${i},${key}`); }
   });

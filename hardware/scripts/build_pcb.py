@@ -22,14 +22,14 @@ KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
 FOOTPRINTS = Path("/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints")
 PCB_DIR = Path(__file__).resolve().parent.parent / "pcb"
 BOARD_FILE = PCB_DIR / "drezimo-soundboard.kicad_pcb"
-PROJECT_LIBS = {"Drezimo": PCB_DIR.parent / "lib" / "drezimo.pretty"}   # project footprints (logo)
+PROJECT_LIBS = {"Drezimo": PCB_DIR.parent / "lib" / "drezimo.pretty"}   # project footprints (RP2040-Zero, logo)
 
 BOARD_VERSION = "v0.1"            # silkscreen, next to the logo
 
 # ---- Case geometry (must match simulator/dummy-board.html and the enclosure model)
 PITCH = 19.05
 MARGIN = 8.0
-TOP_H = 38.0                      # top strip: Pico, OLED module, encoder
+TOP_H = 38.0                      # top strip: RP2040-Zero (underneath), OLED module, encoder
 GAP = 4.0
 LABEL_H = 5.0                     # engraved function-key labels
 CASE_W = MARGIN * 2 + PITCH * COLS
@@ -40,9 +40,9 @@ WALL = 2.5                        # case wall thickness
 PCB_INSET = WALL + 0.5            # PCB edge to case outer edge
 CORNER_R = 2.0
 
-# Akko V5 LED window: opposite the metal pins, ~5.08 mm south of the centre (MX standard).
-# TO BE CONFIRMED with a caliper on the real switch before ordering.
-LED_OFFSET_Y = 5.08
+# Akko V5 LED window: opposite the metal pins, 6.00 x 2.04 mm, its centre 4.47 mm south of the
+# switch centre (caliper: post 3.81 mm, post-to-window gap 1.54 mm). Not the 5.08 mm MX default.
+LED_OFFSET_Y = 4.47
 
 
 def key_center(n):
@@ -55,10 +55,14 @@ def key_center(n):
 NOT_FITTED = {"J2"}                # expansion header, DNP in the schematic
 
 # Top strip layout
-PICO_CENTER = (PCB_INSET + 1.8 + 25.5, MARGIN + 14.5)   # horizontal, USB facing the left wall
+# RP2040-Zero: on the bottom side on 2.54 mm headers (2.5 mm spacer), USB-C face down, chip side up.
+# Its USB edge sits 0.5 mm inside the PCB edge so the silkscreen stays on the board; the receptacle
+# overhangs the module by 1.23 mm, so its face ends up inside the case wall, where the plug opening is.
+ZERO_W, ZERO_H, ZERO_USB_OVERHANG = 17.90, 23.30, 1.23
+ZERO_CENTER = (30.0, PCB_INSET + 0.5 + ZERO_H / 2)
 OLED_HEADER_CENTER = (77.7, MARGIN + 2.5)              # module header row (pins on the module's top edge)
 ENC_SHAFT = (key_center(42)[0], MARGIN + TOP_H / 2)   # knob above the last column
-U2_PIN1 = (PCB_INSET + 5.0, MARGIN + 37.0)             # DIP-14 lying horizontally under the Pico
+U2_PIN1 = (PCB_INSET + 5.0, MARGIN + 37.0)             # DIP-14 lying horizontally below the RP2040-Zero
 MOUNT_INSET = 6.5                                       # hole centre to case outer edge
 LOGO_CENTER = (OLED_HEADER_CENTER[0], MARGIN + 20.0)   # bottom side, behind the OLED module
 
@@ -151,13 +155,25 @@ def reference_drawings(board):
         shape(board, L, rect, (cx - 9, cy - 9), (cx + 9, cy + 9), 0.1)              # 18 mm keycap
     for i, label in enumerate(FN_KEYS):
         text(board, L, label, key_center(37 + i)[0], Y_GRID - LABEL_H / 2, 1.8)        # engraved labels
-    shape(board, L, pcbnew.SHAPE_T_CIRCLE, ENC_SHAFT, (ENC_SHAFT[0] + 7.5, ENC_SHAFT[1]), 0.1)  # ~15 mm knob
-    # 1.3" SH1106 module, typical listing dimensions (TO BE MEASURED): PCB 35.4 x 33.5, header 1.5 mm
-    # from the top edge, active area 29.42 x 14.70 centred horizontally on the glass.
-    ox, oy = OLED_HEADER_CENTER[0], OLED_HEADER_CENTER[1] - 1.5
-    shape(board, L, rect, (ox - 17.7, oy), (ox + 17.7, oy + 33.5), 0.15)
-    shape(board, L, rect, (ox - 14.71, oy + 9.5), (ox + 14.71, oy + 9.5 + 14.70), 0.1)
-    text(board, L, "OLED module (estimate)", ox, oy + 29.0, 1.5)
+    shape(board, L, pcbnew.SHAPE_T_CIRCLE, ENC_SHAFT, (ENC_SHAFT[0] + 7.2, ENC_SHAFT[1]), 0.1)  # 14.4 mm knob
+    # 1.3" SH1106 module as measured: PCB 35.54 x 33.59, pin 1 centre 13.92 mm from the left edge and
+    # 1.69 mm from the top; glass 34.44 x 22.97 at 0.50 / 6.24 mm from the left / top edges; holes 3.2 mm,
+    # top pair 2.64 / 3.03 mm from the side / top edges, bottom pair ~2.4 / ~2.0 mm (photo estimate);
+    # pixel area 29.71 x 14.90, ~1.9 mm below the top of the glass (photo estimate), centred on it.
+    ox, oy = OLED_HEADER_CENTER[0] - 3.81 - 13.92, OLED_HEADER_CENTER[1] - 1.69
+    ow, oh = 35.54, 33.59
+    shape(board, L, rect, (ox, oy), (ox + ow, oy + oh), 0.15)
+    shape(board, L, rect, (ox + 0.50, oy + 6.24), (ox + 0.50 + 34.44, oy + 6.24 + 22.97), 0.1)
+    gx = ox + 0.50 + 34.44 / 2
+    shape(board, L, rect, (gx - 29.71 / 2, oy + 6.24 + 1.9), (gx + 29.71 / 2, oy + 6.24 + 1.9 + 14.90), 0.1)
+    for hx, hy in ((2.64, 3.03), (ow - 2.64, 3.03), (2.4, oh - 2.0), (ow - 2.4, oh - 2.0)):
+        shape(board, L, pcbnew.SHAPE_T_CIRCLE, (ox + hx, oy + hy), (ox + hx + 1.6, oy + hy), 0.1)
+    text(board, L, "OLED module", gx, oy + 31.0, 1.5)
+    # RP2040-Zero hangs under the board: its outline and the USB-C receptacle, seen from above
+    zx, zy = ZERO_CENTER
+    shape(board, L, rect, (zx - ZERO_W / 2, zy - ZERO_H / 2), (zx + ZERO_W / 2, zy + ZERO_H / 2), 0.1)
+    shape(board, L, rect, (zx - 4.45, zy - ZERO_H / 2 - ZERO_USB_OVERHANG), (zx + 4.45, zy - ZERO_H / 2 + 5.2), 0.15)
+    text(board, L, "RP2040-Zero (underneath)", zx, zy + 2.0, 1.2)
     # 100 mm scale bar under the case: measure it on the printout before trusting anything else
     y = CASE_H + 12
     shape(board, L, pcbnew.SHAPE_T_SEGMENT, (0, y), (100, y), 0.3)
@@ -263,15 +279,16 @@ def main():
         place(footprints[f"C{n}"], cx - 6.9, cy + 3.6, angle=90, bottom=True)
 
     # --- Top strip
-    place(footprints["U1"], *PICO_CENTER, angle=90)                  # USB towards -x
+    place(footprints["U1"], *ZERO_CENTER, angle=180, bottom=True)    # USB towards -y (back edge); 0 deg on the bottom points it at the keys
     place(footprints["U2"], *U2_PIN1, angle=90)                      # pins 1-7 on the row nearer the keys
-    place(footprints["J1"], OLED_HEADER_CENTER[0] - 3.81, OLED_HEADER_CENTER[1], angle=90)  # pin 1 (GND) on the left
+    place(footprints["J1"], OLED_HEADER_CENTER[0] - 3.81, OLED_HEADER_CENTER[1], angle=90)  # pin 1 (VCC) on the left
     place(footprints["ENC1"], ENC_SHAFT[0] - 7.5, ENC_SHAFT[1] - 2.5)  # footprint origin is pin A
     place(footprints["J2"], U2_PIN1[0] + 21.0, U2_PIN1[1] - 3.81, angle=90)
-    # Bottom side: fuse and bulk cap between the Pico's pin rows at the USB end (VBUS is pin 40),
-    # U2 decoupling between its pin rows, R1 next to the 1Y output (pin 3)
-    place(footprints["F1"], PCB_INSET + 11.0, PICO_CENTER[1] - 4.0, angle=0, bottom=True)
-    place(footprints["C43"], PCB_INSET + 11.0, PICO_CENTER[1] + 0.5, angle=0, bottom=True)
+    # Bottom side: fuse and bulk cap just right of the module, next to its 5V pin (top of the right
+    # column seen from above), U2 decoupling between its pin rows, R1 next to the 1Y output (pin 3)
+    zr = ZERO_CENTER[0] + ZERO_W / 2
+    place(footprints["F1"], zr + 4.5, ZERO_CENTER[1] - 8.0, angle=0, bottom=True)
+    place(footprints["C43"], zr + 4.5, ZERO_CENTER[1] - 3.5, angle=0, bottom=True)
     place(footprints["C44"], U2_PIN1[0] + 2.54, U2_PIN1[1] - 3.81, angle=0, bottom=True)
     place(footprints["R1"], U2_PIN1[0] + 5.08, U2_PIN1[1] + 3.6, angle=0, bottom=True)
 
@@ -296,12 +313,14 @@ def main():
     assert '(paper "A4")' in pcb_text
     BOARD_FILE.write_text(pcb_text.replace('(paper "A4")', '(paper "A4" portrait)', 1), encoding="utf-8")
 
-    # Report what matters for the paper test
-    usb = [p for p in footprints["U1"].Pads() if p.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH]
-    usb_x = min(pcbnew.ToMM(p.GetPosition().x) for p in usb) - ORIGIN[0]
+    # Report what matters for the paper test and the enclosure
+    pads = {p.GetNumber(): p.GetPosition() for p in footprints["U1"].Pads()}
+    p1 = pads["1"]
+    usb_face = ZERO_CENTER[1] - ZERO_H / 2 - ZERO_USB_OVERHANG
     print(f"saved {BOARD_FILE}")
     print(f"case {CASE_W:.2f} x {CASE_H:.2f} mm, PCB {CASE_W - 2 * PCB_INSET:.2f} x {CASE_H - 2 * PCB_INSET:.2f} mm")
-    print(f"Pico USB-side holes at x = {usb_x:.2f} mm (left PCB edge at {PCB_INSET} mm)")
+    print(f"RP2040-Zero 5V pad at ({pcbnew.ToMM(p1.x) - ORIGIN[0]:.2f}, {pcbnew.ToMM(p1.y) - ORIGIN[1]:.2f}) mm, "
+          f"USB-C centre x = {ZERO_CENTER[0]:.2f} mm, receptacle face y = {usb_face:.2f} mm (case outer edge y = 0)")
 
 
 if __name__ == "__main__":

@@ -29,59 +29,44 @@ def key_cell(chain_index):
     return chain_index % 7, chain_index // 7
 
 
-# Raspberry Pi Pico physical pin -> net (None = not connected).
-# GPIO numbers: matrix GP6..GP18, LED data GP2, I2C0 GP4/GP5, encoder GP26..GP28.
-PICO_PINS = {
-    1: "EXP_GP0",       # GP0  (expansion header)
-    2: "EXP_GP1",       # GP1  (expansion header)
-    3: "GND",
-    4: "LED_DIN_3V3",   # GP2  LED data, through the 74AHCT125
-    5: None,            # GP3
-    6: "SDA",           # GP4  I2C0 SDA
-    7: "SCL",           # GP5  I2C0 SCL
-    8: "GND",
-    9: "COL0",          # GP6
-    10: "COL1",         # GP7
-    11: "COL2",         # GP8
-    12: "COL3",         # GP9
-    13: "GND",
-    14: "COL4",         # GP10
-    15: "COL5",         # GP11
-    16: "ROW0",         # GP12
-    17: "ROW1",         # GP13
-    18: "GND",
-    19: "ROW2",         # GP14
-    20: "ROW3",         # GP15
-    21: "ROW4",         # GP16
-    22: "ROW5",         # GP17
-    23: "GND",
-    24: "ROW6",         # GP18 function keys
-    25: None,           # GP19
-    26: None,           # GP20
-    27: None,           # GP21
-    28: "GND",
-    29: None,           # GP22
-    30: None,           # RUN
-    31: "ENC_A",        # GP26
-    32: "ENC_B",        # GP27
-    33: None,           # AGND (ADC not used; already a power output in the symbol)
-    34: "ENC_SW",       # GP28
-    35: None,           # ADC_VREF
-    36: "+3V3",         # 3V3 out (OLED supply)
-    37: None,           # 3V3_EN
-    38: "GND",
-    39: None,           # VSYS (Pico is powered from VBUS internally)
-    40: "VBUS",         # USB 5 V
+# RP2040-Zero pad -> net (None = not connected). Pads are numbered counter-clockwise from 5V,
+# looking at the module's USB-C face (see hardware/lib/drezimo.pretty/RP2040-Zero.kicad_mod).
+# The left column (COL0..5, ROW0..1, LED data) and the 5-pin row (ROW2..6) face the key matrix;
+# the right column (power, I2C, encoder) faces the OLED and the knob.
+ZERO_PINS = {
+    1: "VBUS",          # 5V = USB VBUS (measured 5.02 V: no diode on the module)
+    2: "GND",
+    3: "+3V3",          # on-board LDO output (OLED supply)
+    4: "ENC_B",         # GP29
+    5: "ENC_A",         # GP28
+    6: "SCL",           # GP27 I2C1 SCL
+    7: "SDA",           # GP26 I2C1 SDA
+    8: "EXP_GP15",      # GP15 (expansion header)
+    9: "ENC_SW",        # GP14
+    10: "ROW6",         # GP13 function keys
+    11: "ROW5",         # GP12
+    12: "ROW4",         # GP11
+    13: "ROW3",         # GP10
+    14: "ROW2",         # GP9
+    15: "ROW1",         # GP8
+    16: "ROW0",         # GP7
+    17: "COL5",         # GP6
+    18: "COL4",         # GP5
+    19: "COL3",         # GP4
+    20: "COL2",         # GP3
+    21: "COL1",         # GP2
+    22: "COL0",         # GP1
+    23: "LED_DIN_3V3",  # GP0  LED data, through the 74AHCT125
 }
 
 # Firmware-facing GPIO map (documentation and future firmware config)
 GPIO = {
-    "COLS": [6, 7, 8, 9, 10, 11],
-    "ROWS": [12, 13, 14, 15, 16, 17, 18],
-    "LED_DATA": 2,
-    "I2C_SDA": 4,
-    "I2C_SCL": 5,
-    "ENC_A": 26,
-    "ENC_B": 27,
-    "ENC_SW": 28,
+    "COLS": [1, 2, 3, 4, 5, 6],
+    "ROWS": [7, 8, 9, 10, 11, 12, 13],
+    "LED_DATA": 0,
+    "I2C_SDA": 26,
+    "I2C_SCL": 27,
+    "ENC_A": 28,
+    "ENC_B": 29,
+    "ENC_SW": 14,
 }

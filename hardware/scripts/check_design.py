@@ -1,7 +1,7 @@
 """Independent checks of the netlist KiCad actually produces from the schematic.
 
 ERC only proves the schematic is self-consistent; this proves it implements the design:
-key matrix, diode direction, LED chain, power rails, level shifter, Pico pin map.
+key matrix, diode direction, LED chain, power rails, level shifter, RP2040-Zero pin map.
 
 Usage: python check_design.py   (exits non-zero on any failure)
 """
@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from design import CHAIN_ORDER, KEYS, LED_CHAIN_NETS, PICO_PINS
+from design import CHAIN_ORDER, KEYS, LED_CHAIN_NETS, ZERO_PINS
 from sexpr import find, first, parse
 
 KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
@@ -69,9 +69,9 @@ def main():
         check(comps.get(f"D{n}") == "Diode_SMD:D_SOD-123", f"D{n} footprint")
         check(comps.get(f"SW{n}") == "Button_Switch_Keyboard:SW_Cherry_MX_1.00u_PCB", f"SW{n} footprint")
     for c in range(6):
-        check(len(nets[f"COL{c}"]) == 7 + 1, f"COL{c} must reach 7 switches + Pico")
+        check(len(nets[f"COL{c}"]) == 7 + 1, f"COL{c} must reach 7 switches + the MCU")
     for r in range(7):
-        check(len(nets[f"ROW{r}"]) == 6 + 1, f"ROW{r} must reach 6 diodes + Pico")
+        check(len(nets[f"ROW{r}"]) == 6 + 1, f"ROW{r} must reach 6 diodes + the MCU")
 
     # 2. LED chain. SK6812MINI-E pins (datasheet 2025, verified against the footprint): 1 GND, 2 DIN, 3 VDD, 4 DOUT
     check(net_of("R1", 2) == LED_CHAIN_NETS[0], "R1 must feed the first LED")
@@ -91,7 +91,7 @@ def main():
 
     # 3. Level shifter 74AHCT125 (pinout: 1 1OE, 2 1A, 3 1Y, 7 GND, 14 VCC; 4/10/13 OE, 5/9/12 A, 6/8/11 Y)
     check(net_of("U2", 1) == "GND", "U2 1OE low (gate enabled)")
-    check(net_of("U2", 2) == "LED_DIN_3V3", "U2 1A from GPIO2")
+    check(net_of("U2", 2) == "LED_DIN_3V3", "U2 1A from GP0")
     check(net_of("U2", 3) == "LED_DIN_5V" == net_of("R1", 1), "U2 1Y to R1")
     check(net_of("U2", 14) == "+5V_LED" and net_of("U2", 7) == "GND", "U2 powered from the 5 V LED rail")
     for oe, a in ((4, 5), (10, 9), (13, 12)):
@@ -99,8 +99,8 @@ def main():
         check(net_of("U2", a) == "GND", f"U2 pin {a} (A) tied low")
     check(comps.get("U2") == "Package_DIP:DIP-14_W7.62mm", "U2 is the owned DIP-14 part")
 
-    # 4. Pico pin map, power, peripherals
-    for pin, net in PICO_PINS.items():
+    # 4. RP2040-Zero pin map, power, peripherals
+    for pin, net in ZERO_PINS.items():
         actual = net_of("U1", pin)
         if net is None:
             check(unconnected(actual), f"U1 pin {pin} should be unconnected, is {actual}")
@@ -109,10 +109,10 @@ def main():
     check(net_of("F1", 1) == "VBUS" and net_of("F1", 2) == "+5V_LED", "polyfuse between VBUS and the LED rail")
     check(net_of("C43", 1) == "+5V_LED" and net_of("C43", 2) == "GND", "bulk capacitor on the LED rail")
     check(net_of("C44", 1) == "+5V_LED" and net_of("C44", 2) == "GND", "U2 decoupling")
-    check([net_of("J1", p) for p in (1, 2, 3, 4)] == ["GND", "+3V3", "SCL", "SDA"], "OLED header GND-VCC-SCL-SDA, VCC = 3.3 V")
+    check([net_of("J1", p) for p in (1, 2, 3, 4)] == ["+3V3", "GND", "SCL", "SDA"], "OLED header VCC-GND-SCL-SDA, VCC = 3.3 V")
+    check(comps.get("U1") == "Drezimo:RP2040-Zero", "U1 is the RP2040-Zero footprint")
     check({p: net_of("ENC1", p) for p in ("A", "B", "C", "S1", "S2", "MP")} ==
           {"A": "ENC_A", "B": "ENC_B", "C": "GND", "S1": "ENC_SW", "S2": "GND", "MP": "GND"}, "encoder wiring")
-    check("VBUS" not in {net_of("U1", 39)}, "VSYS must not be tied to anything")
     check(not any(net_of(f"LED{n}", 3) == "VBUS" for n in KEYS), "LEDs only on the fused rail")
     check(len(nets["+3V3"]) == 3, "+3V3 only feeds the OLED and the expansion header")
 

@@ -3,10 +3,11 @@
 > Note: the project is in English. The OLED display texts can be localised; the unit built for the author's friend shows them in Italian.
 
 > Project document  
-> Status: design decided (6×6 layout, custom PCB, USB-only power); measurements of the real parts and PCB design in progress.
+> Status: design decided (6×6 layout, custom PCB, USB-only power); real parts measured, PCB placed for the RP2040-Zero, routing next.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
+- 2026-11-01: parts measured; PCB moved to the RP2040-Zero (USB-C through the back edge), LED cut-outs at the measured 4.47 mm, OLED header VCC-GND-SCL-SDA.
 
 ## 1. Goal
 
@@ -49,21 +50,21 @@ The device must look and feel like a finished commercial product, not a prototyp
 
 The system is split into three parts:
 
-1. **Hardware controller — Raspberry Pi Pico RP2040**
+1. **Hardware controller — RP2040-Zero (RP2040, USB-C)**
    - Scans the key matrix (36 pads + 6 function keys) and reads the encoder.
    - Drives the 42 LEDs and the OLED display, following updates from the bridge app.
    - Communicates with the PC over USB serial.
    - Enforces the LED power limit in firmware (see section 6).
    - Can be rebooted into its USB bootloader by a command from the app, so firmware updates do not need physical BOOTSEL access.
-   - The standard Pico RP2040 is sufficient; the Pico W's Wi-Fi is not needed.
+   - A clone of the Waveshare RP2040-Zero replaces the Raspberry Pi Pico: smaller, with USB-C, mounted under the PCB so the cable leaves from the back edge.
 
 2. **Bridge app on the PC (Windows)**
    - Manages pages (36 sounds each, in Voicemod's soundboard order, plus a Favourites page).
-   - Receives events from the Pico and sends commands to Voicemod through the official Control API.
+   - Receives events from the board and sends commands to Voicemod through the official Control API.
    - Includes the Voicemod log watcher, which provides the real playback state (see section 8).
-   - Sends pad colours and display contents to the Pico.
+   - Sends pad colours and display contents to the board.
    - Shows a 6×6 overlay on the PC screen with sound names and live LED colours.
-   - Updates the Pico firmware when needed.
+   - Updates the board firmware when needed.
    - Installed once with an installer and started automatically with Windows.
 
 3. **Voicemod**
@@ -72,11 +73,11 @@ The system is split into three parts:
 
 ### Expected flow
 
-`Pad / button / encoder → Pico → USB → bridge app → Voicemod`
+`Pad / button / encoder → RP2040-Zero → USB → bridge app → Voicemod`
 
 For visual updates:
 
-`Voicemod (Control API + log) → bridge app → USB → Pico → LEDs + OLED`
+`Voicemod (Control API + log) → bridge app → USB → RP2040-Zero → LEDs + OLED`
 
 ## 3. Control mapping
 
@@ -157,8 +158,8 @@ Function-key LEDs mirror Voicemod's toggles: STOP red while any sound plays, MUT
 
 ### Display (OLED)
 
-- 1.3" OLED, 128×64, SH1106 driver, I²C, 4 pins; active area ≈29.42 × 14.70 mm. Two bought (one spare).
-- **The pin order differs between modules** (VCC-GND-SCL-SDA vs GND-VCC-SCL-SDA): check the silkscreen before wiring.
+- 1.3" OLED, 128×64, SH1106 driver, I²C, 4 pins. Module 35.54 × 33.59 mm, glass 34.44 × 22.97 mm, pixel area ≈29.71 × 14.90 mm (measured). Two bought (one spare).
+- **The pin order differs between modules** (VCC-GND-SCL-SDA vs GND-VCC-SCL-SDA). The bought modules are VCC-GND-SCL-SDA seen from the glass side, and the PCB follows them: check the silkscreen of any replacement module.
 - Contents: page name + counter, last sound, remaining time / `LOOP` / `PAUSED` / `MIC OFF` / `MUTE ME` / `VOICE OFF`; sound names for peek and row overview.
 - Texts are localisable; the friend's unit is in Italian.
 - OLED pixels emit their own light (no backlight): perfectly readable in the dark, weakest in direct sunlight.
@@ -184,7 +185,7 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 
 | Component | Quantity/description | Use |
 |---|---|---|
-| Raspberry Pi Pico RP2040 | 1 board, micro-USB | Main controller, soldered directly to the PCB |
+| RP2040-Zero (clone of the Waveshare board) | 6 boards, USB-C, pin strips included | Main controller, on its pin strips under the PCB |
 | Mechanical switches | 45 Akko V5 linear (MX-compatible), clear top housing, 5-pin | 36 pads + 6 function keys = 42 used, 3 spare |
 | Keycaps | OEM profile, double-shot PBT, opaque | Pads and function keys (halo lighting) |
 | Rotary encoder | EC11 kit with knobs | Rotation and integrated push button; one is enough |
@@ -192,7 +193,7 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 | Assorted resistors | Kit, 1/4 W | Spare/prototyping (the 330 Ω data resistor comes with the PCB) |
 | M3 × 10 mm screws | Already owned | Closing the enclosure (6 screws) |
 | Rubber feet | Already owned | Enclosure bottom |
-| Micro-USB cable | Already owned | Data + power to the PC |
+| USB-C cable | Already owned | Data + power to the PC (C-to-C and A-to-C both tested) |
 | 3D printer | Bambu Lab P1S | Enclosure, in matte black PLA (or PETG) |
 | Soldering iron | Already owned | Hand-soldered parts |
 
@@ -200,7 +201,7 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 
 | Component | Quantity/description | Status |
 |---|---|---|
-| 1.3" OLED 128×64, SH1106, I²C | 2 pcs (one spare) | Ordered |
+| 1.3" OLED 128×64, SH1106, I²C | 2 pcs (one spare) | Arrived |
 
 ### Comes with the PCB order (assembled by the fab, PCB bottom side)
 
@@ -224,12 +225,12 @@ Cancel the order if still possible; otherwise they are harmless to keep:
 - Larger perfboard.
 - Heat-set inserts.
 
-### Measure before ordering the PCB
+### Measurements of the real parts (2026-11-01)
 
-- [ ] Switch LED-window offset from the switch centre (with a caliper, on a real Akko V5).
-- [ ] OLED module outline, mounting holes and pin order (when it arrives).
-- [ ] EC11 pin layout of the kit's encoder.
-- [ ] Pico orientation and USB connector position.
+- [x] Akko V5 LED window: 6.00 × 2.04 mm, its centre 4.47 mm from the switch centre (not the 5.08 mm MX default); the LED cut-outs are placed there.
+- [x] OLED module: 35.54 × 33.59 mm, pins VCC-GND-SCL-SDA, pin 1 centre 13.92 mm from the left edge and 1.69 mm from the top edge, straight header already soldered (2.5 mm spacer), 3.02 mm glass + board, 4.07 mm overall. Four Ø3.2 mm holes: top pair 2.64 / 3.03 mm from the side / top edges, bottom pair closer to the bottom edge (≈2.4 / ≈2.0 mm, from the photo: measure before designing the enclosure).
+- [x] EC11: matches the stock Alps EC11E footprint (A-C-B 2.5 mm pitch, switch pins 5 mm, rows ≈14.5 mm apart, mounting lugs ≈11.4 mm apart); 12 × 12 × 6.45 mm body, M7 threaded bushing with nut, 6 mm knurled shaft, 20 mm above the body. Knob Ø14.4 × 17 mm.
+- [x] RP2040-Zero: 23.30 × 17.90 × 1.04 mm, 23 edge pins on the 2.54 mm grid (columns 15.24 mm apart, first row 1.43 mm from the USB edge, 5-pin row in line with the last pins of the columns), USB-C on the face opposite the chip, overhanging the board by 1.23 mm. The 5V pin is VBUS directly (5.02 V, no diode). Enumerates as RPI-RP2 with both C-to-C and A-to-C cables (the CC resistors are fitted).
 
 ## 6. Electronics, PCB and power
 
@@ -239,20 +240,21 @@ Cancel the order if still possible; otherwise they are harmless to keep:
 - **SMD parts assembled by the fab** on the PCB bottom side: LEDs, 100 nF per LED, matrix diodes, 47 µF bulk capacitor, 100 nF for the buffer, 330 Ω data resistor, 0.5 A polyfuse on the LED rail.
 - **Hand-soldered by the author:**
   - 42 switches, soldered directly. Kailh hot-swap sockets only if the fab can assemble them at a reasonable cost (to check at design time).
-  - Raspberry Pi Pico, soldered directly, with the micro-USB connector toward the case edge.
+  - RP2040-Zero on its 2.54 mm pin strips, under the PCB with the USB-C face down and the chip side towards the board, USB-C at the back edge. Trim the pin ends on the top side to 2 mm at most.
   - EC11 encoder.
   - SN74AHCT125N in its DIP-14 footprint.
-  - OLED header.
+  - OLED module, soldered by its own header.
 - **Key matrix:** 7 rows × 6 columns (6 pad rows + the function row), one diode per key → 13 GPIOs.
-- **Switch footprint:** Akko V5 are 5-pin (two plastic pegs besides the metal pins): the footprint needs the peg holes. The LED window is in the bottom housing on the side opposite the metal pins, ≈5 mm from the centre per the MX standard: **measure it on the real switch** before placing the LED cutouts.
+- **Switch footprint:** Akko V5 are 5-pin (two plastic pegs besides the metal pins): the footprint needs the peg holes. The LED window is in the bottom housing on the side opposite the metal pins: 6.00 × 2.04 mm, centred 4.47 mm from the switch centre (measured), which is where the LED cut-outs are.
 - **Board layout** (generated by `hardware/scripts/build_pcb.py`, case frame = origin at the case's top-left outer corner):
   - Case 130.3 × 196.35 mm; PCB 124.3 × 190.35 mm (3 mm inset: 2.5 mm wall + 0.5 mm clearance), 2 mm corner radius.
-  - Top strip (y 8–46 mm): Pico top-left, horizontal, micro-USB through the left wall; 1.3" OLED module right of it, soldered directly by its header (centre x ≈ 77.7 mm); EC11 above the last column (shaft at 112.775, 27).
-  - SN74AHCT125N under the Pico, close to GP2 and to the first LED of the chain (function key 1).
-  - Bottom side (fab assembly): each LED 5.08 mm south of its switch centre, diode on the east, 100 nF on the west; polyfuse and 47 µF between the Pico's pin rows at the USB end.
+  - Top strip (y 8–46 mm): RP2040-Zero top-left, hanging under the board on its pin strips, USB-C through the back wall (connector centre x = 30 mm, receptacle face 2.27 mm from the case's outer edge); 1.3" OLED module right of it, soldered directly by its header (header centre x = 77.7 mm); EC11 above the last column (shaft at 112.775, 27).
+  - GPIO map: COL0–5 = GP1–6, ROW0–6 = GP7–13, LED data = GP0, I²C1 SDA/SCL = GP26/GP27, encoder A/B/switch = GP28/GP29/GP14, GP15 spare on the optional J2 header. The module's left column and 5-pin row face the key matrix; its right column (power, I²C, encoder) faces the OLED and the knob.
+  - SN74AHCT125N below the RP2040-Zero, close to GP0 and to the first LED of the chain (function key 1).
+  - Bottom side (fab assembly): each LED 4.47 mm south of its switch centre, diode on the east, 100 nF on the west; polyfuse and 47 µF right of the RP2040-Zero, next to its 5V pin.
   - 6 M3 holes 6.5 mm from the case edges: 4 corners + middle of the long sides (between pad rows 3 and 4).
   - Review documents in `hardware/docs/` (`export_docs.py`): schematic PDF, 1:1 A4 fit-check PDFs (top and mirrored bottom, with a 100 mm scale bar), 3D renders, DRC report.
-  - Status: placement done, DRC clean, schematic parity 0; routing waits for caliper measurements (switch LED window, OLED module, EC11, Pico headers).
+  - Status: placement updated to the measured parts (2026-11-01), DRC clean, schematic parity 0. Next: 1:1 paper fit check with the real parts, then routing.
 - **Level shifter:** the SN74AHCT125N enable pin is active low and must be tied to the correct state; unused inputs must not be left floating. The 330 Ω resistor goes in series with the data line, near the buffer output or the first LED.
 
 ### GPIO budget
@@ -263,13 +265,13 @@ Cancel the order if still possible; otherwise they are harmless to keep:
 | EC11 encoder (A, B, push button) | 3 |
 | LED data | 1 |
 | I²C to the OLED (SDA, SCL) | 2 |
-| **Total** | **≈19 of 26** |
+| **Total** | **19 of the RP2040-Zero's 20 edge GPIOs** |
 
 ### Power: USB only
 
 - A single USB cable from the friend's PC powers everything; there is no second power supply.
-- The LEDs are powered from USB 5 V (VBUS), never from the Pico's **3V3** pin.
-- USB 2.0 guarantees 500 mA. The Pico + OLED draw about 60 mA, so the **firmware power limiter caps the total LED current at ≈400 mA**, scaling brightness down when needed.
+- The LEDs are powered from USB 5 V (VBUS, the RP2040-Zero's 5V pin), never from its **3V3** pin.
+- USB 2.0 guarantees 500 mA. The RP2040-Zero + OLED draw about 60 mA, so the **firmware power limiter caps the total LED current at ≈400 mA**, scaling brightness down when needed.
 - Single-colour states (blue, green) draw about 1/3 of white, so the limiter only dims the LEDs when many of them are lit at once.
 - Large bulk capacitance on VBUS is avoided (inrush current at plug-in): 47 µF after the polyfuse instead of 1000 µF, plus 100 nF next to each LED.
 
@@ -279,30 +281,30 @@ A single LED at full white draws in the order of tens of mA (check the SK6812 MI
 
 ## 7. Physical structure and 3D enclosure
 
-- Enclosure 130.3 × 196.35 mm (key pitch 19.05 mm, 38 mm top strip for Pico, OLED and knob), printed in one piece on a Bambu Lab P1S (256 × 256 × 256 mm build volume), in matte black PLA (or PETG).
+- Enclosure 130.3 × 196.35 mm (key pitch 19.05 mm, 38 mm top strip for the RP2040-Zero, OLED and knob), printed in one piece on a Bambu Lab P1S (256 × 256 × 256 mm build volume), in matte black PLA (or PETG).
 - The plate holds the switches; the PCB sits underneath; the bottom is removable for repairs.
 - Closed with 6 M3 × 10 mm screws directly into the plastic (≈2.5 mm pilot holes, thick bosses): corners + middle of the long sides, because the wide plate flexes. Hole centres 6.5 mm from the case edges, matching the PCB. Screws go in from the bottom, so none is visible from the top.
 - Rubber feet on the bottom.
-- Window for the OLED (active area ≈29.42 × 14.70 mm) and a hole for the EC11 knob.
-- USB-C of the RP2040-Zero exits from the top (back) edge, with strain relief for the cable.
+- Window for the OLED (pixel area ≈29.71 × 14.90 mm) and a hole for the EC11 knob. The module's four holes can locate it from above with pins in the case.
+- USB-C of the RP2040-Zero exits from the top (back) edge, with strain relief for the cable. The receptacle face is 2.27 mm inside the case's outer edge, centred at x = 30 mm and about 5 mm below the PCB's underside (2.5 mm strip spacer + 1.04 mm module + half the 3.03 mm receptacle): the back wall needs an opening for the plug's overmould, and the bottom must leave at least 7.5 mm under the PCB there (the module hangs 6.6 mm).
 - Ergonomics and finish follow the quality bar in section 1: rounded edges, typing angle, support-free printing.
-- Do not finalise the 3D model before measuring the OLED module, the encoder and the finished PCB.
+- Do not finalise the 3D model before measuring the finished PCB: the OLED pixel-area position and its bottom pair of holes are still photo estimates.
 
 ## 8. Desktop software
 
 The bridge app will have at least these responsibilities:
 
-1. Open the USB serial connection to the Pico.
+1. Open the USB serial connection to the board.
 2. Receive pad, function key and encoder events.
 3. Map each pad to the current page and sound (36 per page, Voicemod's order, Favourites page).
 4. Send the commands to Voicemod.
 5. Update the LEDs and the display based on the page, press feedback and confirmed states.
 6. Watch the Voicemod log for the real playback state.
 7. Show connection status, active page, last sound and any errors, plus the 6×6 overlay on the PC screen.
-8. Manage an editable configuration without reflashing the Pico; update the Pico firmware when needed (reboot to USB bootloader by command).
+8. Manage an editable configuration without reflashing the board; update its firmware when needed (reboot to USB bootloader by command).
 9. Ship as a Windows installer with auto-start; bug fixes are delivered as app updates.
 
-One possible implementation is a Python app with JSON configuration. The protocol between the app and the Pico must be simple, documented and robust against partial messages or connection errors.
+One possible implementation is a Python app with JSON configuration. The protocol between the app and the board must be simple, documented and robust against partial messages or connection errors.
 
 ### Voicemod integration: to verify early
 
@@ -321,7 +323,7 @@ If no suitable integration is available, consider hotkeys configurable in Voicem
 - Global STOP available with `stopAllMemeSounds`.
 - Test script: `tools/voicemod_probe.py`.
 
-**Test of 2026-10-29 on macOS, Voicemod 3.17.42:** port 59129 is open and the server responds `Pending authentication`. With a made-up `clientKey`, `registerClient` returns **401 Unauthorized** and the connection is closed. An official key is required: in the meantime, the fallback is the Pico as a USB keyboard + Voicemod shortcuts.
+**Test of 2026-10-29 on macOS, Voicemod 3.17.42:** port 59129 is open and the server responds `Pending authentication`. With a made-up `clientKey`, `registerClient` returns **401 Unauthorized** and the connection is closed. An official key is required: in the meantime, the fallback was the board as a USB keyboard + Voicemod shortcuts.
 
 **Test with official key (2026-10-29, macOS, free licence) — confirmed:**
 - `registerClient` → `200 Authorized`. Key in `.env` (`VOICEMOD_CLIENT_KEY`), excluded from git.
@@ -362,7 +364,7 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 
 **How to get the key:** from the [control-api.voicemod.net](https://control-api.voicemod.net/) website → "Get your API Key", [Typeform form](https://voicemod.typeform.com/to/Zh5ZHRED); alternatively email devservices@voicemod.net.
 
-**Target environment:** the device is going to a friend who uses **Windows** with paid Voicemod (lifetime licence). Development and first tests on macOS with free Voicemod; Windows build and tests on the desktop PC before delivery. The bridge app runs on the PC (not on the Pico), with a one-time installer and auto-start.
+**Target environment:** the device is going to a friend who uses **Windows** with paid Voicemod (lifetime licence). Development and first tests on macOS with free Voicemod; Windows build and tests on the desktop PC before delivery. The bridge app runs on the PC (not on the board), with a one-time installer and auto-start.
 
 ### Tools and simulator
 
@@ -373,13 +375,13 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 
 ## 9. Hardware-software protocol: initial proposal
 
-The dummy board `simulator/dummy-board.html` (1:1 scale, connectable to Voicemod) already uses this convention: `PAD,<0-35>,<1|0>`, `BTN,<0-5>,<1|0>`, `ENC,+1|-1`, `ENCBTN,<1|0>` from the Pico; `LED,<i>,<r>,<g>,<b>` to the Pico, with `i` = 0–35 for the pads and 36–41 for the function keys.
+The dummy board `simulator/dummy-board.html` (1:1 scale, connectable to Voicemod) already uses this convention: `PAD,<0-35>,<1|0>`, `BTN,<0-5>,<1|0>`, `ENC,+1|-1`, `ENCBTN,<1|0>` from the board; `LED,<i>,<r>,<g>,<b>` to the board, with `i` = 0–35 for the pads and 36–41 for the function keys.
 
 The exact format will be defined when we start the firmware. Points to cover:
 
-- Pico → PC: pad/key press **and release** events (the release is needed for `PlayLoopOnPress`), encoder rotation and button.
-- PC → Pico: LED colours, display contents (page, last sound, status, localised texts), global brightness, and a command to reboot into the USB bootloader for firmware updates.
-- The power limiter runs on the Pico regardless of the colours sent by the PC.
+- Board → PC: pad/key press **and release** events (the release is needed for `PlayLoopOnPress`), encoder rotation and button.
+- PC → board: LED colours, display contents (page, last sound, status, localised texts), global brightness, and a command to reboot into the USB bootloader for firmware updates.
+- The power limiter runs on the board regardless of the colours sent by the PC.
 - Each message ends with a newline; both sides ignore incomplete or invalid messages.
 - The 36 pad indices are numbered 0 to 35 in the firmware (row by row) and 1 to 36 in the user interface, if useful; function keys are 0–5 in `BTN` messages (PREV, NEXT, STOP, MUTE ME, VOICE, HEAR ME).
 
@@ -394,19 +396,19 @@ These are examples, not an already implemented protocol.
 - [x] Choose the display: 1.3" OLED 128×64, SH1106, I²C (2 ordered).
 - [x] Decide the power strategy: USB only, firmware LED power limiter ≈400 mA.
 - [x] Update the simulator to the 6×6 layout at 1:1 scale.
-- [ ] Inventory the owned parts (Pico, switches, keycaps, encoder kit, SN74AHCT125N).
+- [x] Inventory the owned parts (RP2040-Zero, switches, keycaps, encoder kit, SN74AHCT125N, OLED).
 - [ ] Cancel the parts that are not needed any more, if still possible.
 
 ### Phase 2 — Measurements before the PCB
-- [ ] Measure the switch LED-window offset from the centre with a caliper.
-- [ ] Measure the OLED module outline, mounting holes and pin order (when it arrives).
-- [ ] Check the EC11 pin layout from the kit.
-- [ ] Check the Pico orientation and USB connector position.
+- [x] Measure the switch LED-window offset from the centre with a caliper.
+- [x] Measure the OLED module outline, mounting holes and pin order.
+- [x] Check the EC11 pin layout from the kit.
+- [x] Measure the RP2040-Zero (pin grid, USB-C position, 5V = VBUS, boots with a C-to-C cable).
 - [ ] Check whether the fab can assemble Kailh hot-swap sockets at a reasonable cost.
 
 ### Phase 3 — PCB design and order
-- [x] Schematic: 7×6 key matrix with diodes, SK6812 MINI-E chain (0–41) with 100 nF per LED, SN74AHCT125N, 330 Ω data resistor, 47 µF bulk capacitor, 0.5 A polyfuse, encoder, OLED header, Pico (ERC 0, `check_design.py` OK).
-- [ ] Layout: placement done (DRC clean, schematic parity 0); routing after measurements. 2-layer board, LED cutouts aligned with the measured LED window, switch footprints with peg holes, DIP-14 footprint, Pico with USB toward the case edge.
+- [x] Schematic: 7×6 key matrix with diodes, SK6812 MINI-E chain (0–41) with 100 nF per LED, SN74AHCT125N, 330 Ω data resistor, 47 µF bulk capacitor, 0.5 A polyfuse, encoder, OLED header, RP2040-Zero (ERC 0, `check_design.py` OK).
+- [ ] Layout: placement on the measured parts done (DRC clean, schematic parity 0); routing next. 2-layer board, LED cut-outs on the measured LED window, switch footprints with peg holes, DIP-14 footprint, RP2040-Zero under the board with its USB-C at the back edge.
 - [ ] Check the footprints against the real parts (1:1 printout or test plate).
 - [ ] Order 5 boards with SMD assembly on the bottom side.
 
@@ -427,7 +429,7 @@ These are examples, not an already implemented protocol.
 ### Phase 6 — Enclosure and final assembly
 - [ ] Design the enclosure (130.3 × 196.35 mm) on the real measurements; test-print a plate section with a few switches.
 - [ ] Bring up the assembled PCB at low brightness: LEDs, OLED, encoder, a few switches.
-- [ ] Solder all switches, the Pico, the encoder, the buffer and the OLED header.
+- [ ] Solder all switches, the RP2040-Zero, the encoder, the buffer and the OLED module.
 - [ ] Print the enclosure on the P1S, mount everything, close it with the 6 screws, add the rubber feet.
 - [ ] Run extended tests on Windows with paid Voicemod before delivery.
 
@@ -439,20 +441,19 @@ These are examples, not an already implemented protocol.
 - [x] Voicemod integration: official Control API with key + log watcher for the real playback state.
 - [x] Sound behaviour: a pad press is exactly a click in Voicemod; playback modes verified (see section 8).
 - [x] Encoder: rotate = page, tap = soundboard menu, hold + pad = peek, hold + rotate = row overview.
-- [x] Display: 1.3" OLED 128×64, SH1106, I²C, driven by the Pico.
+- [x] Display: 1.3" OLED 128×64, SH1106, I²C, driven by the RP2040.
 - [x] LEDs: 42 SK6812 MINI-E reverse-mount on the PCB bottom; opaque keycaps with halo lighting.
-- [x] Key matrix: 7 × 6 with SMD diodes (13 GPIOs, ≈19 of 26 in total).
-- [x] Custom 2-layer PCB with fab-assembled SMD parts; switches, Pico, encoder, buffer and OLED header hand-soldered.
+- [x] Key matrix: 7 × 6 with SMD diodes (13 GPIOs, 19 of 20 in total).
+- [x] Custom 2-layer PCB with fab-assembled SMD parts; switches, RP2040-Zero, encoder, buffer and OLED module hand-soldered.
 - [x] Power: USB only, ≈400 mA LED cap in firmware, 0.5 A polyfuse + 47 µF on the LED rail.
-- [x] Microcontroller: RP2040-Zero clone (USB-C) instead of the Raspberry Pi Pico, mounted on its pin strips (RP2040 and crystal sit on its underside). PCB and pin map to be updated once measured.
+- [x] Microcontroller: RP2040-Zero clone (USB-C) instead of the Raspberry Pi Pico, mounted on its pin strips under the PCB (RP2040 and crystal sit on its underside). PCB and pin map updated to the measured part (2026-11-01).
 - [x] USB cable exits from the top (back) edge of the case, not from the left side.
 - [x] Enclosure: one-piece print on the P1S, 6 M3 screws into plastic, removable bottom.
-- [x] Updates: through the bridge app, Pico firmware included; the friend never touches the board.
+- [x] Updates: through the bridge app, board firmware included; the friend never touches the board.
 
 ### Still open
 
 - [ ] Switches soldered directly vs Kailh hot-swap sockets (depends on fab assembly cost).
-- [ ] Exact LED-window offset of the Akko V5 (to measure).
 - [ ] Enclosure material: PLA or PETG.
 - [ ] Final serial protocol.
 - [ ] Optional polyfuse on the 5 V rail.
@@ -464,12 +465,12 @@ These are examples, not an already implemented protocol.
 - Double-check polarity and connections before powering up.
 - Do not work on the circuit while powered during soldering or modifications.
 - Avoid short circuits between +5 V and GND.
-- The device is powered by USB only: do not add a second 5 V supply and do not feed external power into the Pico's VBUS/VSYS, so the PC's USB port is never back-fed.
-- Never power the LEDs from the Pico's 3V3 pin.
+- The device is powered by USB only: do not add a second 5 V supply and do not feed external power into the RP2040-Zero's 5V pin, so the PC's USB port is never back-fed.
+- Never power the LEDs from the RP2040-Zero's 3V3 pin.
 - Keep the firmware LED power limiter active from the very first power-up; run initial tests at reduced brightness.
 - Do not increase the bulk capacitance on VBUS beyond ~100 µF (USB inrush current); the design uses 47 µF.
 - Verify the actual pinout of the SN74AHCT125N and of the components received: do not rely on physical position alone.
-- Check the OLED pin order on the module's silkscreen before wiring: VCC and GND are swapped between modules.
+- Check the OLED pin order on the module's silkscreen before soldering: VCC and GND are swapped between modules (the PCB expects VCC-GND-SCL-SDA).
 - Check the LED orientation and footprints before ordering the assembled PCB.
 - Test the assembled PCB (LEDs, display, encoder, a few switches) before soldering all 42 switches, and do not close the enclosure before testing the firmware, the software and the Voicemod integration.
 
@@ -479,7 +480,7 @@ These are examples, not an already implemented protocol.
 
 **Goal:** 6×6 physical soundboard for Voicemod: 36 pads, 6 function keys, EC11 encoder, OLED display.
 
-**Controller:** Raspberry Pi Pico RP2040 on a custom 2-layer PCB.
+**Controller:** RP2040-Zero (RP2040, USB-C) under a custom 2-layer PCB.
 
 **Communication:** USB serial to a bridge app on the friend's Windows PC, which talks to the Voicemod Control API and watches the Voicemod log.
 
@@ -493,4 +494,4 @@ These are examples, not an already implemented protocol.
 
 **Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
 
-**Next steps:** measure the switch LED window, OLED, encoder and Pico; then design and order the PCB.
+**Next steps:** 1:1 paper fit check of the PCB with the real parts, then routing and the PCB order.
