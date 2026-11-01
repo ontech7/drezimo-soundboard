@@ -417,7 +417,7 @@ The board reports raw inputs only. Page changes, peek, row overview and the soun
 
 Invalid messages change nothing and get `ERR,unknown message` (also the sign of a firmware older than the app) or `ERR,invalid arguments`. Messages without a reply are fire-and-forget, so a page change (42 `LED` lines) does not flood the link with acknowledgements.
 
-All of the above is implemented in firmware 0.2.0. Tested on the bare module: every message, the errors, settings kept across a reboot, the LED effects through `DEVLED,MIRROR`. Keys, encoder, LED chain and display wait for the PCB.
+All of the above is implemented in firmware 0.2.0. Tested on the bare module: every message, the errors, settings kept across a reboot, the LED effects through `DEVLED,MIRROR`, and the whole link driven by the simulator over Web Serial. Keys, encoder, LED chain and display wait for the PCB.
 
 ### Division of work
 
