@@ -9,6 +9,7 @@ interface Line {
   dot: "waiting" | "warning" | "ok" | "error";
   title: string;
   detail: string;
+  note?: string;
 }
 
 function boardLine(status: BoardStatus): Line {
@@ -26,12 +27,17 @@ function boardLine(status: BoardStatus): Line {
   }
 }
 
-function voicemodLine(status: VoicemodStatus, page: PageSummary | null): Line {
+function voicemodLine(status: VoicemodStatus, page: PageSummary | null, fromLog: boolean): Line {
   switch (status.state) {
     case "connecting":
       return { dot: "waiting", title: "Connecting to Voicemod…", detail: "" };
     case "connected":
-      return { dot: "ok", title: "Connected", detail: page ? pageText(page) : "Loading the soundboards…" };
+      return {
+        dot: "ok",
+        title: "Connected",
+        detail: page ? pageText(page) : "Loading the soundboards…",
+        note: fromLog ? undefined : "Voicemod's log cannot be read: the lengths of the sounds are estimated.",
+      };
     case "unreachable":
       return {
         dot: "waiting",
@@ -57,6 +63,7 @@ function StatusLine({ line }: { line: Line }) {
       <div>
         <p className="status-title">{line.title}</p>
         {line.detail && <p className="muted">{line.detail}</p>}
+        {line.note && <p className="note">{line.note}</p>}
       </div>
     </div>
   );
@@ -88,7 +95,7 @@ export default function App() {
 
       <section className="card">
         <h2>Voicemod</h2>
-        <StatusLine line={voicemodLine(status.voicemod, status.page)} />
+        <StatusLine line={voicemodLine(status.voicemod, status.page, status.voicemodLog)} />
       </section>
 
       <section className="card activity">

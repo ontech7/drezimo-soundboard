@@ -2,10 +2,11 @@
 //! the knob drive Voicemod and the pages, and the LEDs show what Voicemod is doing. Plain logic: it gets each input
 //! with the time it happened and queues the messages for the board and the requests for Voicemod.
 
-use crate::playback::{Playback, State};
+use crate::playback::{LoggedSound, Playback, State};
 use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
 use crate::soundboard::{self, Page, PlaybackMode, Sound, Soundboard};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
+use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::mem;
@@ -71,6 +72,10 @@ pub struct Controller {
     /// The page to show again when the soundboards come back after Voicemod was away: soundboard and part
     resume: Option<(String, usize)>,
     playback: Playback,
+    /// Voicemod's sounds as its log tells them
+    log: LogTracker,
+    /// Every sound of every soundboard, by id
+    sounds: HashMap<String, Sound>,
     /// The pads held down. The sound is kept, so its key-up still reaches it after a page change.
     held: HashMap<u8, Option<HeldSound>>,
     /// Until when each pressed pad shows yellow
@@ -92,6 +97,8 @@ impl Default for Controller {
             page: 0,
             resume: None,
             playback: Playback::default(),
+            log: LogTracker::default(),
+            sounds: HashMap::new(),
             held: HashMap::new(),
             flashes: HashMap::new(),
             releases: Vec::new(),
@@ -122,19 +129,22 @@ impl Controller {
         match message {
             BoardMessage::Pad { index, pressed: true } => self.pad_pressed(index, now),
             BoardMessage::Pad { index, pressed: false } => self.pad_released(index, now),
-            BoardMessage::Button { index, pressed: true } => self.button_pressed(index),
+            BoardMessage::Button { index, pressed: true } => self.button_pressed(index, now),
             BoardMessage::Encoder { step } => self.turn_page(step.into()),
             _ => {}
         }
     }
 
-    pub fn voicemod_event(&mut self, event: VoicemodEvent) {
+    pub fn voicemod_event(&mut self, event: VoicemodEvent, now: Instant) {
         match event {
             VoicemodEvent::Status(status) => {
                 self.voicemod = status;
-                // What played before is unknown now, the waiting key-ups can no longer reach it, and the soundboards
-                // may change meanwhile: Voicemod sends them again once connected
-                self.playback.stop_all();
+                // The waiting key-ups can no longer reach what played, and the soundboards may change meanwhile:
+                // Voicemod sends them again once connected. What plays then is in the log, if followed.
+                self.playback.reset();
+                if status == VoicemodStatus::Connected {
+                    self.resync(now);
+                }
                 self.releases.clear();
                 self.switches = Switches::default();
                 if let Some(page) = self.page_id() {
@@ -164,7 +174,7 @@ impl Controller {
         for (_, HeldSound { sound, .. }) in due {
             // Not to a sound stopped meanwhile: Voicemod would take the key-up as a press and start it again
             if self.playback.state(&sound.id).is_some() {
-                self.playback.release(&sound);
+                self.playback.release(&sound, now);
                 self.request(Request::PlaySound {
                     id: sound.id,
                     key_down: false,
@@ -172,7 +182,9 @@ impl Controller {
             }
         }
         self.flashes.retain(|_, until| *until > now);
-        self.playback.update(now);
+        if self.playback.update(now) {
+            self.resync(now);
+        }
         if self.board_connected {
             self.refresh_leds();
         }
@@ -182,7 +194,39 @@ impl Controller {
     pub fn next_update(&self) -> Option<Instant> {
         let flashes = self.flashes.values().copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
-        flashes.chain(releases).chain(self.playback.next_end()).min()
+        flashes.chain(releases).chain(self.playback.next_change()).min()
+    }
+
+    pub fn log_input(&mut self, input: LogInput, now: Instant) {
+        match input {
+            LogInput::Opened(history) => {
+                // The past only teaches the sounds' lengths and what is playing now
+                self.log = LogTracker::default();
+                for line in &history {
+                    if let Some(LogEvent::Ended {
+                        id,
+                        length: Some(length),
+                        ..
+                    }) = self.log.feed(line)
+                    {
+                        self.playback.learn_length(&id, length);
+                    }
+                }
+                self.playback.follow_log(true);
+                self.resync(now);
+            }
+            LogInput::Lines(lines) => {
+                for line in &lines {
+                    self.log_line(line, now);
+                }
+            }
+            LogInput::Lost => self.playback.follow_log(false),
+        }
+    }
+
+    /// Whether the playback shown comes from Voicemod's log, rather than from guesses.
+    pub fn follows_log(&self) -> bool {
+        self.playback.follows_log()
     }
 
     pub fn take_outputs(&mut self) -> Vec<Output> {
@@ -240,12 +284,12 @@ impl Controller {
         }
     }
 
-    fn button_pressed(&mut self, button: u8) {
+    fn button_pressed(&mut self, button: u8, now: Instant) {
         match button {
             PREV => self.turn_page(-1),
             NEXT => self.turn_page(1),
             STOP => {
-                self.playback.stop_all();
+                self.playback.stop_all(now);
                 self.request(Request::StopAllSounds);
             }
             MUTE_ME => self.request(Request::ToggleMuteForMe),
@@ -264,6 +308,11 @@ impl Controller {
 
     fn set_soundboards(&mut self, soundboards: &[Soundboard]) {
         let wanted = self.resume.take().or_else(|| self.page_id());
+        self.sounds = soundboards
+            .iter()
+            .flat_map(|soundboard| &soundboard.sounds)
+            .map(|sound| (sound.id.clone(), sound.clone()))
+            .collect();
         self.pages = soundboard::pages(soundboards);
         self.page = wanted
             .and_then(|(id, part)| {
@@ -276,6 +325,43 @@ impl Controller {
                 exact.or_else(|| self.pages.iter().rposition(same_soundboard))
             })
             .unwrap_or(0);
+    }
+
+    fn log_line(&mut self, line: &LogLine, now: Instant) {
+        let Some(event) = self.log.feed(line) else {
+            return;
+        };
+        if let LogEvent::Ended {
+            id,
+            length: Some(length),
+            ..
+        } = &event
+        {
+            self.playback.learn_length(id, *length);
+        }
+        if self.voicemod == VoicemodStatus::Connected {
+            let sound = event.sound_id().and_then(|id| self.sounds.get(id));
+            self.playback
+                .apply(&event, voicemod_log::instant_of(line.at, now), sound);
+        }
+    }
+
+    /// Takes what plays from the log, when followed.
+    fn resync(&mut self, now: Instant) {
+        let Some(as_of) = self.log.as_of().filter(|_| self.playback.follows_log()) else {
+            return;
+        };
+        let logged: Vec<LoggedSound> = self
+            .log
+            .active()
+            .map(|active| LoggedSound {
+                sound: self.sounds.get(active.id),
+                state: active.state,
+                started: voicemod_log::instant_of(active.started, now),
+                id: active.id,
+            })
+            .collect();
+        self.playback.resync(&logged, voicemod_log::instant_of(as_of, now), now);
     }
 
     fn page_id(&self) -> Option<(String, usize)> {
@@ -355,6 +441,8 @@ impl Controller {
 mod tests {
     use super::*;
     use crate::soundboard::tests::{sound, soundboard};
+    use crate::voicemod_log::LineKind;
+    use std::time::SystemTime;
 
     const STOP_LED: usize = PADS + STOP as usize;
 
@@ -362,8 +450,8 @@ mod tests {
     fn ready(soundboards: Vec<Soundboard>) -> (Controller, Instant) {
         let now = Instant::now();
         let mut controller = Controller::default();
-        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected));
-        controller.voicemod_event(VoicemodEvent::Soundboards(soundboards));
+        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+        controller.voicemod_event(VoicemodEvent::Soundboards(soundboards), now);
         controller.set_board_connected(true, now);
         controller.update(now);
         controller.take_outputs();
@@ -398,6 +486,16 @@ mod tests {
             Output::Board(line) if line.starts_with(&prefix) => Some(&line[prefix.len()..]),
             _ => None,
         })
+    }
+
+    fn played_in_log(id: &str, at: SystemTime) -> LogLine {
+        let kind = LineKind::Play {
+            id: id.into(),
+            mode: PlaybackMode::PlayRestart,
+            repeat: false,
+            paused: false,
+        };
+        LogLine { at, kind }
     }
 
     fn play(id: &str, key_down: bool) -> Request {
@@ -546,7 +644,7 @@ mod tests {
 
         let outputs = button(&mut controller, MUTE_ME, now);
         assert_eq!(requests(&outputs), [&Request::ToggleMuteForMe]);
-        controller.voicemod_event(VoicemodEvent::MuteForMe(true));
+        controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
         controller.update(now);
         assert_eq!(
             led(&controller.take_outputs(), PADS + MUTE_ME as usize),
@@ -576,24 +674,27 @@ mod tests {
         button(&mut controller, NEXT, now);
         assert_eq!(controller.page().unwrap().name, "A");
 
-        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()));
+        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
         assert_eq!(controller.page().unwrap().number, 2);
         assert_eq!(requests(&press(&mut controller, 0, true, now)), [&play("b1", true)]);
     }
 
     #[test]
     fn keeps_the_page_when_the_soundboards_change() {
-        let (mut controller, _) = ready(vec![soundboard("a", vec![]), soundboard("b", vec![])]);
-        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()));
+        let (mut controller, now) = ready(vec![soundboard("a", vec![]), soundboard("b", vec![])]);
+        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
 
-        controller.voicemod_event(VoicemodEvent::Soundboards(vec![
-            soundboard("new", vec![]),
-            soundboard("a", vec![]),
-            soundboard("b", vec![]),
-        ]));
+        controller.voicemod_event(
+            VoicemodEvent::Soundboards(vec![
+                soundboard("new", vec![]),
+                soundboard("a", vec![]),
+                soundboard("b", vec![]),
+            ]),
+            now,
+        );
         assert_eq!(controller.page().unwrap().number, 3);
 
-        controller.voicemod_event(VoicemodEvent::Soundboards(vec![soundboard("a", vec![])]));
+        controller.voicemod_event(VoicemodEvent::Soundboards(vec![soundboard("a", vec![])]), now);
         assert_eq!(controller.page().unwrap().number, 1);
     }
 
@@ -604,10 +705,10 @@ mod tests {
         controller.board_message(BoardMessage::Encoder { step: -1 }, now);
         assert_eq!(controller.page().unwrap().part, 3);
 
-        controller.voicemod_event(VoicemodEvent::Soundboards(vec![
-            soundboard("a", vec![]),
-            soundboard("big", sounds(40)),
-        ]));
+        controller.voicemod_event(
+            VoicemodEvent::Soundboards(vec![soundboard("a", vec![]), soundboard("big", sounds(40))]),
+            now,
+        );
         let page = controller.page().unwrap();
         assert_eq!((page.name.as_str(), page.part), ("BIG", 2));
     }
@@ -616,24 +717,24 @@ mod tests {
     fn returns_to_its_page_when_voicemod_comes_back() {
         let soundboards = || vec![soundboard("a", vec![sound("a1")]), soundboard("b", vec![sound("b1")])];
         let (mut controller, now) = ready(soundboards());
-        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()));
+        controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
 
-        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable));
+        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
         assert_eq!(controller.page(), None);
-        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected));
+        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
         assert!(
             requests(&press(&mut controller, 0, true, now)).is_empty(),
             "no sound before the soundboards"
         );
 
-        controller.voicemod_event(VoicemodEvent::Soundboards(soundboards()));
+        controller.voicemod_event(VoicemodEvent::Soundboards(soundboards()), now);
         assert_eq!(controller.page().unwrap().name, "B");
     }
 
     #[test]
     fn blinks_red_and_plays_nothing_without_voicemod() {
         let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
-        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable));
+        controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
         controller.update(now);
         let outputs = controller.take_outputs();
         assert_eq!(outputs.len(), LED_COUNT);
@@ -656,5 +757,44 @@ mod tests {
         controller.set_board_connected(false, unplugged);
         controller.update(unplugged);
         assert_eq!(requests(&controller.take_outputs()), [&play("held", false)]);
+    }
+
+    #[test]
+    fn learns_the_lengths_from_the_log() {
+        let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
+        let earlier = SystemTime::now() - Duration::from_secs(60);
+        let ended = LogLine {
+            at: earlier + Duration::from_millis(850),
+            kind: LineKind::End { id: "a".into() },
+        };
+        controller.log_input(LogInput::Opened(vec![played_in_log("a", earlier), ended]), start);
+
+        press(&mut controller, 0, true, start);
+        controller.update(start + Duration::from_millis(850));
+        assert_eq!(led(&controller.take_outputs(), 0), Some("47,107,255"));
+    }
+
+    #[test]
+    fn shows_sounds_played_from_voicemod_itself() {
+        let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+        controller.log_input(LogInput::Opened(Vec::new()), now);
+        controller.log_input(LogInput::Lines(vec![played_in_log("a", SystemTime::now())]), now);
+        controller.update(now);
+        let outputs = controller.take_outputs();
+        assert_eq!(led(&outputs, 0), Some("34,224,90"));
+        assert_eq!(led(&outputs, STOP_LED), Some("255,42,42"));
+    }
+
+    #[test]
+    fn shows_what_already_plays_when_the_log_opens() {
+        let looped = Sound {
+            looped: true,
+            ..sound("loop")
+        };
+        let (mut controller, now) = ready(vec![soundboard("b", vec![looped])]);
+        let started = SystemTime::now() - Duration::from_secs(30);
+        controller.log_input(LogInput::Opened(vec![played_in_log("loop", started)]), now);
+        controller.update(now);
+        assert_eq!(led(&controller.take_outputs(), 0), Some("34,224,90"));
     }
 }

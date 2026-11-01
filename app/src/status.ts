@@ -18,6 +18,8 @@ export interface PageSummary {
 export interface Status {
   board: BoardStatus;
   voicemod: VoicemodStatus;
+  /** Whether the playback shown comes from Voicemod's log, rather than from guesses */
+  voicemodLog: boolean;
   page: PageSummary | null;
 }
 

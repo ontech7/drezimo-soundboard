@@ -82,6 +82,11 @@ p {
   font-weight: 600;
 }
 
+.note {
+  margin-top: 6px;
+  color: var(--amber);
+}
+
 .dot {
   flex: none;
   width: 10px;

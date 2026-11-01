@@ -5,6 +5,7 @@ use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{Controller, Output, PageSummary};
 use crate::tray;
 use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
+use crate::voicemod_log::{self, LogInput};
 use serde::Serialize;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -15,12 +16,16 @@ use tauri::{AppHandle, Emitter, Manager, State};
 enum Input {
     Board(BoardEvent),
     Voicemod(VoicemodEvent),
+    Log(LogInput),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     pub board: BoardStatus,
     pub voicemod: VoicemodStatus,
+    /// Whether the playback shown comes from Voicemod's log, rather than from guesses
+    pub voicemod_log: bool,
     pub page: Option<PageSummary>,
 }
 
@@ -36,6 +41,10 @@ pub fn start(app: AppHandle) {
     let board_inputs = inputs.clone();
     link.start(move |event| {
         let _ = board_inputs.send(Input::Board(event));
+    });
+    let log_inputs = inputs.clone();
+    voicemod_log::follow(move |input| {
+        let _ = log_inputs.send(Input::Log(input));
     });
     let voicemod = Voicemod::start(move |event| {
         let _ = inputs.send(Input::Voicemod(event));
@@ -80,8 +89,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voic
                 if let VoicemodEvent::Status(voicemod_status) = event {
                     status.voicemod = voicemod_status;
                 }
-                controller.voicemod_event(event);
+                controller.voicemod_event(event, now);
             }
+            Some(Input::Log(input)) => controller.log_input(input, now),
             None => {}
         }
 
@@ -93,6 +103,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voic
             }
         }
         status.page = controller.page();
+        status.voicemod_log = controller.follows_log();
         if status != published {
             publish(app, &status);
             published = status.clone();

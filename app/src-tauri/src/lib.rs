@@ -6,6 +6,7 @@ mod protocol;
 mod soundboard;
 mod tray;
 mod voicemod;
+mod voicemod_log;
 mod window;
 
 use std::sync::Mutex;

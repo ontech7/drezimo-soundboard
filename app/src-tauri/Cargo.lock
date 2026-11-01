@@ -879,6 +879,7 @@ dependencies = [
 name = "drezimo"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures-util",
  "serde",
  "serde_json",

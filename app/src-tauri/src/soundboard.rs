@@ -2,6 +2,7 @@
 
 use crate::protocol::PAD_COUNT;
 use serde::Deserialize;
+use serde::de::{IntoDeserializer, value};
 use std::collections::HashSet;
 
 const PADS: usize = PAD_COUNT as usize;
@@ -54,6 +55,13 @@ pub enum PlaybackMode {
     /// A mode added after this app
     #[serde(other)]
     Unknown,
+}
+
+impl PlaybackMode {
+    /// From its name, as in Voicemod's API.
+    pub fn from_name(name: &str) -> Self {
+        Self::deserialize(IntoDeserializer::<value::Error>::into_deserializer(name)).unwrap_or(Self::Unknown)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
