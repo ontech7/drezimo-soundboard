@@ -2,9 +2,9 @@ name: App
 
 on:
   push:
-    paths: ["app/**", ".github/workflows/app.yml"]
+    paths: ["app/**", ".github/workflows/app.yml", ".gitattributes"]
   pull_request:
-    paths: ["app/**", ".github/workflows/app.yml"]
+    paths: ["app/**", ".github/workflows/app.yml", ".gitattributes"]
 
 jobs:
   check:
