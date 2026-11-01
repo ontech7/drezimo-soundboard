@@ -1,3 +1,4 @@
+use super::overlay::OVERLAY_TIME;
 use super::*;
 use crate::display::screens::Screen;
 use crate::soundboard::tests::{sound, soundboard};
@@ -406,7 +407,7 @@ fn a_tap_opens_the_menu_and_another_picks_the_page() {
 
 #[test]
 fn the_menu_closes_by_itself() {
-    let (mut controller, now) = ready(three_soundboards());
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
     knob(&mut controller, true, now);
     knob(&mut controller, false, now);
     assert_eq!(controller.next_update(), Some(now + MENU_TIME));
@@ -561,4 +562,95 @@ fn shows_the_name_of_a_sound_started_from_the_computer() {
         panic!("the home screen");
     };
     assert_eq!(name, "HONK");
+}
+
+fn overlay_in(outputs: &[Output]) -> Option<&Option<Overlay>> {
+    outputs.iter().rev().find_map(|output| match output {
+        Output::Overlay(overlay) => Some(overlay),
+        _ => None,
+    })
+}
+
+/// A ready controller whose overlay, shown when the board connected, has gone.
+fn ready_without_overlay(soundboards: Vec<Soundboard>) -> (Controller, Instant) {
+    let (mut controller, start) = ready(soundboards);
+    let now = start + OVERLAY_TIME;
+    controller.update(now);
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    (controller, now)
+}
+
+#[test]
+fn turning_the_page_shows_the_overlay_for_a_while() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    let outputs = turn(&mut controller, 1, now);
+    let Some(Some(shown)) = overlay_in(&outputs) else {
+        panic!("the overlay");
+    };
+    assert_eq!((shown.title.as_str(), shown.counter.as_str()), ("B", "2/3"));
+    assert_eq!(
+        (shown.cells[0].name.as_str(), shown.cells[0].led),
+        ("B1", Led::solid(BLUE))
+    );
+    assert_eq!((shown.cells[1].name.as_str(), shown.cells[1].led), ("", Led::OFF));
+
+    assert_eq!(controller.next_update(), Some(now + OVERLAY_TIME));
+    controller.update(now + OVERLAY_TIME);
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+}
+
+#[test]
+fn the_overlay_shows_the_leds() {
+    let locked = Sound {
+        enabled: false,
+        ..sound("locked")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk"), locked])]);
+    let outputs = press(&mut controller, 0, true, now);
+    let Some(Some(shown)) = overlay_in(&outputs) else {
+        panic!("the overlay");
+    };
+    assert_eq!(shown.cells[0].led, Led::solid(YELLOW));
+    assert!(shown.cells[1].locked && !shown.cells[0].locked);
+}
+
+#[test]
+fn holding_the_knob_shows_the_overlay_until_a_while_after() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    assert!(matches!(overlay_in(&knob(&mut controller, true, now)), Some(Some(_))));
+    let later = now + Duration::from_secs(10);
+    controller.update(later);
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+
+    press(&mut controller, 0, true, later);
+    press(&mut controller, 0, false, later);
+    knob(&mut controller, false, later);
+    controller.update(later + OVERLAY_TIME - Duration::from_millis(1));
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+    controller.update(later + OVERLAY_TIME);
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+}
+
+#[test]
+fn no_overlay_without_the_board() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.set_board_connected(false, now);
+    controller.update(now);
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
+    controller.update(now);
+    assert_eq!(overlay_in(&controller.take_outputs()), None, "still hidden");
+}
+
+#[test]
+fn voicemod_telling_again_of_the_soundboard_shown_is_no_page_change() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    controller.voicemod_event(VoicemodEvent::ActiveSoundboard("a".into()), now);
+    controller.update(now);
+    assert_eq!(overlay_in(&controller.take_outputs()), None);
+
+    controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
+    controller.update(now);
+    assert!(matches!(overlay_in(&controller.take_outputs()), Some(Some(_))));
+    assert_eq!(controller.page().unwrap().name, "B");
 }

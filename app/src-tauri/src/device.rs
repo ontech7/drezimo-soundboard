@@ -4,13 +4,14 @@
 use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{Controller, Output, PageSummary};
 use crate::display::texts::Texts;
+use crate::overlay::{self, Overlay};
 use crate::protocol;
 use crate::tray;
 use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
 use serde::Serialize;
 use std::sync::Mutex;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -60,10 +61,17 @@ pub fn start(app: AppHandle) {
     let voicemod = Voicemod::start(move |event| {
         let _ = inputs.send(Input::Voicemod(event));
     });
-    thread::spawn(move || run(&app, &received, &board, &voicemod));
+    let overlay = overlay::start(&app);
+    thread::spawn(move || run(&app, &received, &board, &voicemod, &overlay));
 }
 
-fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voicemod) {
+fn run(
+    app: &AppHandle,
+    inputs: &Receiver<Input>,
+    board: &Board,
+    voicemod: &Voicemod,
+    overlay: &Sender<Option<Overlay>>,
+) {
     let mut controller = Controller::new(Texts::for_system());
     let mut status = Status::default();
     let mut published = status.clone();
@@ -118,6 +126,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voic
                     }
                     let _ = app.emit("display", &hex);
                     *app.state::<DisplayFrame>().0.lock().unwrap() = hex;
+                }
+                Output::Overlay(shown) => {
+                    let _ = overlay.send(shown);
                 }
             }
         }

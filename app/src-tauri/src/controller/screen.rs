@@ -28,11 +28,7 @@ impl Controller {
             return (screen, None);
         }
 
-        let counter = if self.pages.is_empty() {
-            String::new()
-        } else {
-            format!("{}/{}", self.page + 1, self.pages.len())
-        };
+        let counter = self.counter();
         if let Some(row) = self.knob.row.filter(|_| self.knob.pressed) {
             return (self.row_screen(row, counter), None);
         }
@@ -66,7 +62,16 @@ impl Controller {
         (screen, name_until.into_iter().chain(countdown).min())
     }
 
-    fn page_title(&self, page: &Page) -> String {
+    /// The page's number and the number of pages, such as "2/7".
+    pub(super) fn counter(&self) -> String {
+        if self.pages.is_empty() {
+            String::new()
+        } else {
+            format!("{}/{}", self.page + 1, self.pages.len())
+        }
+    }
+
+    pub(super) fn page_title(&self, page: &Page) -> String {
         let name = if page.soundboard_id == FAVOURITES_ID {
             self.texts.favourites
         } else {

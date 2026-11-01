@@ -28,6 +28,20 @@ tokio = { version = "1", features = ["macros", "net", "sync", "time"] }
 # Voicemod listens on a plain ws:// socket on this computer: no TLS
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+# The overlay's text
+fontdue = "0.9"
+
+# The overlay draws its own picture (src/overlay/), into a native window
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSColor", "NSGraphics", "NSResponder", "NSScreen", "NSView", "NSWindow", "objc2-quartz-core"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes", "CFData", "objc2"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGColorSpace", "CGDataProvider", "CGImage"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 opt-level = "z"

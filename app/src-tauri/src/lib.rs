@@ -2,6 +2,7 @@ mod board;
 mod controller;
 mod device;
 mod display;
+mod overlay;
 mod playback;
 mod protocol;
 mod soundboard;

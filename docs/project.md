@@ -18,6 +18,7 @@
 - 2026-11-01: the app drives Voicemod: pads play the sounds of the current page, function keys and knob work, LEDs show the sound states (playback estimated until the log watcher).
 - 2026-11-01: the app follows Voicemod's log: real playback state and learned sound lengths, also for sounds played from Voicemod's window.
 - 2026-11-01: the app draws the board's display, pixel for pixel as the simulator (also previewed in the app's window), with the soundboard menu, peek and row overview on the knob.
+- 2026-11-02: the app shows the 6×6 PC overlay (sound names and live LED colours) when the page changes and while the knob is held, in a native window; the simulator previews it the same way.
 
 ## 1. Goal
 
@@ -127,7 +128,7 @@ The keycaps have no legends or screens, so sounds are identified in other ways:
 
 1. **Peek:** hold the encoder button and press a pad → the display shows the sound's name, the pad flashes, no sound is played.
 2. **Row overview:** hold the encoder button and rotate → one row of 6 pads lights white and the display lists their names.
-3. **PC overlay:** the bridge app shows a 6×6 grid on the PC screen with the names and live LED colours.
+3. **PC overlay:** the bridge app shows a 6×6 grid on the PC screen with the names and live LED colours, for a few seconds when the page changes and while the knob is held.
 4. **Later:** custom per-sound idle colours set in the app.
 
 Points 1–3 are already implemented in `simulator/dummy-board.html` (peek also via right-click on a pad; the overlay is previewed next to the zoomed display).
@@ -348,7 +349,7 @@ Log watcher (`voicemod_log.rs`): follows `voicemod-desktop.log` (macOS: `~/Libra
 
 Display (`display/`, `controller/screen.rs`): the app draws the 128×64 frames with the simulator's screens and font, Silkscreen at 8 and 16 px (SIL Open Font License, `display/OFL.txt`). Its glyphs were captured from the simulator's own canvas, so the app's frames match the simulator's pixel for pixel (checked on every screen); a star was added for Favourites. The texts follow the system language (Italian or English). A frame goes to the board only when the picture changes, and to the window, which previews the display. A sound started from the computer sends `WAKE`, so a dimmed display brightens. The knob works as in the simulator: a tap opens the soundboard menu (a turn moves, another tap picks, it closes after 6 s); held with a pad press it peeks at the sound (name, mode, length, no sound played; the pad blinks); held and turned it shows a row of six (the row lights white, the others dim).
 
-PC overlay: drawn by the Rust core in a native transparent, click-through, always-on-top window rather than a webview, so it never sleeps and appears at once; position (monitor, one of nine anchors or dragged), opacity and timing are configurable. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that.
+PC overlay (`overlay/`, `controller/overlay.rs`): the current page as a 6×6 grid, each pad with its sound's name and its live LED colour, under the page's name and number. Blinking and breathing LEDs animate at the board's pace, though not in step with it: the firmware times its effects from its own start. It appears for 4 s when the page changes (knob, PREV/NEXT, menu, a soundboard picked in Voicemod) or the board connects, and stays while the knob is held or the menu is open, so holding the knob also shows it; it fades in and out, and hides while the board or Voicemod is missing. The Rust core draws it itself, in Inter (SIL Open Font License, `overlay/OFL.txt`; subset to Latin with its kerning kept, names on two lines at most), into a native window rather than a webview, so it never sleeps and appears at once: on Windows a layered window with per-pixel transparency that lets the mouse through, never takes the focus and stays out of the taskbar and Alt+Tab; on macOS a borderless window on every Space. It sits in the bottom-right corner of the main screen, above the taskbar or the Dock; position (monitor, one of nine anchors or dragged), opacity and timing will be configurable with the settings. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that. Tested on macOS; the Windows window is still to be checked on a Windows PC.
 
 ### Voicemod integration: to verify early
 
@@ -505,7 +506,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Log watcher in the app: real playback state and sound lengths (tested against Voicemod 3.17.43 on macOS).
 - [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; to be checked on the real OLED).
 - [ ] Verify the Windows path of the Voicemod log.
-- [ ] The 6×6 PC overlay (already working in the simulator).
+- [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS; to be checked on Windows).
 - [ ] Firmware update from the app.
 - [ ] Installer + auto-start; test connection errors and failed commands.
 - [ ] Later: custom per-sound idle colours.

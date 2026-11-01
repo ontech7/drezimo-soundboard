@@ -2,11 +2,13 @@
 //! the knob drive Voicemod and the pages, and the LEDs and the display show what Voicemod is doing. Plain logic: it
 //! gets each input with the time it happened and queues the messages for the board and the requests for Voicemod.
 
+mod overlay;
 mod screen;
 
 use crate::display::Frame;
 use crate::display::screens::{self, Screen};
 use crate::display::texts::{ENGLISH, Texts};
+use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
 use crate::soundboard::{self, Page, PlaybackMode, Sound, Soundboard};
@@ -54,6 +56,8 @@ pub enum Output {
     Voicemod(Request),
     /// A new picture for the display, whether or not a board shows it
     Display(Frame),
+    /// What the PC overlay shows now, or None to hide it
+    Overlay(Option<Overlay>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -127,6 +131,10 @@ pub struct Controller {
     leds: [Option<Led>; LED_COUNT],
     /// What the display shows, when sent
     screen: Option<Screen>,
+    /// Until when the overlay shows, besides while the knob is held or the menu open
+    overlay_until: Option<Instant>,
+    /// What the overlay shows, as sent
+    overlay: Option<Overlay>,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -154,6 +162,8 @@ impl Default for Controller {
             board_connected: false,
             leds: [None; LED_COUNT],
             screen: None,
+            overlay_until: None,
+            overlay: None,
             next_update: None,
             outputs: Vec::new(),
         }
@@ -177,7 +187,9 @@ impl Controller {
         self.leds = [None; LED_COUNT];
         self.screen = None;
         self.knob = Knob::default();
-        if !connected {
+        if connected {
+            self.show_overlay(now);
+        } else {
             let held: Vec<u8> = self.held.keys().copied().collect();
             for pad in held {
                 self.pad_released(pad, now);
@@ -217,8 +229,11 @@ impl Controller {
             }
             VoicemodEvent::Soundboards(soundboards) => self.set_soundboards(&soundboards),
             VoicemodEvent::ActiveSoundboard(id) => {
-                if let Some(page) = self.pages.iter().position(|page| page.soundboard_id == id) {
-                    self.page = page;
+                // Voicemod also tells again of the soundboard already shown: that is no page change
+                let shown = self.pages.get(self.page).is_some_and(|page| page.soundboard_id == id);
+                let picked = self.pages.iter().position(|page| page.soundboard_id == id);
+                if let Some(page) = picked.filter(|_| !shown) {
+                    self.set_page(page, now);
                 }
             }
             VoicemodEvent::MuteForMe(on) => self.switches.mute_for_me = on,
@@ -260,6 +275,12 @@ impl Controller {
             self.outputs.push(Output::Display(screens::draw(&screen).frame()));
             self.screen = Some(screen);
         }
+        self.overlay_until = self.overlay_until.filter(|until| *until > now);
+        let overlay = self.overlay(now);
+        if overlay != self.overlay {
+            self.outputs.push(Output::Overlay(overlay.clone()));
+            self.overlay = overlay;
+        }
 
         let flashes = self.flashes.values().copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
@@ -272,6 +293,7 @@ impl Controller {
             .chain(menu_end)
             .chain(peek_end)
             .chain(screen_changes)
+            .chain(self.overlay_until)
             .min();
     }
 
@@ -385,8 +407,8 @@ impl Controller {
 
     fn button_pressed(&mut self, button: u8, now: Instant) {
         match button {
-            PREV => self.turn_page(-1),
-            NEXT => self.turn_page(1),
+            PREV => self.turn_page(-1, now),
+            NEXT => self.turn_page(1, now),
             STOP => {
                 self.playback.stop_all(now);
                 self.request(Request::StopAllSounds);
@@ -413,7 +435,7 @@ impl Controller {
             menu.selected = (menu.selected as isize + step).clamp(0, last) as usize;
             menu.until = now + MENU_TIME;
         } else {
-            self.turn_page(step);
+            self.turn_page(step, now);
         }
     }
 
@@ -423,6 +445,10 @@ impl Controller {
             return;
         }
         let tapped = !pressed && !self.knob.used;
+        if !pressed && self.knob.used {
+            // The names stay a little after a peek or a row overview
+            self.show_overlay(now);
+        }
         self.knob = Knob {
             pressed,
             ..Knob::default()
@@ -431,7 +457,7 @@ impl Controller {
             return;
         }
         match self.menu.take() {
-            Some(menu) => self.page = menu.selected.min(self.pages.len().saturating_sub(1)),
+            Some(menu) => self.set_page(menu.selected.min(self.pages.len().saturating_sub(1)), now),
             None => {
                 self.menu = Some(Menu {
                     selected: self.page,
@@ -441,11 +467,17 @@ impl Controller {
         }
     }
 
-    fn turn_page(&mut self, step: isize) {
+    fn turn_page(&mut self, step: isize, now: Instant) {
         let count = self.pages.len() as isize;
         if count > 0 {
-            self.page = (self.page as isize + step).rem_euclid(count) as usize;
+            self.set_page((self.page as isize + step).rem_euclid(count) as usize, now);
         }
+    }
+
+    /// Goes to a page, and shows its sounds on the overlay.
+    fn set_page(&mut self, page: usize, now: Instant) {
+        self.page = page;
+        self.show_overlay(now);
     }
 
     fn set_soundboards(&mut self, soundboards: &[Soundboard]) {

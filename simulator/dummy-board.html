@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dummy Soundboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Inter:wght@500;600&display=block" rel="stylesheet">
 <style>
   :root {
     --mm: 3.7795px;            /* px per mm, overridden by the calibration */
@@ -146,9 +146,21 @@
   .mid-row { display: flex; gap: 16px; flex-wrap: wrap; }
   .mid-row > .card { flex: 1 1 280px; min-width: 0; padding: 12px; }
   .mid-row h2 { margin-bottom: 8px; }
-  .overlay-grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 3px; }
-  .overlay-grid div { border: 1px solid var(--line); border-radius: 4px; padding: 2px 3px; height: 30px; overflow: hidden;
-    font-size: 10px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  /* The app's overlay (app/src-tauri/src/overlay/draw.rs), scaled from its 596 points to the card's width */
+  .overlay-wrap { container-type: inline-size; position: relative; }
+  .overlay-hint { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center;
+    transition: opacity .25s; }
+  .overlay-panel.shown + .overlay-hint { opacity: 0; }
+  .overlay-panel { --u: calc(100cqw / 596); position: relative; padding: calc(12 * var(--u)); border: 1px solid #26262c;
+    border-radius: calc(12 * var(--u)); background: rgba(14, 14, 16, .94); color: #f4f3ef; font-family: Inter, system-ui, sans-serif;
+    font-weight: 500; opacity: 0; transition: opacity .25s; }
+  .overlay-panel.shown { opacity: 1; transition-duration: .12s; }
+  .overlay-head { display: flex; justify-content: space-between; height: calc(22 * var(--u)); font-size: calc(13 * var(--u)); font-weight: 600; }
+  .overlay-head span + span { font-size: calc(12 * var(--u)); font-weight: 500; color: #8b8b94; }
+  .overlay-grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: calc(4 * var(--u)); }
+  .overlay-grid div { display: flex; align-items: center; height: calc(38 * var(--u)); padding: 0 calc(6 * var(--u)); overflow: hidden;
+    border: 1px solid #26262c; border-radius: calc(6 * var(--u)); font-size: calc(12 * var(--u)); line-height: calc(14 * var(--u)); word-break: break-word; }
+  .overlay-grid span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .overlay-grid div.dim { opacity: .45; }
   .oled-zoom { display: block; width: 100%; max-height: 28vh; aspect-ratio: 2 / 1; object-fit: contain; image-rendering: pixelated; background: #000; border-radius: 6px; }
   .log-card { flex: 1; display: flex; flex-direction: column; min-height: 240px; }
@@ -217,7 +229,13 @@
       </div>
       <div class="card overlay-card">
         <h2>PC overlay (bridge app)</h2>
-        <div class="overlay-grid" id="overlayGrid"></div>
+        <div class="overlay-wrap">
+          <div class="overlay-panel" id="overlayPanel">
+            <div class="overlay-head"><span id="overlayTitle"></span><span id="overlayCounter"></span></div>
+            <div class="overlay-grid" id="overlayGrid"></div>
+          </div>
+          <div class="overlay-hint">Shown for 4 s when the page changes,<br>and while the knob is held</div>
+        </div>
       </div>
     </div>
 
@@ -383,6 +401,7 @@ const state = {
   pages: [],
   page: 0,
   menu: null,              // { sel, until }
+  overlayUntil: 0,         // the PC overlay shows until then, besides while the knob is held or the menu open
   last: null,              // { name, at }
   flash: new Map(),        // padIdx -> until (performance.now)
   held: new Map(),         // "p3" / "f1" -> { sound, at }
@@ -457,7 +476,8 @@ const fnEls = FN_IDS.map((_, i) => {
 });
 const overlayGrid = $("overlayGrid");
 overlayGrid.style.setProperty("--cols", COLS);
-const overlayCells = Array.from({ length: PADS }, () => overlayGrid.appendChild(document.createElement("div")));
+const overlayCells = Array.from({ length: PADS }, () =>
+  overlayGrid.appendChild(document.createElement("div")).appendChild(document.createElement("span")));
 const padEls = Array.from({ length: PADS }, (_, i) => {
   const c = i % COLS, r = Math.floor(i / COLS);
   return makeKey(MARGIN + PITCH * c, Y_GRID + PITCH * r, () => padDown(i), () => padUp(i), false);
@@ -517,9 +537,12 @@ function buildPages() {
   const keep = prev ? pages.findIndex(p => p.boardId === prev.boardId && p.part === prev.part) : -1;
   state.page = keep >= 0 ? keep : 0;
 }
+const OVERLAY_MS = 4000;
+const showOverlay = () => { state.overlayUntil = performance.now() + OVERLAY_MS; };
 function setPage(i) {
   const n = state.pages.length; if (!n) return;
   state.page = ((i % n) + n) % n;
+  showOverlay();
   log("sys", `page ${state.page + 1}/${n}: ${pageTitle()}`);
 }
 const pageTitle = () => { const p = state.pages[state.page]; return p ? (p.parts > 1 ? `${p.name} ${p.part}/${p.parts}` : p.name) : "—"; };
@@ -824,6 +847,7 @@ function encPress(down) {
   log("pico", `ENCBTN,${down ? 1 : 0}`);
   if (down) { state.enc = { down: true, used: false, row: null }; return; }
   const tap = !state.enc.used;
+  if (state.enc.used) showOverlay(); // the names stay a little after a peek or a row overview
   state.enc = { down: false, used: false, row: null };
   if (!tap) return;
   if (state.menu) { setPage(state.menu.sel); state.menu = null; }
@@ -916,6 +940,7 @@ function powerUp() { // the USB cable is plugged in
 }
 function appConnected() {
   board.app = true;
+  showOverlay();
   state.ledSent = []; // the app sends its whole LED state on connection
   if (serial.port) setBoardLink(true);
   else log("sys", `bridge app connected: HELLO → DREZIMO,${FIRMWARE_VERSION} (simulated board)`);
@@ -1082,9 +1107,9 @@ function renderLeds(now) {
       const text = names && s && board.app ? s.name : "";
       if (el.legend.textContent !== text) el.legend.textContent = text;
       // The overlay belongs to the app: empty while it is not running
-      const cell = overlayCells[i], name = s && board.app ? s.name : "", lit = on && board.app;
-      if (cell.textContent !== name) cell.textContent = name;
-      cell.style.borderColor = lit ? rgb(color) : "var(--line)";
+      const label = overlayCells[i], cell = label.parentElement, name = s && board.app ? s.name : "", lit = on && board.app;
+      if (label.textContent !== name) label.textContent = name;
+      cell.style.borderColor = lit ? rgb(color) : "#26262c";
       cell.style.background = lit ? `rgba(${color.join(",")},.18)` : "transparent";
       cell.classList.toggle("dim", !!s && !s.enabled);
     }
@@ -1263,9 +1288,18 @@ log("sys", "dummy board ready");
 connectWatcher();
 if ($("keyInput").value) connect();
 const pageText = $("pageText");
+// The overlay shows the page while the board is in use, as the app decides it
+function renderOverlay(now) {
+  const voicemod = state.mode === "live" || state.mode === "demo";
+  const wanted = now < state.overlayUntil || state.enc.down || !!state.menu;
+  $("overlayPanel").classList.toggle("shown", board.app && voicemod && state.pages.length > 0 && wanted);
+  const counter = state.pages.length ? `${state.page + 1}/${state.pages.length}` : "";
+  if ($("overlayTitle").textContent !== pageTitle()) $("overlayTitle").textContent = pageTitle();
+  if ($("overlayCounter").textContent !== counter) $("overlayCounter").textContent = counter;
+}
 (function frame(now) {
   tickEngine(Date.now());
-  renderLeds(now); drawOled(now);
+  renderLeds(now); drawOled(now); renderOverlay(now);
   const label = `Page ${state.page + 1}/${state.pages.length} · ${pageTitle()}`;
   if (pageText.textContent !== label) pageText.textContent = label;
   requestAnimationFrame(frame);
