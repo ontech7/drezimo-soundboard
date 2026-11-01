@@ -17,6 +17,7 @@
 - 2026-11-01: bridge app started with Tauri 2 (Rust core, measured against Electron): tray icon, automatic board search, handshake.
 - 2026-11-01: the app drives Voicemod: pads play the sounds of the current page, function keys and knob work, LEDs show the sound states (playback estimated until the log watcher).
 - 2026-11-01: the app follows Voicemod's log: real playback state and learned sound lengths, also for sounds played from Voicemod's window.
+- 2026-11-01: the app draws the board's display, pixel for pixel as the simulator (also previewed in the app's window), with the soundboard menu, peek and row overview on the knob.
 
 ## 1. Goal
 
@@ -345,6 +346,8 @@ Device logic (`controller.rs`, run by `device.rs` on its own thread): the simula
 
 Log watcher (`voicemod_log.rs`): follows `voicemod-desktop.log` (macOS: `~/Library/Application Support/VoicemodV3/logs/`; Windows: `%APPDATA%` or `%LOCALAPPDATA%` `\VoicemodV3\logs\`, to be verified) every 100 ms, reopening it for each read so Voicemod can rotate it, and going on from the start of a rotated file (a file missing for less than 2 s is taken as a rotation). At start it reads the last 4 MB: the uninterrupted plays there teach the sounds' lengths, and the lines since the last `------ RUN ------` (Voicemod's start) tell what is playing now. The lines are replayed through Voicemod's per-sound rules, as `tools/voicemod_log_bridge.py` did, and matched by timestamp with the predictions of the presses (local times, converted with the system time zone): a line within 600 ms of a prediction confirms it, a line nobody predicted (a sound played from Voicemod's window, the real end of a sound) updates the state unless a press changed that sound later, and a prediction left unconfirmed for 4 s makes the app take the state from the log again. A `------ RUN ------` line (Voicemod restarted) clears everything. After 3 predictions in a row left unconfirmed, the log is taken as unreadable (a Voicemod update may change its format) until the app restarts. Without the log, the app guesses 3 s per sound and the window says so. Learned lengths are not saved yet: the log's own history covers them.
 
+Display (`display/`, `controller/screen.rs`): the app draws the 128×64 frames with the simulator's screens and font, Silkscreen at 8 and 16 px (SIL Open Font License, `display/OFL.txt`). Its glyphs were captured from the simulator's own canvas, so the app's frames match the simulator's pixel for pixel (checked on every screen); a star was added for Favourites. The texts follow the system language (Italian or English). A frame goes to the board only when the picture changes, and to the window, which previews the display. A sound started from the computer sends `WAKE`, so a dimmed display brightens. The knob works as in the simulator: a tap opens the soundboard menu (a turn moves, another tap picks, it closes after 6 s); held with a pad press it peeks at the sound (name, mode, length, no sound played; the pad blinks); held and turned it shows a row of six (the row lights white, the others dim).
+
 PC overlay: drawn by the Rust core in a native transparent, click-through, always-on-top window rather than a webview, so it never sleeps and appears at once; position (monitor, one of nine anchors or dragged), opacity and timing are configurable. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that.
 
 ### Voicemod integration: to verify early
@@ -500,9 +503,9 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Tauri app skeleton: tray icon, board found automatically, handshake and live activity (`app/`).
 - [x] Voicemod Control API in the app: pages of 36 sounds, Favourites, function keys, knob pages, LED states (tested against Voicemod 3.17.43 on macOS).
 - [x] Log watcher in the app: real playback state and sound lengths (tested against Voicemod 3.17.43 on macOS).
-- [ ] Display frames drawn by the app, soundboard menu.
+- [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; to be checked on the real OLED).
 - [ ] Verify the Windows path of the Voicemod log.
-- [ ] Peek, row overview and the 6×6 PC overlay (already working in the simulator).
+- [ ] The 6×6 PC overlay (already working in the simulator).
 - [ ] Firmware update from the app.
 - [ ] Installer + auto-start; test connection errors and failed commands.
 - [ ] Later: custom per-sound idle colours.

@@ -6,7 +6,7 @@ use serde::de::{IntoDeserializer, value};
 use std::collections::HashSet;
 
 const PADS: usize = PAD_COUNT as usize;
-const FAVOURITES_ID: &str = "favourites";
+pub const FAVOURITES_ID: &str = "favourites";
 const FAVOURITES_NAME: &str = "Favourites";
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -31,6 +31,9 @@ pub struct Sound {
     pub looped: bool,
     #[serde(default)]
     pub stop_other_sounds: bool,
+    /// The microphone is silenced while it plays
+    #[serde(default)]
+    pub mute_voice: bool,
     #[serde(default)]
     pub favorited: bool,
 }
@@ -124,6 +127,7 @@ pub mod tests {
             playback_mode: PlaybackMode::PlayRestart,
             looped: false,
             stop_other_sounds: false,
+            mute_voice: false,
             favorited: false,
         }
     }

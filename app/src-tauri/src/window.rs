@@ -67,8 +67,9 @@ fn build(app: AppHandle, label: String) {
     std::thread::spawn(move || {
         let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
             .title("Drezimo Soundboard")
-            .inner_size(480.0, 560.0)
-            .min_inner_size(400.0, 440.0)
+            // Fits a 1366×768 screen with its taskbar
+            .inner_size(480.0, 640.0)
+            .min_inner_size(400.0, 560.0)
             .center()
             .visible(false)
             .background_color(BACKGROUND)

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
 import { useBoardActivity } from "./board";
+import { DisplayPreview } from "./DisplayPreview";
 import { type BoardStatus, type PageSummary, type VoicemodStatus, useStatus } from "./status";
 import { windowReady } from "./window";
 
@@ -96,6 +97,11 @@ export default function App() {
       <section className="card">
         <h2>Voicemod</h2>
         <StatusLine line={voicemodLine(status.voicemod, status.page, status.voicemodLog)} />
+      </section>
+
+      <section className="card">
+        <h2>Display</h2>
+        <DisplayPreview />
       </section>
 
       <section className="card activity">

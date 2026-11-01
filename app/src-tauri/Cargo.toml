@@ -21,6 +21,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serialport = "4"
+# The display's language follows the system's
+sys-locale = "0.3"
 # On the async runtime Tauri already runs: timers and the Voicemod connection
 tokio = { version = "1", features = ["macros", "net", "sync", "time"] }
 # Voicemod listens on a plain ws:// socket on this computer: no TLS

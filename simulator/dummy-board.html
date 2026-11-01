@@ -352,13 +352,13 @@ const LOG_CONFIRM_TIMEOUT_MS = 4000;   // unconfirmed prediction -> ask the log 
 // Device texts (OLED + printed labels). The friend's unit uses Italian.
 const LOCALES = {
   en: { ready: "Ready", noSound: "No sound", soundboards: "SOUNDBOARDS", favorites: "★ Favourites",
-        unreachable: "UNREACHABLE", connecting: "CONNECTING...", paused: "PAUSED", loop: "LOOP",
+        unreachable: "UNREACHABLE", connecting: "CONNECTING...", updateApp: "UPDATE THE APP", paused: "PAUSED", loop: "LOOP",
         muteMe: "MUTE ME", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOICE OFF", hearMe: "HEAR ME",
         row: "ROW", empty: "EMPTY", locked: "NOT IN LICENCE", stopsOthers: "STOPS OTHERS",
         modes: { PlayRestart: "ONE-SHOT", PlayOverlap: "OVERLAP", PlayStop: "PLAY/STOP", PlayPause: "PLAY/PAUSE", PlayLoopOnPress: "HOLD" },
         fn: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"] },
-  it: { ready: "Pronto", noSound: "Nessun suono", soundboards: "SOUNDBOARD", favorites: "★ Preferiti",
-        unreachable: "NON RAGGIUNGIBILE", connecting: "CONNESSIONE...", paused: "PAUSA", loop: "LOOP",
+  it: { ready: "Pronto", noSound: "Senza suoni", soundboards: "SOUNDBOARD", favorites: "★ Preferiti",
+        unreachable: "NON RAGGIUNGIBILE", connecting: "CONNESSIONE...", updateApp: "AGGIORNA L'APP", paused: "PAUSA", loop: "LOOP",
         muteMe: "MUTO", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOCE OFF", hearMe: "ASCOLTO",
         row: "RIGA", empty: "VUOTO", locked: "NON IN LICENZA", stopsOthers: "FERMA GLI ALTRI",
         modes: { PlayRestart: "SINGOLO", PlayOverlap: "SOVRAPPOSTO", PlayStop: "PLAY/STOP", PlayPause: "PLAY/PAUSA", PlayLoopOnPress: "TIENI PREMUTO" },
@@ -567,7 +567,7 @@ function onVmMessage(m) {
       requestSnapshot();
     } else {
       log("vm", `← registerClient ${status.code} ${status.description}`);
-      disconnect(false); setMode("error"); $("statusText").textContent = "Key rejected";
+      disconnect(false); setMode("error"); state.keyRejected = true; $("statusText").textContent = "Key rejected";
     }
     return;
   }
@@ -594,6 +594,7 @@ function onVmMessage(m) {
 }
 function setMode(mode) {
   state.mode = mode;
+  state.keyRejected = false;
   $("statusDot").className = "dot " + ({ live: "live", demo: "demo", error: "err", connecting: "demo" }[mode]);
   $("statusText").textContent = { live: "Connected to Voicemod", demo: "Demo (sample data)", error: "Voicemod unreachable", connecting: "Connecting…" }[mode];
 }
@@ -1130,7 +1131,8 @@ function drawOled(now) {
   } else if (state.mode === "error" || state.mode === "connecting") {
     octx.font = big; octx.textAlign = "center";
     octx.fillText("VOICEMOD", 64, 14);
-    octx.font = small; octx.fillText(state.mode === "error" ? L().unreachable : L().connecting, 64, 38);
+    const message = state.mode === "connecting" ? L().connecting : state.keyRejected ? L().updateApp : L().unreachable;
+    octx.font = small; octx.fillText(message, 64, 38);
     octx.textAlign = "left";
   } else if (state.enc.down && state.enc.row !== null) {
     drawRowOverview();

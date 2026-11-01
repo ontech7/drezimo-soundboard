@@ -203,16 +203,18 @@ impl Playback {
         ends.chain(timeouts).min()
     }
 
-    /// Applies a log line written at `at`; `sound` is the sound's metadata, when known.
-    pub fn apply(&mut self, event: &LogEvent, at: Instant, sound: Option<&Sound>) {
+    /// Applies a log line written at `at`; `sound` is the sound's metadata, when known. True when the line told
+    /// something no press predicted.
+    pub fn apply(&mut self, event: &LogEvent, at: Instant, sound: Option<&Sound>) -> bool {
         if self.confirm(event, at) {
-            return;
+            return false;
         }
         match event {
             LogEvent::StoppedAll | LogEvent::Restarted => self.forget_all_but(None, at),
             LogEvent::StoppedOthers { playing } => self.forget_all_but(Some(playing), at),
             // A change made here after the line wins: the line tells an older moment
             LogEvent::Played { id, .. } | LogEvent::Ended { id, .. } if self.changed_after(id, at, NEWER_THAN_LINE) => {
+                return false;
             }
             LogEvent::Ended { id, left: None, .. } => {
                 self.forget(id, at);
@@ -224,6 +226,7 @@ impl Playback {
                 id, from_start, state, ..
             } => self.take(id, *state, *from_start, at, sound),
         }
+        true
     }
 
     /// Takes the state from the log, as of its last line, except where a press changed it since.
@@ -267,6 +270,21 @@ impl Playback {
 
     pub fn is_empty(&self) -> bool {
         self.sounds.is_empty()
+    }
+
+    pub fn active(&self) -> impl Iterator<Item = &str> {
+        self.sounds.keys().map(String::as_str)
+    }
+
+    /// The active sound that changed last, with its state and its end, if known.
+    pub fn latest(&self) -> Option<(&str, State, Option<Instant>)> {
+        let changed = |id: &str| self.changed.get(id).copied();
+        let (id, active) = self.sounds.iter().max_by_key(|(id, _)| changed(id))?;
+        Some((id, active.state, active.ends_at))
+    }
+
+    pub fn length(&self, id: &str) -> Option<Duration> {
+        self.lengths.get(id).copied()
     }
 
     /// Takes the state the log tells for a sound that changed without a prediction, such as one played from

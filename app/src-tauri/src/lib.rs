@@ -1,6 +1,7 @@
 mod board;
 mod controller;
 mod device;
+mod display;
 mod playback;
 mod protocol;
 mod soundboard;
@@ -20,7 +21,12 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| window::open(app)))
         .manage(window::WindowState::default())
         .manage(Mutex::new(device::Status::default()))
-        .invoke_handler(tauri::generate_handler![device::status, window::window_ready])
+        .manage(device::DisplayFrame::default())
+        .invoke_handler(tauri::generate_handler![
+            device::status,
+            device::display_frame,
+            window::window_ready
+        ])
         .on_window_event(window::on_event)
         .setup(|app| {
             // A menu bar app: no Dock icon

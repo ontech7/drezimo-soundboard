@@ -3,6 +3,8 @@
 
 use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{Controller, Output, PageSummary};
+use crate::display::texts::Texts;
+use crate::protocol;
 use crate::tray;
 use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
@@ -34,7 +36,16 @@ pub fn status(status: State<Mutex<Status>>) -> Status {
     status.lock().unwrap().clone()
 }
 
-/// Starts looking for the board and Voicemod. Expects `Mutex<Status>` to be managed.
+/// The display's current picture, in the hex of the board's DISPLAY message, for the window's preview
+#[derive(Default)]
+pub struct DisplayFrame(Mutex<String>);
+
+#[tauri::command]
+pub fn display_frame(frame: State<DisplayFrame>) -> String {
+    frame.0.lock().unwrap().clone()
+}
+
+/// Starts looking for the board and Voicemod. Expects `Mutex<Status>` and `DisplayFrame` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     let (board, link) = Board::new();
@@ -53,7 +64,7 @@ pub fn start(app: AppHandle) {
 }
 
 fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voicemod) {
-    let mut controller = Controller::default();
+    let mut controller = Controller::new(Texts::for_system());
     let mut status = Status::default();
     let mut published = status.clone();
     loop {
@@ -100,6 +111,14 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, board: &Board, voicemod: &Voic
             match output {
                 Output::Board(message) => board.send(message),
                 Output::Voicemod(request) => voicemod.send(request),
+                Output::Display(frame) => {
+                    let hex = frame.hex();
+                    if matches!(status.board, BoardStatus::Connected { .. }) {
+                        board.send(protocol::display_message(&hex));
+                    }
+                    let _ = app.emit("display", &hex);
+                    *app.state::<DisplayFrame>().0.lock().unwrap() = hex;
+                }
             }
         }
         status.page = controller.page();

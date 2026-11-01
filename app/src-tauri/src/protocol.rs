@@ -21,6 +21,11 @@ pub enum Effect {
     Blink,
 }
 
+/// A display picture, from the hex of its bytes.
+pub fn display_message(hex: &str) -> String {
+    format!("DISPLAY,{hex}")
+}
+
 impl Led {
     pub const OFF: Self = Self::solid([0, 0, 0]);
 
