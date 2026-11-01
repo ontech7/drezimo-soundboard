@@ -20,6 +20,7 @@
     --warn: #ffcc4d;
     --err: #ff5c5c;
     --pla: #141417;            /* matte black PLA */
+    --print-white: #e9e8e4;    /* matte white PLA */
     --cap: #2a2c31;
   }
   * { box-sizing: border-box; }
@@ -73,13 +74,12 @@
   }
   .usb-port { border-radius: calc(var(--mm) * .5); background: #0a0a0c;
     box-shadow: inset 0 0 0 calc(var(--mm) * .25) #000; }
-  .engrave { color: #34353b; font-weight: 700; letter-spacing: .04em; text-align: center;
+  /* Raised labels and logo: the print switches to white filament where the relief starts */
+  .plate-label { color: var(--print-white); font-weight: 700; letter-spacing: .04em; text-align: center;
     font-size: calc(var(--mm) * 2.2);
-    text-shadow: 0 calc(var(--mm) * -.15) 0 rgba(0,0,0,.8), 0 calc(var(--mm) * .15) 0 rgba(255,255,255,.05); }
+    text-shadow: 0 calc(var(--mm) * .2) calc(var(--mm) * .15) rgba(0,0,0,.8); }
 
-  /* Logo printed in relief with the top plate, lit from above */
-  .relief { color: #19191d;
-    filter: drop-shadow(0 calc(var(--mm) * -.12) 0 rgba(255,255,255,.08)) drop-shadow(0 calc(var(--mm) * .3) calc(var(--mm) * .25) rgba(0,0,0,.8)); }
+  .relief { color: var(--print-white); filter: drop-shadow(0 calc(var(--mm) * .3) calc(var(--mm) * .25) rgba(0,0,0,.8)); }
   .relief svg { display: block; width: 100%; height: 100%; }
 
   /* 1.3" OLED */
@@ -274,7 +274,7 @@
         </label>
       </div>
       <div class="row">
-        <label class="field">Device language (OLED and engraving)
+        <label class="field">Device language (OLED and labels)
           <select id="locale">
             <option value="en">English</option>
             <option value="it">Italiano</option>
@@ -334,7 +334,7 @@ const LOOP_ON_PRESS_MIN_HOLD_MS = 200; // a key-up right after key-down can leav
 const LOG_CONFIRM_WINDOW_MS = 600;     // max distance between a prediction and the matching log line
 const LOG_CONFIRM_TIMEOUT_MS = 4000;   // unconfirmed prediction -> ask the log watcher for a snapshot
 
-// Device texts (OLED + engraved labels). The friend's unit uses Italian.
+// Device texts (OLED + printed labels). The friend's unit uses Italian.
 const LOCALES = {
   en: { ready: "Ready", noSound: "No sound", soundboards: "SOUNDBOARDS", favorites: "★ Favourites",
         unreachable: "UNREACHABLE", connecting: "CONNECTING...", paused: "PAUSED", loop: "LOOP",
@@ -436,7 +436,7 @@ function makeKey(x, y, onDown, onUp, fn) {
 
 const fnEls = FN_IDS.map((_, i) => {
   const k = makeKey(MARGIN + PITCH * i, Y_FN, () => fnDown(i), () => fnUp(i), true);
-  k.engrave = add("engrave", MARGIN + PITCH * i, Y_LABEL + 0.8, PITCH, 3);
+  k.label = add("plate-label", MARGIN + PITCH * i, Y_LABEL + 0.8, PITCH, 3);
   return k;
 });
 const overlayGrid = $("overlayGrid");
@@ -455,7 +455,7 @@ padEls.forEach((el, i) => el.key.addEventListener("contextmenu", e => {
   log("sys", `peek pad ${i + 1}: ${s ? s.name : "empty"}`);
 }));
 function applyLocale() {
-  fnEls.forEach((k, i) => { k.legend.textContent = L().fn[i]; k.engrave.textContent = L().fn[i]; });
+  fnEls.forEach((k, i) => { k.legend.textContent = L().fn[i]; k.label.textContent = L().fn[i]; });
   buildPages();
 }
 
