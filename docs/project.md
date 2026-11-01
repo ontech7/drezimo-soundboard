@@ -12,8 +12,8 @@
 - 2026-11-01: JLCPCB fab files (`export_fab.py`); LCSC parts chosen, 47 µF moved to a 1206 Basic part; the LED needs Standard PCBA.
 - 2026-11-01: firmware bring-up on a bare RP2040-Zero (`firmware/`): USB serial messages, module LED, reboot to the bootloader and upload with one script.
 - 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
-- 2026-11-01: the simulator drives a real board over Web Serial (Chrome/Edge), as the bridge app will.
 - 2026-11-01: firmware 0.2.0 implements the board ↔ app protocol (section 9): keys and encoder, LED effects with the power limiter, app-drawn display frames, burn-in protection, saved settings, and an animated logo on the display and the pads while no app is connected, also in the simulator.
+- 2026-11-01: the simulator drives a real board over Web Serial (Chrome/Edge), as the bridge app will.
 
 ## 1. Goal
 
