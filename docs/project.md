@@ -10,6 +10,7 @@
 - 2026-11-01: parts measured; PCB moved to the RP2040-Zero (USB-C through the back edge), LED cut-outs at the measured 4.47 mm, OLED header VCC-GND-SCL-SDA.
 - 2026-11-01: 1:1 paper fit check passed; Kailh hot-swap sockets (fab assembled) instead of soldered switches; PCB fully routed with GND pours on both layers; 5 mm PCB corners.
 - 2026-11-01: JLCPCB fab files (`export_fab.py`); LCSC parts chosen, 47 µF moved to a 1206 Basic part; the LED needs Standard PCBA.
+- 2026-11-01: firmware bring-up on a bare RP2040-Zero (`firmware/`): USB serial messages, module LED, reboot to the bootloader and upload with one script.
 - 2026-11-01: hot-swap sockets dropped (out of stock at JLCPCB): switches soldered to the PCB in plated holes, board v0.2. The 5 bare v0.1 boards of the first order are hot-swap only (NPTH pin holes).
 
 ## 1. Goal
@@ -396,6 +397,19 @@ The exact format will be defined when we start the firmware. Points to cover:
 
 These are examples, not an already implemented protocol.
 
+Implemented so far (firmware 0.1.0, PC → board, each answered on one line):
+
+| Message | Reply | |
+|---|---|---|
+| `HELLO` | `DREZIMO,<firmware version>` | Lets the app find the board among the serial ports |
+| `BOOT` | `OK` | Reboots into the USB bootloader for a firmware update |
+| `DEVLED,<r>,<g>,<b>` | `OK` | Development only: the module's own RGB LED (GP16) to a fixed colour |
+| `DEVLED,CYCLE` | `OK` | Development only: the module LED back to its colour cycle |
+
+Anything else gets `ERR,unknown message`. Messages are case-insensitive.
+
+The firmware is built as a generic RP2040 board (USB ID 2E8A:F00A). The Waveshare RP2040 Zero board definition reuses the bootloader's ID (2E8A:0003), and after an upload macOS never brings up the serial port until the cable is replugged.
+
 ## 10. Work plan
 
 ### Phase 1 — Decisions and verification
@@ -426,7 +440,7 @@ These are examples, not an already implemented protocol.
 - [ ] Matrix scan with debounce, encoder, serial protocol.
 - [ ] SK6812 driver through the buffer, with the ≈400 mA power limiter.
 - [ ] SH1106 display driver with localisable texts.
-- [ ] Reboot-to-USB-bootloader command for updates from the app.
+- [x] Reboot-to-USB-bootloader command for updates from the app (`BOOT`, tested with `firmware/upload.sh`).
 
 ### Phase 5 — Bridge app (Windows)
 - [ ] Port the simulator logic: pages of 36 sounds, Favourites, function keys, LED and display states.

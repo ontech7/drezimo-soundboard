@@ -23,3 +23,6 @@ hardware/pcb/erc.json
 hardware/pcb/drc.json
 hardware/docs/
 hardware/fab/
+
+# Firmware build output
+firmware/build/
