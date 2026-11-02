@@ -91,8 +91,13 @@ impl NativeWindow {
         };
 
         let target = unsafe { slice::from_raw_parts_mut(canvas.pixels, image.pixels.len()) };
-        for (to, from) in target.chunks_exact_mut(4).zip(image.pixels.chunks_exact(4)) {
-            to.copy_from_slice(&[from[2], from[1], from[0], from[3]]);
+        for (to, from) in target
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(image.pixels.as_chunks::<4>().0)
+        {
+            *to = [from[2], from[1], from[0], from[3]];
         }
         let position = POINT { x, y };
         let size = SIZE { cx: width, cy: height };
