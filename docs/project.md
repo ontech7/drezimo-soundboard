@@ -502,6 +502,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module: 0.1.9 → 0.2.0 in about 5 s, on macOS).
 - [x] Installer with its own interface, per user, with auto-start (checked on Windows 11 at 100% scale with an install, a reinstall, a passive update run and a silent uninstall, 2026-11-02; a real self-update from a release is still to be seen).
 - [ ] Test connection errors and failed commands.
+- [ ] macOS distribution, on a Mac: a DMG in the installer's style (background, window, icon positions), a login item, the updater's macOS package in the Release workflow, and signing with notarization (needs an Apple Developer account; until then Gatekeeper blocks the first launch).
 - [ ] Later: custom per-sound idle colours.
 
 ### Phase 6 — Enclosure and final assembly
