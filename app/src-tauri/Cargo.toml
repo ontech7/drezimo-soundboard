@@ -3,6 +3,7 @@ name = "drezimo"
 version = "0.1.0"
 description = "Drezimo Soundboard: the bridge between the board and Voicemod"
 authors = ["ontech7"]
+license = "MIT"
 edition = "2024"
 
 # Desktop only: just the rlib (staticlib and cdylib are for mobile targets)

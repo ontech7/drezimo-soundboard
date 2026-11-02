@@ -3075,7 +3075,7 @@
 		)
 		(uuid "7dce531a-6223-5231-af4d-77c19e25d405")
 	)
-	(text "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND."
+	(text "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the modules used (seen from the glass side). Other modules swap VCC/GND."
 		(exclude_from_sim no)
 		(at 20 78.8 0)
 		(effects

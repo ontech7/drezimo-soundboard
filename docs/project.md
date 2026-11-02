@@ -1,9 +1,9 @@
 # DIY physical soundboard for Voicemod
 
-> Note: the project is in English. The OLED display texts can be localised; the unit built for the author's friend shows them in Italian.
+> Note: the project is in English. The OLED display texts can be localised: English and Italian so far, following the system language.
 
 > Project document  
-> Status: design decided (6×6 layout, custom PCB, USB-only power); real parts measured and fit-checked on paper, PCB fully routed (DRC clean), JLCPCB fab files generated. Next: the order.
+> Status: PCB v0.2 ordered with its LEDs fab-assembled; firmware 0.2.0 tested on a bare RP2040-Zero; the bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates. Next: the app's installer and auto-start, then the assembled PCB and the enclosure.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
@@ -33,9 +33,9 @@ The device will have:
 - **A 1.3" OLED display** (128×64, SH1106, I²C) showing the page, the last sound and the playback/device status.
 - **A custom 2-layer PCB** carrying the key matrix, the LEDs and all the electronics.
 - **A single USB cable** to the PC for both data and power: no second power supply.
-- **A desktop bridge app** on the friend's Windows PC that connects the physical controls to Voicemod.
+- **A desktop bridge app** on the PC (Windows, also macOS) that connects the physical controls to Voicemod.
 
-The project favours readily available components, a repairable structure and the ability to extend it in the future. The friend must never need to touch the board: bug fixes ship as bridge-app updates.
+The project favours readily available components, a repairable structure and the ability to extend it in the future. Whoever uses it must never need to touch the board: bug fixes ship as bridge-app updates.
 
 ### Quality bar: a sellable product
 
@@ -170,10 +170,10 @@ Function-key LEDs mirror Voicemod's toggles: STOP red while any sound plays, MUT
 
 ### Display (OLED)
 
-- 1.3" OLED, 128×64, SH1106 driver, I²C, 4 pins. Module 35.54 × 33.59 mm, glass 34.44 × 22.97 mm, pixel area ≈29.71 × 14.90 mm (measured). Two bought (one spare).
-- **The pin order differs between modules** (VCC-GND-SCL-SDA vs GND-VCC-SCL-SDA). The bought modules are VCC-GND-SCL-SDA seen from the glass side, and the PCB follows them: check the silkscreen of any replacement module.
+- 1.3" OLED, 128×64, SH1106 driver, I²C, 4 pins. Module 35.54 × 33.59 mm, glass 34.44 × 22.97 mm, pixel area ≈29.71 × 14.90 mm (measured).
+- **The pin order differs between modules** (VCC-GND-SCL-SDA vs GND-VCC-SCL-SDA). The modules used here are VCC-GND-SCL-SDA seen from the glass side, and the PCB follows them: check the silkscreen of any replacement module.
 - Contents: page name + counter, last sound, remaining time / `LOOP` / `PAUSED` / `MIC OFF` / `MUTE ME` / `VOICE OFF`; sound names for peek and row overview.
-- Texts are localisable; the friend's unit is in Italian.
+- Texts are localisable: English and Italian so far, following the system language.
 - OLED pixels emit their own light (no backlight): perfectly readable in the dark, weakest in direct sunlight.
 
 #### Burn-in protection (firmware)
@@ -193,27 +193,21 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 
 ## 5. Components
 
-### Owned (keep)
+### Bill of materials
 
-| Component | Quantity/description | Use |
+| Component | Quantity | Notes |
 |---|---|---|
-| RP2040-Zero (clone of the Waveshare board) | 6 boards, USB-C, pin strips included | Main controller, on its pin strips under the PCB |
-| Mechanical switches | 45 Akko V5 linear (MX-compatible), clear top housing, 5-pin | 36 pads + 6 function keys = 42 used, 3 spare |
-| Keycaps | OEM profile, double-shot PBT, opaque | Pads and function keys (halo lighting) |
-| Rotary encoder | EC11 kit with knobs | Rotation and integrated push button; one is enough |
-| SN74AHCT125N | Kit of 10, DIP-14 | 3.3 V → 5 V level shifting of the LED data signal; one chip, DIP footprint on the PCB |
-| Assorted resistors | Kit, 1/4 W | Spare/prototyping (the 330 Ω data resistor comes with the PCB) |
-| M3 × 10 mm screws | Already owned | Closing the enclosure (6 screws) |
-| Rubber feet | Already owned | Enclosure bottom |
-| USB-C cable | Already owned | Data + power to the PC (C-to-C and A-to-C both tested) |
-| 3D printer | Bambu Lab P1S | Enclosure, in matte black PLA (or PETG) |
-| Soldering iron | Already owned | Hand-soldered parts |
+| RP2040-Zero (Waveshare, or a compatible clone) | 1 | USB-C; mounted on its pin strips under the PCB |
+| MX-compatible switches, 5-pin | 42 | Akko V5 linear here, with a clear top housing for the LED |
+| Keycaps, OEM profile, double-shot PBT, opaque | 42 | Halo lighting around the caps |
+| EC11 rotary encoder with push button, and its knob | 1 | Rotation and push button |
+| SN74AHCT125N, DIP-14 | 1 | 3.3 V → 5 V level shifting of the LED data signal |
+| 1.3" OLED 128×64, SH1106, I²C | 1 | Check its pin order (section 4) |
+| M3 × 10 mm screws | 6 | Closing the enclosure |
+| Rubber feet | a few | Enclosure bottom; the count follows the enclosure's design |
+| USB-C cable | 1 | Data + power to the PC (C-to-C or A-to-C) |
 
-### To buy
-
-| Component | Quantity/description | Status |
-|---|---|---|
-| 1.3" OLED 128×64, SH1106, I²C | 2 pcs (one spare) | Arrived |
+Tools: a 3D printer for the enclosure (designed on a Bambu Lab P1S, matte PLA or PETG) and a soldering iron.
 
 ### Comes with the PCB order (assembled by the fab, PCB bottom side)
 
@@ -227,17 +221,6 @@ OLED pixels age with use, and the header text stays in the same place for hours:
 | PTC 0.5 A hold / 1 A trip, 1206 | 1 | C720075 (Extended) | Protection of the USB 5 V rail |
 
 Stock and Basic/Extended class checked on 2026-11-01.
-
-### Not needed any more
-
-Cancel the order if still possible; otherwise they are harmless to keep:
-- WS2812B 5 m LED strip.
-- 1000 µF 10 V electrolytic capacitors.
-- Through-hole 1N4148 diodes.
-- 5 V 2 A power supply.
-- Dupont wires/connectors.
-- Larger perfboard.
-- Heat-set inserts.
 
 ### Measurements of the real parts (2026-11-01)
 
@@ -287,7 +270,7 @@ Cancel the order if still possible; otherwise they are harmless to keep:
 
 ### Power: USB only
 
-- A single USB cable from the friend's PC powers everything; there is no second power supply.
+- A single USB cable from the PC powers everything; there is no second power supply.
 - The LEDs are powered from USB 5 V (VBUS, the RP2040-Zero's 5V pin), never from its **3V3** pin.
 - USB 2.0 guarantees 500 mA. The RP2040-Zero + OLED draw about 60 mA, so the **firmware power limiter caps the total LED current at ≈400 mA**, scaling brightness down when needed.
 - Single-colour states (blue, green) draw about 1/3 of white, so the limiter only dims the LEDs when many of them are lit at once.
@@ -350,7 +333,7 @@ Log watcher (`voicemod_log.rs`): follows `voicemod-desktop.log` (macOS: `~/Libra
 
 Display (`display/`, `controller/screen.rs`): the app draws the 128×64 frames with the simulator's screens and font, Silkscreen at 8 and 16 px (SIL Open Font License, `display/OFL.txt`). Its glyphs were captured from the simulator's own canvas, so the app's frames match the simulator's pixel for pixel (checked on every screen); a star was added for Favourites. The texts follow the system language (Italian or English). A frame goes to the board only when the picture changes, and to the window, which previews the display. A sound started from the computer sends `WAKE`, so a dimmed display brightens. The knob works as in the simulator: a tap opens the soundboard menu (a turn moves, another tap picks, it closes after 6 s); held with a pad press it peeks at the sound (name, mode, length, no sound played; the pad blinks); held and turned it shows a row of six (the row lights white, the others dim).
 
-PC overlay (`overlay/`, `controller/overlay.rs`): the current page as a 6×6 grid, each pad with its sound's name and its live LED colour, under the page's name and number. Blinking and breathing LEDs animate at the board's pace, though not in step with it: the firmware times its effects from its own start. It appears for 4 s when the page changes (knob, PREV/NEXT, menu, a soundboard picked in Voicemod) or the board connects, and stays while the knob is held or the menu is open, so holding the knob also shows it; it fades in and out, and hides while the board or Voicemod is missing. The Rust core draws it itself, in Inter (SIL Open Font License, `overlay/OFL.txt`; subset to Latin with its kerning kept, names on two lines at most), into a native window rather than a webview, so it never sleeps and appears at once: on Windows a layered window with per-pixel transparency that lets the mouse through, never takes the focus and stays out of the taskbar and Alt+Tab; on macOS a borderless window on every Space. It sits in the bottom-right corner of the main screen, above the taskbar or the Dock; position (monitor, one of nine anchors or dragged), opacity and timing will be configurable with the settings. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that. Tested on macOS, and on a Windows desktop (a GitHub Actions runner, reading the screen back): the transparency, the half-opacity fade, the click-through window style and the focus staying where it was; still to be seen over games on the friend's PC.
+PC overlay (`overlay/`, `controller/overlay.rs`): the current page as a 6×6 grid, each pad with its sound's name and its live LED colour, under the page's name and number. Blinking and breathing LEDs animate at the board's pace, though not in step with it: the firmware times its effects from its own start. It appears for 4 s when the page changes (knob, PREV/NEXT, menu, a soundboard picked in Voicemod) or the board connects, and stays while the knob is held or the menu is open, so holding the knob also shows it; it fades in and out, and hides while the board or Voicemod is missing. The Rust core draws it itself, in Inter (SIL Open Font License, `overlay/OFL.txt`; subset to Latin with its kerning kept, names on two lines at most), into a native window rather than a webview, so it never sleeps and appears at once: on Windows a layered window with per-pixel transparency that lets the mouse through, never takes the focus and stays out of the taskbar and Alt+Tab; on macOS a borderless window on every Space. It sits in the bottom-right corner of the main screen, above the taskbar or the Dock; position (monitor, one of nine anchors or dragged), opacity and timing will be configurable with the settings. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that. Tested on macOS, and on a Windows desktop (a GitHub Actions runner, reading the screen back): the transparency, the half-opacity fade, the click-through window style and the focus staying where it was; still to be seen over games on a Windows PC.
 
 Firmware updates (`firmware.rs`): the app carries the board's firmware, built into it from `app/src-tauri/firmware/drezimo-<version>.uf2` (written by `firmware/build.sh --bundle`; the build stops if that version differs from the firmware's source). When a board connects with an older version, the app sends `BOOT`, waits for the RP2040's bootloader drive (RPI-RP2) that appears next, writes the UF2 file there and waits for the board to come back with the new version, in about 5 s; the window and the tray say so meanwhile. Only a drive that was not there before `BOOT` is written, so another RP2040 board waiting in its bootloader is left alone. A board with the same or a newer version is never touched. A board that comes back with its old firmware, for whatever reason, is not tried again until the app restarts, so it never loops between its bootloader and the app; it keeps working, and the window shows why the update failed. If the bootloader's drive never appears (removable drives blocked on that PC, say), the board waits in its bootloader and the window asks to unplug it and plug it back in, which starts its old firmware again. The bootloader is in the chip's ROM, and the copy takes about a second: a board unplugged before it starts keeps its old firmware, and is updated at the next start of the app; one unplugged in the middle of it can be left without a working firmware, and then needs the BOOT button inside the case and a new copy. On Windows the drive is found among the removable drives, without the "insert a disk" box for an empty card reader; on macOS in `/Volumes` (copying onto the drive by hand can hang there, the app's single write did not in testing).
 
@@ -412,7 +395,7 @@ How the device mirrors it (`simulator/dummy-board.html`, `tools/voicemod_log_bri
 
 **How to get the key:** from the [control-api.voicemod.net](https://control-api.voicemod.net/) website → "Get your API Key", [Typeform form](https://voicemod.typeform.com/to/Zh5ZHRED); alternatively email devservices@voicemod.net.
 
-**Target environment:** the device is going to a friend who uses **Windows** with paid Voicemod (lifetime licence). Development and first tests on macOS with free Voicemod; Windows build and tests on the desktop PC before delivery. The bridge app runs on the PC (not on the board), with a one-time installer and auto-start.
+**Target environment:** **Windows** with Voicemod, free or paid. Development and first tests on macOS with free Voicemod; Windows builds checked in CI and on a Windows PC. The bridge app runs on the PC (not on the board), with a one-time installer and auto-start.
 
 ### Tools and simulator
 
@@ -476,11 +459,10 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Verify the Voicemod Control API and the log-based playback state.
 - [x] Obtain the official Voicemod client key.
 - [x] Decide the layout: 6×6 pads + 6 function keys + EC11 encoder + display.
-- [x] Choose the display: 1.3" OLED 128×64, SH1106, I²C (2 ordered).
+- [x] Choose the display: 1.3" OLED 128×64, SH1106, I²C.
 - [x] Decide the power strategy: USB only, firmware LED power limiter ≈400 mA.
 - [x] Update the simulator to the 6×6 layout at 1:1 scale.
-- [x] Inventory the owned parts (RP2040-Zero, switches, keycaps, encoder kit, SN74AHCT125N, OLED).
-- [ ] Cancel the parts that are not needed any more, if still possible.
+- [x] Choose the parts (RP2040-Zero, switches, keycaps, encoder, SN74AHCT125N, OLED).
 
 ### Phase 2 — Measurements before the PCB
 - [x] Measure the switch LED-window offset from the centre with a caliper.
@@ -509,7 +491,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Log watcher in the app: real playback state and sound lengths (tested against Voicemod 3.17.43 on macOS).
 - [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; to be checked on the real OLED).
 - [ ] Verify the Windows path of the Voicemod log.
-- [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS and on a Windows desktop; to be seen over games on the friend's PC).
+- [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS and on a Windows desktop; to be seen over games on a Windows PC).
 - [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module: 0.1.9 → 0.2.0 in about 5 s, on macOS).
 - [ ] Installer + auto-start; test connection errors and failed commands.
 - [ ] Later: custom per-sound idle colours.
@@ -519,7 +501,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [ ] Bring up the assembled PCB at low brightness: LEDs, OLED, encoder, a few switches.
 - [ ] Solder the switches, the RP2040-Zero, the encoder, the buffer and the OLED module.
 - [ ] Print the enclosure on the P1S, mount everything, close it with the 6 screws, add the rubber feet.
-- [ ] Run extended tests on Windows with paid Voicemod before delivery.
+- [ ] Run extended tests on Windows with paid Voicemod with the finished unit.
 
 ## 11. Decisions
 
@@ -537,7 +519,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Microcontroller: RP2040-Zero clone (USB-C) instead of the Raspberry Pi Pico, mounted on its pin strips under the PCB (RP2040 and crystal sit on its underside). PCB and pin map updated to the measured part (2026-11-01).
 - [x] USB cable exits from the top (back) edge of the case, not from the left side.
 - [x] Enclosure: one-piece print on the P1S, 6 M3 screws into plastic, removable bottom.
-- [x] Updates: through the bridge app, board firmware included; the friend never touches the board.
+- [x] Updates: through the bridge app, board firmware included; nobody needs to touch the board.
 - [x] Bridge app: Tauri 2 for macOS and Windows, all logic in Rust, settings window in React (2026-11-01; measurements in section 8).
 
 ### Still open
@@ -569,16 +551,16 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 
 **Controller:** RP2040-Zero (RP2040, USB-C) under a custom 2-layer PCB.
 
-**Communication:** USB serial to a bridge app on the friend's Windows PC, which talks to the Voicemod Control API and watches the Voicemod log.
+**Communication:** USB serial to a bridge app on the PC, which talks to the Voicemod Control API and watches the Voicemod log.
 
 **LEDs:** 42 SK6812 MINI-E reverse-mount (0–35 pads, 36–41 function keys), with SN74AHCT125N buffer, 330 Ω resistor, 100 nF per LED, 47 µF bulk capacitor and a 0.5 A polyfuse.
 
 **LED feedback:** off = empty; blue = available; yellow ~200 ms = pressed; green = playing; breathing green = paused; dim red = not in licence; blinking red = Voicemod unreachable.
 
-**Display:** 1.3" OLED 128×64, SH1106, I²C; localisable texts (Italian on the friend's unit).
+**Display:** 1.3" OLED 128×64, SH1106, I²C; localisable texts (English and Italian).
 
 **Power:** single USB cable; firmware caps the LED current at ≈400 mA.
 
 **Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
 
-**Next steps:** the PCB order with bottom-side assembly; meanwhile, firmware bring-up on a breadboard.
+**Next steps:** the app's installer and auto-start; the assembled PCB's bring-up; the enclosure.

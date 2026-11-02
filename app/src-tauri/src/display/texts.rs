@@ -1,4 +1,4 @@
-//! The words on the display, in the simulator's languages. The friend's unit shows Italian.
+//! The words on the display, in the simulator's languages: English and Italian, as the system's language.
 
 use crate::soundboard::PlaybackMode;
 

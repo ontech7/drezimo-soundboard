@@ -218,7 +218,7 @@ def build():
         "  GP8 (3.3 V) -> 74AHCT125 gate 3 (5 V out, VIH of the LED is 0.65*VDD) -> 330R -> LED chain. One 100 nF per LED.",
         "GPIO: COL0-5 = GP9-14, ROW0-5 = GP5-GP0, ROW6 = GP6, ENC A/B/SW = GP26/GP15/GP27, I2C0 SDA/SCL = GP28/GP29, LED = GP8.",
         "SWITCHES: soldered to the PCB (plated pin holes, hand-soldered) and held by the case plate.",
-        "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the bought module (seen from the glass side). Other modules swap VCC/GND.",
+        "OLED J1 pin order VCC-GND-SCL-SDA, as printed on the modules used (seen from the glass side). Other modules swap VCC/GND.",
         "Spare 74AHCT125 gates: OE tied high (disabled), inputs tied low.",
     ]
     for i, line in enumerate(notes):

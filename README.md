@@ -7,7 +7,7 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** work in progress. The PCB (v0.2) is designed and ordered; the firmware implements the board ↔ app protocol and waits for the PCB for the hardware tests. The desktop app is not started yet.
+**Status:** work in progress. The PCB (v0.2) is designed and ordered; the firmware implements the board ↔ app protocol and waits for the PCB for the hardware tests. The desktop app drives Voicemod, the display, a PC overlay and the board's firmware updates; its installer comes next.
 
 ## Hardware
 
@@ -92,3 +92,12 @@ python tools/voicemod_log_bridge.py   # live playback state on ws://localhost:59
 ```
 
 Open `simulator/dummy-board.html` in a browser to try the board without hardware.
+
+## License
+
+- Everything but the hardware design (the app, firmware, simulator, tools, `hardware/scripts/`, logo and docs): [MIT](LICENSE).
+- Hardware design (`hardware/pcb/`, `hardware/lib/`, and the enclosure once added): [CERN-OHL-P-2.0](hardware/LICENSE).
+- Fonts: Silkscreen on the display and Inter in the PC overlay, both under the SIL Open Font License, with their licences in `app/src-tauri/src/display/` and `app/src-tauri/src/overlay/`.
+- The firmware image in `app/src-tauri/firmware/` is built from `firmware/` with the Arduino core for RP2040 (LGPL-2.1) and the libraries pinned in `firmware/drezimo/sketch.yaml` (Adafruit NeoPixel, LGPL-3.0; U8g2, BSD-2-Clause).
+
+Voicemod is a trademark of its owner. This project is independent and not affiliated with Voicemod.

@@ -97,7 +97,7 @@ def main():
     for oe, a in ((1, 2), (4, 5), (13, 12)):
         check(net_of("U2", oe) == "+5V_LED", f"U2 pin {oe} (OE) high: spare gate disabled")
         check(net_of("U2", a) == "GND", f"U2 pin {a} (A) tied low")
-    check(comps.get("U2") == "Package_DIP:DIP-14_W7.62mm", "U2 is the owned DIP-14 part")
+    check(comps.get("U2") == "Package_DIP:DIP-14_W7.62mm", "U2 is the DIP-14 part")
 
     # 4. RP2040-Zero pin map, power, peripherals
     for pin, net in ZERO_PINS.items():
