@@ -6,7 +6,7 @@ use crate::controller::{Controller, Output, PageSummary};
 use crate::display::texts::Texts;
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::overlay::{self, Overlay};
-use crate::protocol;
+use crate::protocol::{self, BoardMessage};
 use crate::tray;
 use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
@@ -41,6 +41,10 @@ pub fn status(status: State<Mutex<Status>>) -> Status {
     status.lock().unwrap().clone()
 }
 
+/// When a key or the knob was last used, if at all since the app started
+#[derive(Default)]
+pub struct LastUse(pub Mutex<Option<Instant>>);
+
 /// The display's current picture, in the hex of the board's DISPLAY message, for the window's preview
 #[derive(Default)]
 pub struct DisplayFrame(Mutex<String>);
@@ -50,7 +54,7 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
-/// Starts looking for the board and Voicemod. Expects `Mutex<Status>` and `DisplayFrame` to be managed.
+/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame` and `LastUse` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     let (board, link) = Board::new();
@@ -113,6 +117,16 @@ fn run(
             }
             Some(Input::Board(BoardEvent::Message(message))) => {
                 let _ = app.emit("board-message", &message);
+                let used = matches!(
+                    message,
+                    BoardMessage::Pad { .. }
+                        | BoardMessage::Button { .. }
+                        | BoardMessage::Encoder { .. }
+                        | BoardMessage::EncoderButton { .. }
+                );
+                if used {
+                    *app.state::<LastUse>().0.lock().unwrap() = Some(now);
+                }
                 controller.board_message(message, now);
             }
             Some(Input::Voicemod(event)) => {
@@ -132,10 +146,7 @@ fn run(
         }
         updater.update(now);
         // A board being updated restarts in its bootloader: nothing to drive meanwhile
-        let updating = matches!(
-            updater.state(),
-            Some(FirmwareUpdate::Updating { .. } | FirmwareUpdate::Restarting { .. })
-        );
+        let updating = updater.state().as_ref().is_some_and(FirmwareUpdate::in_progress);
         let driven = matches!(status.board, BoardStatus::Connected { .. }) && !updating;
         controller.set_board_connected(driven, now);
 

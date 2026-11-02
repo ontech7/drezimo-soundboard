@@ -8,6 +8,7 @@ mod playback;
 mod protocol;
 mod soundboard;
 mod tray;
+mod updates;
 mod voicemod;
 mod voicemod_log;
 mod window;
@@ -15,7 +16,7 @@ mod window;
 use std::sync::Mutex;
 use tauri::{AppHandle, RunEvent};
 
-/// Passed by the login item (autostart, still to come): the app then starts in the tray without opening its window
+/// Passed by the login item the installer adds (windows/hooks.nsh): the app then starts in the tray, with no window
 const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn run() {
@@ -24,6 +25,7 @@ pub fn run() {
         .manage(window::WindowState::default())
         .manage(Mutex::new(device::Status::default()))
         .manage(device::DisplayFrame::default())
+        .manage(device::LastUse::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
@@ -37,6 +39,10 @@ pub fn run() {
 
             tray::create(app.handle())?;
             device::start(app.handle().clone());
+            // A build made here does not replace itself with a published one
+            if updates::OFFICIAL {
+                updates::start(app.handle());
+            }
 
             if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
                 window::open(app.handle());

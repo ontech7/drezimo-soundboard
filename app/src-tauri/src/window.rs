@@ -142,6 +142,13 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
     });
 }
 
+/// Whether the window is on the screen, not minimised.
+pub fn is_shown(app: &AppHandle) -> bool {
+    let label = window_state(app).label();
+    app.get_webview_window(&label)
+        .is_some_and(|window| window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false))
+}
+
 fn window_state(app: &AppHandle) -> MutexGuard<'_, State> {
     app.state::<WindowState>().inner().0.lock().unwrap()
 }

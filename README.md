@@ -18,6 +18,10 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - Custom 2-layer PCB, 3D-printed enclosure
 - Powered from USB only
 
+## Installing the app
+
+Download the Windows installer (`-setup.exe`) from [Releases](https://github.com/ontech7/drezimo-soundboard/releases). The app then starts with Windows, in the notification area, and keeps itself and the board's firmware up to date. The installer is not code-signed: at the first install Windows asks to confirm an unknown publisher (More info → Run anyway).
+
 ## How it works
 
 The board talks to a desktop bridge app over USB. The app controls Voicemod through its Control API and reads Voicemod's log to know which sounds are actually playing, so the LEDs and the display match Voicemod's own soundboard.
@@ -81,6 +85,8 @@ cd src-tauri && cargo test
 ```
 
 The Voicemod client key is built into the app: put `VOICEMOD_CLIENT_KEY=<key>` in a `.env` file at the repository root (git ignores it) or set it in the environment. Without it the app builds and runs, but cannot reach Voicemod.
+
+A build made this way does not update itself: only the published ones do. To publish a version, raise `version` in `app/src-tauri/tauri.conf.json`, bring it to `main` and run **Actions → Release**. The workflow needs three repository secrets: `VOICEMOD_CLIENT_KEY`, and the updater's private key and password as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (made with `yarn tauri signer generate`; the public key is in `tauri.conf.json`).
 
 Close the simulator page before running the app: only one program at a time can hold the board's serial port.
 

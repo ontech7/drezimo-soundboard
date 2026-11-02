@@ -34,6 +34,13 @@ pub enum FirmwareUpdate {
     },
 }
 
+impl FirmwareUpdate {
+    /// Whether the board is in its bootloader, or restarting from it
+    pub fn in_progress(&self) -> bool {
+        matches!(self, Self::Updating { .. } | Self::Restarting { .. })
+    }
+}
+
 /// Decides when the board gets the app's firmware. A board that keeps its old firmware is tried once, so it is not sent
 /// back to its bootloader again and again.
 #[derive(Default)]

@@ -1,0 +1,77 @@
+name: Release
+
+# Builds the Windows installer, with the Voicemod key and the updater's signature, and publishes it as a GitHub release
+# with latest.json, which installed apps read (app/src-tauri/tauri.conf.json, plugins.updater). Manual, from main:
+# Actions → Release. The tag is the app's version in tauri.conf.json: raise it before.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      # A build without them would publish an app that cannot reach Voicemod, or an update nobody can install
+      - name: Check the secrets
+        shell: bash
+        env:
+          VOICEMOD_CLIENT_KEY: ${{ secrets.VOICEMOD_CLIENT_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for secret in VOICEMOD_CLIENT_KEY TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -n "${!secret}" ] || { echo "::error::the $secret secret is missing"; exit 1; }
+          done
+
+      # Published again, a version would change under the apps that already have it
+      - name: Check the version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "::error::v$version is already released: raise version in app/src-tauri/tauri.conf.json"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+      - run: yarn install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VOICEMOD_CLIENT_KEY: ${{ secrets.VOICEMOD_CLIENT_KEY }}
+          # The published builds update themselves and start with the system (src-tauri/src/updates.rs)
+          DREZIMO_OFFICIAL: "1"
+        with:
+          projectPath: app
+          args: --config src-tauri/tauri.release.conf.json
+          tagName: v__VERSION__
+          releaseName: Drezimo Soundboard __VERSION__
+          releaseBody: The Windows installer is the `-setup.exe` file. Installed apps update themselves.
+          releaseDraft: false
+          prerelease: false
