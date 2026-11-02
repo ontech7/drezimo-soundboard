@@ -1,9 +1,15 @@
+use std::fs;
 use std::path::Path;
 
 /// The Voicemod client key is built into the app and kept out of git: it comes from the environment
 /// or from the repository's `.env` file. A build without it runs, but cannot reach Voicemod.
 const KEY_VAR: &str = "VOICEMOD_CLIENT_KEY";
 const ENV_FILE: &str = "../../.env";
+
+/// The board's firmware, built into the app (src/firmware.rs): the one `drezimo-<version>.uf2` in this folder, which
+/// `firmware/build.sh --bundle` writes. It must be the version the firmware's source declares.
+const FIRMWARE_DIR: &str = "firmware";
+const FIRMWARE_SOURCE: &str = "../../firmware/drezimo/drezimo.ino";
 
 fn main() {
     let env_file = Path::new(ENV_FILE);
@@ -16,8 +22,43 @@ fn main() {
     if let Some(key) = from_environment.or_else(|| key_from_env_file(env_file)) {
         println!("cargo:rustc-env={KEY_VAR}={key}");
     }
+    bundle_firmware();
 
     tauri_build::build()
+}
+
+fn bundle_firmware() {
+    println!("cargo:rerun-if-changed={FIRMWARE_DIR}");
+    println!("cargo:rerun-if-changed={FIRMWARE_SOURCE}");
+    let images: Vec<_> = fs::read_dir(FIRMWARE_DIR)
+        .expect("the firmware folder")
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().into_string().ok()?;
+            let version = name.strip_prefix("drezimo-")?.strip_suffix(".uf2")?.to_string();
+            Some((version, entry.path()))
+        })
+        .collect();
+    let [(version, image)] = images.as_slice() else {
+        panic!(
+            "{FIRMWARE_DIR}/ must hold one drezimo-<version>.uf2, not {}",
+            images.len()
+        );
+    };
+    if let Ok(source) = fs::read_to_string(FIRMWARE_SOURCE) {
+        let declared = source.lines().find_map(|line| {
+            line.strip_prefix("const char FIRMWARE_VERSION[] = \"")?
+                .strip_suffix("\";")
+        });
+        assert_eq!(
+            declared,
+            Some(version.as_str()),
+            "the bundled firmware is not the source's version: run firmware/build.sh --bundle"
+        );
+    }
+    let image = fs::canonicalize(image).expect("the bundled firmware");
+    println!("cargo:rustc-env=DREZIMO_FIRMWARE_VERSION={version}");
+    println!("cargo:rustc-env=DREZIMO_FIRMWARE_IMAGE={}", image.display());
 }
 
 fn key_from_env_file(path: &Path) -> Option<String> {

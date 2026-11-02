@@ -60,10 +60,13 @@ python3 export_docs.py   # schematic PDF, 1:1 fit-check PDFs, 3D renders, DRC re
 Requires [`arduino-cli`](https://arduino.github.io/arduino-cli/) (`brew install arduino-cli` on macOS). The core and library versions are pinned in `firmware/drezimo/sketch.yaml` and downloaded on the first build.
 
 ```sh
-./firmware/upload.sh   # build, then upload to the connected board
+./firmware/upload.sh          # build, then upload to the connected board
+./firmware/build.sh --bundle  # build, then put the firmware into the app
 ```
 
 The script works with the firmware running (it sends `BOOT` to reach the bootloader) or with the board already in bootloader mode: a blank module, or one plugged in while holding BOOT. It uploads with `picotool`; on macOS, copying the `.uf2` onto the RPI-RP2 drive can hang. It also sets the name the PC shows for the device: **Drezimo Soundboard**.
+
+The app carries the firmware (`app/src-tauri/firmware/drezimo-<version>.uf2`) and updates every board with an older one as soon as it connects. After changing the firmware, raise `FIRMWARE_VERSION` in `firmware/drezimo/drezimo.ino` and run `build.sh --bundle`; the app's build stops while the two versions differ.
 
 ## Building the app
 

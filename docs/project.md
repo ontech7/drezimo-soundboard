@@ -18,6 +18,7 @@
 - 2026-11-01: the app drives Voicemod: pads play the sounds of the current page, function keys and knob work, LEDs show the sound states (playback estimated until the log watcher).
 - 2026-11-01: the app follows Voicemod's log: real playback state and learned sound lengths, also for sounds played from Voicemod's window.
 - 2026-11-01: the app draws the board's display, pixel for pixel as the simulator (also previewed in the app's window), with the soundboard menu, peek and row overview on the knob.
+- 2026-11-02: the app updates the board's firmware by itself when the board has an older one.
 - 2026-11-02: the app shows the 6×6 PC overlay (sound names and live LED colours) when the page changes and while the knob is held, in a native window; the simulator previews it the same way.
 
 ## 1. Goal
@@ -351,6 +352,8 @@ Display (`display/`, `controller/screen.rs`): the app draws the 128×64 frames w
 
 PC overlay (`overlay/`, `controller/overlay.rs`): the current page as a 6×6 grid, each pad with its sound's name and its live LED colour, under the page's name and number. Blinking and breathing LEDs animate at the board's pace, though not in step with it: the firmware times its effects from its own start. It appears for 4 s when the page changes (knob, PREV/NEXT, menu, a soundboard picked in Voicemod) or the board connects, and stays while the knob is held or the menu is open, so holding the knob also shows it; it fades in and out, and hides while the board or Voicemod is missing. The Rust core draws it itself, in Inter (SIL Open Font License, `overlay/OFL.txt`; subset to Latin with its kerning kept, names on two lines at most), into a native window rather than a webview, so it never sleeps and appears at once: on Windows a layered window with per-pixel transparency that lets the mouse through, never takes the focus and stays out of the taskbar and Alt+Tab; on macOS a borderless window on every Space. It sits in the bottom-right corner of the main screen, above the taskbar or the Dock; position (monitor, one of nine anchors or dragged), opacity and timing will be configurable with the settings. It shows over windowed and borderless games and over most "fullscreen" games on Windows 10/11; it does not inject into game processes, like Discord's overlay does, because anti-cheat systems could flag that. Tested on macOS, and on a Windows desktop (a GitHub Actions runner, reading the screen back): the transparency, the half-opacity fade, the click-through window style and the focus staying where it was; still to be seen over games on the friend's PC.
 
+Firmware updates (`firmware.rs`): the app carries the board's firmware, built into it from `app/src-tauri/firmware/drezimo-<version>.uf2` (written by `firmware/build.sh --bundle`; the build stops if that version differs from the firmware's source). When a board connects with an older version, the app sends `BOOT`, waits for the RP2040's bootloader drive (RPI-RP2) that appears next, writes the UF2 file there and waits for the board to come back with the new version, in about 5 s; the window and the tray say so meanwhile. Only a drive that was not there before `BOOT` is written, so another RP2040 board waiting in its bootloader is left alone. A board with the same or a newer version is never touched. A board that comes back with its old firmware, for whatever reason, is not tried again until the app restarts, so it never loops between its bootloader and the app; it keeps working, and the window shows why the update failed. If the bootloader's drive never appears (removable drives blocked on that PC, say), the board waits in its bootloader and the window asks to unplug it and plug it back in, which starts its old firmware again. The bootloader is in the chip's ROM, and the copy takes about a second: a board unplugged before it starts keeps its old firmware, and is updated at the next start of the app; one unplugged in the middle of it can be left without a working firmware, and then needs the BOOT button inside the case and a new copy. On Windows the drive is found among the removable drives, without the "insert a disk" box for an empty card reader; on macOS in `/Volumes` (copying onto the drive by hand can hang there, the app's single write did not in testing).
+
 ### Voicemod integration: to verify early
 
 > Status: done — official key obtained and Control API verified on 2026-10-29 (results below).
@@ -463,7 +466,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 
 ### USB identity and firmware protection
 
-- The board identifies itself as **Drezimo Soundboard** (manufacturer **Drezimo**). `firmware/upload.sh` sets these names at build time. USB ID 2E8A:F00A for now; a dedicated product ID can be requested for free from Raspberry Pi, for open-source RP2040 projects.
+- The board identifies itself as **Drezimo Soundboard** (manufacturer **Drezimo**). `firmware/build.sh` sets these names at build time. USB ID 2E8A:F00A for now; a dedicated product ID can be requested for free from Raspberry Pi, for open-source RP2040 projects.
 - On Windows the Device Manager lists the port as "USB Serial Device (COMx)", the name of Windows' own serial driver. The product name shows in the device's details and in the Settings device list, and the app shows its own status.
 - The firmware can only be replaced from the USB bootloader. The board gets there through `BOOT`, a 1200-baud open-and-close of the port (the Arduino upload convention), picotool's reset request, or the BOOT button held while plugging in (inside the case). Even then nothing changes until a firmware file is written. A board left in the bootloader by mistake (it shows up as the RPI-RP2 drive) returns to normal when unplugged, with its firmware intact. The bootloader's own name, RPI-RP2, lives in the chip's ROM and cannot be changed; it appears only during an update, which the app drives.
 
@@ -507,7 +510,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; to be checked on the real OLED).
 - [ ] Verify the Windows path of the Voicemod log.
 - [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS and on a Windows desktop; to be seen over games on the friend's PC).
-- [ ] Firmware update from the app.
+- [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module: 0.1.9 → 0.2.0 in about 5 s, on macOS).
 - [ ] Installer + auto-start; test connection errors and failed commands.
 - [ ] Later: custom per-sound idle colours.
 

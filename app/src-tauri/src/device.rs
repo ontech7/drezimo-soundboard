@@ -4,6 +4,7 @@
 use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{Controller, Output, PageSummary};
 use crate::display::texts::Texts;
+use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::overlay::{self, Overlay};
 use crate::protocol;
 use crate::tray;
@@ -20,6 +21,8 @@ enum Input {
     Board(BoardEvent),
     Voicemod(VoicemodEvent),
     Log(LogInput),
+    /// The board's firmware was written, or why not
+    Firmware(Result<(), String>),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -30,6 +33,7 @@ pub struct Status {
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses
     pub voicemod_log: bool,
     pub page: Option<PageSummary>,
+    pub firmware_update: Option<FirmwareUpdate>,
 }
 
 #[tauri::command]
@@ -55,6 +59,7 @@ pub fn start(app: AppHandle) {
         let _ = board_inputs.send(Input::Board(event));
     });
     let log_inputs = inputs.clone();
+    let firmware_inputs = inputs.clone();
     voicemod_log::follow(move |input| {
         let _ = log_inputs.send(Input::Log(input));
     });
@@ -62,12 +67,13 @@ pub fn start(app: AppHandle) {
         let _ = inputs.send(Input::Voicemod(event));
     });
     let overlay = overlay::start(&app);
-    thread::spawn(move || run(&app, &received, &board, &voicemod, &overlay));
+    thread::spawn(move || run(&app, &received, &firmware_inputs, &board, &voicemod, &overlay));
 }
 
 fn run(
     app: &AppHandle,
     inputs: &Receiver<Input>,
+    firmware_inputs: &Sender<Input>,
     board: &Board,
     voicemod: &Voicemod,
     overlay: &Sender<Option<Overlay>>,
@@ -75,8 +81,10 @@ fn run(
     let mut controller = Controller::new(Texts::for_system());
     let mut status = Status::default();
     let mut published = status.clone();
+    let mut updater = Updater::default();
     loop {
-        let input = match controller.next_update() {
+        let wake = controller.next_update().into_iter().chain(updater.next_update()).min();
+        let input = match wake {
             Some(at) => match inputs.recv_timeout(at.saturating_duration_since(Instant::now())) {
                 Ok(input) => Some(input),
                 Err(RecvTimeoutError::Timeout) => None,
@@ -91,11 +99,14 @@ fn run(
         let now = Instant::now();
         match input {
             Some(Input::Board(BoardEvent::Status(board_status))) => {
-                let connected = matches!(board_status, BoardStatus::Connected { .. });
-                controller.set_board_connected(connected, now);
+                if let BoardStatus::Connected { firmware, .. } = &board_status
+                    && updater.board_connected(firmware)
+                {
+                    update_firmware(board, firmware, firmware_inputs);
+                }
                 // Development aid: the module's own LED copies pad 1
                 #[cfg(debug_assertions)]
-                if connected {
+                if matches!(board_status, BoardStatus::Connected { .. }) {
                     board.send("DEVLED,MIRROR,0");
                 }
                 status.board = board_status;
@@ -111,8 +122,22 @@ fn run(
                 controller.voicemod_event(event, now);
             }
             Some(Input::Log(input)) => controller.log_input(input, now),
+            Some(Input::Firmware(result)) => {
+                if let Err(reason) = &result {
+                    eprintln!("the board's firmware update failed: {reason}");
+                }
+                updater.installed(result, now);
+            }
             None => {}
         }
+        updater.update(now);
+        // A board being updated restarts in its bootloader: nothing to drive meanwhile
+        let updating = matches!(
+            updater.state(),
+            Some(FirmwareUpdate::Updating { .. } | FirmwareUpdate::Restarting { .. })
+        );
+        let driven = matches!(status.board, BoardStatus::Connected { .. }) && !updating;
+        controller.set_board_connected(driven, now);
 
         controller.update(now);
         for output in controller.take_outputs() {
@@ -121,7 +146,7 @@ fn run(
                 Output::Voicemod(request) => voicemod.send(request),
                 Output::Display(frame) => {
                     let hex = frame.hex();
-                    if matches!(status.board, BoardStatus::Connected { .. }) {
+                    if driven {
                         board.send(protocol::display_message(&hex));
                     }
                     let _ = app.emit("display", &hex);
@@ -134,11 +159,26 @@ fn run(
         }
         status.page = controller.page();
         status.voicemod_log = controller.follows_log();
+        status.firmware_update = updater.state();
         if status != published {
             publish(app, &status);
             published = status.clone();
         }
     }
+}
+
+/// Sends the board to its bootloader and writes the app's firmware there, on a thread of its own: looking at the drives
+/// can take a while.
+fn update_firmware(board: &Board, current: &str, inputs: &Sender<Input>) {
+    eprintln!("updating the board's firmware from {current} to {}", firmware::VERSION);
+    let board = board.clone();
+    let inputs = inputs.clone();
+    thread::spawn(move || {
+        // A bootloader drive there before BOOT belongs to another board
+        let before = firmware::bootloader_drives();
+        board.send("BOOT");
+        let _ = inputs.send(Input::Firmware(firmware::install(&before)));
+    });
 }
 
 fn publish(app: &AppHandle, status: &Status) {

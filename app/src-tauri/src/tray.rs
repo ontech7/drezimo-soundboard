@@ -2,6 +2,7 @@
 
 use crate::board::BoardStatus;
 use crate::device::Status;
+use crate::firmware::FirmwareUpdate;
 use crate::voicemod::VoicemodStatus;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -14,7 +15,7 @@ struct StatusItems {
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let status = Status::default();
-    let board = MenuItem::with_id(app, "board", board_text(&status.board), false, None::<&str>)?;
+    let board = MenuItem::with_id(app, "board", board_text(&status.board, None), false, None::<&str>)?;
     let voicemod = MenuItem::with_id(app, "voicemod", voicemod_text(status.voicemod), false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Drezimo Soundboard", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -44,11 +45,18 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
 pub fn show_status(app: &AppHandle, status: &Status) {
     let items = app.state::<StatusItems>();
-    let _ = items.board.set_text(board_text(&status.board));
+    let _ = items
+        .board
+        .set_text(board_text(&status.board, status.firmware_update.as_ref()));
     let _ = items.voicemod.set_text(voicemod_text(status.voicemod));
 }
 
-fn board_text(status: &BoardStatus) -> String {
+fn board_text(status: &BoardStatus, update: Option<&FirmwareUpdate>) -> String {
+    match update {
+        Some(FirmwareUpdate::Updating { .. }) => return "Updating the board…".to_string(),
+        Some(FirmwareUpdate::Restarting { .. }) => return "Restarting the board…".to_string(),
+        _ => {}
+    }
     match status {
         BoardStatus::Searching => "Looking for the board…".to_string(),
         BoardStatus::Busy { .. } => "Board in use by another program".to_string(),

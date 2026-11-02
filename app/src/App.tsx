@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import logo from "./assets/drezimo-logo.svg?raw";
 import { useBoardActivity } from "./board";
 import { DisplayPreview } from "./DisplayPreview";
-import { type BoardStatus, type PageSummary, type VoicemodStatus, useStatus } from "./status";
+import { type BoardStatus, type FirmwareUpdate, type PageSummary, type VoicemodStatus, useStatus } from "./status";
 import { windowReady } from "./window";
 
 interface Line {
@@ -13,7 +13,22 @@ interface Line {
   note?: string;
 }
 
-function boardLine(status: BoardStatus): Line {
+function boardLine(status: BoardStatus, update: FirmwareUpdate | null): Line {
+  if (update?.state === "updating") {
+    return {
+      dot: "warning",
+      title: "Updating the board…",
+      detail: `Firmware ${update.from} → ${update.to}. Keep it plugged in.`,
+    };
+  }
+  if (update?.state === "restarting") {
+    return { dot: "warning", title: "Restarting the board…", detail: `With firmware ${update.to}.` };
+  }
+  const note = update?.state === "failed" ? `Update failed: ${update.reason} Tried again when the app starts.` : undefined;
+  return { ...connectionLine(status), note };
+}
+
+function connectionLine(status: BoardStatus): Line {
   switch (status.state) {
     case "searching":
       return { dot: "waiting", title: "Looking for the board…", detail: "Plug the board into a USB port." };
@@ -91,7 +106,7 @@ export default function App() {
 
       <section className="card">
         <h2>Board</h2>
-        <StatusLine line={boardLine(status.board)} />
+        <StatusLine line={boardLine(status.board, status.firmwareUpdate)} />
       </section>
 
       <section className="card">

@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 export type BoardStatus =
   { state: "searching" } | { state: "busy"; port: string } | { state: "connected"; port: string; firmware: string };
 
+export type FirmwareUpdate =
+  { state: "updating"; from: string; to: string } | { state: "restarting"; to: string } | { state: "failed"; reason: string };
+
 export type VoicemodStatus = { state: "connecting" | "connected" | "unreachable" | "keyRejected" | "missingKey" };
 
 export interface PageSummary {
@@ -21,6 +24,7 @@ export interface Status {
   /** Whether the playback shown comes from Voicemod's log, rather than from guesses */
   voicemodLog: boolean;
   page: PageSummary | null;
+  firmwareUpdate: FirmwareUpdate | null;
 }
 
 export function useStatus(): Status | null {

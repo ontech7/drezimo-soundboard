@@ -49,6 +49,7 @@ pub enum BoardEvent {
     Message(BoardMessage),
 }
 
+#[derive(Clone)]
 pub struct Board {
     commands: Sender<String>,
 }
