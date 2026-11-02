@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useBoardActivity } from "./board";
 import { TEXTS, TextsContext } from "./i18n";
 import { BoardPage } from "./pages/BoardPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { GeneralPage } from "./pages/GeneralPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { StatusPage } from "./pages/StatusPage";
@@ -30,17 +31,22 @@ export default function App() {
 
   if (!status || !settings) return null;
   const texts = TEXTS[language];
+  const pages: PageId[] = ["status", "general", "board", "overlay"];
+  if (settings.diagnostics) pages.push("diagnostics");
+  // Diagnostics turned off while shown
+  const shown = pages.includes(page) ? page : "status";
 
   return (
     <TextsContext.Provider value={texts}>
       <div className="app">
-        <Sidebar page={page} onSelect={setPage} />
+        <Sidebar pages={pages} page={shown} onSelect={setPage} />
         <main>
-          <h1>{texts.nav[page]}</h1>
-          {page === "status" && <StatusPage status={status} activity={activity} />}
-          {page === "board" && <BoardPage settings={settings} status={status} />}
-          {page === "overlay" && <OverlayPage settings={settings} status={status} />}
-          {page === "general" && <GeneralPage settings={settings} status={status} />}
+          <h1>{texts.nav[shown]}</h1>
+          {shown === "status" && <StatusPage status={status} />}
+          {shown === "board" && <BoardPage settings={settings} status={status} />}
+          {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
+          {shown === "general" && <GeneralPage settings={settings} status={status} />}
+          {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}
         </main>
       </div>
     </TextsContext.Provider>

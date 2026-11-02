@@ -5,6 +5,7 @@ use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{BoardView, Controller, Output, PageSummary};
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::overlay::{self, Look, OverlayUpdate};
+use crate::pictures::Pictures;
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
 use crate::settings::{OverlaySettings, Settings, SettingsState};
 use crate::tray;
@@ -83,8 +84,8 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
-/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse` and
-/// `SettingsState` to be managed.
+/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse`,
+/// `SettingsState` and `Pictures` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     app.manage(Inputs(Mutex::new(inputs.clone())));
@@ -98,9 +99,20 @@ pub fn start(app: AppHandle) {
     voicemod_log::follow(move |input| {
         let _ = log_inputs.send(Input::Log(input));
     });
+    let pictures_app = app.clone();
     let voicemod = Voicemod::start(move |event| {
-        let _ = inputs.send(Input::Voicemod(event));
+        let pictures = pictures_app.state::<Pictures>();
+        match event {
+            VoicemodEvent::Picture { of, file } => pictures.received(of, file),
+            event => {
+                if event == VoicemodEvent::Status(VoicemodStatus::Connected) {
+                    pictures.reconnected();
+                }
+                let _ = inputs.send(Input::Voicemod(event));
+            }
+        }
     });
+    app.state::<Pictures>().connect(voicemod.clone());
     let overlay = overlay::start(&app);
     thread::spawn(move || run(&app, &received, &firmware_inputs, &board, &voicemod, &overlay));
 }

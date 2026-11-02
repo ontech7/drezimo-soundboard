@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 
@@ -12,6 +12,8 @@ export interface PadView {
   name: string;
   /** A voice, rather than a sound */
   voice: boolean;
+  /** Its picture's path on the pad-image scheme (src-tauri/src/pictures.rs) */
+  picture: string | null;
   led: Led;
   /** Outside the licence */
   locked: boolean;
@@ -60,6 +62,10 @@ export function pressKey(index: number): void {
 
 export function goToPage(index: number): void {
   invoke("go_to_page", { index }).catch((error) => console.error("cannot change the page", error));
+}
+
+export function pictureUrl(path: string): string {
+  return convertFileSrc(path, "pad-image");
 }
 
 export function isLit(led: Led): boolean {

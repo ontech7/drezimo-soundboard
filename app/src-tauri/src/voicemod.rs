@@ -2,6 +2,7 @@
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
 use crate::soundboard::{Soundboard, Voice};
+use base64::prelude::{BASE64_STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -47,6 +48,15 @@ pub enum Request {
     ToggleMuteForMe,
     ToggleVoiceChanger,
     ToggleHearMyself,
+    /// Answered only for a sound or voice Voicemod knows
+    GetPicture(Picture),
+}
+
+/// The picture of a sound or a voice, by its id
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Picture {
+    Sound(String),
+    Voice(String),
 }
 
 impl Request {
@@ -54,6 +64,8 @@ impl Request {
         match self {
             Self::PlaySound { id, key_down } => ("playMeme", json!({ "FileName": id, "IsKeyDown": key_down })),
             Self::LoadVoice(id) => ("loadVoice", json!({ "voiceID": id })),
+            Self::GetPicture(Picture::Sound(id)) => ("getBitmap", json!({ "memeId": id })),
+            Self::GetPicture(Picture::Voice(id)) => ("getBitmap", json!({ "voiceID": id })),
             Self::StopAllSounds => ("stopAllMemeSounds", json!({})),
             Self::ToggleMuteForMe => ("toggleMuteMemeForMe", json!({})),
             Self::ToggleVoiceChanger => ("toggleVoiceChanger", json!({})),
@@ -79,6 +91,11 @@ pub enum VoicemodEvent {
     MuteForMe(bool),
     VoiceChanger(bool),
     HearMyself(bool),
+    /// A PNG or JPEG file, none if Voicemod has no picture for it
+    Picture {
+        of: Picture,
+        file: Option<Vec<u8>>,
+    },
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -89,6 +106,7 @@ pub enum License {
     Pro,
 }
 
+#[derive(Clone)]
 pub struct Voicemod {
     requests: UnboundedSender<Request>,
 }
@@ -106,6 +124,13 @@ impl Voicemod {
         // The connection task lives as long as the app, unless the build has no key
         let _ = self.requests.send(request);
     }
+
+    /// No connection: the requests go to the receiver returned.
+    #[cfg(test)]
+    pub fn unconnected() -> (Self, UnboundedReceiver<Request>) {
+        let (requests, sent) = mpsc::unbounded_channel();
+        (Self { requests }, sent)
+    }
 }
 
 async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl Fn(VoicemodEvent)) {
@@ -115,10 +140,10 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
     };
     let mut status = VoicemodStatus::Connecting;
     loop {
-        // Requests made while Voicemod was away are stale
-        while requests.try_recv().is_ok() {}
         let retry_after = match tokio::time::timeout(CONNECT_TIMEOUT, connect(key)).await {
             Ok(Ok(socket)) => {
+                // Requests made while Voicemod was away are stale
+                while requests.try_recv().is_ok() {}
                 report(&mut status, VoicemodStatus::Connected, &on_event);
                 if let Err(error) = exchange(socket, &mut requests, &on_event).await {
                     eprintln!("lost the connection to Voicemod: {error}");
@@ -301,6 +326,20 @@ fn parse(text: &str) -> Option<Incoming> {
         "voiceChangerEnabledEvent" => VoicemodEvent::VoiceChanger(true),
         "voiceChangerDisabledEvent" => VoicemodEvent::VoiceChanger(false),
         "toggleHearMyVoice" | "getHearMyselfStatus" => VoicemodEvent::HearMyself(switch()?),
+        "getBitmap" => {
+            let of = match (object["memeId"].as_str(), object["voiceID"].as_str()) {
+                (Some(id), _) => Picture::Sound(id.to_string()),
+                (None, Some(id)) => Picture::Voice(id.to_string()),
+                (None, None) => return None,
+            };
+            // A voice's picture also comes on its selected tile's background: the plain one fits the window
+            let file = ["transparent", "default"]
+                .into_iter()
+                .filter_map(|variant| object["result"][variant].as_str())
+                .find(|data| !data.is_empty())
+                .and_then(|data| BASE64_STANDARD.decode(data).ok());
+            VoicemodEvent::Picture { of, file }
+        }
         _ => return None,
     };
     Some(Incoming::Event(event))
@@ -416,5 +455,29 @@ mod tests {
         let sent: Value = serde_json::from_str(&text).unwrap();
         assert_eq!(sent["action"], "stopAllMemeSounds");
         assert!(sent["id"].as_str().is_some_and(|id| !id.is_empty()));
+    }
+
+    #[test]
+    fn asks_for_the_pictures_and_reads_them() {
+        assert_eq!(
+            Request::GetPicture(Picture::Voice("v1".into())).action(),
+            ("getBitmap", json!({ "voiceID": "v1" }))
+        );
+        assert_eq!(
+            Request::GetPicture(Picture::Sound("s1".into())).action(),
+            ("getBitmap", json!({ "memeId": "s1" }))
+        );
+
+        // "iVBORw==" is the start of a PNG file
+        let voice = r#"{"actionType": "getBitmap", "actionObject": {"voiceID": "v1",
+            "result": {"default": "AAAA", "selected": "AAAA", "transparent": "iVBORw=="}}}"#;
+        let sound = r#"{"actionType": "getBitmap", "actionObject": {"memeId": "s1",
+            "result": {"default": "iVBORw==", "image": "iVBORw=="}}}"#;
+        let empty = r#"{"actionType": "getBitmap", "actionObject": {"memeId": "s2", "result": {"default": ""}}}"#;
+        let png = Some(vec![0x89, b'P', b'N', b'G']);
+        let picture = |of, file| Some(Incoming::Event(VoicemodEvent::Picture { of, file }));
+        assert_eq!(parse(voice), picture(Picture::Voice("v1".into()), png.clone()));
+        assert_eq!(parse(sound), picture(Picture::Sound("s1".into()), png));
+        assert_eq!(parse(empty), picture(Picture::Sound("s2".into()), None));
     }
 }

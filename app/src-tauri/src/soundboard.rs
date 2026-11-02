@@ -38,6 +38,9 @@ pub struct Sound {
     pub mute_voice: bool,
     #[serde(default)]
     pub favorited: bool,
+    /// Where Voicemod keeps its picture, named by the picture's checksum
+    #[serde(default, rename = "imageURL")]
+    pub image_url: String,
 }
 
 fn enabled_by_default() -> bool {
@@ -80,6 +83,8 @@ pub struct Voice {
     pub enabled: bool,
     #[serde(default)]
     pub favorited: bool,
+    #[serde(default, rename = "imageURL")]
+    pub image_url: String,
 }
 
 /// What a pad does
@@ -103,6 +108,13 @@ impl Pad {
         match self {
             Self::Sound(sound) => sound.enabled,
             Self::Voice(voice) => voice.enabled,
+        }
+    }
+
+    pub fn image_url(&self) -> &str {
+        match self {
+            Self::Sound(sound) => &sound.image_url,
+            Self::Voice(voice) => &voice.image_url,
         }
     }
 }
@@ -179,6 +191,7 @@ pub mod tests {
             stop_other_sounds: false,
             mute_voice: false,
             favorited: false,
+            image_url: String::new(),
         }
     }
 
@@ -249,6 +262,7 @@ pub mod tests {
             name: id.to_uppercase(),
             enabled: true,
             favorited: false,
+            image_url: String::new(),
         }
     }
 

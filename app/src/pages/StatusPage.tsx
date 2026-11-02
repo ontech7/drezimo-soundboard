@@ -1,10 +1,18 @@
-import { type CSSProperties, type KeyboardEvent, useEffect, useRef } from "react";
-import { type Activity, describe } from "../board";
-import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad, useBoardView } from "../boardView";
-import { DisplayPreview } from "../DisplayPreview";
-import { ChevronLeft, ChevronRight } from "../icons";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type BoardView,
+  goToPage,
+  isLit,
+  ledColor,
+  type PadView,
+  pictureUrl,
+  pressKey,
+  pressPad,
+  useBoardView,
+} from "../boardView";
+import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, SoundIcon, StopIcon, VoiceChangerIcon, VoiceIcon } from "../icons";
 import { type Texts, useTexts } from "../i18n";
-import type { BoardStatus, FirmwareUpdate, PageSummary, Status } from "../status";
+import type { BoardStatus, FirmwareUpdate, Status } from "../status";
 
 interface Line {
   dot: "waiting" | "warning" | "ok" | "error";
@@ -32,12 +40,12 @@ function connectionLine(texts: Texts, status: BoardStatus): Line {
     case "busy":
       return { dot: "warning", title: texts.busy, detail: texts.busyDetail };
     case "connected":
-      return { dot: "ok", title: texts.boardConnected, detail: `Firmware ${status.firmware} · ${status.port}` };
+      return { dot: "ok", title: texts.boardConnected, detail: "" };
   }
 }
 
 function voicemodLine(texts: Texts, status: Status): Line {
-  const { voicemod, page, voicemodLog: fromLog, license } = status;
+  const { voicemod, page, license } = status;
   switch (voicemod.state) {
     case "connecting":
       return { dot: "waiting", title: texts.connectingVoicemod, detail: "" };
@@ -46,8 +54,7 @@ function voicemodLine(texts: Texts, status: Status): Line {
         dot: "ok",
         title: texts.voicemodConnected,
         badge: license ? texts.license(license) : undefined,
-        detail: page ? pageText(texts, page) : texts.loadingSoundboards,
-        note: fromLog ? undefined : texts.logUnreadable,
+        detail: page ? "" : texts.loadingSoundboards,
       };
     case "unreachable":
       return { dot: "waiting", title: texts.voicemodUnreachable, detail: texts.voicemodUnreachableDetail };
@@ -56,11 +63,6 @@ function voicemodLine(texts: Texts, status: Status): Line {
     case "missingKey":
       return { dot: "error", title: texts.missingKey, detail: texts.missingKeyDetail };
   }
-}
-
-function pageText(texts: Texts, page: PageSummary): string {
-  const name = page.parts > 1 ? `${page.name} ${page.part}/${page.parts}` : page.name;
-  return texts.page(name, page.number, page.count);
 }
 
 function StatusLine({ line }: { line: Line }) {
@@ -79,14 +81,17 @@ function StatusLine({ line }: { line: Line }) {
   );
 }
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-// STOP, MUTE ME, VOICE, HEAR ME: the page keys sit above the pads instead
-const KEYS = [2, 3, 4, 5];
+// The board's function keys but the page keys, which the page arrows stand for
+const KEYS: { index: number; hint: keyof Texts["keyHints"]; icon: ReactNode }[] = [
+  { index: 2, hint: "stop", icon: <StopIcon /> },
+  { index: 3, hint: "muteMe", icon: <MuteMeIcon /> },
+  { index: 4, hint: "voice", icon: <VoiceChangerIcon /> },
+  { index: 5, hint: "hearMe", icon: <HearMeIcon /> },
+];
 
 function Pad({ index, pad }: { index: number; pad: PadView }) {
   const texts = useTexts();
-  const classes = ["pad", pad.led.effect, isLit(pad.led) ? "lit" : "", pad.locked ? "locked" : ""];
+  const classes = ["pad", pad.led.effect, isLit(pad.led) ? "lit" : "", pad.locked ? "locked" : "", pad.voice ? "voice" : ""];
   // Pressed and released as on the board, for the sounds that play while held: only what this pad pressed is released
   const pressed = useRef(false);
   const press = (down: boolean) => {
@@ -119,7 +124,7 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
       style={{ "--led": ledColor(pad.led) } as CSSProperties}
       disabled={!pad.name}
       aria-hidden={!pad.name}
-      title={pad.locked ? texts.locked : undefined}
+      title={pad.locked ? `${pad.name}\n${texts.locked}` : pad.name || undefined}
       onPointerDown={(event) => {
         if (event.button !== 0 || !pad.name) return;
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -138,8 +143,55 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
         if (isKey(event)) press(false);
       }}
     >
-      <span>{pad.name}</span>
+      {pad.name && <PadPicture key={pad.picture} pad={pad} />}
+      <span className="name">{pad.name}</span>
     </button>
+  );
+}
+
+// Keyed by the picture: the next page's picture never shows the last one's while it loads
+function PadPicture({ pad }: { pad: PadView }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <span className="picture">
+      {!loaded && (pad.voice ? <VoiceIcon /> : <SoundIcon />)}
+      {pad.picture && (
+        <img
+          src={pictureUrl(pad.picture)}
+          alt=""
+          draggable={false}
+          className={loaded ? "loaded" : undefined}
+          onLoad={() => setLoaded(true)}
+        />
+      )}
+    </span>
+  );
+}
+
+function Keys({ view }: { view: BoardView }) {
+  const texts = useTexts();
+  return (
+    <div className="function-keys">
+      {KEYS.map(({ index, hint, icon }) => {
+        const led = view.keys[index];
+        const lit = isLit(led);
+        return (
+          <button
+            key={index}
+            type="button"
+            className={lit ? "icon-button key lit" : "icon-button key"}
+            aria-label={texts.keyHints[hint]}
+            title={texts.keyHints[hint]}
+            // MUTE ME, VOICE and HEAR ME are switches, lit while on
+            aria-pressed={index === 2 ? undefined : lit}
+            style={{ "--led": ledColor(led) } as CSSProperties}
+            onClick={() => pressKey(index)}
+          >
+            {icon}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -184,6 +236,7 @@ function Pads({ view }: { view: BoardView | null }) {
         <span className="muted counter">
           {view.page + 1}/{count}
         </span>
+        <Keys view={view} />
       </div>
       <div className="pads">
         {view.pads.map((pad, index) => (
@@ -194,36 +247,7 @@ function Pads({ view }: { view: BoardView | null }) {
   );
 }
 
-function Keys({ view }: { view: BoardView | null }) {
-  const texts = useTexts();
-  return (
-    <section className="card">
-      <h2>{texts.keys}</h2>
-      <div className="keys">
-        {KEYS.map((index) => {
-          const led = view?.keys[index];
-          const lit = led !== undefined && isLit(led);
-          return (
-            <button
-              key={index}
-              type="button"
-              className={lit ? "key lit" : "key"}
-              // MUTE ME, VOICE and HEAR ME are switches, lit while on
-              aria-pressed={index === 2 ? undefined : lit}
-              style={led ? ({ "--led": ledColor(led) } as CSSProperties) : undefined}
-              disabled={!view}
-              onClick={() => pressKey(index)}
-            >
-              {texts.buttonNames[index]}
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-export function StatusPage({ status, activity }: { status: Status; activity: Activity[] }) {
+export function StatusPage({ status }: { status: Status }) {
   const texts = useTexts();
   const view = useBoardView();
   return (
@@ -238,30 +262,6 @@ export function StatusPage({ status, activity }: { status: Status; activity: Act
       </div>
 
       <Pads view={view} />
-
-      <div className="pair">
-        <section className="card">
-          <h2>{texts.display}</h2>
-          <DisplayPreview />
-        </section>
-        <Keys view={view} />
-      </div>
-
-      <section className="card activity">
-        <h2>{texts.activity}</h2>
-        {activity.length === 0 ? (
-          <p className="muted">{texts.noActivity}</p>
-        ) : (
-          <ul>
-            {activity.map((item) => (
-              <li key={item.id}>
-                <span>{describe(item.message, texts)}</span>
-                <time className="muted">{timeFormat.format(item.at)}</time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </>
   );
 }

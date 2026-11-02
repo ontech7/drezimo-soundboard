@@ -310,6 +310,8 @@ impl Controller {
             VoicemodEvent::MuteForMe(on) => self.switches.mute_for_me = on,
             VoicemodEvent::VoiceChanger(on) => self.switches.voice_changer = on,
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
+            // Only for the window: src/pictures.rs
+            VoicemodEvent::Picture { .. } => {}
         }
     }
 

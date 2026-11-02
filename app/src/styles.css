@@ -577,10 +577,14 @@ select:disabled {
 }
 
 .pad {
-  height: 46px;
-  padding: 4px 6px;
-  font-size: 12px;
-  line-height: 1.25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 66px;
+  padding: 7px 6px;
+  font-size: 11.5px;
+  line-height: 1.2;
 }
 
 /* The LED: border and tint, animated as the board animates it */
@@ -619,13 +623,55 @@ select:disabled {
   }
 }
 
-.pad span {
+/* One line, the whole name in the pad's tooltip */
+.pad .name {
   position: relative;
-  display: -webkit-box;
+  max-width: 100%;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Voicemod's picture, over its kind's icon until it loads, or when there is none */
+.pad .picture {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--raised);
+}
+
+.pad .picture img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.pad .picture img.loaded {
+  opacity: 1;
+}
+
+/* A voice's picture has no background of its own: a soft light keeps the dark ones readable */
+.pad.voice .picture {
+  background: radial-gradient(circle at 50% 45%, rgb(255 255 255 / 18%), rgb(255 255 255 / 4%) 72%);
+}
+
+.pad.voice .picture img {
+  transform: scale(1.12);
+}
+
+.pad.locked .picture {
+  filter: grayscale(1);
+  opacity: 0.45;
 }
 
 .pad:hover:not(:disabled),
@@ -637,7 +683,7 @@ select:disabled {
   transform: scale(0.97);
 }
 
-.pad.locked span {
+.pad.locked .name {
   color: var(--muted);
 }
 
@@ -646,16 +692,34 @@ select:disabled {
   cursor: default;
 }
 
-.keys {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+/* STOP, MUTE ME, VOICE and HEAR ME, after the page arrows */
+.function-keys {
+  display: flex;
+  gap: 6px;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
 }
 
 .key {
-  height: 44px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.key .icon {
+  position: relative;
+}
+
+.key:not(.lit):hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* As the page arrows beside them */
+.key:not(.lit):hover:not(:disabled)::before {
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
+.key.lit {
+  color: var(--led);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,6 +2,7 @@
 //! it can be played from the window too.
 
 use super::{Controller, PADS};
+use crate::pictures;
 use crate::protocol::{BUTTON_COUNT, BoardMessage, Led};
 use crate::soundboard::Pad;
 use crate::voicemod::VoicemodStatus;
@@ -26,6 +27,8 @@ pub struct PadView {
     pub name: String,
     /// A voice, rather than a sound
     pub voice: bool,
+    /// Its picture's path on the pad-image scheme (src/pictures.rs)
+    pub picture: Option<String>,
     pub led: Led,
     /// Outside the licence
     pub locked: bool,
@@ -43,6 +46,7 @@ impl Controller {
                 PadView {
                     name: content.map(|content| content.name().to_string()).unwrap_or_default(),
                     voice: matches!(content, Some(Pad::Voice(_))),
+                    picture: content.and_then(pictures::path),
                     led: self.led(usize::from(pad), now),
                     locked: content.is_some_and(|content| !content.enabled()),
                 }

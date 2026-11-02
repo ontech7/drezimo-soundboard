@@ -22,6 +22,8 @@ export interface Settings {
   /** In percent */
   ledBrightness: number;
   overlay: OverlaySettings;
+  /** Shows the Diagnostics page */
+  diagnostics: boolean;
 }
 
 export interface SettingsView extends Settings {
@@ -62,8 +64,8 @@ export function useSettings(): SettingsView | null {
   return settings;
 }
 
-export function saveSettings({ language, ledBrightness, overlay }: Settings): void {
-  invoke("set_settings", { settings: { language, ledBrightness, overlay } }).catch((error) =>
+export function saveSettings({ language, ledBrightness, overlay, diagnostics }: Settings): void {
+  invoke("set_settings", { settings: { language, ledBrightness, overlay, diagnostics } }).catch((error) =>
     console.error("cannot save the settings", error)
   );
 }

@@ -100,6 +100,8 @@ pub struct Settings {
     /// The LEDs' brightness, in percent: the board does not keep it
     pub led_brightness: u8,
     pub overlay: OverlaySettings,
+    /// Shows the window's page of technical details
+    pub diagnostics: bool,
 }
 
 impl Default for Settings {
@@ -108,6 +110,7 @@ impl Default for Settings {
             language: Language::default(),
             led_brightness: 50,
             overlay: OverlaySettings::default(),
+            diagnostics: false,
         }
     }
 }

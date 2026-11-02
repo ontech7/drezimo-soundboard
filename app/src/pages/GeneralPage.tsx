@@ -77,6 +77,16 @@ export function GeneralPage({ settings, status }: { settings: SettingsView; stat
           <Row label={texts.updates} text={texts.updatesText} />
         </Section>
       )}
+
+      <Section>
+        <Row label={texts.showDiagnostics} text={texts.diagnosticsText}>
+          <Toggle
+            label={texts.showDiagnostics}
+            checked={settings.diagnostics}
+            onChange={(diagnostics) => saveSettings({ ...settings, diagnostics })}
+          />
+        </Row>
+      </Section>
     </>
   );
 }

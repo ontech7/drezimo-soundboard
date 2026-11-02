@@ -4,6 +4,7 @@ mod device;
 mod display;
 mod firmware;
 mod overlay;
+mod pictures;
 mod playback;
 mod protocol;
 mod settings;
@@ -45,6 +46,11 @@ pub fn run() {
             settings::set_start_at_login,
             window::window_ready
         ])
+        .register_asynchronous_uri_scheme_protocol(pictures::SCHEME, |context, request, responder| {
+            let app = context.app_handle().clone();
+            let path = request.uri().path().to_string();
+            tauri::async_runtime::spawn(async move { responder.respond(pictures::respond(&app, &path).await) });
+        })
         .on_window_event(window::on_event)
         .setup(|app| {
             // A menu bar app: no Dock icon
@@ -52,6 +58,7 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             app.manage(settings::load(app.handle()));
+            app.manage(pictures::Pictures::new(app.handle()));
             tray::create(app.handle())?;
             device::start(app.handle().clone());
             // A build made here does not replace itself with a published one
