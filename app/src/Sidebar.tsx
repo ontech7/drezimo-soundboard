@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
 import { type Texts, useTexts } from "./i18n";
-import { BoardIcon, DiagnosticsIcon, GeneralIcon, MacroIcon, OverlayIcon, PagesIcon, StatusIcon } from "./icons";
+import { BoardIcon, DiagnosticsIcon, GeneralIcon, MacroIcon, OverlayIcon, PagesIcon, SoundboardIcon } from "./icons";
 import type { Status } from "./status";
 
-export type PageId = "status" | "pages" | "macros" | "board" | "overlay" | "general" | "diagnostics";
+export type PageId = "soundboard" | "pages" | "macros" | "board" | "overlay" | "general" | "diagnostics";
 
 const ICONS: Record<PageId, ReactNode> = {
-  status: <StatusIcon />,
+  soundboard: <SoundboardIcon />,
   pages: <PagesIcon />,
   macros: <MacroIcon />,
   board: <BoardIcon />,
@@ -17,7 +17,7 @@ const ICONS: Record<PageId, ReactNode> = {
   diagnostics: <DiagnosticsIcon />,
 };
 
-/** Drezimo's or Voicemod's state, in a few words: what to do about it shows on the Status page */
+/** Drezimo's or Voicemod's state, in a few words: what to do about it shows on the Soundboard page */
 export interface Connection {
   state: "ok" | "off" | "waiting" | "warning" | "error";
   label: string;

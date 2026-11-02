@@ -10,18 +10,26 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
-export const StatusIcon = () => (
+export const SoundboardIcon = () => (
   <Icon>
-    <polyline points="2 12 6 12 9 5 15 19 18 12 22 12" />
+    <rect x="3" y="3" width="5" height="5" rx="1" />
+    <rect x="9.5" y="3" width="5" height="5" rx="1" />
+    <rect x="16" y="3" width="5" height="5" rx="1" />
+    <rect x="3" y="9.5" width="5" height="5" rx="1" />
+    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+    <rect x="16" y="9.5" width="5" height="5" rx="1" />
+    <rect x="3" y="16" width="5" height="5" rx="1" />
+    <rect x="9.5" y="16" width="5" height="5" rx="1" />
+    <rect x="16" y="16" width="5" height="5" rx="1" />
   </Icon>
 );
 
 export const BoardIcon = () => (
   <Icon>
-    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    <rect x="5" y="2.5" width="14" height="19" rx="2.5" />
+    <rect x="8" y="5.5" width="5" height="3" rx="0.5" />
+    <circle cx="15.5" cy="7" r="1.25" />
+    <path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 17h.01M12 17h.01M15.5 17h.01" />
   </Icon>
 );
 

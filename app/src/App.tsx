@@ -9,7 +9,7 @@ import { GeneralPage } from "./pages/GeneralPage";
 import { MacrosPage } from "./pages/MacrosPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
-import { StatusPage } from "./pages/StatusPage";
+import { SoundboardPage } from "./pages/SoundboardPage";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
 import { useStatus } from "./status";
@@ -24,7 +24,7 @@ export default function App() {
   // Kept here, so they go on while another page is shown
   const activity = useBoardActivity(12);
   const view = useBoardView();
-  const [page, setPage] = useState<PageId>("status");
+  const [page, setPage] = useState<PageId>("soundboard");
   // Until opened or closed here, the tour shows while not seen yet: at the first start, in the first frame
   const [tour, setTour] = useState<boolean | null>(null);
   // Where to find the tour again, once it is skipped
@@ -63,10 +63,10 @@ export default function App() {
 
   if (!status || !settings) return null;
   const texts = TEXTS[language];
-  const pages: PageId[] = ["status", "pages", "macros", "board", "overlay", "general"];
+  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
   if (settings.diagnostics) pages.push("diagnostics");
   // Diagnostics turned off while shown
-  const shown = pages.includes(page) ? page : "status";
+  const shown = pages.includes(page) ? page : "soundboard";
 
   return (
     <TextsContext.Provider value={texts}>
@@ -74,7 +74,7 @@ export default function App() {
         <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
         <main>
           <h1>{texts.nav[shown]}</h1>
-          {shown === "status" && <StatusPage status={status} view={view} onMakePage={() => setPage("pages")} />}
+          {shown === "soundboard" && <SoundboardPage status={status} view={view} onMakePage={() => setPage("pages")} />}
           {shown === "pages" && <PagesPage onOpenMacros={() => setPage("macros")} />}
           {shown === "macros" && <MacrosPage status={status} />}
           {shown === "board" && <BoardPage settings={settings} status={status} />}

@@ -309,7 +309,7 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
   );
 }
 
-const SIDEBAR: PageId[] = ["status", "pages", "macros", "board", "overlay", "general"];
+const SIDEBAR: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
 
 /** The General page, where the tour stays */
 export function AllSet() {

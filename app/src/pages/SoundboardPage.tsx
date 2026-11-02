@@ -237,7 +237,7 @@ interface Props {
   onMakePage: () => void;
 }
 
-export function StatusPage({ status, view, onMakePage }: Props) {
+export function SoundboardPage({ status, view, onMakePage }: Props) {
   const texts = useTexts();
   const notice = boardNotice(texts, status, !!view);
   // The pads not known yet, or not there yet while the status already has a page: nothing, rather than a wrong state

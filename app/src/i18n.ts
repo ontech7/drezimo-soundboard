@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 
 const ENGLISH = {
   nav: {
-    status: "Status",
+    soundboard: "Soundboard",
     pages: "Pages",
     macros: "Macros",
     board: "Board",
@@ -374,7 +374,7 @@ export type Texts = typeof ENGLISH;
 
 const ITALIAN: Texts = {
   nav: {
-    status: "Stato",
+    soundboard: "Soundboard",
     pages: "Pagine",
     macros: "Macro",
     board: "Board",
