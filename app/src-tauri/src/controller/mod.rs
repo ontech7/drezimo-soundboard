@@ -4,6 +4,9 @@
 
 mod overlay;
 mod screen;
+mod window;
+
+pub use window::BoardView;
 
 use crate::display::Frame;
 use crate::display::screens::{self, Screen};
@@ -15,7 +18,7 @@ use crate::soundboard::{self, Page, PlaybackMode, Sound, Soundboard};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::time::{Duration, Instant};
 
@@ -117,6 +120,8 @@ pub struct Controller {
     sounds: HashMap<String, Sound>,
     /// The pads held down. The sound is kept, so its key-up still reaches it after a page change.
     held: HashMap<u8, Option<HeldSound>>,
+    /// Those of them held from the window: the board and the window release only what they pressed
+    window_held: HashSet<u8>,
     /// Until when each pressed pad shows yellow
     flashes: HashMap<u8, Instant>,
     /// Key-ups waiting for the minimum hold, and when they are due
@@ -155,6 +160,7 @@ impl Default for Controller {
             log: LogTracker::default(),
             sounds: HashMap::new(),
             held: HashMap::new(),
+            window_held: HashSet::new(),
             flashes: HashMap::new(),
             releases: Vec::new(),
             knob: Knob::default(),
@@ -198,7 +204,12 @@ impl Controller {
         if connected {
             self.show_overlay(now);
         } else {
-            let held: Vec<u8> = self.held.keys().copied().collect();
+            let held: Vec<u8> = self
+                .held
+                .keys()
+                .copied()
+                .filter(|pad| !self.window_held.contains(pad))
+                .collect();
             for pad in held {
                 self.pad_released(pad, now);
             }
@@ -208,7 +219,10 @@ impl Controller {
     pub fn board_message(&mut self, message: BoardMessage, now: Instant) {
         match message {
             BoardMessage::Pad { index, pressed: true } => self.pad_pressed(index, now),
-            BoardMessage::Pad { index, pressed: false } => self.pad_released(index, now),
+            // A pad held from the window is the window's to release
+            BoardMessage::Pad { index, pressed: false } if !self.window_held.contains(&index) => {
+                self.pad_released(index, now)
+            }
             BoardMessage::Button { index, pressed: true } => self.button_pressed(index, now),
             BoardMessage::Encoder { step } => self.knob_turned(step.into(), now),
             BoardMessage::EncoderButton { pressed } => self.knob_pressed(pressed, now),

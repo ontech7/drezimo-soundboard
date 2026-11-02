@@ -105,7 +105,7 @@ input:focus-visible {
   font-weight: 600;
 }
 
-.sidebar button svg {
+.icon {
   flex: none;
   width: 18px;
   height: 18px;
@@ -116,7 +116,7 @@ input:focus-visible {
   stroke-linejoin: round;
 }
 
-.sidebar button.selected svg {
+.sidebar button.selected .icon {
   stroke: var(--amber);
 }
 
@@ -234,8 +234,11 @@ p {
 }
 
 .activity {
-  flex: 1;
-  min-height: 120px;
+  flex: none;
+}
+
+.activity ul {
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -409,13 +412,22 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   font-weight: 600;
 }
 
+/* The arrow is the app's own chevron, clear of the edge */
 select {
   min-width: 140px;
-  padding: 6px 10px;
+  height: 36px;
+  padding: 0 40px 0 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+    no-repeat right 14px center / 16px;
+  appearance: none;
   cursor: pointer;
+}
+
+select:hover:not(:disabled) {
+  border-color: var(--muted);
 }
 
 button:disabled,
@@ -496,4 +508,147 @@ select:disabled {
 
 .button:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+/* The board, played from the window: the page's pads and the function keys, lit as on the board */
+
+.pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pages select {
+  flex: 1;
+  min-width: 0;
+}
+
+.pages .counter {
+  min-width: 48px;
+  text-align: right;
+}
+
+.icon-button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--muted);
+  background: var(--raised);
+}
+
+.pads {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.pad,
+.key {
+  position: relative;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.pad {
+  height: 46px;
+  padding: 4px 6px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+/* The LED: border and tint, animated as the board animates it */
+.pad::before,
+.key::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.pad.lit::before,
+.key.lit::before {
+  background: color-mix(in srgb, var(--led) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--led);
+}
+
+.pad.breathe::before {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+.pad.blink::before {
+  animation: blink 0.8s steps(1) infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.pad span {
+  position: relative;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.pad:hover:not(:disabled),
+.key:hover:not(:disabled) {
+  background: var(--raised);
+}
+
+.pad:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.pad.locked span {
+  color: var(--muted);
+}
+
+.pad:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.key {
+  height: 44px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pad::before,
+  .dot {
+    animation: none !important;
+  }
 }

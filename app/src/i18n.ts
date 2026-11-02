@@ -3,8 +3,6 @@ import { createContext, useContext } from "react";
 const ENGLISH = {
   nav: { status: "Status", board: "Board", overlay: "Overlay", general: "General" },
 
-  board: "Board",
-  voicemod: "Voicemod",
   display: "Display",
   activity: "Activity",
   updatingBoard: "Updating the board…",
@@ -29,6 +27,12 @@ const ENGLISH = {
   missingKeyDetail: "This build was made without VOICEMOD_CLIENT_KEY.",
   page: (name: string, number: number, count: number) => `${name} · page ${number} of ${count}`,
   noActivity: "Press a key or turn the knob.",
+  noPages: "The pages show here once Voicemod is connected with its soundboards: click a pad to play its sound.",
+  soundboard: "Soundboard",
+  previousPage: "Previous page",
+  nextPage: "Next page",
+  keys: "Keys",
+  locked: "Not in your Voicemod licence",
   pad: (number: number, pressed: boolean) => `Pad ${number} ${pressed ? "pressed" : "released"}`,
   buttonNames: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"],
   button: (name: string, pressed: boolean) => `${name} ${pressed ? "pressed" : "released"}`,
@@ -92,8 +96,6 @@ export type Texts = typeof ENGLISH;
 const ITALIAN: Texts = {
   nav: { status: "Stato", board: "Board", overlay: "Overlay", general: "Generale" },
 
-  board: "Board",
-  voicemod: "Voicemod",
   display: "Display",
   activity: "Attività",
   updatingBoard: "Aggiornamento della board…",
@@ -118,6 +120,12 @@ const ITALIAN: Texts = {
   missingKeyDetail: "Questa build è stata fatta senza VOICEMOD_CLIENT_KEY.",
   page: (name, number, count) => `${name} · pagina ${number} di ${count}`,
   noActivity: "Premi un tasto o gira la manopola.",
+  noPages: "Le pagine compaiono qui quando Voicemod è collegato con le sue soundboard: clicca un pad per suonarlo.",
+  soundboard: "Soundboard",
+  previousPage: "Pagina precedente",
+  nextPage: "Pagina successiva",
+  keys: "Tasti",
+  locked: "Non incluso nella tua licenza di Voicemod",
   pad: (number, pressed) => `Pad ${number} ${pressed ? "premuto" : "rilasciato"}`,
   buttonNames: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"],
   button: (name, pressed) => `${name} ${pressed ? "premuto" : "rilasciato"}`,

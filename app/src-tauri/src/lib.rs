@@ -26,10 +26,15 @@ pub fn run() {
         .manage(window::WindowState::default())
         .manage(Mutex::new(device::Status::default()))
         .manage(device::DisplayFrame::default())
+        .manage(device::BoardViewState::default())
         .manage(device::LastUse::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
+            device::board_view,
+            device::press_pad,
+            device::press_key,
+            device::go_to_page,
             device::set_display_settings,
             device::preview_led_brightness,
             device::preview_overlay,

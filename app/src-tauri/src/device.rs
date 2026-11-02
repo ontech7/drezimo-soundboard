@@ -2,10 +2,10 @@
 //! its messages, and the app's status goes to the tray and the window.
 
 use crate::board::{Board, BoardEvent, BoardStatus};
-use crate::controller::{Controller, Output, PageSummary};
+use crate::controller::{BoardView, Controller, Output, PageSummary};
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::overlay::{self, Look, OverlayUpdate};
-use crate::protocol::{self, BoardMessage, DisplaySettings};
+use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
 use crate::settings::{OverlaySettings, Settings, SettingsState};
 use crate::tray;
 use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
@@ -29,6 +29,13 @@ enum Input {
     LedBrightnessPreview(u8),
     /// Shows the overlay, as it would look with these settings if given
     OverlayPreview(Option<OverlaySettings>),
+    /// The board played from the window
+    Pad {
+        index: u8,
+        pressed: bool,
+    },
+    Key(u8),
+    Page(usize),
 }
 
 /// The way in for the window's commands
@@ -60,13 +67,22 @@ pub struct LastUse(pub Mutex<Option<Instant>>);
 #[derive(Default)]
 pub struct DisplayFrame(Mutex<String>);
 
+/// The board as the window shows it, when there is something to play
+#[derive(Default)]
+pub struct BoardViewState(Mutex<Option<BoardView>>);
+
+#[tauri::command]
+pub fn board_view(view: State<BoardViewState>) -> Option<BoardView> {
+    view.0.lock().unwrap().clone()
+}
+
 #[tauri::command]
 pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
-/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `LastUse` and `SettingsState` to be
-/// managed.
+/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse` and
+/// `SettingsState` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     app.manage(Inputs(Mutex::new(inputs.clone())));
@@ -104,6 +120,7 @@ fn run(
     let mut updater = Updater::default();
     // SETTINGS sent and not answered yet: only the answer to the last one is current
     let mut settings_reads = 0;
+    let mut shown_view = None;
     loop {
         let wake = controller.next_update().into_iter().chain(updater.next_update()).min();
         let input = match wake {
@@ -203,6 +220,9 @@ fn run(
                 }
                 controller.preview_overlay(now);
             }
+            Some(Input::Pad { index, pressed }) => controller.window_pad(index, pressed, now),
+            Some(Input::Key(index)) => controller.window_key(index, now),
+            Some(Input::Page(index)) => controller.go_to_page(index),
             None => {}
         }
         updater.update(now);
@@ -228,6 +248,13 @@ fn run(
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
             }
+        }
+        let view = controller.board_view(now);
+        if view != shown_view {
+            // Stored before it is announced, as the status is
+            app.state::<BoardViewState>().0.lock().unwrap().clone_from(&view);
+            let _ = app.emit("board-view", &view);
+            shown_view = view;
         }
         status.page = controller.page();
         status.voicemod_log = controller.follows_log();
@@ -287,6 +314,27 @@ pub fn preview_led_brightness(app: AppHandle, percent: u8) {
 #[tauri::command]
 pub fn preview_overlay(app: AppHandle, overlay: Option<OverlaySettings>) {
     send(&app, Input::OverlayPreview(overlay.map(OverlaySettings::checked)));
+}
+
+/// A pad pressed or released in the window
+#[tauri::command]
+pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
+    if index < PAD_COUNT {
+        send(&app, Input::Pad { index, pressed });
+    }
+}
+
+/// A function key clicked in the window
+#[tauri::command]
+pub fn press_key(app: AppHandle, index: u8) {
+    if index < BUTTON_COUNT {
+        send(&app, Input::Key(index));
+    }
+}
+
+#[tauri::command]
+pub fn go_to_page(app: AppHandle, index: usize) {
+    send(&app, Input::Page(index));
 }
 
 /// Sends the board to its bootloader and writes the app's firmware there, on a thread of its own: looking at the drives

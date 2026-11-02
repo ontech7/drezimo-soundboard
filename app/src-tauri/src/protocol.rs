@@ -7,14 +7,15 @@ pub const BUTTON_COUNT: u8 = 6;
 /// The pads' LEDs come first in the chain, then the function keys'
 pub const LED_COUNT: usize = (PAD_COUNT + BUTTON_COUNT) as usize;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Led {
     pub color: [u8; 3],
     pub effect: Effect,
 }
 
 /// Animated by the board, so the effects stay smooth whatever the USB timing
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Effect {
     Solid,
     Breathe,

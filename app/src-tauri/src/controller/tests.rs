@@ -703,3 +703,69 @@ fn voicemod_telling_again_of_the_soundboard_shown_is_no_page_change() {
     assert!(matches!(overlay_in(&controller.take_outputs()), Some(Some(_))));
     assert_eq!(controller.page().unwrap().name, "B");
 }
+
+#[test]
+fn the_window_shows_the_page_and_plays_it() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    let view = controller.board_view(now).expect("a page to show");
+    assert_eq!(
+        (view.pads[0].name.as_str(), view.pads[0].led),
+        ("HONK", Led::solid(BLUE))
+    );
+    assert_eq!(view.pads[1].name, "");
+    assert_eq!(view.keys[usize::from(STOP)], Led::OFF);
+
+    controller.window_pad(0, true, now);
+    controller.update(now);
+    assert_eq!(requests(&controller.take_outputs()), [&play("honk", true)]);
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(view.pads[0].led, Led::solid(YELLOW));
+    assert_eq!(view.keys[usize::from(STOP)], Led::solid(RED));
+}
+
+#[test]
+fn a_page_picked_in_the_window_shows_no_overlay() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    controller.go_to_page(2);
+    controller.update(now);
+    assert_eq!(controller.board_view(now).unwrap().page, 2);
+    assert_eq!(overlay_in(&controller.take_outputs()), None);
+
+    controller.go_to_page(3);
+    assert_eq!(controller.board_view(now).unwrap().page, 2, "no such page");
+}
+
+#[test]
+fn nothing_to_play_from_the_window_without_voicemod() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    assert_eq!(controller.board_view(now), None);
+}
+
+#[test]
+fn the_board_and_the_window_release_only_their_own_presses() {
+    let held = Sound {
+        playback_mode: PlaybackMode::PlayLoopOnPress,
+        ..sound("held")
+    };
+    let (mut controller, start) = ready(vec![soundboard("b", vec![held])]);
+    controller.window_pad(0, true, start);
+    controller.update(start);
+    assert_eq!(requests(&controller.take_outputs()), [&play("held", true)]);
+    let later = start + MIN_HOLD;
+    let outputs = press(&mut controller, 0, true, later);
+    assert!(requests(&outputs).is_empty(), "the window holds it");
+    let outputs = press(&mut controller, 0, false, later);
+    assert!(requests(&outputs).is_empty(), "only the window releases it");
+
+    controller.set_board_connected(false, later);
+    controller.update(later);
+    assert!(
+        requests(&controller.take_outputs()).is_empty(),
+        "nor does unplugging the board"
+    );
+
+    controller.window_pad(0, false, later);
+    controller.update(later);
+    assert_eq!(requests(&controller.take_outputs()), [&play("held", false)]);
+}
