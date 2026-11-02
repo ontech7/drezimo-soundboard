@@ -57,11 +57,17 @@ fn led(outputs: &[Output], index: usize) -> Option<&str> {
 }
 
 fn played_in_log(id: &str, at: SystemTime) -> LogLine {
+    played_file_in_log(id, at, None)
+}
+
+/// A play whose file tells its length, when readable.
+fn played_file_in_log(id: &str, at: SystemTime, length: Option<Duration>) -> LogLine {
     let kind = LineKind::Play {
         id: id.into(),
         mode: PlaybackMode::PlayRestart,
         repeat: false,
         paused: false,
+        length,
     };
     LogLine { at, kind }
 }
@@ -562,6 +568,49 @@ fn shows_the_name_of_a_sound_started_from_the_computer() {
         panic!("the home screen");
     };
     assert_eq!(name, "HONK");
+}
+
+#[test]
+fn shows_a_community_sound_and_its_countdown() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.log_input(LogInput::Opened(Vec::new()), now);
+    let community = played_file_in_log("2597e302", SystemTime::now(), Some(Duration::from_millis(1800)));
+    controller.log_input(LogInput::Lines(vec![community]), now);
+    let Screen::Home { name, right, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!((name.as_str(), right.as_str()), (ENGLISH.community, "1.8s"));
+}
+
+#[test]
+fn a_measured_length_wins_over_the_files() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    let earlier = SystemTime::now() - Duration::from_secs(60);
+    let file_length = Some(Duration::from_secs(3));
+    let ended = LogLine {
+        at: earlier + Duration::from_secs(2),
+        kind: LineKind::End { id: "2597e302".into() },
+    };
+    let history = vec![played_file_in_log("2597e302", earlier, file_length), ended];
+    controller.log_input(LogInput::Opened(history), now);
+    let again = played_file_in_log("2597e302", SystemTime::now(), file_length);
+    controller.log_input(LogInput::Lines(vec![again]), now);
+    let Screen::Home { right, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(right, "2.0s");
+}
+
+#[test]
+fn keeps_the_switches_while_a_sound_has_no_known_end() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    controller.log_input(LogInput::Opened(Vec::new()), now);
+    controller.log_input(LogInput::Lines(vec![played_in_log("2597e302", SystemTime::now())]), now);
+    let Screen::Home { name, right, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!((name.as_str(), right.as_str()), (ENGLISH.community, ENGLISH.mute_me));
 }
 
 fn overlay_in(outputs: &[Output]) -> Option<&Option<Overlay>> {

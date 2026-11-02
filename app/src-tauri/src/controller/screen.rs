@@ -84,8 +84,8 @@ impl Controller {
         }
     }
 
-    /// The bottom right of the home screen: the latest sound's state, or Voicemod's switches. True while it counts
-    /// down.
+    /// The bottom right of the home screen: the latest sound's state or, when it has none to show, Voicemod's switches.
+    /// True while it counts down.
     fn status(&self, now: Instant) -> (String, bool) {
         let texts = self.texts;
         let mut parts = Vec::new();
@@ -96,28 +96,37 @@ impl Controller {
         if mic_silenced {
             parts.push(texts.mic_off.to_string());
         }
-        let mut counting = false;
-        if let Some((id, state, ends_at)) = self.playback.latest() {
+        let sound_state = self.playback.latest().and_then(|(id, state, ends_at)| {
             let endless = self
                 .sounds
                 .get(id)
                 .is_some_and(|sound| sound.looped || sound.playback_mode == PlaybackMode::PlayLoopOnPress);
             if state == State::Paused {
-                parts.push(texts.paused.to_string());
+                Some((texts.paused.to_string(), false))
             } else if endless {
-                parts.push(texts.looped.to_string());
-            } else if let Some(end) = ends_at {
-                parts.push(seconds(end.saturating_duration_since(now)));
-                counting = true;
+                Some((texts.looped.to_string(), false))
+            } else {
+                ends_at.map(|end| (seconds(end.saturating_duration_since(now)), true))
             }
-        } else if self.switches.mute_for_me {
-            parts.push(texts.mute_me.to_string());
-        } else if !self.switches.voice_changer {
-            parts.push(texts.voice_off.to_string());
-        } else if self.switches.hear_myself {
-            parts.push(texts.hear_me.to_string());
-        }
+        });
+        let shown = sound_state.or_else(|| Some((self.switch_status()?.to_string(), false)));
+        let counting = shown.as_ref().is_some_and(|(_, counting)| *counting);
+        parts.extend(shown.map(|(text, _)| text));
         (parts.join(" "), counting)
+    }
+
+    /// The first switch away from how it usually is, if any.
+    fn switch_status(&self) -> Option<&'static str> {
+        let texts = self.texts;
+        if self.switches.mute_for_me {
+            Some(texts.mute_me)
+        } else if !self.switches.voice_changer {
+            Some(texts.voice_off)
+        } else if self.switches.hear_myself {
+            Some(texts.hear_me)
+        } else {
+            None
+        }
     }
 
     fn peek_screen(&self, pad: u8, counter: String) -> Screen {

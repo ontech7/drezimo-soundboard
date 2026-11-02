@@ -5,6 +5,8 @@ use crate::soundboard::PlaybackMode;
 pub struct Texts {
     pub ready: &'static str,
     pub no_sound: &'static str,
+    /// The name of a sound outside the soundboards, played from Voicemod's Community
+    pub community: &'static str,
     pub soundboards: &'static str,
     pub favourites: &'static str,
     pub unreachable: &'static str,
@@ -56,6 +58,7 @@ impl Texts {
 pub const ENGLISH: Texts = Texts {
     ready: "Ready",
     no_sound: "No sound",
+    community: "Community",
     soundboards: "SOUNDBOARDS",
     favourites: "★ Favourites",
     unreachable: "UNREACHABLE",
@@ -84,6 +87,7 @@ pub const ENGLISH: Texts = Texts {
 pub const ITALIAN: Texts = Texts {
     ready: "Pronto",
     no_sound: "Senza suoni",
+    community: "Community",
     soundboards: "SOUNDBOARD",
     favourites: "★ Preferiti",
     unreachable: "NON RAGGIUNGIBILE",

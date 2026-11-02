@@ -207,6 +207,23 @@ impl Playback {
     /// something no press predicted.
     pub fn apply(&mut self, event: &LogEvent, at: Instant, sound: Option<&Sound>) -> bool {
         if self.confirm(event, at) {
+            // The line may bring the length the press did not know: its file's
+            if let LogEvent::Played {
+                id,
+                from_start: true,
+                state: State::Playing,
+                ..
+            } = event
+            {
+                let natural_end = self.natural_end(sound, id, at);
+                let unknown_end = self
+                    .sounds
+                    .get_mut(id)
+                    .filter(|active| active.state == State::Playing && active.ends_at.is_none());
+                if let Some(active) = unknown_end {
+                    active.ends_at = natural_end;
+                }
+            }
             return false;
         }
         match event {
@@ -408,6 +425,7 @@ mod tests {
             repeat,
             from_start: !repeat,
             state,
+            length: None,
         }
     }
 
@@ -526,6 +544,19 @@ mod tests {
     }
 
     #[test]
+    fn a_confirmed_press_takes_the_length_its_line_brings() {
+        let mut playback = following();
+        let start = Instant::now();
+        playback.press(&sound("a"), start);
+        playback.learn_length("a", Duration::from_secs(2));
+
+        let line_at = start + 300 * MS;
+        assert!(!playback.apply(&played("a", false, State::Playing), line_at, None));
+        let end = line_at + Duration::from_secs(2);
+        assert_eq!(playback.latest(), Some(("a", State::Playing, Some(end))));
+    }
+
+    #[test]
     fn learned_lengths_predict_the_end() {
         let mut playback = following();
         playback.learn_length("a", 850 * MS);
@@ -554,6 +585,7 @@ mod tests {
             repeat: true,
             from_start: true,
             state: State::Playing,
+            length: None,
         };
         playback.apply(&restarted, now + Duration::from_secs(4), None);
         assert_eq!(playback.next_change(), Some(now + Duration::from_secs(9)));

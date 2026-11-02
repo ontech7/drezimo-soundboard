@@ -35,10 +35,9 @@ import websockets
 
 DURATIONS_FILE = Path(__file__).resolve().parent / "voicemod_durations.json"
 
-# Known locations; the Windows ones still need to be verified.
+# macOS, Windows
 LOG_CANDIDATES = [
     Path.home() / "Library/Application Support/VoicemodV3/logs/voicemod-desktop.log",
-    Path(os.environ.get("APPDATA", "")) / "VoicemodV3/logs/voicemod-desktop.log",
     Path(os.environ.get("LOCALAPPDATA", "")) / "VoicemodV3/logs/voicemod-desktop.log",
 ]
 

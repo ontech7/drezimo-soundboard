@@ -308,13 +308,8 @@ impl Controller {
                 // The past only teaches the sounds' lengths and what is playing now
                 self.log = LogTracker::default();
                 for line in &history {
-                    if let Some(LogEvent::Ended {
-                        id,
-                        length: Some(length),
-                        ..
-                    }) = self.log.feed(line)
-                    {
-                        self.playback.learn_length(&id, length);
+                    if let Some(event) = self.log.feed(line) {
+                        self.learn_length(&event);
                     }
                 }
                 self.playback.follow_log(true);
@@ -513,14 +508,7 @@ impl Controller {
         let Some(event) = self.log.feed(line) else {
             return false;
         };
-        if let LogEvent::Ended {
-            id,
-            length: Some(length),
-            ..
-        } = &event
-        {
-            self.playback.learn_length(id, *length);
-        }
+        self.learn_length(&event);
         // A log no longer trusted only teaches lengths
         if self.voicemod != VoicemodStatus::Connected || !self.playback.follows_log() {
             return false;
@@ -538,10 +526,29 @@ impl Controller {
             }
         );
         let started_elsewhere = unpredicted && started;
-        if let Some(sound) = sound.filter(|_| started_elsewhere) {
-            self.last = Some((sound.name.clone(), now));
+        if started_elsewhere {
+            // Outside the soundboards, as the Community's sounds are, a sound has no name the app knows
+            let name = sound.map_or(self.texts.community, |sound| &sound.name);
+            self.last = Some((name.to_string(), now));
         }
         started_elsewhere
+    }
+
+    /// A whole play measures a sound's length; until then, its file may tell it.
+    fn learn_length(&mut self, event: &LogEvent) {
+        match event {
+            LogEvent::Ended {
+                id,
+                length: Some(length),
+                ..
+            } => self.playback.learn_length(id, *length),
+            LogEvent::Played {
+                id,
+                length: Some(length),
+                ..
+            } if self.playback.length(id).is_none() => self.playback.learn_length(id, *length),
+            _ => {}
+        }
     }
 
     /// Takes what plays from the log, when followed.
