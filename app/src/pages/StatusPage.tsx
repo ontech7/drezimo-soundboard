@@ -4,11 +4,12 @@ import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pres
 import { DisplayPreview } from "../DisplayPreview";
 import { ChevronLeft, ChevronRight } from "../icons";
 import { type Texts, useTexts } from "../i18n";
-import type { BoardStatus, FirmwareUpdate, PageSummary, Status, VoicemodStatus } from "../status";
+import type { BoardStatus, FirmwareUpdate, PageSummary, Status } from "../status";
 
 interface Line {
   dot: "waiting" | "warning" | "ok" | "error";
   title: string;
+  badge?: string;
   detail: string;
   note?: string;
 }
@@ -35,14 +36,16 @@ function connectionLine(texts: Texts, status: BoardStatus): Line {
   }
 }
 
-function voicemodLine(texts: Texts, status: VoicemodStatus, page: PageSummary | null, fromLog: boolean): Line {
-  switch (status.state) {
+function voicemodLine(texts: Texts, status: Status): Line {
+  const { voicemod, page, voicemodLog: fromLog, license } = status;
+  switch (voicemod.state) {
     case "connecting":
       return { dot: "waiting", title: texts.connectingVoicemod, detail: "" };
     case "connected":
       return {
         dot: "ok",
         title: texts.voicemodConnected,
+        badge: license ? texts.license(license) : undefined,
         detail: page ? pageText(texts, page) : texts.loadingSoundboards,
         note: fromLog ? undefined : texts.logUnreadable,
       };
@@ -65,7 +68,10 @@ function StatusLine({ line }: { line: Line }) {
     <div className="status">
       <span className={`dot ${line.dot}`} />
       <div>
-        <p className="status-title">{line.title}</p>
+        <p className="status-title">
+          {line.title}
+          {line.badge && <span className="badge">{line.badge}</span>}
+        </p>
         {line.detail && <p className="muted">{line.detail}</p>}
         {line.note && <p className="note">{line.note}</p>}
       </div>
@@ -227,7 +233,7 @@ export function StatusPage({ status, activity }: { status: Status; activity: Act
           <StatusLine line={boardLine(texts, status.board, status.firmwareUpdate)} />
         </section>
         <section className="card">
-          <StatusLine line={voicemodLine(texts, status.voicemod, status.page, status.voicemodLog)} />
+          <StatusLine line={voicemodLine(texts, status)} />
         </section>
       </div>
 

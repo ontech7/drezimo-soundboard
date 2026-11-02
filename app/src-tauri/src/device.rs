@@ -8,7 +8,7 @@ use crate::overlay::{self, Look, OverlayUpdate};
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
 use crate::settings::{OverlaySettings, Settings, SettingsState};
 use crate::tray;
-use crate::voicemod::{Voicemod, VoicemodEvent, VoicemodStatus};
+use crate::voicemod::{License, Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -52,6 +52,8 @@ pub struct Status {
     pub firmware_update: Option<FirmwareUpdate>,
     /// As the connected board keeps them
     pub display_settings: Option<DisplaySettings>,
+    /// Voicemod's, while connected
+    pub license: Option<License>,
 }
 
 #[tauri::command]
@@ -179,8 +181,13 @@ fn run(
                 controller.board_message(message, now);
             }
             Some(Input::Voicemod(event)) => {
-                if let VoicemodEvent::Status(voicemod_status) = event {
-                    status.voicemod = voicemod_status;
+                match &event {
+                    VoicemodEvent::Status(voicemod_status) => {
+                        status.voicemod = *voicemod_status;
+                        status.license = None;
+                    }
+                    VoicemodEvent::License(license) => status.license = Some(*license),
+                    _ => {}
                 }
                 controller.voicemod_event(event, now);
             }

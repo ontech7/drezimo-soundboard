@@ -14,7 +14,7 @@ use crate::display::texts::{ENGLISH, Texts};
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
-use crate::soundboard::{self, Page, PlaybackMode, Sound, Soundboard};
+use crate::soundboard::{self, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
@@ -44,6 +44,7 @@ const HEAR_ME: u8 = 5;
 
 // The simulator's colours
 const BLUE: [u8; 3] = [47, 107, 255];
+const PURPLE: [u8; 3] = [150, 80, 255];
 const YELLOW: [u8; 3] = [255, 210, 26];
 const GREEN: [u8; 3] = [34, 224, 90];
 const DIM_RED: [u8; 3] = [90, 16, 16];
@@ -116,6 +117,14 @@ pub struct Controller {
     playback: Playback,
     /// Voicemod's sounds as its log tells them
     log: LogTracker,
+    /// As Voicemod last sent them, for the pages
+    soundboards: Vec<Soundboard>,
+    voices: Vec<Voice>,
+    /// The voice loaded in Voicemod, and the one a pad asked for, until Voicemod confirms it
+    current_voice: Option<String>,
+    voice_asked: Option<String>,
+    /// The soundboards came since Voicemod connected: until then the pages are not complete
+    soundboards_loaded: bool,
     /// Every sound of every soundboard, by id
     sounds: HashMap<String, Sound>,
     /// The pads held down. The sound is kept, so its key-up still reaches it after a page change.
@@ -158,6 +167,11 @@ impl Default for Controller {
             resume: None,
             playback: Playback::default(),
             log: LogTracker::default(),
+            soundboards: Vec::new(),
+            voices: Vec::new(),
+            current_voice: None,
+            voice_asked: None,
+            soundboards_loaded: false,
             sounds: HashMap::new(),
             held: HashMap::new(),
             window_held: HashSet::new(),
@@ -246,10 +260,45 @@ impl Controller {
                     self.resume = Some(page);
                 }
                 self.pages.clear();
+                self.soundboards.clear();
+                self.voices.clear();
+                self.current_voice = None;
+                self.voice_asked = None;
+                self.soundboards_loaded = false;
                 self.page = 0;
                 self.menu = None;
             }
-            VoicemodEvent::Soundboards(soundboards) => self.set_soundboards(&soundboards),
+            VoicemodEvent::Soundboards(soundboards) => {
+                let first = !self.soundboards_loaded;
+                self.soundboards = soundboards;
+                self.soundboards_loaded = true;
+                self.rebuild_pages(first);
+            }
+            VoicemodEvent::Voices { voices, current } => {
+                self.voices = voices;
+                if current.is_some() {
+                    self.current_voice = current;
+                }
+                self.rebuild_pages(false);
+            }
+            VoicemodEvent::CurrentVoice(id) => {
+                // A voice picked on the computer shows by name, as a sound started there; the board's already did
+                let asked_here = self.voice_asked.take().is_some_and(|asked| asked == id);
+                let changed = self.current_voice.as_ref().is_some_and(|current| *current != id);
+                let name = self
+                    .voices
+                    .iter()
+                    .find(|voice| voice.id == id)
+                    .map(|voice| voice.name.clone());
+                if let Some(name) = name.filter(|_| changed && !asked_here) {
+                    self.last = Some((name, now));
+                    if self.board_connected {
+                        self.outputs.push(Output::Board("WAKE".to_string()));
+                    }
+                }
+                self.current_voice = Some(id);
+            }
+            VoicemodEvent::License(_) => {}
             VoicemodEvent::ActiveSoundboard(id) => {
                 // Voicemod also tells again of the soundboard already shown: that is no page change
                 let shown = self.pages.get(self.page).is_some_and(|page| page.soundboard_id == id);
@@ -363,7 +412,7 @@ impl Controller {
     pub fn page(&self) -> Option<PageSummary> {
         let page = self.pages.get(self.page)?;
         Some(PageSummary {
-            name: page.name.clone(),
+            name: self.page_name(page).to_string(),
             part: page.part,
             parts: page.parts,
             number: self.page + 1,
@@ -396,6 +445,16 @@ impl Controller {
                 self.held.insert(pad, Some(held));
                 return;
             }
+        }
+
+        if let Some(voice) = self.voice_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if voice.enabled && self.voicemod == VoicemodStatus::Connected {
+                self.request(Request::LoadVoice(voice.id.clone()));
+                self.voice_asked = Some(voice.id);
+                self.last = Some((voice.name, now));
+            }
+            return;
         }
 
         let playable = self.sound_at(pad).filter(|sound| sound.enabled).cloned();
@@ -497,15 +556,25 @@ impl Controller {
         self.show_overlay(now);
     }
 
-    fn set_soundboards(&mut self, soundboards: &[Soundboard]) {
-        let current = self.resume.take().or_else(|| self.page_id(self.page));
+    /// After the soundboards or the voices changed: the page shown stays, if it is still there. The first soundboards
+    /// after Voicemod (re)connected bring back the page shown before, once, or the first page.
+    fn rebuild_pages(&mut self, first_soundboards: bool) {
+        let current = if first_soundboards {
+            self.resume.take()
+        } else if self.soundboards_loaded {
+            self.page_id(self.page)
+        } else {
+            // The voices came first: the first page until the soundboards come
+            None
+        };
         let selected = self.menu.as_ref().and_then(|menu| self.page_id(menu.selected));
-        self.sounds = soundboards
+        self.sounds = self
+            .soundboards
             .iter()
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(soundboards);
+        self.pages = soundboard::pages(&self.soundboards, &self.voices);
         self.page = current.and_then(|id| self.find_page(&id)).unwrap_or(0);
         let remapped = selected.and_then(|id| self.find_page(&id));
         let last = self.pages.len().saturating_sub(1);
@@ -602,8 +671,22 @@ impl Controller {
         }
     }
 
+    fn pad_at(&self, pad: u8) -> Option<&Pad> {
+        self.pages.get(self.page)?.pads.get(usize::from(pad))?.as_ref()
+    }
+
     fn sound_at(&self, pad: u8) -> Option<&Sound> {
-        self.pages.get(self.page)?.sounds.get(usize::from(pad))?.as_ref()
+        match self.pad_at(pad)? {
+            Pad::Sound(sound) => Some(sound),
+            Pad::Voice(_) => None,
+        }
+    }
+
+    fn voice_at(&self, pad: u8) -> Option<&Voice> {
+        match self.pad_at(pad)? {
+            Pad::Voice(voice) => Some(voice),
+            Pad::Sound(_) => None,
+        }
     }
 
     fn refresh_leds(&mut self, now: Instant) {
@@ -638,7 +721,7 @@ impl Controller {
             if usize::from(pad) / COLUMNS == row {
                 return Led::solid(HIGHLIGHT);
             }
-            let led = self.sound_led(pad);
+            let led = self.content_led(pad);
             let dimmed = led.color.map(|level| (f32::from(level) * 0.2).round() as u8);
             return Led { color: dimmed, ..led };
         }
@@ -655,14 +738,17 @@ impl Controller {
         if self.flashes.contains_key(&pad) {
             return Led::solid(YELLOW);
         }
-        self.sound_led(pad)
+        self.content_led(pad)
     }
 
-    fn sound_led(&self, pad: u8) -> Led {
-        match self.sound_at(pad) {
+    /// A sound blue, green while it plays; a voice purple, green while loaded
+    fn content_led(&self, pad: u8) -> Led {
+        match self.pad_at(pad) {
             None => Led::OFF,
-            Some(sound) if !sound.enabled => Led::solid(DIM_RED),
-            Some(sound) => match self.playback.state(&sound.id) {
+            Some(content) if !content.enabled() => Led::solid(DIM_RED),
+            Some(Pad::Voice(voice)) if self.current_voice.as_ref() == Some(&voice.id) => Led::solid(GREEN),
+            Some(Pad::Voice(_)) => Led::solid(PURPLE),
+            Some(Pad::Sound(sound)) => match self.playback.state(&sound.id) {
                 None => Led::solid(BLUE),
                 Some(State::Playing) => Led::solid(GREEN),
                 Some(State::Paused) => Led {

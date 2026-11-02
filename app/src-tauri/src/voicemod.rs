@@ -1,7 +1,7 @@
 //! The link to Voicemod's Control API (docs/project.md, section 8): a WebSocket on this computer, opened by the
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
-use crate::soundboard::Soundboard;
+use crate::soundboard::{Soundboard, Voice};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -43,6 +43,7 @@ pub enum Request {
         key_down: bool,
     },
     StopAllSounds,
+    LoadVoice(String),
     ToggleMuteForMe,
     ToggleVoiceChanger,
     ToggleHearMyself,
@@ -52,6 +53,7 @@ impl Request {
     fn action(&self) -> (&'static str, Value) {
         match self {
             Self::PlaySound { id, key_down } => ("playMeme", json!({ "FileName": id, "IsKeyDown": key_down })),
+            Self::LoadVoice(id) => ("loadVoice", json!({ "voiceID": id })),
             Self::StopAllSounds => ("stopAllMemeSounds", json!({})),
             Self::ToggleMuteForMe => ("toggleMuteMemeForMe", json!({})),
             Self::ToggleVoiceChanger => ("toggleVoiceChanger", json!({})),
@@ -64,11 +66,27 @@ impl Request {
 pub enum VoicemodEvent {
     Status(VoicemodStatus),
     Soundboards(Vec<Soundboard>),
+    /// Every voice, and the one loaded
+    Voices {
+        voices: Vec<Voice>,
+        current: Option<String>,
+    },
+    /// The voice loaded now, wherever it was picked
+    CurrentVoice(String),
+    License(License),
     /// The soundboard picked in Voicemod's window
     ActiveSoundboard(String),
     MuteForMe(bool),
     VoiceChanger(bool),
     HearMyself(bool),
+}
+
+/// The user's Voicemod licence: Pro includes every sound and voice
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum License {
+    Free,
+    Pro,
 }
 
 pub struct Voicemod {
@@ -166,19 +184,32 @@ async fn exchange(
     requests: &mut UnboundedReceiver<Request>,
     on_event: &impl Fn(VoicemodEvent),
 ) -> Result<(), tungstenite::Error> {
+    // The voices before the soundboards: the board starts on the first page whatever comes first
     for action in [
+        "getVoices",
         "getAllSoundboard",
+        "getUserLicense",
         "getMuteMemeForMeStatus",
         "getVoiceChangerStatus",
         "getHearMyselfStatus",
     ] {
         socket.send(frame(action, json!({}))).await?;
     }
+    let mut license = None;
     loop {
         tokio::select! {
             message = socket.next() => match message {
                 Some(Ok(Message::Text(text))) => {
                     if let Some(Incoming::Event(event)) = parse(&text) {
+                        // Another licence locks or unlocks sounds and voices: their lists again
+                        if let VoicemodEvent::License(new) = event {
+                            if license.is_some_and(|old| old != new) {
+                                for action in ["getVoices", "getAllSoundboard"] {
+                                    socket.send(frame(action, json!({}))).await?;
+                                }
+                            }
+                            license = Some(new);
+                        }
                         on_event(event);
                     }
                 }
@@ -242,6 +273,22 @@ fn parse(text: &str) -> Option<Incoming> {
                 return None;
             }
         },
+        "getVoices" => match Vec::<Voice>::deserialize(&object["voices"]) {
+            Ok(voices) => VoicemodEvent::Voices {
+                voices,
+                current: object["currentVoice"].as_str().map(str::to_string),
+            },
+            Err(error) => {
+                eprintln!("unexpected voice list from Voicemod: {error}");
+                return None;
+            }
+        },
+        "getCurrentVoice" | "voiceChangedEvent" | "voiceLoadedEvent" => {
+            VoicemodEvent::CurrentVoice(object["voiceID"].as_str()?.to_string())
+        }
+        "getUserLicense" | "licenseTypeChanged" => {
+            VoicemodEvent::License(License::deserialize(&object["licenseType"]).ok()?)
+        }
         "getActiveSoundboardProfile" => {
             let id = envelope.payload["profileId"]
                 .as_str()
@@ -297,6 +344,32 @@ mod tests {
         }
         let enabled = r#"{"actionType": "voiceChangerEnabledEvent"}"#;
         assert_eq!(parse(enabled), Some(Incoming::Event(VoicemodEvent::VoiceChanger(true))));
+    }
+
+    #[test]
+    fn reads_the_voices_and_the_licence() {
+        let list = r#"{"actionType": "getVoices", "actionObject": {"currentVoice": "v2", "voices": [{"id": "v1",
+            "friendlyName": "Dark", "enabled": true, "favorited": false, "isNew": false, "isCustom": false,
+            "bitmapChecksum": "x"}]}}"#;
+        let Some(Incoming::Event(VoicemodEvent::Voices { voices, current })) = parse(list) else {
+            panic!("a voice list");
+        };
+        assert_eq!((voices[0].name.as_str(), current.as_deref()), ("Dark", Some("v2")));
+
+        let changed = r#"{"actionType": "voiceChangedEvent", "actionObject": {"voiceID": "v1"}}"#;
+        assert_eq!(
+            parse(changed),
+            Some(Incoming::Event(VoicemodEvent::CurrentVoice("v1".into())))
+        );
+        let licence = r#"{"actionType": "getUserLicense", "actionObject": {"licenseType": "free"}}"#;
+        assert_eq!(
+            parse(licence),
+            Some(Incoming::Event(VoicemodEvent::License(License::Free)))
+        );
+        assert_eq!(
+            Request::LoadVoice("v1".into()).action(),
+            ("loadVoice", json!({ "voiceID": "v1" }))
+        );
     }
 
     #[test]

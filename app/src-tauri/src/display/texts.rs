@@ -9,6 +9,9 @@ pub struct Texts {
     pub community: &'static str,
     pub soundboards: &'static str,
     pub favourites: &'static str,
+    pub voices: &'static str,
+    /// What a voice pad does, when peeked
+    pub voice: &'static str,
     pub unreachable: &'static str,
     pub connecting: &'static str,
     /// Voicemod refused the app's key: a newer app has a valid one
@@ -55,6 +58,8 @@ pub const ENGLISH: Texts = Texts {
     community: "Community",
     soundboards: "SOUNDBOARDS",
     favourites: "★ Favourites",
+    voices: "Voices",
+    voice: "VOICE",
     unreachable: "UNREACHABLE",
     connecting: "CONNECTING...",
     update_app: "UPDATE THE APP",
@@ -84,6 +89,8 @@ pub const ITALIAN: Texts = Texts {
     community: "Community",
     soundboards: "SOUNDBOARD",
     favourites: "★ Preferiti",
+    voices: "Voci",
+    voice: "VOCE",
     unreachable: "NON RAGGIUNGIBILE",
     connecting: "CONNESSIONE...",
     update_app: "AGGIORNA L'APP",

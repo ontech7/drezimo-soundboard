@@ -87,6 +87,8 @@ const ENGLISH = {
   about: "About",
   version: "Version",
   boardFirmware: "Board firmware",
+  voicemodLicense: "Voicemod licence",
+  license: (license: "free" | "pro") => (license === "pro" ? "Pro" : "Free"),
   updates: "Updates",
   updatesText: "Automatic, while you are not using the board.",
 };
@@ -180,6 +182,8 @@ const ITALIAN: Texts = {
   about: "Informazioni",
   version: "Versione",
   boardFirmware: "Firmware della board",
+  voicemodLicense: "Licenza di Voicemod",
+  license: (license) => (license === "pro" ? "Pro" : "Free"),
   updates: "Aggiornamenti",
   updatesText: "Automatici, mentre non usi la board.",
 };

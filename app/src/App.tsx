@@ -40,7 +40,7 @@ export default function App() {
           {page === "status" && <StatusPage status={status} activity={activity} />}
           {page === "board" && <BoardPage settings={settings} status={status} />}
           {page === "overlay" && <OverlayPage settings={settings} status={status} />}
-          {page === "general" && <GeneralPage settings={settings} />}
+          {page === "general" && <GeneralPage settings={settings} status={status} />}
         </main>
       </div>
     </TextsContext.Provider>

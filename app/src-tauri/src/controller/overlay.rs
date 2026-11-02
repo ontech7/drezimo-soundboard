@@ -17,11 +17,11 @@ impl Controller {
         let page = self.pages.get(self.page).filter(|_| wanted && usable)?;
         let cells = (0..PADS as u8)
             .map(|pad| {
-                let sound = self.sound_at(pad);
+                let content = self.pad_at(pad);
                 Cell {
-                    name: sound.map(|sound| sound.name.clone()).unwrap_or_default(),
+                    name: content.map(|content| content.name().to_string()).unwrap_or_default(),
                     led: self.pad_led(pad, now),
-                    locked: sound.is_some_and(|sound| !sound.enabled),
+                    locked: content.is_some_and(|content| !content.enabled()),
                 }
             })
             .collect();

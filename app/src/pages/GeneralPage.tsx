@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Row, Section, Segmented, Toggle } from "../controls";
 import { useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
+import type { Status } from "../status";
 
 interface About {
   version: string;
@@ -12,7 +13,7 @@ interface About {
 // macOS has no login item yet (docs/project.md, phase 5)
 const WINDOWS = navigator.userAgent.includes("Windows");
 
-export function GeneralPage({ settings }: { settings: SettingsView }) {
+export function GeneralPage({ settings, status }: { settings: SettingsView; status: Status }) {
   const texts = useTexts();
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
@@ -69,6 +70,9 @@ export function GeneralPage({ settings }: { settings: SettingsView }) {
           </Row>
           <Row label={texts.boardFirmware}>
             <span className="value">{about.firmware}</span>
+          </Row>
+          <Row label={texts.voicemodLicense}>
+            <span className="value">{status.license ? texts.license(status.license) : "—"}</span>
           </Row>
           <Row label={texts.updates} text={texts.updatesText} />
         </Section>

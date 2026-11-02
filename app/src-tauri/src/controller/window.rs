@@ -3,6 +3,7 @@
 
 use super::{Controller, PADS};
 use crate::protocol::{BUTTON_COUNT, BoardMessage, Led};
+use crate::soundboard::Pad;
 use crate::voicemod::VoicemodStatus;
 use serde::Serialize;
 use std::time::Instant;
@@ -21,8 +22,10 @@ pub struct BoardView {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PadView {
-    /// Empty for a pad without a sound
+    /// Empty for a pad without a sound or voice
     pub name: String,
+    /// A voice, rather than a sound
+    pub voice: bool,
     pub led: Led,
     /// Outside the licence
     pub locked: bool,
@@ -36,11 +39,12 @@ impl Controller {
         }
         let pads = (0..PADS as u8)
             .map(|pad| {
-                let sound = self.sound_at(pad);
+                let content = self.pad_at(pad);
                 PadView {
-                    name: sound.map(|sound| sound.name.clone()).unwrap_or_default(),
+                    name: content.map(|content| content.name().to_string()).unwrap_or_default(),
+                    voice: matches!(content, Some(Pad::Voice(_))),
                     led: self.led(usize::from(pad), now),
-                    locked: sound.is_some_and(|sound| !sound.enabled),
+                    locked: content.is_some_and(|content| !content.enabled()),
                 }
             })
             .collect();

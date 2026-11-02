@@ -3,7 +3,7 @@
 use super::{COLUMNS, Controller, ROWS};
 use crate::display::screens::Screen;
 use crate::playback::State;
-use crate::soundboard::{FAVOURITES_ID, Page, PlaybackMode};
+use crate::soundboard::{FAVOURITES_ID, Page, PlaybackMode, VOICES_ID};
 use crate::voicemod::VoicemodStatus;
 use std::time::{Duration, Instant};
 
@@ -71,12 +71,17 @@ impl Controller {
         }
     }
 
+    /// The soundboard's name, or the app's own for the Favourites and Voices pages, in the language shown.
+    pub(super) fn page_name<'a>(&self, page: &'a Page) -> &'a str {
+        match page.soundboard_id.as_str() {
+            FAVOURITES_ID => self.texts.favourites,
+            VOICES_ID => self.texts.voices,
+            _ => &page.name,
+        }
+    }
+
     pub(super) fn page_title(&self, page: &Page) -> String {
-        let name = if page.soundboard_id == FAVOURITES_ID {
-            self.texts.favourites
-        } else {
-            &page.name
-        };
+        let name = self.page_name(page);
         if page.parts > 1 {
             format!("{name} {}/{}", page.part, page.parts)
         } else {
@@ -133,6 +138,15 @@ impl Controller {
         let texts = self.texts;
         let pad_index = usize::from(pad);
         let position = format!("R{} C{}", pad_index / COLUMNS + 1, pad_index % COLUMNS + 1);
+        if let Some(voice) = self.voice_at(pad) {
+            return Screen::Peek {
+                position,
+                counter,
+                name: voice.name.clone(),
+                info: if voice.enabled { texts.voice } else { texts.locked }.to_string(),
+                note: String::new(),
+            };
+        }
         let Some(sound) = self.sound_at(pad) else {
             return Screen::Peek {
                 position,
@@ -169,8 +183,8 @@ impl Controller {
     fn row_screen(&self, row: usize, counter: String) -> Screen {
         let lines = (0..COLUMNS)
             .map(|column| {
-                let sound = self.sound_at((row * COLUMNS + column) as u8);
-                format!("{} {}", column + 1, sound.map_or("-", |sound| &sound.name))
+                let content = self.pad_at((row * COLUMNS + column) as u8);
+                format!("{} {}", column + 1, content.map_or("-", |content| content.name()))
             })
             .collect();
         Screen::Row {

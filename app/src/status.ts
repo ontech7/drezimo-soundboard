@@ -28,6 +28,8 @@ export interface Status {
   firmwareUpdate: FirmwareUpdate | null;
   /** As the connected board keeps them */
   displaySettings: DisplaySettings | null;
+  /** Voicemod's, while connected */
+  license: "free" | "pro" | null;
 }
 
 export function useStatus(): Status | null {

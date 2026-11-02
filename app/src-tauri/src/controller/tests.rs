@@ -1,7 +1,7 @@
 use super::overlay::OVERLAY_TIME;
 use super::*;
 use crate::display::screens::Screen;
-use crate::soundboard::tests::{sound, soundboard};
+use crate::soundboard::tests::{sound, soundboard, voice};
 use crate::voicemod_log::LineKind;
 use std::time::SystemTime;
 
@@ -768,4 +768,103 @@ fn the_board_and_the_window_release_only_their_own_presses() {
     controller.window_pad(0, false, later);
     controller.update(later);
     assert_eq!(requests(&controller.take_outputs()), [&play("held", false)]);
+}
+
+fn voices(controller: &mut Controller, current: &str, now: Instant) {
+    let mut locked = voice("locked");
+    locked.enabled = false;
+    let event = VoicemodEvent::Voices {
+        voices: vec![voice("dark"), voice("banana"), locked],
+        current: Some(current.to_string()),
+    };
+    controller.voicemod_event(event, now);
+}
+
+#[test]
+fn voices_get_a_page_and_load_from_a_pad() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    voices(&mut controller, "banana", now);
+    assert_eq!(controller.page().unwrap().name, "B", "the page shown stays");
+
+    controller.go_to_page(0);
+    controller.update(now);
+    let Screen::Home { title, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(title, ENGLISH.voices);
+    let view = controller.board_view(now).unwrap();
+    let leds: Vec<Led> = view.pads[..3].iter().map(|pad| pad.led).collect();
+    assert_eq!(
+        leds,
+        [Led::solid(PURPLE), Led::solid(GREEN), Led::OFF],
+        "no locked voices"
+    );
+    assert!(view.pads[0].voice);
+
+    let later = now + Duration::from_secs(1);
+    let outputs = press(&mut controller, 0, true, later);
+    assert_eq!(requests(&outputs), [&Request::LoadVoice("dark".into())]);
+    let Screen::Home { name, .. } = controller.screen(later).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, "DARK");
+    assert!(requests(&press(&mut controller, 2, true, later)).is_empty());
+}
+
+#[test]
+fn a_voice_picked_on_the_computer_shows_by_name() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    voices(&mut controller, "banana", now);
+    controller.update(now);
+    controller.take_outputs();
+
+    controller.voicemod_event(VoicemodEvent::CurrentVoice("dark".into()), now);
+    controller.update(now);
+    assert!(controller.take_outputs().contains(&Output::Board("WAKE".into())));
+    let Screen::Home { name, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, "DARK");
+}
+
+#[test]
+fn returns_to_its_page_whichever_list_comes_first() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.go_to_page(2);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    voices(&mut controller, "dark", now);
+    controller.voicemod_event(VoicemodEvent::Soundboards(three_soundboards()), now);
+    assert_eq!(controller.page().unwrap().name, "C");
+}
+
+#[test]
+fn a_page_gone_while_voicemod_was_away_is_not_waited_for() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.go_to_page(2);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    let mut soundboards = three_soundboards();
+    soundboards.pop();
+    controller.voicemod_event(VoicemodEvent::Soundboards(soundboards.clone()), now);
+    controller.go_to_page(1);
+    // Voicemod sends its lists again after a sound plays
+    controller.voicemod_event(VoicemodEvent::Soundboards(soundboards), now);
+    assert_eq!(controller.page().unwrap().name, "B");
+}
+
+#[test]
+fn a_voice_loaded_from_a_pad_shows_once() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    voices(&mut controller, "banana", now);
+    controller.go_to_page(0);
+    press(&mut controller, 0, true, now);
+    let later = now + screen::LAST_SOUND_TIME;
+    controller.voicemod_event(VoicemodEvent::CurrentVoice("dark".into()), later);
+    controller.update(later);
+    assert!(!controller.take_outputs().contains(&Output::Board("WAKE".into())));
+    let Screen::Home { name, .. } = controller.screen(later).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, ENGLISH.ready, "its name showed at the press");
 }

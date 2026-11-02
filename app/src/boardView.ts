@@ -8,8 +8,10 @@ export interface Led {
 }
 
 export interface PadView {
-  /** Empty for a pad without a sound */
+  /** Empty for a pad without a sound or voice */
   name: string;
+  /** A voice, rather than a sound */
+  voice: boolean;
   led: Led;
   /** Outside the licence */
   locked: boolean;
