@@ -65,9 +65,10 @@ input:focus-visible {
   padding: 0 8px;
 }
 
+/* Smaller, its dots and the thin SOUNDBOARD letters fall between the screen's pixels and look grainy */
 .logo svg {
   display: block;
-  height: 32px;
+  height: 40px;
   width: auto;
 }
 
