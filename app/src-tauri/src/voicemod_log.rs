@@ -240,6 +240,9 @@ fn last_granule(tail: &[u8]) -> Option<u64> {
     u64::try_from(granule).ok()
 }
 
+/// Voicemod's own sounds, such as the notice its mic mute plays, have ids like this one: they are not the user's
+const OWN_SOUND_ID: &str = "00000000-0000-4000-";
+
 /// One line of the log; `file_length` tells the length of a sound file it names.
 fn parse_line(line: &str, file_length: impl FnOnce(&Path) -> Option<Duration>) -> Option<LogLine> {
     let at = timestamp(line.get(1..24)?)?;
@@ -251,6 +254,9 @@ fn parse_line(line: &str, file_length: impl FnOnce(&Path) -> Option<Duration>) -
             None => (false, rest),
         };
         let id = rest.strip_prefix("id=")?.split(',').next()?;
+        if id.starts_with(OWN_SOUND_ID) {
+            return None;
+        }
         // The settings follow the sound's path, which could contain anything
         let settings_start = rest.rfind(", repMode=k")?;
         let file = after(&rest[..settings_start], ", path=");
@@ -263,9 +269,11 @@ fn parse_line(line: &str, file_length: impl FnOnce(&Path) -> Option<Duration>) -
             length: file.and_then(|file| file_length(Path::new(file))),
         }
     } else if let Some(rest) = after(line, "Removes a sound=`") {
-        LineKind::End {
-            id: rest.split('`').next()?.to_string(),
+        let id = rest.split('`').next()?;
+        if id.starts_with(OWN_SOUND_ID) {
+            return None;
         }
+        LineKind::End { id: id.to_string() }
     } else if let Some(rest) = after(line, "Requested to stop other sounds before playing a sound=") {
         LineKind::StopOthers {
             playing: rest.trim().to_string(),
@@ -570,6 +578,14 @@ mod tests {
             None
         });
         assert_eq!(read, Some(PathBuf::from("/x/cache/Memes, vol. 2 - 03 - Honk.ogg")));
+    }
+
+    #[test]
+    fn leaves_out_voicemods_own_sounds() {
+        let notice = "[2026-11-02 19:07:10.229] [AudioAgent] [info] [SoundboardController] playSound             id=00000000-0000-4000-bcd0-000000000001,             path=C:/Users/x/AppData/Local/VoicemodV3/userCache/resources/MuteMicOn.wav,             repMode=kPlayOverlap, stopOthers=false, engIsUpd=true";
+        let removed = "[2026-11-02 19:07:10.904] [AudioAgent] [info] [SoundboardController] Removes a             sound=`00000000-0000-4000-bcd0-000000000001` from active sounds";
+        assert_eq!(parse(notice), None);
+        assert_eq!(parse(removed), None);
     }
 
     fn ogg_page(flags: u8, granule: i64, packet: &[u8]) -> Vec<u8> {

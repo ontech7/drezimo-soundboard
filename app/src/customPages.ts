@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSaved } from "./saved";
 
 /** What an action pad does (src-tauri/src/soundboard.rs) */
 export type Action =
@@ -9,7 +10,8 @@ export type Action =
 export type Content =
   | { kind: "sound"; id: string; name: string }
   | { kind: "voice"; id: string; name: string }
-  | { kind: "action"; action: Action; page?: string };
+  | { kind: "action"; action: Action; page?: string }
+  | { kind: "macro"; id: string };
 
 export type Rgb = [number, number, number];
 
@@ -34,6 +36,8 @@ export interface LibraryItem {
   /** Within the user's licence */
   enabled: boolean;
   picture: string | null;
+  /** A sound's, in seconds, once known */
+  length: number | null;
 }
 
 /** Voicemod's sounds and voices, as it last sent them */
@@ -59,6 +63,21 @@ export const ACTION_COLOURS: Record<Action, Rgb> = {
   background: [0, 200, 220],
   goToPage: [120, 120, 130],
 };
+
+export const MACRO_COLOUR: Rgb = [255, 140, 0];
+
+/** The LEDs' colours the user can pick */
+export const SWATCHES: Rgb[] = [
+  [47, 107, 255],
+  [150, 80, 255],
+  [34, 224, 90],
+  [40, 200, 255],
+  [255, 210, 26],
+  [255, 140, 0],
+  [255, 42, 42],
+  [255, 60, 160],
+  [200, 200, 210],
+];
 
 export const ACTIONS: Action[] = [
   "stopSounds",
@@ -102,48 +121,11 @@ export function shortened(text: string, max: number): string {
   return Array.from(text).slice(0, max).join("");
 }
 
+const PAGES_STORE = { event: "custom-pages", read: "custom_pages", write: "set_custom_pages", argument: "pages" };
+
 /** The user's pages, saved a moment after the last change, and why the last save failed, if it did */
 export function useCustomPages(): [CustomPage[] | null, (pages: CustomPage[]) => void, string | null] {
-  const [pages, setPages] = useState<CustomPage[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // While a change is on its way, an older copy coming back must not undo what was typed since
-  const saving = useRef(false);
-  const latest = useRef(0);
-  const timer = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    let updated = false;
-    const unlisten = listen<CustomPage[]>("custom-pages", (event) => {
-      updated = true;
-      if (!saving.current) setPages(event.payload);
-    });
-    unlisten
-      .then(() => invoke<CustomPage[]>("custom_pages"))
-      .then((current) => {
-        if (!updated) setPages(current);
-      })
-      .catch((error) => console.error("cannot follow the pages", error));
-    return () => {
-      unlisten.then((stop) => stop()).catch(() => {});
-    };
-  }, []);
-
-  const save = useCallback((next: CustomPage[]) => {
-    setPages(next);
-    saving.current = true;
-    const change = ++latest.current;
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      invoke("set_custom_pages", { pages: next })
-        .then(() => setError(null))
-        .catch((reason) => setError(String(reason)))
-        .finally(() => {
-          // A newer change may already be on its way
-          if (latest.current === change) saving.current = false;
-        });
-    }, 300);
-  }, []);
-
+  const [pages, save, error] = useSaved<CustomPage>(PAGES_STORE);
   return [pages, save, error];
 }
 

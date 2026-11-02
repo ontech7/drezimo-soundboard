@@ -6,10 +6,11 @@ use crate::protocol::PAD_COUNT;
 use crate::soundboard::{Action, Pad, Soundboard, Voice};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const FILE_NAME: &str = "pages.json";
@@ -71,6 +72,8 @@ pub enum Content {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         page: Option<String>,
     },
+    /// One of the user's macros, by its id
+    Macro { id: String },
 }
 
 pub struct CustomPagesState(Mutex<Vec<CustomPage>>);
@@ -89,6 +92,9 @@ pub struct Library {
     voices: Vec<LibraryItem>,
     /// Whether the board has a Favourites page
     favourites: bool,
+    /// The sounds' lengths known so far, in seconds
+    #[serde(skip)]
+    lengths: HashMap<String, f32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -106,6 +112,8 @@ struct LibraryItem {
     enabled: bool,
     /// On the pad-image scheme (src/pictures.rs)
     picture: Option<String>,
+    /// A sound's, in seconds, once known
+    length: Option<f32>,
 }
 
 impl Library {
@@ -121,10 +129,27 @@ impl Library {
                 sounds: soundboard
                     .sounds
                     .iter()
-                    .map(|sound| item(Pad::Sound(sound.clone())))
+                    .map(|sound| LibraryItem {
+                        length: self.lengths.get(&sound.id).copied(),
+                        ..item(Pad::Sound(sound.clone()))
+                    })
                     .collect(),
             })
             .collect();
+    }
+
+    pub fn set_lengths(&mut self, lengths: &HashMap<String, Duration>) {
+        self.lengths = lengths
+            .iter()
+            .map(|(id, length)| (id.clone(), length.as_secs_f32()))
+            .collect();
+        for sound in self
+            .soundboards
+            .iter_mut()
+            .flat_map(|soundboard| &mut soundboard.sounds)
+        {
+            sound.length = self.lengths.get(&sound.id).copied();
+        }
     }
 
     pub fn set_voices(&mut self, voices: &[Voice]) {
@@ -136,13 +161,14 @@ fn item(pad: Pad) -> LibraryItem {
     let (id, name) = match &pad {
         Pad::Sound(sound) => (sound.id.clone(), sound.name.clone()),
         Pad::Voice(voice) => (voice.id.clone(), voice.name.clone()),
-        Pad::Action { name, .. } => (String::new(), name.clone()),
+        Pad::Action { name, .. } | Pad::Macro { name, .. } => (String::new(), name.clone()),
     };
     LibraryItem {
         id,
         name,
         enabled: pad.enabled(),
         picture: pictures::path(&pad),
+        length: None,
     }
 }
 

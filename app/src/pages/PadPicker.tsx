@@ -1,7 +1,17 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { ACTIONS, type Action, type CustomPad, type CustomPage, type Library, padsFrom } from "../customPages";
+import {
+  ACTIONS,
+  type Action,
+  type CustomPad,
+  type CustomPage,
+  type Library,
+  MACRO_COLOUR,
+  padsFrom,
+  type Rgb,
+} from "../customPages";
 import { useTexts } from "../i18n";
-import { CheckIcon, CloseIcon, LockIcon, MacroIcon, SearchIcon } from "../icons";
+import { CheckIcon, CloseIcon, LockIcon, PlusIcon, SearchIcon } from "../icons";
+import { type Macro, stepLength } from "../macros";
 import { PadPicture } from "../PadPicture";
 import type { Lookup } from "./PagesPage";
 
@@ -29,6 +39,8 @@ interface Choice {
   voice?: boolean;
   picture?: string | null;
   action?: Action;
+  macro?: boolean;
+  tint?: Rgb;
   locked: boolean;
 }
 
@@ -78,11 +90,13 @@ interface PickerProps {
   start: PickerStart;
   library: Library | null;
   lookup: Lookup;
+  macros: Macro[];
+  onOpenMacros: () => void;
   onPlace: (pad: number, contents: CustomPad[]) => void;
   onClose: () => void;
 }
 
-export function Picker({ page, start, library, lookup, onPlace, onClose }: PickerProps) {
+export function Picker({ page, start, library, lookup, macros, onOpenMacros, onPlace, onClose }: PickerProps) {
   const texts = useTexts();
   const [tab, setTab] = useState<Tab>(start.tab);
   const [chosen, setChosen] = useState<string[]>(start.chosen);
@@ -135,9 +149,21 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
           locked: false,
         }));
       case "macros":
-        return [];
+        return macros.map((item) => {
+          const lengths = item.steps.map((step) => stepLength(step, library) ?? 0);
+          const length = lengths.reduce((sum, next) => sum + next, 0);
+          return {
+            key: `macro:${item.id}`,
+            id: item.id,
+            name: item.name,
+            sub: texts.macroSteps(item.steps.length, texts.secondsOf(length)),
+            macro: true,
+            tint: item.colour ?? MACRO_COLOUR,
+            locked: false,
+          };
+        });
     }
-  }, [tab, library, soundboard, query, texts]);
+  }, [tab, library, soundboard, query, texts, macros]);
 
   // As many as there are pads for: the clicked one and the free ones
   const room = start.replace ? 1 : padsFrom(page.pads, start.pad).length;
@@ -156,6 +182,7 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
     const id = key.slice(split + 1);
     if (kind === "sound") return { kind, id, name: lookup.sound(id)?.item.name ?? "", label: "", colour: null };
     if (kind === "voice") return { kind, id, name: lookup.voice(id)?.name ?? "", label: "", colour: null };
+    if (kind === "macro") return { kind, id, label: "", colour: null };
     const action = id as Action;
     const target = action === "goToPage" ? lookup.targets.find((other) => other.id !== page.id)?.id : undefined;
     return { kind: "action", action, page: target, label: "", colour: null };
@@ -171,9 +198,11 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
   else if (tab === "sounds" && !start.replace) hint = texts.pickMany;
   else if (tab === "voices") hint = texts.licensedVoices;
   else if (tab === "actions") hint = texts.actionsHint;
-  const currentName = current
-    ? current.label || (current.kind === "action" ? texts.actionNames[current.action] : current.name)
-    : "";
+  else if (tab === "macros") hint = texts.macrosHint;
+  let currentName = "";
+  if (current?.kind === "action") currentName = current.label || texts.actionNames[current.action];
+  else if (current?.kind === "macro") currentName = current.label || lookup.macro(current.id)?.name || "";
+  else if (current) currentName = current.label || current.name;
   const needsVoicemod = (tab === "sounds" || tab === "voices") && !lookup.loaded;
 
   return (
@@ -196,7 +225,6 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
             }}
           >
             {texts.pickerTabs[id]}
-            {id === "macros" && <span className="soon">{texts.soon}</span>}
           </button>
         ))}
       </div>
@@ -224,20 +252,12 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
         </div>
       )}
       <div className="dialog-body">
-        {tab === "macros" ? (
-          <div className="macros">
-            <span className="picture action large">
-              <MacroIcon />
-            </span>
-            <p className="title">{texts.macrosTitle}</p>
-            <p className="muted">{texts.macrosText}</p>
-          </div>
-        ) : needsVoicemod ? (
+        {needsVoicemod ? (
           <p className="muted nothing">{texts.voicemodNeeded}</p>
-        ) : choices.length === 0 ? (
+        ) : choices.length === 0 && tab !== "macros" ? (
           <p className="muted nothing">{texts.noResults}</p>
         ) : (
-          <div className={tab === "actions" ? "choices wide" : "choices"}>
+          <div className={tab === "sounds" || tab === "voices" ? "choices" : "choices wide"}>
             {choices.map((choice) => {
               const on = chosen.includes(choice.key);
               return (
@@ -250,7 +270,13 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
                   title={choice.locked ? texts.locked : choice.name}
                   onClick={() => toggle(choice.key)}
                 >
-                  <PadPicture voice={choice.voice} picture={choice.picture} action={choice.action} />
+                  <PadPicture
+                    voice={choice.voice}
+                    picture={choice.picture}
+                    action={choice.action}
+                    macro={choice.macro}
+                    tint={choice.tint}
+                  />
                   <span className="text">
                     <span className="name">{choice.name}</span>
                     <span className="muted">{choice.sub}</span>
@@ -264,6 +290,17 @@ export function Picker({ page, start, library, lookup, onPlace, onClose }: Picke
                 </button>
               );
             })}
+            {tab === "macros" && (
+              <button type="button" className="choice create" onClick={onOpenMacros}>
+                <span className="picture">
+                  <PlusIcon />
+                </span>
+                <span className="text">
+                  <span className="name">{texts.createMacro}</span>
+                  <span className="muted">{texts.createMacroText}</span>
+                </span>
+              </button>
+            )}
           </div>
         )}
       </div>

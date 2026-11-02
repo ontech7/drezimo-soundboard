@@ -45,10 +45,12 @@ impl Controller {
         }
 
         let page = self.pages.get(self.page);
-        let (name, name_until) = match &self.last {
-            Some((name, at)) => (name.clone(), Some(*at + LAST_SOUND_TIME)),
-            None if page.is_some() => (texts.ready.to_string(), None),
-            None => (texts.no_sound.to_string(), None),
+        let (name, name_until) = match (&self.running, &self.last) {
+            // A macro shows by name while it runs
+            (Some(running), _) => (running.item.name.clone(), None),
+            (None, Some((name, at))) => (name.clone(), Some(*at + LAST_SOUND_TIME)),
+            (None, None) if page.is_some() => (texts.ready.to_string(), None),
+            (None, None) => (texts.no_sound.to_string(), None),
         };
         let (right, counting) = self.status(now);
         let screen = Screen::Home {
@@ -115,7 +117,12 @@ impl Controller {
                 ends_at.map(|end| (seconds(end.saturating_duration_since(now)), true))
             }
         });
-        let shown = sound_state.or_else(|| Some((self.switch_status()?.to_string(), false)));
+        let step = self
+            .macro_progress()
+            .map(|progress| (format!("{} {}/{}", texts.step, progress.step, progress.steps), false));
+        let shown = step
+            .or(sound_state)
+            .or_else(|| Some((self.switch_status()?.to_string(), false)));
         let counting = shown.as_ref().is_some_and(|(_, counting)| *counting);
         parts.extend(shown.map(|(text, _)| text));
         (parts.join(" "), counting)
@@ -139,12 +146,13 @@ impl Controller {
         let texts = self.texts;
         let pad_index = usize::from(pad);
         let position = format!("R{} C{}", pad_index / COLUMNS + 1, pad_index % COLUMNS + 1);
-        if let Some(Pad::Action { name, .. }) = self.pad_at(pad) {
+        if let Some(Pad::Action { name, .. } | Pad::Macro { name, .. }) = self.pad_at(pad) {
+            let is_macro = matches!(self.pad_at(pad), Some(Pad::Macro { .. }));
             return Screen::Peek {
                 position,
                 counter,
                 name: name.clone(),
-                info: texts.action.to_string(),
+                info: if is_macro { texts.macro_info } else { texts.action }.to_string(),
                 note: String::new(),
             };
         }

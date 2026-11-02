@@ -2,6 +2,7 @@
 
 use crate::custom_pages::{Content, CustomPad, CustomPage};
 use crate::display::texts::Texts;
+use crate::macros::Macro;
 use crate::protocol::PAD_COUNT;
 use serde::de::{IntoDeserializer, value};
 use serde::{Deserialize, Serialize};
@@ -118,6 +119,11 @@ pub enum Pad {
         /// The page a GoToPage action opens, by its `Page::soundboard_id`
         page: Option<String>,
     },
+    /// Runs one of the user's macros, by its id
+    Macro {
+        id: String,
+        name: String,
+    },
 }
 
 impl Pad {
@@ -125,7 +131,7 @@ impl Pad {
         match self {
             Self::Sound(sound) => &sound.name,
             Self::Voice(voice) => &voice.name,
-            Self::Action { name, .. } => name,
+            Self::Action { name, .. } | Self::Macro { name, .. } => name,
         }
     }
 
@@ -134,7 +140,7 @@ impl Pad {
         match self {
             Self::Sound(sound) => sound.enabled,
             Self::Voice(voice) => voice.enabled,
-            Self::Action { .. } => true,
+            Self::Action { .. } | Self::Macro { .. } => true,
         }
     }
 
@@ -142,7 +148,7 @@ impl Pad {
         match self {
             Self::Sound(sound) => &sound.image_url,
             Self::Voice(voice) => &voice.image_url,
-            Self::Action { .. } => "",
+            Self::Action { .. } | Self::Macro { .. } => "",
         }
     }
 }
@@ -169,7 +175,13 @@ impl Page {
 
 /// The user's own pages first, then the favourite sounds, the voices in the licence and every soundboard in Voicemod's
 /// order, 36 pads per page.
-pub fn pages(soundboards: &[Soundboard], voices: &[Voice], custom: &[CustomPage], texts: &Texts) -> Vec<Page> {
+pub fn pages(
+    soundboards: &[Soundboard],
+    voices: &[Voice],
+    custom: &[CustomPage],
+    macros: &[Macro],
+    texts: &Texts,
+) -> Vec<Page> {
     let voicemods = voicemod_pages(soundboards, voices);
     // A pad that opens a page names it as the display does, if the board has it
     let page_name = |id: &str| -> Option<String> {
@@ -186,7 +198,7 @@ pub fn pages(soundboards: &[Soundboard], voices: &[Voice], custom: &[CustomPage]
     };
     let mut pages: Vec<Page> = custom
         .iter()
-        .map(|page| custom_page(page, soundboards, voices, &page_name, texts))
+        .map(|page| custom_page(page, soundboards, voices, macros, &page_name, texts))
         .collect();
     pages.extend(voicemods);
     pages
@@ -244,6 +256,7 @@ fn custom_page(
     page: &CustomPage,
     soundboards: &[Soundboard],
     voices: &[Voice],
+    macros: &[Macro],
     page_name: &dyn Fn(&str) -> Option<String>,
     texts: &Texts,
 ) -> Page {
@@ -279,6 +292,13 @@ fn custom_page(
                 action: *action,
                 name: named(&own, &pad.label),
                 page: page.clone(),
+            })
+        }
+        Content::Macro { id } => {
+            let item = macros.iter().find(|item| item.id == *id)?;
+            Some(Pad::Macro {
+                id: id.clone(),
+                name: named(&item.name, &pad.label),
             })
         }
     };
@@ -346,6 +366,7 @@ pub mod tests {
             &[soundboard("big", big), soundboard("empty", vec![])],
             &[],
             &[],
+            &[],
             &ENGLISH,
         );
 
@@ -371,6 +392,7 @@ pub mod tests {
                 soundboard("a", vec![sound("x"), favourite.clone()]),
                 soundboard("b", vec![favourite]),
             ],
+            &[],
             &[],
             &[],
             &ENGLISH,
@@ -406,7 +428,7 @@ pub mod tests {
             favorited: true,
             ..sound("fav")
         };
-        let pages = pages(&[soundboard("a", vec![favourite])], &voices, &[], &ENGLISH);
+        let pages = pages(&[soundboard("a", vec![favourite])], &voices, &[], &[], &ENGLISH);
 
         assert_eq!(pages[1].soundboard_id, VOICES_ID);
         let names: Vec<_> = pages[1].pads.iter().flatten().map(Pad::name).collect();
@@ -460,6 +482,7 @@ pub mod tests {
             &[soundboard("a", vec![sound("honk")])],
             &[voice("v1")],
             &[own],
+            &[],
             &ITALIAN,
         );
 

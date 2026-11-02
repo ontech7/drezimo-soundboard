@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useRef, useState } from "react";
 import {
   ACTION_COLOURS,
   type Action,
@@ -8,6 +8,7 @@ import {
   FAVOURITES_ID,
   type Library,
   type LibraryItem,
+  MACRO_COLOUR,
   MAX_PAGES,
   newId,
   PAD_COUNT,
@@ -22,26 +23,15 @@ import {
   VOICES_ID,
 } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
-import { ChevronDown, DotsIcon, PlusIcon, TrashIcon } from "../icons";
+import { DotsIcon, PlusIcon, TrashIcon } from "../icons";
+import { useDismiss } from "../dismiss";
+import { ColourPicker, RenameField } from "../editing";
+import { type Macro, useMacros } from "../macros";
 import { PadPicture } from "../PadPicture";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
 const MAX_PAGE_NAME = 24;
 const MAX_LABEL = 20;
-/** The LEDs' colours the user can pick, the kind's own first */
-const SWATCHES: (Rgb | null)[] = [
-  null,
-  [47, 107, 255],
-  [150, 80, 255],
-  [34, 224, 90],
-  [40, 200, 255],
-  [255, 210, 26],
-  [255, 140, 0],
-  [255, 42, 42],
-  [255, 60, 160],
-  [200, 200, 210],
-];
-
 /** How a pad shows in the editor */
 interface Look {
   name: string;
@@ -51,6 +41,7 @@ interface Look {
   voice: boolean;
   picture: string | null;
   action: Action | null;
+  macro?: boolean;
   colour: Rgb;
   locked: boolean;
   missing: boolean;
@@ -59,13 +50,14 @@ interface Look {
 export interface Lookup {
   /** Voicemod has sent its lists */
   loaded: boolean;
+  macro: (id: string) => Macro | undefined;
   sound: (id: string) => { item: LibraryItem; soundboard: string } | undefined;
   voice: (id: string) => LibraryItem | undefined;
   /** The pages a pad can open */
   targets: { id: string; name: string }[];
 }
 
-function useLookup(library: Library | null, pages: CustomPage[], texts: Texts): Lookup {
+function useLookup(library: Library | null, pages: CustomPage[], macros: Macro[], texts: Texts): Lookup {
   return useMemo(() => {
     const sounds = new Map<string, { item: LibraryItem; soundboard: string }>();
     for (const soundboard of library?.soundboards ?? []) {
@@ -83,11 +75,12 @@ function useLookup(library: Library | null, pages: CustomPage[], texts: Texts): 
     ];
     return {
       loaded: (library?.soundboards.length ?? 0) > 0,
+      macro: (id) => macros.find((item) => item.id === id),
       sound: (id) => sounds.get(id),
       voice: (id) => voices.get(id),
       targets,
     };
-  }, [library, pages, texts]);
+  }, [library, pages, macros, texts]);
 }
 
 function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
@@ -123,6 +116,22 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
         missing: lookup.loaded && !found,
       };
     }
+    case "macro": {
+      const found = lookup.macro(pad.id);
+      const own = found?.name ?? "";
+      return {
+        own,
+        name: shown(own),
+        sub: found ? texts.macroKind : texts.macroDeleted,
+        voice: false,
+        picture: null,
+        action: null,
+        macro: true,
+        colour: pad.colour ?? found?.colour ?? MACRO_COLOUR,
+        locked: false,
+        missing: !found,
+      };
+    }
     case "action": {
       const target = pad.action === "goToPage" ? lookup.targets.find((page) => page.id === pad.page) : undefined;
       const own = target ? texts.goTo(target.name) : texts.actionNames[pad.action];
@@ -141,30 +150,7 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
   }
 }
 
-/** Closes a menu or popover on a click elsewhere or Escape. */
-function useDismiss<T extends HTMLElement>(open: boolean, close: () => void) {
-  const ref = useRef<T>(null);
-  const closing = useRef(close);
-  closing.current = close;
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) closing.current();
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closing.current();
-    };
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
-  return ref;
-}
-
-export function PagesPage() {
+export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
   const texts = useTexts();
   const [pages, save, saveError] = useCustomPages();
   const library = useLibrary();
@@ -172,7 +158,8 @@ export function PagesPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [picking, setPicking] = useState<PickerStart | null>(null);
   const [startingFrom, setStartingFrom] = useState(false);
-  const lookup = useLookup(library, pages ?? [], texts);
+  const [macros] = useMacros();
+  const lookup = useLookup(library, pages ?? [], macros ?? [], texts);
 
   if (!pages) return null;
 
@@ -300,6 +287,8 @@ export function PagesPage() {
           start={picking}
           library={library}
           lookup={lookup}
+          macros={macros ?? []}
+          onOpenMacros={onOpenMacros}
           onPlace={place}
           onClose={() => setPicking(null)}
         />
@@ -318,6 +307,8 @@ function pickerStart(pad: number, content: CustomPad): PickerStart {
       return { pad, tab: "voices", chosen: [`voice:${content.id}`], replace: true };
     case "action":
       return { pad, tab: "actions", chosen: [`action:${content.action}`], replace: true };
+    case "macro":
+      return { pad, tab: "macros", chosen: [`macro:${content.id}`], replace: true };
   }
 }
 
@@ -402,6 +393,8 @@ function PageTabs(props: TabsProps) {
             <RenameField
               key={page.id}
               name={page.name}
+              label={texts.pageName}
+              max={MAX_PAGE_NAME}
               onDone={(name) => {
                 setRenaming(false);
                 if (name) props.onRename(name);
@@ -494,33 +487,6 @@ function PageTabs(props: TabsProps) {
   );
 }
 
-function RenameField({ name, onDone }: { name: string; onDone: (name: string) => void }) {
-  const texts = useTexts();
-  const [value, setValue] = useState(name);
-  const done = useRef(false);
-  const finish = (result: string) => {
-    if (done.current) return;
-    done.current = true;
-    onDone(result.trim());
-  };
-  return (
-    <input
-      className="chip rename"
-      aria-label={texts.pageName}
-      value={value}
-      maxLength={MAX_PAGE_NAME}
-      autoFocus
-      onFocus={(event) => event.currentTarget.select()}
-      onChange={(event) => setValue(event.target.value)}
-      onBlur={() => finish(value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") finish(value);
-        if (event.key === "Escape") finish("");
-      }}
-    />
-  );
-}
-
 interface GridProps {
   page: CustomPage;
   lookup: Lookup;
@@ -585,7 +551,13 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
           >
             {shown ? (
               <>
-                <PadPicture voice={shown.voice} picture={shown.picture} action={shown.action} />
+                <PadPicture
+                  voice={shown.voice}
+                  picture={shown.picture}
+                  action={shown.action}
+                  macro={shown.macro}
+                  tint={shown.colour}
+                />
                 <span className="name">{shown.name}</span>
               </>
             ) : (
@@ -609,12 +581,17 @@ interface InspectorProps {
 
 function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: InspectorProps) {
   const texts = useTexts();
-  const [colours, setColours] = useState(false);
-  const popover = useDismiss<HTMLDivElement>(colours, () => setColours(false));
 
   return (
     <section className="card inspector" aria-label={shown.name}>
-      <PadPicture voice={shown.voice} picture={shown.picture} action={shown.action} large />
+      <PadPicture
+        voice={shown.voice}
+        picture={shown.picture}
+        action={shown.action}
+        macro={shown.macro}
+        tint={shown.colour}
+        large
+      />
       <div className="identity">
         <p className="title">{shown.name}</p>
         <p className="muted">{shown.sub}</p>
@@ -647,44 +624,7 @@ function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: 
           </select>
         </label>
       )}
-      <div className="anchor" ref={popover}>
-        <button
-          type="button"
-          className="colour-button"
-          aria-label={texts.ledColour}
-          title={texts.ledColour}
-          aria-expanded={colours}
-          onClick={() => setColours(!colours)}
-        >
-          <span className="dot" style={{ "--led": rgb(shown.colour) } as CSSProperties} />
-          <ChevronDown />
-        </button>
-        {colours && (
-          <div className="popover" role="dialog" aria-label={texts.ledAtRest}>
-            <p className="muted">{texts.ledAtRest}</p>
-            <div className="swatches">
-              {SWATCHES.map((colour, i) => {
-                const name = colour ? texts.colourNames[i - 1] : texts.automatic;
-                const on = colour ? pad.colour?.join() === colour.join() : pad.colour === null;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={on ? "swatch on" : "swatch"}
-                    aria-label={name}
-                    title={name}
-                    aria-pressed={on}
-                    style={colour ? ({ "--led": rgb(colour) } as CSSProperties) : undefined}
-                    onClick={() => onChange({ ...pad, colour })}
-                  >
-                    {colour ? null : "Auto"}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+      <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
       <button type="button" className="button secondary" onClick={onReplace}>
         {texts.change}
       </button>

@@ -2,6 +2,7 @@ use super::overlay::OVERLAY_TIME;
 use super::*;
 use crate::custom_pages::{Content, CustomPad};
 use crate::display::screens::Screen;
+use crate::macros::{Again, Macro, Step, Switch, SwitchState};
 use crate::soundboard::tests::{action, custom_pad, sound, soundboard, voice};
 use crate::voicemod_log::LineKind;
 use std::time::SystemTime;
@@ -1003,4 +1004,181 @@ fn a_sound_takes_the_users_name_and_colour() {
         panic!("the home screen");
     };
     assert_eq!(name, "Fail");
+}
+
+fn macro_item(id: &str, steps: Vec<Step>) -> Macro {
+    Macro {
+        id: id.into(),
+        name: id.to_uppercase(),
+        colour: None,
+        again: Again::Stop,
+        repeat: 1,
+        restore: false,
+        steps,
+    }
+}
+
+/// The macro on pad 0 of a page of the user's own, shown.
+fn on_a_pad(controller: &mut Controller, item: Macro) {
+    let pad = custom_pad(Content::Macro { id: item.id.clone() });
+    controller.set_macros(vec![item]);
+    controller.set_custom_pages(vec![own_page("mine", vec![pad])]);
+    controller.go_to_page(0);
+}
+
+fn requests_at(controller: &mut Controller, at: Instant) -> Vec<Request> {
+    controller.update(at);
+    requests(&controller.take_outputs()).into_iter().cloned().collect()
+}
+
+#[test]
+fn a_macro_runs_its_steps_in_turn_and_puts_things_back() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    voices(&mut controller, "banana", now);
+    controller.voicemod_event(VoicemodEvent::VoiceChanger(true), now);
+    controller.playback.learn_length("a", Duration::from_secs(2));
+    let steps = vec![
+        Step::Voice {
+            id: "dark".into(),
+            name: String::new(),
+        },
+        Step::Switch {
+            switch: Switch::MuteMic,
+            state: SwitchState::On,
+        },
+        Step::Switch {
+            switch: Switch::VoiceChanger,
+            state: SwitchState::On,
+        },
+        Step::Sound {
+            id: "a".into(),
+            name: String::new(),
+            wait_end: true,
+        },
+        Step::Wait { millis: 500 },
+    ];
+    on_a_pad(
+        &mut controller,
+        Macro {
+            restore: true,
+            ..macro_item("macro-x", steps)
+        },
+    );
+    let at = |millis| now + Duration::from_millis(millis);
+
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(
+        requests(&outputs),
+        [
+            &Request::LoadVoice("dark".into()),
+            &Request::ToggleMuteMic,
+            &play("a", true)
+        ],
+        "the voice changer was on already"
+    );
+    controller.voicemod_event(VoicemodEvent::CurrentVoice("dark".into()), now);
+    press(&mut controller, 0, false, now);
+
+    assert!(requests_at(&mut controller, at(1000)).is_empty(), "the sound plays");
+    let view = controller.board_view(at(1000)).unwrap();
+    assert_eq!(view.pads[0].led.effect, Effect::Breathe);
+    let Screen::Home { name, right, .. } = controller.screen(at(1000)).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!((name.as_str(), right.as_str()), ("MACRO-X", "MIC OFF STEP 4/5"));
+
+    assert!(requests_at(&mut controller, at(2000)).is_empty(), "then the wait");
+    assert_eq!(
+        requests_at(&mut controller, at(2500)),
+        [Request::LoadVoice("banana".into()), Request::ToggleMuteMic],
+        "the voice and the mic as they were"
+    );
+    assert_eq!(controller.macro_progress(), None);
+}
+
+#[test]
+fn a_macro_pressed_again_stops_or_restarts() {
+    let steps = vec![
+        Step::Wait { millis: 1000 },
+        Step::Switch {
+            switch: Switch::MuteMic,
+            state: SwitchState::Toggle,
+        },
+    ];
+    let at = |now: Instant, millis| now + Duration::from_millis(millis);
+
+    let (mut controller, now) = ready(three_soundboards());
+    on_a_pad(&mut controller, macro_item("macro-x", steps.clone()));
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    press(&mut controller, 0, true, at(now, 500));
+    assert!(requests_at(&mut controller, at(now, 1500)).is_empty(), "stopped");
+
+    let (mut controller, now) = ready(three_soundboards());
+    let restarts = Macro {
+        again: Again::Restart,
+        ..macro_item("macro-x", steps)
+    };
+    on_a_pad(&mut controller, restarts);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    press(&mut controller, 0, true, at(now, 500));
+    assert!(requests_at(&mut controller, at(now, 1400)).is_empty(), "started again");
+    assert_eq!(requests_at(&mut controller, at(now, 1500)), [Request::ToggleMuteMic]);
+}
+
+#[test]
+fn a_macro_repeats_a_round_at_most_twice_a_second() {
+    let (mut controller, now) = ready(three_soundboards());
+    let toggle = Step::Switch {
+        switch: Switch::Background,
+        state: SwitchState::Toggle,
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            repeat: 2,
+            ..macro_item("macro-x", vec![toggle])
+        },
+    );
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(requests(&outputs), [&Request::ToggleBackground]);
+    let at = |millis| now + Duration::from_millis(millis);
+    assert!(requests_at(&mut controller, at(400)).is_empty());
+    assert_eq!(requests_at(&mut controller, at(500)), [Request::ToggleBackground]);
+    assert!(requests_at(&mut controller, at(1000)).is_empty(), "twice only");
+    assert_eq!(controller.macro_progress(), None);
+}
+
+#[test]
+fn the_stop_key_or_deleting_it_ends_a_macro() {
+    let (mut controller, now) = ready(three_soundboards());
+    let toggle = Step::Switch {
+        switch: Switch::Background,
+        state: SwitchState::Toggle,
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            repeat: 0,
+            restore: true,
+            ..macro_item("macro-x", vec![toggle])
+        },
+    );
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+
+    let outputs = button(&mut controller, STOP, now);
+    assert_eq!(
+        requests(&outputs),
+        [&Request::ToggleBackground, &Request::StopAllSounds],
+        "the background as it was, then the sounds stopped"
+    );
+    assert_eq!(controller.macro_progress(), None);
+
+    let later = now + Duration::from_secs(1);
+    press(&mut controller, 0, true, later);
+    assert!(controller.macro_progress().is_some());
+    controller.set_macros(Vec::new());
+    assert_eq!(controller.macro_progress(), None, "deleted while it ran");
 }

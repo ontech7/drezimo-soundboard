@@ -31,6 +31,8 @@ pub struct PadView {
     pub picture: Option<String>,
     /// What an action pad does, for its icon
     pub action: Option<Action>,
+    #[serde(rename = "macro")]
+    pub is_macro: bool,
     pub led: Led,
     /// Outside the licence
     pub locked: bool,
@@ -53,6 +55,7 @@ impl Controller {
                         Some(Pad::Action { action, .. }) => Some(*action),
                         _ => None,
                     },
+                    is_macro: matches!(content, Some(Pad::Macro { .. })),
                     led: self.led(usize::from(pad), now),
                     locked: content.is_some_and(|content| !content.enabled()),
                 }

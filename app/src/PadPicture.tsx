@@ -1,10 +1,11 @@
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { pictureUrl } from "./boardView";
-import { ACTION_COLOURS, type Action, rgb } from "./customPages";
+import { ACTION_COLOURS, type Action, MACRO_COLOUR, type Rgb, rgb } from "./customPages";
 import {
   BackgroundIcon,
   GoToIcon,
   HearMeIcon,
+  MacroIcon,
   MicMuteIcon,
   MuteMeIcon,
   ShuffleIcon,
@@ -30,16 +31,20 @@ interface Props {
   /** On the pad-image scheme */
   picture?: string | null;
   action?: Action | null;
+  macro?: boolean;
+  /** An action's or macro's colour, when not its own */
+  tint?: Rgb;
   large?: boolean;
 }
 
 /** Voicemod's picture of a sound or voice, over its kind's icon until it loads, or an action's icon in its colour */
-export function PadPicture({ voice, picture, action, large }: Props) {
+export function PadPicture({ voice, picture, action, macro, tint, large }: Props) {
   const size = large ? " large" : "";
-  if (action) {
+  if (action || macro) {
+    const colour = tint ?? (action ? ACTION_COLOURS[action] : MACRO_COLOUR);
     return (
-      <span className={`picture action${size}`} style={{ "--tint": rgb(ACTION_COLOURS[action]) } as CSSProperties}>
-        {ACTION_ICONS[action]}
+      <span className={`picture action${size}`} style={{ "--tint": rgb(colour) } as CSSProperties}>
+        {action ? ACTION_ICONS[action] : <MacroIcon />}
       </span>
     );
   }

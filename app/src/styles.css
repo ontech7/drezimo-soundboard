@@ -1162,15 +1162,6 @@ input::placeholder {
   color: var(--text);
 }
 
-.picker-tabs .soon {
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--line);
-  color: #a1a1aa;
-  font-size: 10px;
-  letter-spacing: 0.05em;
-}
-
 .picker-filters {
   display: flex;
   gap: 8px;
@@ -1310,25 +1301,379 @@ input::placeholder {
   text-align: center;
 }
 
-.macros {
-  display: flex;
-  flex-direction: column;
+/* The Macro section: the macros as tabs, a timeline, the steps and what to add */
+
+.button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+.button .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.button.outline {
+  border: 1px solid var(--amber);
+  background: transparent;
+  color: var(--amber);
+}
+
+.chip .dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--led);
+}
+
+.choice.create {
+  border-style: dashed;
+  color: #c9c9cf;
+}
+
+.macro-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.macro-editor .page-tabs {
+  margin-bottom: 0;
+}
+
+.macro-head {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  height: 100%;
+}
+
+.macro-head .used {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-bar {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  padding: 3px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.timeline-bar span {
+  min-width: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 55%, transparent);
+}
+
+.timeline-bar .wait {
+  background: #3a3a42;
+}
+
+.timeline-bar .unknown {
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--tint) 45%, transparent) 0 4px, transparent 4px 8px);
+}
+
+.timeline-bar .done {
+  opacity: 0.4;
+}
+
+.timeline-bar .now {
+  outline: 2px solid var(--amber);
+  outline-offset: -1px;
+}
+
+.no-steps {
+  padding: 24px 16px;
   text-align: center;
-}
-
-.macros .title {
-  font-weight: 600;
-}
-
-.macros .muted {
-  max-width: 380px;
   line-height: 1.5;
 }
 
-.macros .picture {
-  --tint: var(--amber);
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.step.open {
+  border-color: #3a3a42;
+}
+
+.step.now {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg));
+}
+
+.step.done {
+  opacity: 0.5;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step-row .number {
+  flex: none;
+  width: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.step .picture {
+  width: 30px;
+  height: 30px;
+}
+
+.step .summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step .summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step .summary .title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.step .summary .muted {
+  font-size: 12px;
+}
+
+.badge.now {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: #ffc65a;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.icon-button.plain {
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+}
+
+.icon-button.plain .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.step-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0 2px 40px;
+}
+
+.sound-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.sound-chip {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px 0 4px;
+  border: 1px solid #2c2c33;
+  border-radius: 8px;
+}
+
+.sound-chip .picture {
+  width: 28px;
+  height: 28px;
+}
+
+.sound-chip .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-chip .muted {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.muted.block {
+  display: block;
+  font-size: 12px;
+}
+
+input[type="number"] {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+input.seconds {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+
+.add-step {
+  align-self: stretch;
+}
+
+.add-step-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  border: 1px dashed #3a3a42;
+  border-radius: 10px;
+  background: transparent;
+  color: #c9c9cf;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.add-step-button:hover:not(:disabled) {
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+.add-step-button .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.step-kinds {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #2c2c33;
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
+}
+
+.step-kinds button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-kinds button:hover {
+  background: #2a2a31;
+}
+
+.step-kinds .picture {
+  width: 30px;
+  height: 30px;
+}
+
+.step-kinds .text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.step-kinds .name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.step-kinds .muted {
+  font-size: 11.5px;
+}
+
+.macro-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.empty-pages > .picture {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
 }

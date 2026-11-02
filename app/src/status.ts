@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { MacroProgress } from "./macros";
 import type { DisplaySettings } from "./settings";
 
 export type BoardStatus =
@@ -30,6 +31,8 @@ export interface Status {
   displaySettings: DisplaySettings | null;
   /** Voicemod's, while connected */
   license: "free" | "pro" | null;
+  /** The macro running, if any */
+  runningMacro: MacroProgress | null;
 }
 
 export function useStatus(): Status | null {

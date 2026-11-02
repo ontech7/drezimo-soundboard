@@ -3,15 +3,18 @@
 //! gets each input with the time it happened and queues the messages for the board and the requests for Voicemod.
 
 mod overlay;
+mod running;
 mod screen;
 mod window;
 
+pub use running::MacroProgress;
 pub use window::BoardView;
 
 use crate::custom_pages::CustomPage;
 use crate::display::Frame;
 use crate::display::screens::{self, Screen};
 use crate::display::texts::{ENGLISH, Texts};
+use crate::macros::Macro;
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
@@ -127,6 +130,9 @@ pub struct Controller {
     voices: Vec<Voice>,
     /// The user's own, made in the window
     custom: Vec<CustomPage>,
+    macros: Vec<Macro>,
+    /// The macro running, if any
+    running: Option<running::Running>,
     /// The voice loaded in Voicemod, and the one a pad asked for, until Voicemod confirms it
     current_voice: Option<String>,
     voice_asked: Option<String>,
@@ -177,6 +183,8 @@ impl Default for Controller {
             soundboards: Vec::new(),
             voices: Vec::new(),
             custom: Vec::new(),
+            macros: Vec::new(),
+            running: None,
             current_voice: None,
             voice_asked: None,
             soundboards_loaded: false,
@@ -274,6 +282,7 @@ impl Controller {
                     self.resync(now);
                 }
                 self.releases.clear();
+                self.running = None;
                 self.switches = Switches::default();
                 if let Some(page) = self.page_id(self.page) {
                     self.resume = Some(page);
@@ -356,6 +365,7 @@ impl Controller {
         if self.playback.update(now) {
             self.resync(now);
         }
+        self.advance_macro(now);
         self.menu = self.menu.take().filter(|menu| menu.until > now);
         // A peek lasts while the knob is held, its blink only its time
         self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.pressed);
@@ -388,6 +398,7 @@ impl Controller {
             .chain(peek_end)
             .chain(screen_changes)
             .chain(self.overlay_until)
+            .chain(self.macro_wake())
             .min();
     }
 
@@ -421,6 +432,16 @@ impl Controller {
             }
             LogInput::Lost => self.playback.follow_log(false),
         }
+    }
+
+    /// The sounds' lengths known so far.
+    pub fn sound_lengths(&self) -> &HashMap<String, Duration> {
+        self.playback.lengths()
+    }
+
+    /// Changes whenever a sound's length is learned.
+    pub fn lengths_learned(&self) -> u64 {
+        self.playback.lengths_learned()
     }
 
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses.
@@ -481,6 +502,14 @@ impl Controller {
             return;
         }
 
+        if let Some(Pad::Macro { id, .. }) = self.pad_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if self.voicemod == VoicemodStatus::Connected {
+                self.press_macro(&id, now);
+            }
+            return;
+        }
+
         if let Some(voice) = self.voice_at(pad).cloned() {
             self.held.insert(pad, None);
             if voice.enabled && self.voicemod == VoicemodStatus::Connected {
@@ -515,7 +544,10 @@ impl Controller {
 
     fn act(&mut self, action: Action, page: Option<&str>, now: Instant) {
         match action {
-            Action::StopSounds => self.stop_sounds(now),
+            Action::StopSounds => {
+                self.finish_macro();
+                self.stop_sounds(now);
+            }
             Action::MuteMic => self.request(Request::ToggleMuteMic),
             Action::VoiceChanger => self.request(Request::ToggleVoiceChanger),
             Action::RandomVoice => self.random_voice(now),
@@ -543,26 +575,40 @@ impl Controller {
         self.last = Some((voice.name, now));
     }
 
-    /// Any voice in the licence but the current one.
     fn random_voice(&mut self, now: Instant) {
+        if let Some(voice) = self.random_other_voice(now) {
+            self.load_voice(voice, now);
+        }
+    }
+
+    /// The voice loaded, or the one asked for last until Voicemod confirms it.
+    fn voice_loaded(&self) -> Option<&String> {
+        self.voice_asked.as_ref().or(self.current_voice.as_ref())
+    }
+
+    /// Any voice in the licence but the current one.
+    fn random_other_voice(&self, now: Instant) -> Option<Voice> {
         let others: Vec<&Voice> = self
             .voices
             .iter()
-            .filter(|voice| voice.enabled && self.current_voice.as_ref() != Some(&voice.id))
+            .filter(|voice| voice.enabled && self.voice_loaded() != Some(&voice.id))
             .collect();
         if others.is_empty() {
-            return;
+            return None;
         }
         let pick = RandomState::new().hash_one(now) as usize % others.len();
-        let voice = others[pick].clone();
-        self.load_voice(voice, now);
+        Some(others[pick].clone())
     }
 
     fn button_pressed(&mut self, button: u8, now: Instant) {
         match button {
             PREV => self.turn_page(-1, now),
             NEXT => self.turn_page(1, now),
-            STOP => self.stop_sounds(now),
+            STOP => {
+                // A macro stops too, or it would play on
+                self.finish_macro();
+                self.stop_sounds(now);
+            }
             MUTE_ME => self.request(Request::ToggleMuteForMe),
             VOICE => self.request(Request::ToggleVoiceChanger),
             HEAR_ME => self.request(Request::ToggleHearMyself),
@@ -647,7 +693,7 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, self.texts);
+        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, &self.macros, self.texts);
         self.page = current.and_then(|id| self.find_page(&id)).unwrap_or(0);
         let remapped = selected.and_then(|id| self.find_page(&id));
         let last = self.pages.len().saturating_sub(1);
@@ -837,6 +883,17 @@ impl Controller {
                     effect: Effect::Breathe,
                 },
             },
+            Some(Pad::Macro { id, .. }) => {
+                let own = self
+                    .macros
+                    .iter()
+                    .find(|item| item.id == *id)
+                    .and_then(|item| item.colour);
+                let color = colour.or(own).unwrap_or(AMBER);
+                let running = self.running.as_ref().is_some_and(|running| running.item.id == *id);
+                let effect = if running { Effect::Breathe } else { Effect::Solid };
+                Led { color, effect }
+            }
             Some(Pad::Action { action, page, .. }) => {
                 let on = match action {
                     Action::StopSounds => !self.playback.is_empty(),

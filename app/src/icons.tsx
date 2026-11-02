@@ -201,6 +201,25 @@ export const LockIcon = () => (
   </Icon>
 );
 
+export const ChevronUp = () => (
+  <Icon>
+    <polyline points="7 14 12 9 17 14" />
+  </Icon>
+);
+
+export const ClockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8.5" />
+    <polyline points="12 7.5 12 12 15 14" />
+  </Icon>
+);
+
+export const PlayIcon = () => (
+  <Icon>
+    <polygon points="8 5 19 12 8 19" />
+  </Icon>
+);
+
 export const ChevronDown = () => (
   <Icon>
     <polyline points="7 10 12 15 17 10" />

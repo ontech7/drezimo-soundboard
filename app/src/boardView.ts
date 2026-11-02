@@ -17,6 +17,8 @@ export interface PadView {
   picture: string | null;
   /** What an action pad does */
   action: Action | null;
+  /** Runs one of the user's macros */
+  macro: boolean;
   led: Led;
   /** Outside the licence */
   locked: boolean;

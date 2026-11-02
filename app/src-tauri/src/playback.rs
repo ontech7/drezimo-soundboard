@@ -8,6 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 const GUESSED_LENGTH: Duration = Duration::from_secs(3);
+/// A length learned again within this is the same: the window is not told again
+const LENGTH_TOLERANCE: Duration = Duration::from_millis(50);
 /// How far apart in time a prediction and the log line that confirms it can be
 const CONFIRM_WINDOW: Duration = Duration::from_millis(600);
 /// A prediction the log has not confirmed by then means the state drifted: it is taken from the log again
@@ -85,6 +87,8 @@ pub struct Playback {
     changed: HashMap<String, Instant>,
     /// Natural lengths, learned from the log
     lengths: HashMap<String, Duration>,
+    /// How many times a length was learned or changed
+    lengths_learned: u64,
     /// The log lines the presses should produce, while the log is followed
     expected: Option<Vec<Expected>>,
     /// Predictions the log left unconfirmed since it last confirmed one
@@ -104,7 +108,22 @@ impl Playback {
     }
 
     pub fn learn_length(&mut self, id: &str, length: Duration) {
-        self.lengths.insert(id.to_string(), length);
+        // Measured from the log, a length differs by a few milliseconds at each play
+        let changed = self
+            .lengths
+            .insert(id.to_string(), length)
+            .is_none_or(|known| known.abs_diff(length) > LENGTH_TOLERANCE);
+        if changed {
+            self.lengths_learned += 1;
+        }
+    }
+
+    pub fn lengths(&self) -> &HashMap<String, Duration> {
+        &self.lengths
+    }
+
+    pub fn lengths_learned(&self) -> u64 {
+        self.lengths_learned
     }
 
     pub fn press(&mut self, sound: &Sound, now: Instant) {

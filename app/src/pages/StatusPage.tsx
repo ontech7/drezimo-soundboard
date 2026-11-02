@@ -134,7 +134,7 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
         if (isKey(event)) press(false);
       }}
     >
-      {pad.name && <PadPicture voice={pad.voice} picture={pad.picture} action={pad.action} />}
+      {pad.name && <PadPicture voice={pad.voice} picture={pad.picture} action={pad.action} macro={pad.macro} />}
       <span className="name">{pad.name}</span>
     </button>
   );

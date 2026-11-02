@@ -4,6 +4,7 @@ mod custom_pages;
 mod device;
 mod display;
 mod firmware;
+mod macros;
 mod overlay;
 mod pictures;
 mod playback;
@@ -49,6 +50,10 @@ pub fn run() {
             custom_pages::custom_pages,
             custom_pages::set_custom_pages,
             custom_pages::library,
+            macros::macros,
+            macros::set_macros,
+            macros::try_macro,
+            macros::stop_macro,
             window::window_ready
         ])
         .register_asynchronous_uri_scheme_protocol(pictures::SCHEME, |context, request, responder| {
@@ -65,6 +70,7 @@ pub fn run() {
             app.manage(settings::load(app.handle()));
             app.manage(pictures::Pictures::new(app.handle()));
             app.manage(custom_pages::load(app.handle()));
+            app.manage(macros::load(app.handle()));
             tray::create(app.handle())?;
             device::start(app.handle().clone());
             // A build made here does not replace itself with a published one

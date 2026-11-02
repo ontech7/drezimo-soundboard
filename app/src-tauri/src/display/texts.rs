@@ -31,6 +31,10 @@ pub struct Texts {
     pub action: &'static str,
     /// Before a page's name, on a pad that opens it
     pub go_to: &'static str,
+    /// What a macro pad does, when peeked
+    pub macro_info: &'static str,
+    /// Before the step a macro is at
+    pub step: &'static str,
     modes: Modes,
     actions: Actions,
 }
@@ -107,6 +111,8 @@ pub const ENGLISH: Texts = Texts {
     stops_others: "STOPS OTHERS",
     action: "ACTION",
     go_to: "Go to",
+    macro_info: "MACRO",
+    step: "STEP",
     modes: Modes {
         restart: "ONE-SHOT",
         overlap: "OVERLAP",
@@ -150,6 +156,8 @@ pub const ITALIAN: Texts = Texts {
     stops_others: "FERMA GLI ALTRI",
     action: "AZIONE",
     go_to: "Vai a",
+    macro_info: "MACRO",
+    step: "PASSO",
     modes: Modes {
         restart: "SINGOLO",
         overlap: "SOVRAPPOSTO",

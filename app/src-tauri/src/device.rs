@@ -2,9 +2,11 @@
 //! its messages, and the app's status goes to the tray and the window.
 
 use crate::board::{Board, BoardEvent, BoardStatus};
+use crate::controller::MacroProgress;
 use crate::controller::{BoardView, Controller, Output, PageSummary};
 use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
 use crate::firmware::{self, FirmwareUpdate, Updater};
+use crate::macros::{Macro, MacrosState};
 use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
@@ -39,6 +41,10 @@ enum Input {
     Key(u8),
     Page(usize),
     CustomPages(Vec<CustomPage>),
+    Macros(Vec<Macro>),
+    /// The Macro section's Try and Stop
+    TryMacro(String),
+    StopMacro,
 }
 
 /// The way in for the window's commands
@@ -57,6 +63,8 @@ pub struct Status {
     pub display_settings: Option<DisplaySettings>,
     /// Voicemod's, while connected
     pub license: Option<License>,
+    /// The macro running, if any
+    pub running_macro: Option<MacroProgress>,
 }
 
 #[tauri::command]
@@ -87,7 +95,7 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
 }
 
 /// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse`,
-/// `SettingsState`, `CustomPagesState`, `LibraryState` and `Pictures` to be managed.
+/// `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     app.manage(Inputs(Mutex::new(inputs.clone())));
@@ -130,6 +138,8 @@ fn run(
     let mut settings = app.state::<SettingsState>().get();
     let mut controller = Controller::new(settings.language.texts());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
+    controller.set_macros(app.state::<MacrosState>().get());
+    let mut shown_lengths = None;
     controller.set_overlay_time(overlay_time(&settings.overlay));
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
     let mut status = Status::default();
@@ -250,6 +260,9 @@ fn run(
             Some(Input::Key(index)) => controller.window_key(index, now),
             Some(Input::Page(index)) => controller.go_to_page(index),
             Some(Input::CustomPages(pages)) => controller.set_custom_pages(pages),
+            Some(Input::Macros(macros)) => controller.set_macros(macros),
+            Some(Input::TryMacro(id)) => controller.try_macro(&id, now),
+            Some(Input::StopMacro) => controller.stop_macro(),
             None => {}
         }
         updater.update(now);
@@ -283,7 +296,13 @@ fn run(
             let _ = app.emit("board-view", &view);
             shown_view = view;
         }
+        // Learnt as sounds play: the Macro section times its steps with them
+        if shown_lengths != Some(controller.lengths_learned()) {
+            shown_lengths = Some(controller.lengths_learned());
+            update_library(app, |library| library.set_lengths(controller.sound_lengths()));
+        }
         status.page = controller.page();
+        status.running_macro = controller.macro_progress();
         status.voicemod_log = controller.follows_log();
         status.firmware_update = updater.state();
         if status != published {
@@ -332,6 +351,18 @@ pub fn apply_settings(app: &AppHandle, settings: Settings) {
 
 pub fn apply_custom_pages(app: &AppHandle, pages: Vec<CustomPage>) {
     send(app, Input::CustomPages(pages));
+}
+
+pub fn apply_macros(app: &AppHandle, macros: Vec<Macro>) {
+    send(app, Input::Macros(macros));
+}
+
+pub fn try_macro(app: &AppHandle, id: String) {
+    send(app, Input::TryMacro(id));
+}
+
+pub fn stop_macro(app: &AppHandle) {
+    send(app, Input::StopMacro);
 }
 
 /// Within what the firmware takes: minutes up to a day
