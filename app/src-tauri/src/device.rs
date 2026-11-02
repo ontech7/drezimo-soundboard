@@ -2,6 +2,7 @@
 //! its messages, and the app's status goes to the tray and the window.
 
 use crate::board::{Board, BoardEvent, BoardStatus};
+use crate::board_test::{BoardTest, DisplayTest, LedTest, TEST_BRIGHTNESS, Tester};
 use crate::controller::MacroProgress;
 use crate::controller::{BoardView, Controller, Output, PageSummary};
 use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
@@ -45,6 +46,15 @@ enum Input {
     /// The Macro section's Try and Stop
     TryMacro(String),
     StopMacro,
+    Test(TestInput),
+}
+
+enum TestInput {
+    Start,
+    Leds(LedTest),
+    Display(DisplayTest),
+    Restart,
+    Stop,
 }
 
 /// The way in for the window's commands
@@ -96,8 +106,18 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
-/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse`,
-/// `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to be managed.
+/// The board test, while one runs
+#[derive(Default)]
+pub struct BoardTestState(Mutex<Option<BoardTest>>);
+
+#[tauri::command]
+pub fn board_test(test: State<BoardTestState>) -> Option<BoardTest> {
+    test.0.lock().unwrap().clone()
+}
+
+/// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`,
+/// `BoardTestState`, `LastUse`, `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to
+/// be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     app.manage(Inputs(Mutex::new(inputs.clone())));
@@ -150,8 +170,18 @@ fn run(
     // SETTINGS sent and not answered yet: only the answer to the last one is current
     let mut settings_reads = 0;
     let mut shown_view = None;
+    // While a test runs, the controller's display waits here
+    let mut screen = String::new();
+    let mut tester: Option<Tester> = None;
+    let mut shown_test = None;
+    let mut shown_picture = None;
     loop {
-        let wake = controller.next_update().into_iter().chain(updater.next_update()).min();
+        let wake = controller
+            .next_update()
+            .into_iter()
+            .chain(updater.next_update())
+            .chain(tester.as_ref().and_then(Tester::next_update))
+            .min();
         let input = match wake {
             Some(at) => match inputs.recv_timeout(at.saturating_duration_since(Instant::now())) {
                 Ok(input) => Some(input),
@@ -165,6 +195,8 @@ fn run(
         };
 
         let now = Instant::now();
+        // A test that ends gives the board back: no new connection to show the overlay for
+        let mut test_ended = false;
         match input {
             Some(Input::Board(BoardEvent::Status(board_status))) => {
                 if let BoardStatus::Connected { firmware, .. } = &board_status
@@ -175,7 +207,7 @@ fn run(
                 let was_connected = matches!(status.board, BoardStatus::Connected { .. });
                 if matches!(board_status, BoardStatus::Connected { .. }) && !was_connected {
                     // The board forgets the LEDs' brightness when unplugged; it keeps the display's settings
-                    board.send(brightness_message(settings.led_brightness));
+                    board.send(brightness_message(led_brightness(&settings, tester.is_some())));
                     board.send("SETTINGS");
                     settings_reads = 1;
                     // Development aid: the module's own LED copies pad 1
@@ -205,7 +237,10 @@ fn run(
                 if used {
                     *app.state::<LastUse>().0.lock().unwrap() = Some(now);
                 }
-                controller.board_message(message, now);
+                match &mut tester {
+                    Some(tester) => tester.board_message(&message),
+                    None => controller.board_message(message, now),
+                }
             }
             Some(Input::Voicemod(event)) => {
                 match &event {
@@ -234,7 +269,7 @@ fn run(
                 controller.set_overlay_time(overlay_time(&new.overlay));
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
                 if new.led_brightness != settings.led_brightness {
-                    board.send(brightness_message(new.led_brightness));
+                    board.send(brightness_message(led_brightness(&new, tester.is_some())));
                 }
                 settings = new;
                 // In the new language, after any update already on its way in the old one
@@ -265,13 +300,35 @@ fn run(
             Some(Input::Macros(macros)) => controller.set_macros(macros),
             Some(Input::TryMacro(id)) => controller.try_macro(&id, now),
             Some(Input::StopMacro) => controller.stop_macro(),
+            Some(Input::Test(input)) => match (input, &mut tester) {
+                (TestInput::Start, None) => {
+                    // Nothing plays meanwhile, a macro tried on the Macros page included
+                    controller.stop_macro();
+                    board.send(brightness_message(led_brightness(&settings, true)));
+                    tester = Some(Tester::default());
+                }
+                (TestInput::Leds(leds), Some(tester)) => tester.set_leds(leds),
+                (TestInput::Display(display), Some(tester)) => tester.set_display(display),
+                (TestInput::Restart, Some(tester)) => tester.restart(),
+                (TestInput::Stop, Some(_)) => {
+                    board.send(brightness_message(settings.led_brightness));
+                    tester = None;
+                    test_ended = true;
+                }
+                _ => {}
+            },
             None => {}
         }
         updater.update(now);
         // A board being updated restarts in its bootloader: nothing to drive meanwhile
         let updating = updater.state().as_ref().is_some_and(FirmwareUpdate::in_progress);
-        let driven = matches!(status.board, BoardStatus::Connected { .. }) && !updating;
+        let connected = matches!(status.board, BoardStatus::Connected { .. }) && !updating;
+        // The test has the board meanwhile
+        let driven = connected && tester.is_none();
         controller.set_board_connected(driven, now);
+        if test_ended {
+            controller.hide_overlay();
+        }
 
         controller.update(now);
         for output in controller.take_outputs() {
@@ -279,17 +336,43 @@ fn run(
                 Output::Board(message) => board.send(message),
                 Output::Voicemod(request) => voicemod.send(request),
                 Output::Display(frame) => {
-                    let hex = frame.hex();
+                    screen = frame.hex();
                     if driven {
-                        board.send(protocol::display_message(&hex));
+                        board.send(protocol::display_message(&screen));
                     }
-                    let _ = app.emit("display", &hex);
-                    *app.state::<DisplayFrame>().0.lock().unwrap() = hex;
+                    if tester.is_none() {
+                        show_frame(app, screen.clone());
+                    }
                 }
                 Output::Overlay(shown) => {
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
             }
+        }
+        match &mut tester {
+            Some(tester) if connected => {
+                for message in tester.messages(now) {
+                    board.send(message);
+                }
+            }
+            Some(tester) => tester.disconnected(),
+            None => {}
+        }
+        let picture = tester.as_ref().map(|tester| tester.test().display);
+        if picture != shown_picture {
+            show_frame(
+                app,
+                tester
+                    .as_ref()
+                    .map_or_else(|| screen.clone(), |tester| tester.picture().hex()),
+            );
+            shown_picture = picture;
+        }
+        if tester.as_ref().map(Tester::test) != shown_test.as_ref() {
+            shown_test = tester.as_ref().map(|tester| tester.test().clone());
+            // Stored before it is announced, as the status is
+            app.state::<BoardTestState>().0.lock().unwrap().clone_from(&shown_test);
+            let _ = app.emit("board-test", &shown_test);
         }
         let view = controller.board_view(now);
         if view != shown_view {
@@ -315,6 +398,12 @@ fn run(
     }
 }
 
+/// The display's picture, for the window's preview: stored before it is announced
+fn show_frame(app: &AppHandle, hex: String) {
+    app.state::<DisplayFrame>().0.lock().unwrap().clone_from(&hex);
+    let _ = app.emit("display", &hex);
+}
+
 /// The editor's library follows Voicemod's lists.
 fn update_library(app: &AppHandle, change: impl FnOnce(&mut Library)) {
     let state = app.state::<LibraryState>();
@@ -328,6 +417,14 @@ fn update_library(app: &AppHandle, change: impl FnOnce(&mut Library)) {
 
 fn brightness_message(percent: u8) -> String {
     format!("BRIGHT,{percent}")
+}
+
+fn led_brightness(settings: &Settings, testing: bool) -> u8 {
+    if testing {
+        settings.led_brightness.min(TEST_BRIGHTNESS)
+    } else {
+        settings.led_brightness
+    }
 }
 
 fn overlay_time(overlay: &OverlaySettings) -> Option<Duration> {
@@ -411,6 +508,37 @@ pub fn press_key(app: AppHandle, index: u8) {
 #[tauri::command]
 pub fn go_to_page(app: AppHandle, index: usize) {
     send(&app, Input::Page(index));
+}
+
+/// Takes the board for a test, or goes on with the one running
+#[tauri::command]
+pub fn start_board_test(app: AppHandle) {
+    send(&app, Input::Test(TestInput::Start));
+}
+
+#[tauri::command]
+pub fn set_board_test_leds(app: AppHandle, leds: LedTest) {
+    send(&app, Input::Test(TestInput::Leds(leds)));
+}
+
+#[tauri::command]
+pub fn set_board_test_display(app: AppHandle, display: DisplayTest) {
+    send(&app, Input::Test(TestInput::Display(display)));
+}
+
+#[tauri::command]
+pub fn restart_board_test(app: AppHandle) {
+    send(&app, Input::Test(TestInput::Restart));
+}
+
+#[tauri::command]
+pub fn stop_board_test(app: AppHandle) {
+    end_board_test(&app);
+}
+
+/// Gives the board back to the soundboard.
+pub fn end_board_test(app: &AppHandle) {
+    send(app, Input::Test(TestInput::Stop));
 }
 
 /// Sends the board to its bootloader and writes the app's firmware there, on a thread of its own: looking at the drives

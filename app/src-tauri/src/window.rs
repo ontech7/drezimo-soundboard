@@ -3,6 +3,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
+use tauri::webview::PageLoadEvent;
 use tauri::window::Color;
 use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
 
@@ -76,7 +77,13 @@ fn build(app: AppHandle, label: String) {
             // Dark whatever the system theme, title bar included
             .theme(Some(Theme::Dark))
             // Tauri's own file drops would take the page's drags, the pads moved in the Pages editor
-            .disable_drag_drop_handler();
+            .disable_drag_drop_handler()
+            // A reloaded page knows of no board test: one left running would keep the board from playing
+            .on_page_load(|window, payload| {
+                if payload.event() == PageLoadEvent::Started {
+                    crate::device::end_board_test(window.app_handle());
+                }
+            });
         #[cfg(target_os = "macos")]
         let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
 
@@ -127,6 +134,8 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
     let _ = window.hide();
     // The page stays: it learns it was closed, rather than only hidden or minimised
     let _ = window.emit("window-closed", ());
+    // Nobody sees the test any more: the board plays again
+    crate::device::end_board_test(window.app_handle());
 
     let app = window.app_handle().clone();
     let label = window.label().to_string();

@@ -1,9 +1,5 @@
 import type { CSSProperties } from "react";
-// One colour, as printed on the board
-import logo from "../assets/drezimo-logo-mono.svg?raw";
-import { type Rgb, rgb } from "../customPages";
-import { DisplayCanvas } from "../DisplayPreview";
-import { useTexts } from "../i18n";
+import { Cap, Drezimo } from "../Drezimo";
 import { type Legend, SAMPLE_KEYS, SAMPLE_PADS } from "./sample";
 
 /** Where each part is on the board, in points at 1.5 per millimetre, with its number beside it */
@@ -26,12 +22,6 @@ const PARTS: { outline: CSSProperties; marker: CSSProperties }[] = [
   },
 ];
 
-/** A keycap lit from below by its LED */
-export function Cap({ led, breathe, dim, small }: { led: Rgb | null; breathe?: boolean; dim?: boolean; small?: boolean }) {
-  const classes = ["cap", led ? "lit" : "", breathe ? "breathe" : "", dim ? "dim" : "", small ? "small" : ""];
-  return <span className={classes.join(" ")} style={led ? ({ "--led": rgb(led) } as CSSProperties) : undefined} />;
-}
-
 interface Props {
   /** Its display's picture */
   frame: string;
@@ -43,30 +33,20 @@ interface Props {
   part: number | null;
 }
 
-/** The board as it looks, with the tour's page on it */
+/** The board with the tour's page on it */
 export function Board({ frame, centred, legend, part }: Props) {
-  const texts = useTexts();
   const dim = (own: Legend) => legend !== null && own !== legend;
   return (
-    <div className={centred ? "tour-board centred" : "tour-board"} aria-hidden="true">
-      <div className="board-logo" dangerouslySetInnerHTML={{ __html: logo }} />
-      <div className="board-display">
-        <DisplayCanvas frame={frame} className="board-oled" />
-      </div>
-      <span className="board-knob" />
-      <div className="board-keys">
-        {SAMPLE_KEYS.map((key, i) => (
-          <div key={i}>
-            <Cap led={key.led} dim={dim(key.legend)} />
-            <span>{texts.buttonNames[i]}</span>
-          </div>
-        ))}
-      </div>
-      <div className="board-pads">
-        {SAMPLE_PADS.map((pad, i) => (
-          <Cap key={i} led={pad.led} breathe={pad.breathe} dim={dim(pad.legend)} />
-        ))}
-      </div>
+    <Drezimo
+      className={centred ? "tour-board centred" : "tour-board"}
+      frame={frame}
+      keys={SAMPLE_KEYS.map((key) => (
+        <Cap led={key.led} dim={dim(key.legend)} />
+      ))}
+      pads={SAMPLE_PADS.map((pad) => (
+        <Cap led={pad.led} breathe={pad.breathe} dim={dim(pad.legend)} />
+      ))}
+    >
       {part !== null && (
         <>
           <span className="board-outline" style={PARTS[part].outline} />
@@ -77,6 +57,6 @@ export function Board({ frame, centred, legend, part }: Props) {
           ))}
         </>
       )}
-    </div>
+    </Drezimo>
   );
 }

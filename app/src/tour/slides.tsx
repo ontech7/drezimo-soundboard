@@ -12,13 +12,13 @@ import {
   VOICE_COLOUR,
 } from "../customPages";
 import { DisplayCanvas } from "../DisplayPreview";
+import { Cap } from "../Drezimo";
 import { Swatches } from "../editing";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
 import { languages, WINDOWS } from "../pages/GeneralPage";
 import { describe, Timeline, Tinted } from "../pages/MacrosPage";
 import { type PageId, Sidebar } from "../Sidebar";
-import { Cap } from "./Board";
 import {
   FIRST_TARGET,
   type Kind,

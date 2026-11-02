@@ -41,6 +41,11 @@ impl Controller {
         self.overlay_time = time;
     }
 
+    /// Hides the overlay a connection would show, for a board that was only lent, as to a board test.
+    pub fn hide_overlay(&mut self) {
+        self.overlay_until = None;
+    }
+
     /// Shows the overlay now, as a page change would, to see where it sits.
     pub fn preview_overlay(&mut self, now: Instant) {
         self.show_overlay(now);

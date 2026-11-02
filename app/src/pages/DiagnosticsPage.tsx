@@ -3,6 +3,7 @@ import { Row, Section } from "../controls";
 import { DisplayPreview } from "../DisplayPreview";
 import { useTexts } from "../i18n";
 import type { Status } from "../status";
+import { BoardTestCard } from "./BoardTestCard";
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -23,6 +24,8 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
           <span className="value">{connected ? (status.voicemodLog ? texts.logRead : texts.logNotRead) : "—"}</span>
         </Row>
       </Section>
+
+      <BoardTestCard status={status} />
 
       <section className="card">
         <h2>{texts.display}</h2>

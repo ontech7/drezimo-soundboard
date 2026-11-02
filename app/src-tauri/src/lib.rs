@@ -1,4 +1,5 @@
 mod board;
+mod board_test;
 mod controller;
 mod custom_pages;
 mod device;
@@ -31,6 +32,7 @@ pub fn run() {
         .manage(Mutex::new(device::Status::default()))
         .manage(device::DisplayFrame::default())
         .manage(device::BoardViewState::default())
+        .manage(device::BoardTestState::default())
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .invoke_handler(tauri::generate_handler![
@@ -40,6 +42,12 @@ pub fn run() {
             device::press_pad,
             device::press_key,
             device::go_to_page,
+            device::board_test,
+            device::start_board_test,
+            device::set_board_test_leds,
+            device::set_board_test_display,
+            device::restart_board_test,
+            device::stop_board_test,
             device::set_display_settings,
             device::preview_led_brightness,
             device::preview_overlay,
