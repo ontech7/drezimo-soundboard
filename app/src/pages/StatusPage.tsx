@@ -1,16 +1,7 @@
-import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  type BoardView,
-  goToPage,
-  isLit,
-  ledColor,
-  type PadView,
-  pictureUrl,
-  pressKey,
-  pressPad,
-  useBoardView,
-} from "../boardView";
-import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, SoundIcon, StopIcon, VoiceChangerIcon, VoiceIcon } from "../icons";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
+import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad, useBoardView } from "../boardView";
+import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
+import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
 import type { BoardStatus, FirmwareUpdate, Status } from "../status";
 
@@ -143,28 +134,9 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
         if (isKey(event)) press(false);
       }}
     >
-      {pad.name && <PadPicture key={pad.picture} pad={pad} />}
+      {pad.name && <PadPicture voice={pad.voice} picture={pad.picture} action={pad.action} />}
       <span className="name">{pad.name}</span>
     </button>
-  );
-}
-
-// Keyed by the picture: the next page's picture never shows the last one's while it loads
-function PadPicture({ pad }: { pad: PadView }) {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <span className="picture">
-      {!loaded && (pad.voice ? <VoiceIcon /> : <SoundIcon />)}
-      {pad.picture && (
-        <img
-          src={pictureUrl(pad.picture)}
-          alt=""
-          draggable={false}
-          className={loaded ? "loaded" : undefined}
-          onLoad={() => setLoaded(true)}
-        />
-      )}
-    </span>
   );
 }
 

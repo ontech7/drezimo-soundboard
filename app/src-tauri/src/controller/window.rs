@@ -4,7 +4,7 @@
 use super::{Controller, PADS};
 use crate::pictures;
 use crate::protocol::{BUTTON_COUNT, BoardMessage, Led};
-use crate::soundboard::Pad;
+use crate::soundboard::{Action, Pad};
 use crate::voicemod::VoicemodStatus;
 use serde::Serialize;
 use std::time::Instant;
@@ -29,6 +29,8 @@ pub struct PadView {
     pub voice: bool,
     /// Its picture's path on the pad-image scheme (src/pictures.rs)
     pub picture: Option<String>,
+    /// What an action pad does, for its icon
+    pub action: Option<Action>,
     pub led: Led,
     /// Outside the licence
     pub locked: bool,
@@ -47,6 +49,10 @@ impl Controller {
                     name: content.map(|content| content.name().to_string()).unwrap_or_default(),
                     voice: matches!(content, Some(Pad::Voice(_))),
                     picture: content.and_then(pictures::path),
+                    action: match content {
+                        Some(Pad::Action { action, .. }) => Some(*action),
+                        _ => None,
+                    },
                     led: self.led(usize::from(pad), now),
                     locked: content.is_some_and(|content| !content.enabled()),
                 }

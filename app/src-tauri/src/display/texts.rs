@@ -1,6 +1,6 @@
 //! The words on the display, in the simulator's languages: English and Italian, as picked in the settings.
 
-use crate::soundboard::PlaybackMode;
+use crate::soundboard::{Action, PlaybackMode};
 
 pub struct Texts {
     pub ready: &'static str,
@@ -27,7 +27,12 @@ pub struct Texts {
     pub empty: &'static str,
     pub locked: &'static str,
     pub stops_others: &'static str,
+    /// What an action pad does, when peeked
+    pub action: &'static str,
+    /// Before a page's name, on a pad that opens it
+    pub go_to: &'static str,
     modes: Modes,
+    actions: Actions,
 }
 
 /// The playback modes' names
@@ -39,7 +44,33 @@ struct Modes {
     hold: &'static str,
 }
 
+/// The action pads' own names
+struct Actions {
+    stop_sounds: &'static str,
+    mute_mic: &'static str,
+    voice_changer: &'static str,
+    random_voice: &'static str,
+    hear_myself: &'static str,
+    mute_for_me: &'static str,
+    background: &'static str,
+    go_to_page: &'static str,
+}
+
 impl Texts {
+    pub fn action_name(&self, action: Action) -> &'static str {
+        let names = &self.actions;
+        match action {
+            Action::StopSounds => names.stop_sounds,
+            Action::MuteMic => names.mute_mic,
+            Action::VoiceChanger => names.voice_changer,
+            Action::RandomVoice => names.random_voice,
+            Action::HearMyself => names.hear_myself,
+            Action::MuteForMe => names.mute_for_me,
+            Action::Background => names.background,
+            Action::GoToPage => names.go_to_page,
+        }
+    }
+
     pub fn mode(&self, mode: PlaybackMode) -> &'static str {
         match mode {
             PlaybackMode::PlayRestart => self.modes.restart,
@@ -74,12 +105,24 @@ pub const ENGLISH: Texts = Texts {
     empty: "EMPTY",
     locked: "NOT IN LICENCE",
     stops_others: "STOPS OTHERS",
+    action: "ACTION",
+    go_to: "Go to",
     modes: Modes {
         restart: "ONE-SHOT",
         overlap: "OVERLAP",
         stop: "PLAY/STOP",
         pause: "PLAY/PAUSE",
         hold: "HOLD",
+    },
+    actions: Actions {
+        stop_sounds: "Stop sounds",
+        mute_mic: "Mute mic",
+        voice_changer: "Voice changer",
+        random_voice: "Random voice",
+        hear_myself: "Hear myself",
+        mute_for_me: "Mute for me",
+        background: "Background",
+        go_to_page: "Go to page",
     },
 };
 
@@ -105,11 +148,23 @@ pub const ITALIAN: Texts = Texts {
     empty: "VUOTO",
     locked: "NON IN LICENZA",
     stops_others: "FERMA GLI ALTRI",
+    action: "AZIONE",
+    go_to: "Vai a",
     modes: Modes {
         restart: "SINGOLO",
         overlap: "SOVRAPPOSTO",
         stop: "PLAY/STOP",
         pause: "PLAY/PAUSA",
         hold: "TIENI PREMUTO",
+    },
+    actions: Actions {
+        stop_sounds: "Ferma tutto",
+        mute_mic: "Muto mic",
+        voice_changer: "Cambio voce",
+        random_voice: "Voce casuale",
+        hear_myself: "Ascoltami",
+        mute_for_me: "Non sentire",
+        background: "Sottofondo",
+        go_to_page: "Vai a pagina",
     },
 };

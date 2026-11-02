@@ -48,6 +48,8 @@ pub enum Request {
     ToggleMuteForMe,
     ToggleVoiceChanger,
     ToggleHearMyself,
+    ToggleMuteMic,
+    ToggleBackground,
     /// Answered only for a sound or voice Voicemod knows
     GetPicture(Picture),
 }
@@ -70,6 +72,8 @@ impl Request {
             Self::ToggleMuteForMe => ("toggleMuteMemeForMe", json!({})),
             Self::ToggleVoiceChanger => ("toggleVoiceChanger", json!({})),
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
+            Self::ToggleMuteMic => ("toggleMuteMic", json!({})),
+            Self::ToggleBackground => ("toggleBackground", json!({})),
         }
     }
 }
@@ -91,6 +95,8 @@ pub enum VoicemodEvent {
     MuteForMe(bool),
     VoiceChanger(bool),
     HearMyself(bool),
+    MuteMic(bool),
+    Background(bool),
     /// A PNG or JPEG file, none if Voicemod has no picture for it
     Picture {
         of: Picture,
@@ -217,6 +223,8 @@ async fn exchange(
         "getMuteMemeForMeStatus",
         "getVoiceChangerStatus",
         "getHearMyselfStatus",
+        "getMuteMicStatus",
+        "getBackgroundEffectStatus",
     ] {
         socket.send(frame(action, json!({}))).await?;
     }
@@ -326,6 +334,8 @@ fn parse(text: &str) -> Option<Incoming> {
         "voiceChangerEnabledEvent" => VoicemodEvent::VoiceChanger(true),
         "voiceChangerDisabledEvent" => VoicemodEvent::VoiceChanger(false),
         "toggleHearMyVoice" | "getHearMyselfStatus" => VoicemodEvent::HearMyself(switch()?),
+        "toggleMuteMic" | "getMuteMicStatus" => VoicemodEvent::MuteMic(switch()?),
+        "toggleBackground" | "getBackgroundEffectStatus" => VoicemodEvent::Background(switch()?),
         "getBitmap" => {
             let of = match (object["memeId"].as_str(), object["voiceID"].as_str()) {
                 (Some(id), _) => Picture::Sound(id.to_string()),

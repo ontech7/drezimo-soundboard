@@ -110,3 +110,99 @@ export const HearMeIcon = () => (
     <rect x="16.5" y="14" width="4.5" height="6.5" rx="1.5" />
   </Icon>
 );
+
+export const PagesIcon = () => (
+  <Icon>
+    <path d="M8 3h11a2 2 0 0 1 2 2v11" />
+    <rect x="3" y="7" width="14" height="14" rx="2" />
+  </Icon>
+);
+
+export const MicMuteIcon = () => (
+  <Icon>
+    <path d="M15 10.5V6a3 3 0 0 0-5.8-1M9 9v2a3 3 0 0 0 5 2.2M5.5 11a6.5 6.5 0 0 0 10.8 4.9M18.5 11a6.4 6.4 0 0 1-.5 2.5" />
+    <line x1="12" y1="17.5" x2="12" y2="21" />
+    <line x1="4" y1="4" x2="20" y2="20" />
+  </Icon>
+);
+
+export const ShuffleIcon = () => (
+  <Icon>
+    <path d="M4 7h3c4.5 0 5.5 10 10 10h3M4 17h3c1.7 0 2.9-1.4 3.9-3.3M13.1 10.3C14.1 8.4 15.3 7 17 7h3" />
+    <polyline points="17.5 4.5 20 7 17.5 9.5" />
+    <polyline points="17.5 14.5 20 17 17.5 19.5" />
+  </Icon>
+);
+
+/** Voicemod's background effects */
+export const BackgroundIcon = () => (
+  <Icon>
+    <path d="M3 16c3 0 3-3 6-3s3 3 6 3 3-3 6-3M3 10c3 0 3-3 6-3s3 3 6 3 3-3 6-3" />
+  </Icon>
+);
+
+export const GoToIcon = () => (
+  <Icon>
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="13 6 19 12 13 18" />
+  </Icon>
+);
+
+export const MacroIcon = () => (
+  <Icon>
+    <path d="M4 6h9M4 12h6M4 18h9" />
+    <path d="M16 9l4 3-4 3z" />
+  </Icon>
+);
+
+export const PlusIcon = () => (
+  <Icon>
+    <line x1="12" y1="6" x2="12" y2="18" />
+    <line x1="6" y1="12" x2="18" y2="12" />
+  </Icon>
+);
+
+export const DotsIcon = () => (
+  <Icon>
+    <path d="M6 12h.01M12 12h.01M18 12h.01" />
+  </Icon>
+);
+
+export const CloseIcon = () => (
+  <Icon>
+    <line x1="6" y1="6" x2="18" y2="18" />
+    <line x1="18" y1="6" x2="6" y2="18" />
+  </Icon>
+);
+
+export const SearchIcon = () => (
+  <Icon>
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <line x1="20" y1="20" x2="15.2" y2="15.2" />
+  </Icon>
+);
+
+export const CheckIcon = () => (
+  <Icon>
+    <polyline points="5 12.5 9.5 17 19 7.5" />
+  </Icon>
+);
+
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5" />
+  </Icon>
+);
+
+export const LockIcon = () => (
+  <Icon>
+    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+    <rect x="5" y="11" width="14" height="9" rx="1.5" />
+  </Icon>
+);
+
+export const ChevronDown = () => (
+  <Icon>
+    <polyline points="7 10 12 15 17 10" />
+  </Icon>
+);

@@ -74,7 +74,9 @@ fn build(app: AppHandle, label: String) {
             .visible(false)
             .background_color(BACKGROUND)
             // Dark whatever the system theme, title bar included
-            .theme(Some(Theme::Dark));
+            .theme(Some(Theme::Dark))
+            // Tauri's own file drops would take the page's drags, the pads moved in the Pages editor
+            .disable_drag_drop_handler();
         #[cfg(target_os = "macos")]
         let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
 

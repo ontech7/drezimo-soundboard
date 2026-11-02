@@ -632,8 +632,8 @@ select:disabled {
   white-space: nowrap;
 }
 
-/* Voicemod's picture, over its kind's icon until it loads, or when there is none */
-.pad .picture {
+/* Voicemod's picture, over its kind's icon until it loads, or when there is none; an action's icon in its colour */
+.picture {
   position: relative;
   display: grid;
   flex: none;
@@ -646,7 +646,7 @@ select:disabled {
   background: var(--raised);
 }
 
-.pad .picture img {
+.picture img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -656,20 +656,36 @@ select:disabled {
   transition: opacity 0.2s;
 }
 
-.pad .picture img.loaded {
+.picture img.loaded {
   opacity: 1;
 }
 
 /* A voice's picture has no background of its own: a soft light keeps the dark ones readable */
-.pad.voice .picture {
+.picture.voice {
   background: radial-gradient(circle at 50% 45%, rgb(255 255 255 / 18%), rgb(255 255 255 / 4%) 72%);
 }
 
-.pad.voice .picture img {
+.picture.voice img {
   transform: scale(1.12);
 }
 
-.pad.locked .picture {
+.picture.action {
+  color: var(--tint);
+  background: color-mix(in srgb, var(--tint) 16%, transparent);
+}
+
+.picture.large {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+}
+
+.picture.large .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.locked .picture {
   filter: grayscale(1);
   opacity: 0.45;
 }
@@ -727,4 +743,592 @@ select:disabled {
   .dot {
     animation: none !important;
   }
+}
+
+/* The Pages editor: the user's pages as tabs, the page's pads, the selected pad's settings */
+
+.button.secondary {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 400;
+}
+
+.button.secondary:hover:not(:disabled) {
+  border-color: var(--muted);
+  filter: none;
+}
+
+.icon-button.small {
+  width: 32px;
+  height: 32px;
+}
+
+.editor .pad.edit {
+  height: 62px;
+  padding: 6px 5px;
+}
+
+.editor .pad.edit .picture {
+  width: 30px;
+  height: 30px;
+}
+
+.pad.empty {
+  justify-content: center;
+  color: #45454e;
+}
+
+.pad.empty::before {
+  box-shadow: none;
+  border: 1px dashed #2e2e36;
+}
+
+.pad.empty:hover:not(:disabled) {
+  color: var(--muted);
+}
+
+.pad.selected {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.pad.over::before {
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+
+.page-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.page-tabs .tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-tabs .spacer {
+  flex: 1;
+}
+
+.page-tabs .used {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip {
+  height: 32px;
+  max-width: 180px;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  color: #c9c9cf;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.chip.selected {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: #ffd27a;
+  font-weight: 600;
+}
+
+.chip.add {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  padding: 0;
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.chip.rename {
+  width: 160px;
+  border-color: var(--amber);
+  color: var(--text);
+  font: inherit;
+  cursor: text;
+}
+
+.anchor {
+  position: relative;
+}
+
+.menu,
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid #2c2c33;
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 50%);
+}
+
+.menu.right {
+  right: 0;
+  left: auto;
+}
+
+.menu button {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu button:hover:not(:disabled) {
+  background: #2a2a31;
+}
+
+.menu .danger {
+  color: #ff8a8a;
+}
+
+.editor-hint {
+  padding: 16px;
+  border: 1px dashed #2c2c33;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.inspector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.inspector > .picture {
+  align-self: center;
+}
+
+.inspector .identity {
+  align-self: center;
+  width: 150px;
+  min-width: 0;
+}
+
+.inspector .identity p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector .title {
+  font-weight: 600;
+}
+
+.inspector .identity .muted {
+  font-size: 12px;
+}
+
+.field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.field input,
+.field select {
+  min-width: 0;
+  height: 34px;
+  font-size: 13px;
+}
+
+input[type="text"],
+input[type="search"] {
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+.colour-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.colour-button .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.colour-button .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--led);
+  box-shadow: 0 0 8px var(--led);
+}
+
+.inspector .popover {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: auto;
+  gap: 10px;
+  width: 244px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.inspector .popover .muted {
+  font-size: 12px;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.swatch {
+  height: 30px;
+  padding: 0;
+  border: 1px solid #2c2c33;
+  border-radius: 8px;
+  background: var(--led, var(--bg));
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.swatch.on {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.empty-pages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.empty-pages h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 19px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.empty-pages p {
+  max-width: 440px;
+  line-height: 1.55;
+}
+
+.empty-pages .actions {
+  display: flex;
+  gap: 10px;
+}
+
+.mini-board {
+  display: grid;
+  grid-template-columns: repeat(6, 18px);
+  gap: 5px;
+}
+
+.mini-board span {
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.mini-board span.lit {
+  background: color-mix(in srgb, var(--led) 22%, transparent);
+  box-shadow: inset 0 0 0 1px var(--led);
+}
+
+/* The picker and the soundboard chooser: modal dialogs over the window */
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 48px));
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #2c2c33;
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
+}
+
+.dialog:not([open]) {
+  display: none;
+}
+
+.dialog::backdrop {
+  background: rgb(5 5 7 / 62%);
+}
+
+.dialog header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 0;
+}
+
+.dialog header > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog header h2 {
+  margin: 0 0 3px;
+  color: var(--text);
+  font-size: 17px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dialog header .muted {
+  font-size: 12.5px;
+}
+
+.picker-tabs {
+  display: flex;
+  gap: 20px;
+  padding: 14px 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.picker-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: 0 0 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.picker-tabs button[aria-pressed="true"] {
+  border-bottom-color: var(--amber);
+  color: var(--text);
+}
+
+.picker-tabs .soon {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--line);
+  color: #a1a1aa;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.picker-filters {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px 0;
+}
+
+.picker-filters .search {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+}
+
+.picker-filters .search .icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.picker-filters .search input {
+  width: 100%;
+  height: 36px;
+  padding-left: 34px;
+}
+
+.dialog-body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 20px;
+  overflow-y: auto;
+}
+
+.dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.dialog footer p {
+  flex: 1;
+  font-size: 12.5px;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choices.wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.choice.on {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg));
+}
+
+.choice:disabled {
+  opacity: 0.5;
+}
+
+.choice .text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.choice .name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choice .muted {
+  overflow: hidden;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choices.wide .choice .muted {
+  white-space: normal;
+}
+
+.choice .check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--amber);
+  color: var(--bg);
+}
+
+.choice .check .icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+
+.choice > .icon {
+  width: 15px;
+  height: 15px;
+  color: #a1a1aa;
+}
+
+.nothing {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.macros {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  text-align: center;
+}
+
+.macros .title {
+  font-weight: 600;
+}
+
+.macros .muted {
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.macros .picture {
+  --tint: var(--amber);
 }

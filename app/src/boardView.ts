@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { Action } from "./customPages";
 
 export interface Led {
   color: [number, number, number];
@@ -14,6 +15,8 @@ export interface PadView {
   voice: boolean;
   /** Its picture's path on the pad-image scheme (src-tauri/src/pictures.rs) */
   picture: string | null;
+  /** What an action pad does */
+  action: Action | null;
   led: Led;
   /** Outside the licence */
   locked: boolean;

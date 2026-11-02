@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
 import { useTexts } from "./i18n";
-import { BoardIcon, DiagnosticsIcon, GeneralIcon, OverlayIcon, StatusIcon } from "./icons";
+import { BoardIcon, DiagnosticsIcon, GeneralIcon, OverlayIcon, PagesIcon, StatusIcon } from "./icons";
 
-export type PageId = "status" | "board" | "overlay" | "general" | "diagnostics";
+export type PageId = "status" | "pages" | "board" | "overlay" | "general" | "diagnostics";
 
 const ICONS: Record<PageId, ReactNode> = {
   status: <StatusIcon />,
+  pages: <PagesIcon />,
   board: <BoardIcon />,
   overlay: <OverlayIcon />,
   general: <GeneralIcon />,

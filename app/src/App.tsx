@@ -5,6 +5,7 @@ import { BoardPage } from "./pages/BoardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { GeneralPage } from "./pages/GeneralPage";
 import { OverlayPage } from "./pages/OverlayPage";
+import { PagesPage } from "./pages/PagesPage";
 import { StatusPage } from "./pages/StatusPage";
 import { useSettings } from "./settings";
 import { type PageId, Sidebar } from "./Sidebar";
@@ -31,7 +32,7 @@ export default function App() {
 
   if (!status || !settings) return null;
   const texts = TEXTS[language];
-  const pages: PageId[] = ["status", "general", "board", "overlay"];
+  const pages: PageId[] = ["status", "pages", "general", "board", "overlay"];
   if (settings.diagnostics) pages.push("diagnostics");
   // Diagnostics turned off while shown
   const shown = pages.includes(page) ? page : "status";
@@ -43,6 +44,7 @@ export default function App() {
         <main>
           <h1>{texts.nav[shown]}</h1>
           {shown === "status" && <StatusPage status={status} />}
+          {shown === "pages" && <PagesPage />}
           {shown === "board" && <BoardPage settings={settings} status={status} />}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
           {shown === "general" && <GeneralPage settings={settings} status={status} />}

@@ -1,7 +1,8 @@
 use super::overlay::OVERLAY_TIME;
 use super::*;
+use crate::custom_pages::{Content, CustomPad};
 use crate::display::screens::Screen;
-use crate::soundboard::tests::{sound, soundboard, voice};
+use crate::soundboard::tests::{action, custom_pad, sound, soundboard, voice};
 use crate::voicemod_log::LineKind;
 use std::time::SystemTime;
 
@@ -867,4 +868,139 @@ fn a_voice_loaded_from_a_pad_shows_once() {
         panic!("the home screen");
     };
     assert_eq!(name, ENGLISH.ready, "its name showed at the press");
+}
+
+/// One page of the user's own: the given pads from the top left.
+fn own_page(id: &str, pads: Vec<Option<CustomPad>>) -> CustomPage {
+    CustomPage {
+        id: id.into(),
+        name: id.to_uppercase(),
+        pads,
+    }
+}
+
+#[test]
+fn the_users_own_pages_come_first_and_follow_the_editor() {
+    let (mut controller, _) = ready(three_soundboards());
+    controller.go_to_page(1);
+    let page = own_page("mine", vec![custom_pad(action(Action::StopSounds))]);
+    controller.set_custom_pages(vec![page]);
+    assert_eq!(controller.page().unwrap().name, "B", "the page shown stays");
+
+    controller.go_to_page(0);
+    assert_eq!(controller.page().unwrap().name, "MINE");
+    controller.set_custom_pages(Vec::new());
+    assert_eq!(
+        controller.page().unwrap().name,
+        "A",
+        "a page deleted gives way to the first"
+    );
+}
+
+#[test]
+fn action_pads_drive_voicemod() {
+    let (mut controller, now) = ready(three_soundboards());
+    voices(&mut controller, "dark", now);
+    let pads = [
+        Action::MuteMic,
+        Action::RandomVoice,
+        Action::Background,
+        Action::StopSounds,
+    ]
+    .map(|kind| custom_pad(action(kind)));
+    controller.set_custom_pages(vec![own_page("mine", pads.to_vec())]);
+    controller.go_to_page(0);
+
+    let pressed = |controller: &mut Controller, pad| {
+        let outputs = press(controller, pad, true, now);
+        press(controller, pad, false, now);
+        requests(&outputs).into_iter().cloned().collect::<Vec<_>>()
+    };
+    assert_eq!(pressed(&mut controller, 0), [Request::ToggleMuteMic]);
+    assert_eq!(pressed(&mut controller, 2), [Request::ToggleBackground]);
+    assert_eq!(pressed(&mut controller, 3), [Request::StopAllSounds]);
+    assert_eq!(
+        pressed(&mut controller, 1),
+        [Request::LoadVoice("banana".into())],
+        "the only other voice in the licence"
+    );
+}
+
+#[test]
+fn action_pads_light_up_while_on() {
+    let (mut controller, now) = ready(three_soundboards());
+    let mut muted = custom_pad(action(Action::MuteMic)).unwrap();
+    muted.colour = Some([10, 20, 40]);
+    let pads = vec![custom_pad(action(Action::MuteMic)), Some(muted)];
+    controller.set_custom_pages(vec![own_page("mine", pads)]);
+    controller.go_to_page(0);
+    controller.update(now);
+    controller.take_outputs();
+    let led_of = |controller: &Controller, pad: usize| controller.board_view(now).unwrap().pads[pad].led;
+    assert_eq!(led_of(&controller, 0), Led::solid(RED.map(|level| level / 4)));
+
+    controller.voicemod_event(VoicemodEvent::VoiceChanger(true), now);
+    controller.voicemod_event(VoicemodEvent::MuteMic(true), now);
+    assert_eq!(led_of(&controller, 0), Led::solid(RED));
+    assert_eq!(led_of(&controller, 1), Led::solid([10, 20, 40]), "the user's colour");
+    let Screen::Home { right, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(right, ENGLISH.mic_off);
+}
+
+#[test]
+fn a_pad_opens_another_page() {
+    let (mut controller, now) = ready(three_soundboards());
+    let go = custom_pad(Content::Action {
+        action: Action::GoToPage,
+        page: Some("c".into()),
+    });
+    controller.set_custom_pages(vec![own_page("mine", vec![go])]);
+    controller.go_to_page(0);
+    assert_eq!(controller.board_view(now).unwrap().pads[0].name, "Go to C");
+
+    press(&mut controller, 0, true, now);
+    assert_eq!(controller.page().unwrap().name, "C");
+
+    let gone = custom_pad(Content::Action {
+        action: Action::GoToPage,
+        page: Some("gone".into()),
+    });
+    controller.set_custom_pages(vec![own_page("mine", vec![gone])]);
+    controller.go_to_page(0);
+    // Past the press's yellow flash
+    let later = now + Duration::from_secs(1);
+    controller.update(later);
+    let pad = &controller.board_view(later).unwrap().pads[0];
+    assert_eq!(
+        pad.name,
+        ENGLISH.action_name(Action::GoToPage),
+        "a page gone is not named"
+    );
+    assert_eq!(pad.led, Led::solid(WHITE.map(|level| level / 4)), "nor lit");
+}
+
+#[test]
+fn a_sound_takes_the_users_name_and_colour() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    let mut honk = custom_pad(Content::Sound {
+        id: "honk".into(),
+        name: "HONK".into(),
+    })
+    .unwrap();
+    honk.label = "Fail".into();
+    honk.colour = Some([255, 140, 40]);
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(honk)])]);
+    controller.go_to_page(0);
+
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(view.pads[0].name, "Fail");
+    assert_eq!(view.pads[0].led, Led::solid([255, 140, 40]));
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(requests(&outputs), [&play("honk", true)]);
+    let Screen::Home { name, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, "Fail");
 }

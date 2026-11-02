@@ -1,5 +1,6 @@
 mod board;
 mod controller;
+mod custom_pages;
 mod device;
 mod display;
 mod firmware;
@@ -29,6 +30,7 @@ pub fn run() {
         .manage(device::DisplayFrame::default())
         .manage(device::BoardViewState::default())
         .manage(device::LastUse::default())
+        .manage(custom_pages::LibraryState::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
@@ -44,6 +46,9 @@ pub fn run() {
             settings::about,
             settings::start_at_login,
             settings::set_start_at_login,
+            custom_pages::custom_pages,
+            custom_pages::set_custom_pages,
+            custom_pages::library,
             window::window_ready
         ])
         .register_asynchronous_uri_scheme_protocol(pictures::SCHEME, |context, request, responder| {
@@ -59,6 +64,7 @@ pub fn run() {
 
             app.manage(settings::load(app.handle()));
             app.manage(pictures::Pictures::new(app.handle()));
+            app.manage(custom_pages::load(app.handle()));
             tray::create(app.handle())?;
             device::start(app.handle().clone());
             // A build made here does not replace itself with a published one

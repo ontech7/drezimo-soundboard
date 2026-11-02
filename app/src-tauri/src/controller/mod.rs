@@ -8,17 +8,19 @@ mod window;
 
 pub use window::BoardView;
 
+use crate::custom_pages::CustomPage;
 use crate::display::Frame;
 use crate::display::screens::{self, Screen};
 use crate::display::texts::{ENGLISH, Texts};
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
-use crate::soundboard::{self, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
+use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, RandomState};
 use std::mem;
 use std::time::{Duration, Instant};
 
@@ -51,6 +53,7 @@ const DIM_RED: [u8; 3] = [90, 16, 16];
 const RED: [u8; 3] = [255, 42, 42];
 const WHITE: [u8; 3] = [120, 120, 130];
 const AMBER: [u8; 3] = [255, 140, 0];
+const CYAN: [u8; 3] = [0, 200, 220];
 /// The peeked pad and the row the overview shows
 const HIGHLIGHT: [u8; 3] = [200, 200, 210];
 
@@ -104,6 +107,8 @@ struct Switches {
     mute_for_me: bool,
     voice_changer: bool,
     hear_myself: bool,
+    mic_muted: bool,
+    background: bool,
 }
 
 pub struct Controller {
@@ -120,6 +125,8 @@ pub struct Controller {
     /// As Voicemod last sent them, for the pages
     soundboards: Vec<Soundboard>,
     voices: Vec<Voice>,
+    /// The user's own, made in the window
+    custom: Vec<CustomPage>,
     /// The voice loaded in Voicemod, and the one a pad asked for, until Voicemod confirms it
     current_voice: Option<String>,
     voice_asked: Option<String>,
@@ -169,6 +176,7 @@ impl Default for Controller {
             log: LogTracker::default(),
             soundboards: Vec::new(),
             voices: Vec::new(),
+            custom: Vec::new(),
             current_voice: None,
             voice_asked: None,
             soundboards_loaded: false,
@@ -201,9 +209,20 @@ impl Controller {
         }
     }
 
-    /// The words on the display, in the language picked.
+    /// The words on the display, in the language picked, the action pads' names among them.
     pub fn set_texts(&mut self, texts: &'static Texts) {
         self.texts = texts;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
+    }
+
+    /// The user's own pages, as the editor saved them. Shown once Voicemod sends what is on them.
+    pub fn set_custom_pages(&mut self, pages: Vec<CustomPage>) {
+        self.custom = pages;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
     }
 
     pub fn set_board_connected(&mut self, connected: bool, now: Instant) {
@@ -310,6 +329,8 @@ impl Controller {
             VoicemodEvent::MuteForMe(on) => self.switches.mute_for_me = on,
             VoicemodEvent::VoiceChanger(on) => self.switches.voice_changer = on,
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
+            VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
+            VoicemodEvent::Background(on) => self.switches.background = on,
             // Only for the window: src/pictures.rs
             VoicemodEvent::Picture { .. } => {}
         }
@@ -449,12 +470,21 @@ impl Controller {
             }
         }
 
+        if let Some(Pad::Action { action, name, page }) = self.pad_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if self.voicemod == VoicemodStatus::Connected {
+                self.act(action, page.as_deref(), now);
+                if !matches!(action, Action::StopSounds | Action::RandomVoice | Action::GoToPage) {
+                    self.last = Some((name, now));
+                }
+            }
+            return;
+        }
+
         if let Some(voice) = self.voice_at(pad).cloned() {
             self.held.insert(pad, None);
             if voice.enabled && self.voicemod == VoicemodStatus::Connected {
-                self.request(Request::LoadVoice(voice.id.clone()));
-                self.voice_asked = Some(voice.id);
-                self.last = Some((voice.name, now));
+                self.load_voice(voice, now);
             }
             return;
         }
@@ -483,15 +513,56 @@ impl Controller {
         }
     }
 
+    fn act(&mut self, action: Action, page: Option<&str>, now: Instant) {
+        match action {
+            Action::StopSounds => self.stop_sounds(now),
+            Action::MuteMic => self.request(Request::ToggleMuteMic),
+            Action::VoiceChanger => self.request(Request::ToggleVoiceChanger),
+            Action::RandomVoice => self.random_voice(now),
+            Action::HearMyself => self.request(Request::ToggleHearMyself),
+            Action::MuteForMe => self.request(Request::ToggleMuteForMe),
+            Action::Background => self.request(Request::ToggleBackground),
+            Action::GoToPage => {
+                let target = page.and_then(|id| self.pages.iter().position(|page| page.soundboard_id == id));
+                if let Some(target) = target {
+                    self.set_page(target, now);
+                }
+            }
+        }
+    }
+
+    fn stop_sounds(&mut self, now: Instant) {
+        self.playback.stop_all(now);
+        self.request(Request::StopAllSounds);
+        self.last = Some((self.texts.stop.to_string(), now));
+    }
+
+    fn load_voice(&mut self, voice: Voice, now: Instant) {
+        self.request(Request::LoadVoice(voice.id.clone()));
+        self.voice_asked = Some(voice.id);
+        self.last = Some((voice.name, now));
+    }
+
+    /// Any voice in the licence but the current one.
+    fn random_voice(&mut self, now: Instant) {
+        let others: Vec<&Voice> = self
+            .voices
+            .iter()
+            .filter(|voice| voice.enabled && self.current_voice.as_ref() != Some(&voice.id))
+            .collect();
+        if others.is_empty() {
+            return;
+        }
+        let pick = RandomState::new().hash_one(now) as usize % others.len();
+        let voice = others[pick].clone();
+        self.load_voice(voice, now);
+    }
+
     fn button_pressed(&mut self, button: u8, now: Instant) {
         match button {
             PREV => self.turn_page(-1, now),
             NEXT => self.turn_page(1, now),
-            STOP => {
-                self.playback.stop_all(now);
-                self.request(Request::StopAllSounds);
-                self.last = Some((self.texts.stop.to_string(), now));
-            }
+            STOP => self.stop_sounds(now),
             MUTE_ME => self.request(Request::ToggleMuteForMe),
             VOICE => self.request(Request::ToggleVoiceChanger),
             HEAR_ME => self.request(Request::ToggleHearMyself),
@@ -576,7 +647,7 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(&self.soundboards, &self.voices);
+        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, self.texts);
         self.page = current.and_then(|id| self.find_page(&id)).unwrap_or(0);
         let remapped = selected.and_then(|id| self.find_page(&id));
         let last = self.pages.len().saturating_sub(1);
@@ -662,6 +733,11 @@ impl Controller {
         self.playback.resync(&logged, voicemod_log::instant_of(as_of, now), now);
     }
 
+    /// Voicemod sent its voices or soundboards since it connected: there are pages.
+    fn has_lists(&self) -> bool {
+        self.soundboards_loaded || !self.voices.is_empty()
+    }
+
     fn page_id(&self, index: usize) -> Option<(String, usize)> {
         let page = self.pages.get(index)?;
         Some((page.soundboard_id.clone(), page.part))
@@ -680,14 +756,14 @@ impl Controller {
     fn sound_at(&self, pad: u8) -> Option<&Sound> {
         match self.pad_at(pad)? {
             Pad::Sound(sound) => Some(sound),
-            Pad::Voice(_) => None,
+            _ => None,
         }
     }
 
     fn voice_at(&self, pad: u8) -> Option<&Voice> {
         match self.pad_at(pad)? {
             Pad::Voice(voice) => Some(voice),
-            Pad::Sound(_) => None,
+            _ => None,
         }
     }
 
@@ -743,21 +819,41 @@ impl Controller {
         self.content_led(pad)
     }
 
-    /// A sound blue, green while it plays; a voice purple, green while loaded
+    /// A sound blue, green while it plays; a voice purple, green while loaded; an action in its own colour, dim while
+    /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
     fn content_led(&self, pad: u8) -> Led {
+        let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
+        let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
         match self.pad_at(pad) {
             None => Led::OFF,
             Some(content) if !content.enabled() => Led::solid(DIM_RED),
             Some(Pad::Voice(voice)) if self.current_voice.as_ref() == Some(&voice.id) => Led::solid(GREEN),
-            Some(Pad::Voice(_)) => Led::solid(PURPLE),
+            Some(Pad::Voice(_)) => at_rest(PURPLE),
             Some(Pad::Sound(sound)) => match self.playback.state(&sound.id) {
-                None => Led::solid(BLUE),
+                None => at_rest(BLUE),
                 Some(State::Playing) => Led::solid(GREEN),
                 Some(State::Paused) => Led {
                     color: GREEN,
                     effect: Effect::Breathe,
                 },
             },
+            Some(Pad::Action { action, page, .. }) => {
+                let on = match action {
+                    Action::StopSounds => !self.playback.is_empty(),
+                    Action::MuteMic => self.switches.mic_muted,
+                    Action::VoiceChanger => self.switches.voice_changer,
+                    Action::HearMyself => self.switches.hear_myself,
+                    Action::MuteForMe => self.switches.mute_for_me,
+                    Action::Background => self.switches.background,
+                    Action::RandomVoice => true,
+                    // Dim when its page is gone
+                    Action::GoToPage => page
+                        .as_ref()
+                        .is_some_and(|id| self.pages.iter().any(|page| page.soundboard_id == *id)),
+                };
+                let color = colour.unwrap_or(action_colour(*action));
+                Led::solid(if on { color } else { color.map(|level| level / 4) })
+            }
         }
     }
 
@@ -771,6 +867,18 @@ impl Controller {
             HEAR_ME => lit(self.switches.hear_myself, GREEN),
             _ => Led::OFF,
         }
+    }
+}
+
+/// As the function key that does the same, where there is one
+fn action_colour(action: Action) -> [u8; 3] {
+    match action {
+        Action::StopSounds | Action::MuteMic => RED,
+        Action::VoiceChanger | Action::HearMyself => GREEN,
+        Action::RandomVoice => PURPLE,
+        Action::MuteForMe => AMBER,
+        Action::Background => CYAN,
+        Action::GoToPage => WHITE,
     }
 }
 

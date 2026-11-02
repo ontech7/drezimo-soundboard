@@ -3,7 +3,7 @@
 use super::{COLUMNS, Controller, ROWS};
 use crate::display::screens::Screen;
 use crate::playback::State;
-use crate::soundboard::{FAVOURITES_ID, Page, PlaybackMode, VOICES_ID};
+use crate::soundboard::{FAVOURITES_ID, Pad, Page, PlaybackMode, VOICES_ID};
 use crate::voicemod::VoicemodStatus;
 use std::time::{Duration, Instant};
 
@@ -94,10 +94,11 @@ impl Controller {
     fn status(&self, now: Instant) -> (String, bool) {
         let texts = self.texts;
         let mut parts = Vec::new();
-        let mic_silenced = self
-            .playback
-            .active()
-            .any(|id| self.sounds.get(id).is_some_and(|sound| sound.mute_voice));
+        let mic_silenced = self.switches.mic_muted
+            || self
+                .playback
+                .active()
+                .any(|id| self.sounds.get(id).is_some_and(|sound| sound.mute_voice));
         if mic_silenced {
             parts.push(texts.mic_off.to_string());
         }
@@ -138,6 +139,15 @@ impl Controller {
         let texts = self.texts;
         let pad_index = usize::from(pad);
         let position = format!("R{} C{}", pad_index / COLUMNS + 1, pad_index % COLUMNS + 1);
+        if let Some(Pad::Action { name, .. }) = self.pad_at(pad) {
+            return Screen::Peek {
+                position,
+                counter,
+                name: name.clone(),
+                info: texts.action.to_string(),
+                note: String::new(),
+            };
+        }
         if let Some(voice) = self.voice_at(pad) {
             return Screen::Peek {
                 position,

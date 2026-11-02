@@ -3,6 +3,7 @@
 
 use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::controller::{BoardView, Controller, Output, PageSummary};
+use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
@@ -37,6 +38,7 @@ enum Input {
     },
     Key(u8),
     Page(usize),
+    CustomPages(Vec<CustomPage>),
 }
 
 /// The way in for the window's commands
@@ -85,7 +87,7 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
 }
 
 /// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`, `LastUse`,
-/// `SettingsState` and `Pictures` to be managed.
+/// `SettingsState`, `CustomPagesState`, `LibraryState` and `Pictures` to be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
     app.manage(Inputs(Mutex::new(inputs.clone())));
@@ -127,6 +129,7 @@ fn run(
 ) {
     let mut settings = app.state::<SettingsState>().get();
     let mut controller = Controller::new(settings.language.texts());
+    controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_overlay_time(overlay_time(&settings.overlay));
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
     let mut status = Status::default();
@@ -199,6 +202,10 @@ fn run(
                         status.license = None;
                     }
                     VoicemodEvent::License(license) => status.license = Some(*license),
+                    VoicemodEvent::Soundboards(soundboards) => {
+                        update_library(app, |library| library.set_soundboards(soundboards));
+                    }
+                    VoicemodEvent::Voices { voices, .. } => update_library(app, |library| library.set_voices(voices)),
                     _ => {}
                 }
                 controller.voicemod_event(event, now);
@@ -242,6 +249,7 @@ fn run(
             Some(Input::Pad { index, pressed }) => controller.window_pad(index, pressed, now),
             Some(Input::Key(index)) => controller.window_key(index, now),
             Some(Input::Page(index)) => controller.go_to_page(index),
+            Some(Input::CustomPages(pages)) => controller.set_custom_pages(pages),
             None => {}
         }
         updater.update(now);
@@ -285,6 +293,17 @@ fn run(
     }
 }
 
+/// The editor's library follows Voicemod's lists.
+fn update_library(app: &AppHandle, change: impl FnOnce(&mut Library)) {
+    let state = app.state::<LibraryState>();
+    let library = {
+        let mut library = state.0.lock().unwrap();
+        change(&mut library);
+        library.clone()
+    };
+    let _ = app.emit("library", &library);
+}
+
 fn brightness_message(percent: u8) -> String {
     format!("BRIGHT,{percent}")
 }
@@ -309,6 +328,10 @@ fn send(app: &AppHandle, input: Input) {
 
 pub fn apply_settings(app: &AppHandle, settings: Settings) {
     send(app, Input::Settings(settings));
+}
+
+pub fn apply_custom_pages(app: &AppHandle, pages: Vec<CustomPage>) {
+    send(app, Input::CustomPages(pages));
 }
 
 /// Within what the firmware takes: minutes up to a day
