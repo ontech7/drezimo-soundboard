@@ -1,7 +1,7 @@
 LangString installTitle ${LANG_ENGLISH} "Ready to install"
 LangString installTitle ${LANG_ITALIAN} "Pronto per l'installazione"
-LangString installText ${LANG_ENGLISH} "The app connects the Drezimo board to Voicemod. It stays in the tray, starts with Windows and keeps itself up to date."
-LangString installText ${LANG_ITALIAN} "L'app collega la board Drezimo a Voicemod. Resta nell'area di notifica, parte con Windows e si aggiorna da sola."
+LangString installText ${LANG_ENGLISH} "The app connects Drezimo to Voicemod. It stays in the tray, starts with Windows and keeps itself up to date."
+LangString installText ${LANG_ITALIAN} "L'app collega Drezimo a Voicemod. Resta nell'area di notifica, parte con Windows e si aggiorna da sola."
 LangString installButton ${LANG_ENGLISH} "Install"
 LangString installButton ${LANG_ITALIAN} "Installa"
 
