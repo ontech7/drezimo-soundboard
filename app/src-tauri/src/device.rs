@@ -27,7 +27,8 @@ enum Input {
     Settings(Settings),
     DisplaySettings(DisplaySettings),
     LedBrightnessPreview(u8),
-    OverlayPreview,
+    /// Shows the overlay, as it would look with these settings if given
+    OverlayPreview(Option<OverlaySettings>),
 }
 
 /// The way in for the window's commands
@@ -196,7 +197,12 @@ fn run(
                 }
             }
             Some(Input::LedBrightnessPreview(percent)) => board.send(brightness_message(percent)),
-            Some(Input::OverlayPreview) => controller.preview_overlay(now),
+            Some(Input::OverlayPreview(looking)) => {
+                if let Some(overlay_settings) = looking {
+                    let _ = overlay.send(OverlayUpdate::Look(look(&overlay_settings)));
+                }
+                controller.preview_overlay(now);
+            }
             None => {}
         }
         updater.update(now);
@@ -245,6 +251,7 @@ fn look(overlay: &OverlaySettings) -> Look {
     Look {
         anchor: overlay.anchor,
         opacity: f32::from(overlay.opacity) / 100.0,
+        size: f64::from(overlay.size) / 100.0,
     }
 }
 
@@ -276,9 +283,10 @@ pub fn preview_led_brightness(app: AppHandle, percent: u8) {
     send(&app, Input::LedBrightnessPreview(percent.clamp(10, 100)));
 }
 
+/// The overlay now, as it looks with `overlay` while a slider moves, before it is saved
 #[tauri::command]
-pub fn preview_overlay(app: AppHandle) {
-    send(&app, Input::OverlayPreview);
+pub fn preview_overlay(app: AppHandle, overlay: Option<OverlaySettings>) {
+    send(&app, Input::OverlayPreview(overlay.map(OverlaySettings::checked)));
 }
 
 /// Sends the board to its bootloader and writes the app's firmware there, on a thread of its own: looking at the drives

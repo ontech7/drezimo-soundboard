@@ -12,6 +12,7 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
   // A duration set by hand in the file still shows
   const durations = DURATIONS.includes(overlay.seconds) ? DURATIONS : [...DURATIONS, overlay.seconds].sort((a, b) => a - b);
   const change = (changed: Partial<OverlaySettings>) => saveSettings({ ...settings, overlay: { ...overlay, ...changed } });
+  const preview = (changed: Partial<OverlaySettings>) => invoke("preview_overlay", { overlay: { ...overlay, ...changed } });
   // As the overlay itself: it shows only while the board and Voicemod are there
   const canPreview =
     overlay.enabled && status.board.state === "connected" && status.voicemod.state === "connected" && status.page !== null;
@@ -31,6 +32,18 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
             onChange={(anchor) => change({ anchor })}
           />
         </Row>
+        <Row label={texts.size} text={canPreview ? texts.sizeText : undefined} disabled={!overlay.enabled}>
+          <Slider
+            label={texts.size}
+            value={overlay.size}
+            min={70}
+            max={100}
+            step={5}
+            disabled={!overlay.enabled}
+            onPreview={(size) => preview({ size })}
+            onCommit={(size) => change({ size })}
+          />
+        </Row>
         <Row label={texts.opacity} disabled={!overlay.enabled}>
           <Slider
             label={texts.opacity}
@@ -39,6 +52,7 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
             max={100}
             step={5}
             disabled={!overlay.enabled}
+            onPreview={(opacity) => preview({ opacity })}
             onCommit={(opacity) => change({ opacity })}
           />
         </Row>
@@ -54,7 +68,12 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
       </Section>
 
       <div className="actions">
-        <button type="button" className="button" disabled={!canPreview} onClick={() => invoke("preview_overlay")}>
+        <button
+          type="button"
+          className="button"
+          disabled={!canPreview}
+          onClick={() => invoke("preview_overlay", { overlay: null })}
+        >
           {texts.preview}
         </button>
         {overlay.enabled && !canPreview && <p className="muted">{texts.previewNeeds}</p>}

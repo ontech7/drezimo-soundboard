@@ -55,11 +55,13 @@ pub enum OverlayUpdate {
     Look(Look),
 }
 
-/// Where the overlay sits and how opaque it is, as set in the window
+/// Where the overlay sits, how opaque and how big it is, as set in the window
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Look {
     pub anchor: Anchor,
     pub opacity: f32,
+    /// 1 for the full size
+    pub size: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -67,7 +69,10 @@ struct Placement {
     /// The top-left corner, in pixels
     x: i32,
     y: i32,
+    /// The screen's
     scale: f64,
+    /// The one the overlay is drawn at: smaller when its size is set below full
+    drawn: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -110,6 +115,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
     let mut look = Look {
         anchor: Anchor::default(),
         opacity: 1.0,
+        size: 1.0,
     };
     let mut redraw = false;
     // The half period of the blinks last drawn, and whether the window shows something
@@ -164,7 +170,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
             _ => {}
         }
         if visible && placement.is_none() {
-            placement = place(app, look.anchor);
+            placement = place(app, look);
         }
 
         let shows = |effect| {
@@ -179,7 +185,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
         let new_opacity = fade.opacity(now);
         if let (Some(overlay), Some(at)) = (&shown, placement) {
             if redraw || breathes || (blinks && drawn_blink != Some(blink)) {
-                let image = painter.draw(overlay, at.scale as f32, |cell| level(cell.led.effect, time));
+                let image = painter.draw(overlay, at.drawn as f32, |cell| level(cell.led.effect, time));
                 on_window(app, move |window| {
                     window.show(&image, at.x, at.y, at.scale, new_opacity)
                 });
@@ -230,15 +236,16 @@ fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 's
     });
 }
 
-/// Where `anchor` puts the overlay on the main screen, clear of the taskbar or the Dock.
-fn place(app: &AppHandle, anchor: Anchor) -> Option<Placement> {
+/// Where the overlay goes on the main screen, clear of the taskbar or the Dock, and at what size.
+fn place(app: &AppHandle, look: Look) -> Option<Placement> {
     let monitor = app.primary_monitor().ok()??;
     let scale = monitor.scale_factor();
+    let drawn = scale * look.size;
     let area = monitor.work_area();
-    let (width, height) = draw::size(scale as f32);
+    let (width, height) = draw::size(drawn as f32);
     let margin = (MARGIN * scale).round() as i32;
     // 0 at the start of the area, 1 in its middle, 2 at its end
-    let (column, row) = match anchor {
+    let (column, row) = match look.anchor {
         Anchor::TopLeft => (0, 0),
         Anchor::Top => (1, 0),
         Anchor::TopRight => (2, 0),
@@ -258,6 +265,7 @@ fn place(app: &AppHandle, anchor: Anchor) -> Option<Placement> {
         x: along(area.position.x, area.size.width, width, column),
         y: along(area.position.y, area.size.height, height, row),
         scale,
+        drawn,
     })
 }
 

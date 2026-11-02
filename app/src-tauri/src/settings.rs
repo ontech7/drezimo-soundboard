@@ -63,6 +63,21 @@ pub struct OverlaySettings {
     pub opacity: u8,
     /// How long it stays after a page change or the knob let go
     pub seconds: u8,
+    /// In percent of the full size
+    pub size: u8,
+}
+
+impl OverlaySettings {
+    /// Within the ranges the window offers
+    pub fn checked(self) -> Self {
+        Self {
+            opacity: self.opacity.clamp(40, 100),
+            seconds: self.seconds.clamp(1, 30),
+            // Smaller, the names get too small to read on a screen at 100 %
+            size: self.size.clamp(70, 100),
+            ..self
+        }
+    }
 }
 
 impl Default for OverlaySettings {
@@ -72,6 +87,7 @@ impl Default for OverlaySettings {
             anchor: Anchor::default(),
             opacity: 100,
             seconds: 4,
+            size: 100,
         }
     }
 }
@@ -100,8 +116,7 @@ impl Settings {
     /// Within the ranges the window offers
     fn checked(mut self) -> Self {
         self.led_brightness = self.led_brightness.clamp(10, 100);
-        self.overlay.opacity = self.overlay.opacity.clamp(40, 100);
-        self.overlay.seconds = self.overlay.seconds.clamp(1, 30);
+        self.overlay = self.overlay.checked();
         self
     }
 }

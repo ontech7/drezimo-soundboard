@@ -12,6 +12,8 @@ export interface OverlaySettings {
   /** In percent */
   opacity: number;
   seconds: number;
+  /** In percent of the full size */
+  size: number;
 }
 
 /** The app's settings (src-tauri/src/settings.rs) */
