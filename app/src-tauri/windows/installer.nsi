@@ -152,22 +152,31 @@ LoadLanguageFile "${NSISDIR}\Contrib\Language files\\{{this}}.nlf"
 !define LINE_STYLE 0x50000280
 !define LOGO_STYLE 0x5000000E
 !define BUTTON_STYLE 0x50000381
-!define TOGGLE_STYLE 0x50000180
+!define TOGGLE_STYLE 0x50000380
+; WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX: Windows' own checkbox, its box drawn at the system's size
+!define CHECKBOX_STYLE 0x50010003
 !define /math PROGRESS_TOP ${BUTTON_TOP} + 18
 !define OPTIONS_TOP 192
 !define OPTION_HEIGHT 28
 !define /math OPTION_WIDTH ${TEXT_WIDTH} / 2
 !define /math OPTION_RIGHT ${MARGIN} + ${OPTION_WIDTH}
+; The checkbox, then its label
+!define BOX_WIDTH 22
 
 Var Dpi
 Var TitleFont
 Var BodyFont
 Var ButtonFont
 Var SmallFont
+Var DeleteAppDataBox
 Var DeleteAppDataToggle
+Var DesktopBox
 Var DesktopToggle
+Var StartMenuBox
 Var StartMenuToggle
+Var LoginBox
 Var LoginToggle
+Var OpenBox
 Var OpenToggle
 
 !macro Px var value
@@ -205,30 +214,55 @@ Var OpenToggle
   ${NSD_OnClick} ${out} ${on_click}
 !macroend
 
-; A ticked or unticked option showing `text`, brighter when ticked
-!macro ShowOption control state text
+; An option's label, brighter while it is ticked
+!macro ShowOption label state
   ${If} ${state} = 1
-    ${NSD_SetText} ${control} "${CHECKED}${text}"
-    SetCtlColors ${control} ${TEXT_COLOR} ${BACKGROUND}
+    SetCtlColors ${label} ${TEXT_COLOR} ${BACKGROUND}
   ${Else}
-    ${NSD_SetText} ${control} "${UNCHECKED}${text}"
-    SetCtlColors ${control} ${MUTED_COLOR} ${BACKGROUND}
+    SetCtlColors ${label} ${MUTED_COLOR} ${BACKGROUND}
   ${EndIf}
+  System::Call 'user32::InvalidateRect(p ${label}, p 0, i 1)'
 !macroend
 
-; An option on the current nsDialogs page, switched by a click on it
-!macro Option x row state text on_click out
+; An option on the current nsDialogs page, `width` wide: Windows' checkbox in its dark theme, and its text as a label
+; of its own, which also switches it: Windows draws a checkbox's own text black whatever the colours set
+!macro Option x row width state text on_click box label
   !insertmacro Px $R1 ${x}
   IntOp $R2 ${row} * ${OPTION_HEIGHT}
   IntOp $R2 $R2 + ${OPTIONS_TOP}
   !insertmacro Px $R2 $R2
-  !insertmacro Px $R3 ${OPTION_WIDTH}
+  !insertmacro Px $R3 ${BOX_WIDTH}
   !insertmacro Px $R4 24
-  nsDialogs::CreateControl STATIC ${TOGGLE_STYLE} 0 $R1 $R2 $R3 $R4 ""
-  Pop ${out}
-  SendMessage ${out} ${WM_SETFONT} $BodyFont 1
-  !insertmacro ShowOption ${out} ${state} "${text}"
-  ${NSD_OnClick} ${out} ${on_click}
+  nsDialogs::CreateControl BUTTON ${CHECKBOX_STYLE} 0 $R1 $R2 $R3 $R4 ""
+  Pop ${box}
+  System::Call 'uxtheme::SetWindowTheme(p ${box}, w "DarkMode_Explorer", p 0)'
+  SetCtlColors ${box} ${TEXT_COLOR} ${BACKGROUND}
+  ${If} ${state} = 1
+    ${NSD_Check} ${box}
+  ${EndIf}
+  ${NSD_OnClick} ${box} ${on_click}
+  IntOp $R1 $R1 + $R3
+  IntOp $R3 ${width} - ${BOX_WIDTH}
+  !insertmacro Px $R3 $R3
+  nsDialogs::CreateControl STATIC ${TOGGLE_STYLE} 0 $R1 $R2 $R3 $R4 "${text}"
+  Pop ${label}
+  SendMessage ${label} ${WM_SETFONT} $BodyFont 1
+  !insertmacro ShowOption ${label} ${state}
+  ${NSD_OnClick} ${label} ${on_click}
+!macroend
+
+; A click on an option, with its control on the stack: a click on the label switches the box, the state follows the box
+!macro OptionClicked box label state
+  Pop $0
+  ${If} $0 = ${label}
+    ${If} ${state} = 1
+      ${NSD_Uncheck} ${box}
+    ${Else}
+      ${NSD_Check} ${box}
+    ${EndIf}
+  ${EndIf}
+  ${NSD_GetState} ${box} ${state}
+  !insertmacro ShowOption ${label} ${state}
 !macroend
 
 !macro Font var face size weight
@@ -411,10 +445,10 @@ Function WelcomePage
     StrCpy $R9 "$(installButton)"
   ${EndIf}
   Call Header
-  !insertmacro Option ${MARGIN} 0 $DesktopShortcut "$(desktopShortcut)" ToggleDesktopShortcut $DesktopToggle
-  !insertmacro Option ${OPTION_RIGHT} 0 $StartMenuShortcut "$(startMenuShortcut)" ToggleStartMenuShortcut $StartMenuToggle
-  !insertmacro Option ${MARGIN} 1 $StartAtLogin "$(startAtLogin)" ToggleStartAtLogin $LoginToggle
-  !insertmacro Option ${OPTION_RIGHT} 1 $OpenWhenDone "$(openWhenDone)" ToggleOpenWhenDone $OpenToggle
+  !insertmacro Option ${MARGIN} 0 ${OPTION_WIDTH} $DesktopShortcut "$(desktopShortcut)" ToggleDesktopShortcut $DesktopBox $DesktopToggle
+  !insertmacro Option ${OPTION_RIGHT} 0 ${OPTION_WIDTH} $StartMenuShortcut "$(startMenuShortcut)" ToggleStartMenuShortcut $StartMenuBox $StartMenuToggle
+  !insertmacro Option ${MARGIN} 1 ${OPTION_WIDTH} $StartAtLogin "$(startAtLogin)" ToggleStartAtLogin $LoginBox $LoginToggle
+  !insertmacro Option ${OPTION_RIGHT} 1 ${OPTION_WIDTH} $OpenWhenDone "$(openWhenDone)" ToggleOpenWhenDone $OpenBox $OpenToggle
   StrCpy $R5 "$(versionLabel)"
   !insertmacro Label $0 ${LINE_STYLE} ${MARGIN} ${BUTTON_TOP} 200 ${BUTTON_HEIGHT} $SmallFont ${MUTED_COLOR} $1
   StrCpy $R5 $R9
@@ -423,27 +457,19 @@ Function WelcomePage
 FunctionEnd
 
 Function ToggleDesktopShortcut
-  Pop $0
-  IntOp $DesktopShortcut $DesktopShortcut ^ 1
-  !insertmacro ShowOption $DesktopToggle $DesktopShortcut "$(desktopShortcut)"
+  !insertmacro OptionClicked $DesktopBox $DesktopToggle $DesktopShortcut
 FunctionEnd
 
 Function ToggleStartMenuShortcut
-  Pop $0
-  IntOp $StartMenuShortcut $StartMenuShortcut ^ 1
-  !insertmacro ShowOption $StartMenuToggle $StartMenuShortcut "$(startMenuShortcut)"
+  !insertmacro OptionClicked $StartMenuBox $StartMenuToggle $StartMenuShortcut
 FunctionEnd
 
 Function ToggleStartAtLogin
-  Pop $0
-  IntOp $StartAtLogin $StartAtLogin ^ 1
-  !insertmacro ShowOption $LoginToggle $StartAtLogin "$(startAtLogin)"
+  !insertmacro OptionClicked $LoginBox $LoginToggle $StartAtLogin
 FunctionEnd
 
 Function ToggleOpenWhenDone
-  Pop $0
-  IntOp $OpenWhenDone $OpenWhenDone ^ 1
-  !insertmacro ShowOption $OpenToggle $OpenWhenDone "$(openWhenDone)"
+  !insertmacro OptionClicked $OpenBox $OpenToggle $OpenWhenDone
 FunctionEnd
 
 Function InstallProgressPage
@@ -473,16 +499,7 @@ Function un.ConfirmPage
   StrCpy $R7 "$(uninstallTitle)"
   StrCpy $R8 "$(uninstallText)"
   Call un.Header
-  StrCpy $R5 "$(keepSettings)"
-  !insertmacro Px $R1 ${MARGIN}
-  !insertmacro Px $R2 216
-  !insertmacro Px $R3 ${TEXT_WIDTH}
-  !insertmacro Px $R4 24
-  nsDialogs::CreateControl STATIC ${TOGGLE_STYLE} 0 $R1 $R2 $R3 $R4 $R5
-  Pop $DeleteAppDataToggle
-  SendMessage $DeleteAppDataToggle ${WM_SETFONT} $BodyFont 1
-  SetCtlColors $DeleteAppDataToggle ${MUTED_COLOR} ${BACKGROUND}
-  ${NSD_OnClick} $DeleteAppDataToggle un.ToggleDeleteAppData
+  !insertmacro Option ${MARGIN} 1 ${TEXT_WIDTH} $DeleteAppDataState "$(deleteSettings)" un.ToggleDeleteAppData $DeleteAppDataBox $DeleteAppDataToggle
   StrCpy $R5 "$(cancelButton)"
   !insertmacro Button 196 108 ${TEXT_COLOR} ${CARD} un.Cancel $1
   StrCpy $R5 "$(uninstallButton)"
@@ -491,16 +508,7 @@ Function un.ConfirmPage
 FunctionEnd
 
 Function un.ToggleDeleteAppData
-  Pop $0
-  ${If} $DeleteAppDataState = 1
-    StrCpy $DeleteAppDataState 0
-    ${NSD_SetText} $DeleteAppDataToggle "$(keepSettings)"
-    SetCtlColors $DeleteAppDataToggle ${MUTED_COLOR} ${BACKGROUND}
-  ${Else}
-    StrCpy $DeleteAppDataState 1
-    ${NSD_SetText} $DeleteAppDataToggle "$(deleteSettings)"
-    SetCtlColors $DeleteAppDataToggle ${TEXT_COLOR} ${BACKGROUND}
-  ${EndIf}
+  !insertmacro OptionClicked $DeleteAppDataBox $DeleteAppDataToggle $DeleteAppDataState
 FunctionEnd
 
 Function un.Cancel

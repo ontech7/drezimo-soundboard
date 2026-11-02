@@ -24,9 +24,7 @@ LangString newerInstalledTitle ${LANG_ITALIAN} "È installata una versione più 
 LangString newerInstalledText ${LANG_ENGLISH} "Version $InstalledVersion is installed: installing version ${VERSION} replaces it."
 LangString newerInstalledText ${LANG_ITALIAN} "È installata la versione $InstalledVersion: installando la ${VERSION} la sostituisci."
 
-; The install page's options, after a box
-!define CHECKED "☑  "
-!define UNCHECKED "☐  "
+; The install page's options
 LangString desktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
 LangString desktopShortcut ${LANG_ITALIAN} "Icona sul desktop"
 LangString startMenuShortcut ${LANG_ENGLISH} "In the Start menu"
@@ -49,10 +47,8 @@ LangString uninstallTitle ${LANG_ENGLISH} "Uninstall ${PRODUCTNAME}?"
 LangString uninstallTitle ${LANG_ITALIAN} "Disinstallare ${PRODUCTNAME}?"
 LangString uninstallText ${LANG_ENGLISH} "The app closes and no longer starts with Windows."
 LangString uninstallText ${LANG_ITALIAN} "L'app si chiude e non parte più con Windows."
-LangString keepSettings ${LANG_ENGLISH} "☐  Also delete its settings"
-LangString keepSettings ${LANG_ITALIAN} "☐  Elimina anche le impostazioni"
-LangString deleteSettings ${LANG_ENGLISH} "☑  Also delete its settings"
-LangString deleteSettings ${LANG_ITALIAN} "☑  Elimina anche le impostazioni"
+LangString deleteSettings ${LANG_ENGLISH} "Also delete its settings"
+LangString deleteSettings ${LANG_ITALIAN} "Elimina anche le impostazioni"
 LangString uninstallButton ${LANG_ENGLISH} "Uninstall"
 LangString uninstallButton ${LANG_ITALIAN} "Disinstalla"
 LangString cancelButton ${LANG_ENGLISH} "Cancel"
