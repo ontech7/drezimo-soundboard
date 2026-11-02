@@ -6,6 +6,7 @@ mod firmware;
 mod overlay;
 mod playback;
 mod protocol;
+mod settings;
 mod soundboard;
 mod tray;
 mod updates;
@@ -14,10 +15,10 @@ mod voicemod_log;
 mod window;
 
 use std::sync::Mutex;
-use tauri::{AppHandle, RunEvent};
+use tauri::{AppHandle, Manager, RunEvent};
 
 /// Passed by the login item the installer adds (windows/hooks.nsh): the app then starts in the tray, with no window
-const AUTOSTART_ARG: &str = "--autostart";
+pub(crate) const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn run() {
     tauri::Builder::default()
@@ -29,6 +30,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
+            device::set_display_settings,
+            device::preview_led_brightness,
+            device::preview_overlay,
+            settings::settings,
+            settings::set_settings,
+            settings::about,
+            settings::start_at_login,
+            settings::set_start_at_login,
             window::window_ready
         ])
         .on_window_event(window::on_event)
@@ -37,6 +46,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            app.manage(settings::load(app.handle()));
             tray::create(app.handle())?;
             device::start(app.handle().clone());
             // A build made here does not replace itself with a published one

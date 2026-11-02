@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { DisplaySettings } from "./settings";
 
 export type BoardStatus =
   { state: "searching" } | { state: "busy"; port: string } | { state: "connected"; port: string; firmware: string };
@@ -25,6 +26,8 @@ export interface Status {
   voicemodLog: boolean;
   page: PageSummary | null;
   firmwareUpdate: FirmwareUpdate | null;
+  /** As the connected board keeps them */
+  displaySettings: DisplaySettings | null;
 }
 
 export function useStatus(): Status | null {

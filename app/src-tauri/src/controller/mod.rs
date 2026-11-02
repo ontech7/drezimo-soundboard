@@ -133,6 +133,8 @@ pub struct Controller {
     screen: Option<Screen>,
     /// Until when the overlay shows, besides while the knob is held or the menu open
     overlay_until: Option<Instant>,
+    /// How long it shows; None when turned off
+    overlay_time: Option<Duration>,
     /// What the overlay shows, as sent
     overlay: Option<Overlay>,
     /// When `update` has something to do without any input
@@ -163,6 +165,7 @@ impl Default for Controller {
             leds: [None; LED_COUNT],
             screen: None,
             overlay_until: None,
+            overlay_time: Some(overlay::OVERLAY_TIME),
             overlay: None,
             next_update: None,
             outputs: Vec::new(),
@@ -176,6 +179,11 @@ impl Controller {
             texts,
             ..Self::default()
         }
+    }
+
+    /// The words on the display, in the language picked.
+    pub fn set_texts(&mut self, texts: &'static Texts) {
+        self.texts = texts;
     }
 
     pub fn set_board_connected(&mut self, connected: bool, now: Instant) {

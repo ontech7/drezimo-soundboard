@@ -10,6 +10,7 @@ mod text;
 mod native;
 
 use crate::protocol::{Effect, Led};
+use crate::settings::Anchor;
 use draw::Painter;
 use native::NativeWindow;
 use std::cell::RefCell;
@@ -48,6 +49,19 @@ pub struct Cell {
     pub locked: bool,
 }
 
+pub enum OverlayUpdate {
+    /// What to show, or None to hide
+    Content(Option<Overlay>),
+    Look(Look),
+}
+
+/// Where the overlay sits and how opaque it is, as set in the window
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Look {
+    pub anchor: Anchor,
+    pub opacity: f32,
+}
+
 #[derive(Clone, Copy)]
 struct Placement {
     /// The top-left corner, in pixels
@@ -70,8 +84,8 @@ thread_local! {
 
 static WINDOW_REFUSED: AtomicBool = AtomicBool::new(false);
 
-/// Starts the overlay: it shows each `Some` sent, and hides at `None`.
-pub fn start(app: &AppHandle) -> Sender<Option<Overlay>> {
+/// Starts the overlay: it shows each content sent, and hides at `None`.
+pub fn start(app: &AppHandle) -> Sender<OverlayUpdate> {
     let (sender, updates) = mpsc::channel();
     let app = app.clone();
     thread::Builder::new()
@@ -81,7 +95,7 @@ pub fn start(app: &AppHandle) -> Sender<Option<Overlay>> {
     sender
 }
 
-fn run(app: &AppHandle, updates: &Receiver<Option<Overlay>>) {
+fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
     let clock = Instant::now();
     let mut painter = Painter::new();
     // What the window shows, kept while it fades out
@@ -93,6 +107,10 @@ fn run(app: &AppHandle, updates: &Receiver<Option<Overlay>>) {
         since: clock,
     };
     let mut placement = None;
+    let mut look = Look {
+        anchor: Anchor::default(),
+        opacity: 1.0,
+    };
     let mut redraw = false;
     // The half period of the blinks last drawn, and whether the window shows something
     let mut drawn_blink = None;
@@ -104,23 +122,37 @@ fn run(app: &AppHandle, updates: &Receiver<Option<Overlay>>) {
             Some(at) => updates.recv_timeout(at.saturating_duration_since(Instant::now())),
             None => updates.recv().map_err(|_| RecvTimeoutError::Disconnected),
         };
-        let mut update = match received {
-            Ok(update) => Some(update),
-            Err(RecvTimeoutError::Timeout) => None,
+        let mut content = None;
+        let mut received = match received {
+            Ok(update) => vec![update],
+            Err(RecvTimeoutError::Timeout) => Vec::new(),
             Err(RecvTimeoutError::Disconnected) => return,
         };
-        while let Ok(newer) = updates.try_recv() {
-            update = Some(newer);
+        received.extend(updates.try_iter());
+        let now = Instant::now();
+        for update in received {
+            match update {
+                OverlayUpdate::Content(newer) => content = Some(newer),
+                OverlayUpdate::Look(newer) if newer != look => {
+                    look = newer;
+                    // A hidden overlay is placed again when it shows
+                    if visible {
+                        placement = None;
+                        redraw = true;
+                        fade = fade.toward(look.opacity, now);
+                    }
+                }
+                OverlayUpdate::Look(_) => {}
+            }
         }
 
-        let now = Instant::now();
-        match update {
+        match content {
             Some(Some(overlay)) => {
                 if !visible {
                     visible = true;
                     // Placed again: the screens may have changed while hidden
                     placement = None;
-                    fade = fade.toward(1.0, now);
+                    fade = fade.toward(look.opacity, now);
                 }
                 shown = Some(overlay);
                 redraw = true;
@@ -132,7 +164,7 @@ fn run(app: &AppHandle, updates: &Receiver<Option<Overlay>>) {
             _ => {}
         }
         if visible && placement.is_none() {
-            placement = place(app);
+            placement = place(app, look.anchor);
         }
 
         let shows = |effect| {
@@ -198,25 +230,48 @@ fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 's
     });
 }
 
-/// The bottom-right corner of the main screen, above the taskbar or the Dock.
-fn place(app: &AppHandle) -> Option<Placement> {
+/// Where `anchor` puts the overlay on the main screen, clear of the taskbar or the Dock.
+fn place(app: &AppHandle, anchor: Anchor) -> Option<Placement> {
     let monitor = app.primary_monitor().ok()??;
     let scale = monitor.scale_factor();
     let area = monitor.work_area();
     let (width, height) = draw::size(scale as f32);
     let margin = (MARGIN * scale).round() as i32;
+    // 0 at the start of the area, 1 in its middle, 2 at its end
+    let (column, row) = match anchor {
+        Anchor::TopLeft => (0, 0),
+        Anchor::Top => (1, 0),
+        Anchor::TopRight => (2, 0),
+        Anchor::Left => (0, 1),
+        Anchor::Center => (1, 1),
+        Anchor::Right => (2, 1),
+        Anchor::BottomLeft => (0, 2),
+        Anchor::Bottom => (1, 2),
+        Anchor::BottomRight => (2, 2),
+    };
+    let along = |start: i32, room: u32, size: usize, step: i32| match step {
+        0 => start + margin,
+        1 => start + (room as i32 - size as i32) / 2,
+        _ => start + room as i32 - size as i32 - margin,
+    };
     Some(Placement {
-        x: area.position.x + area.size.width as i32 - width as i32 - margin,
-        y: area.position.y + area.size.height as i32 - height as i32 - margin,
+        x: along(area.position.x, area.size.width, width, column),
+        y: along(area.position.y, area.size.height, height, row),
         scale,
     })
 }
 
 impl Fade {
+    fn length(&self) -> Duration {
+        if self.to > self.from { FADE_IN } else { FADE_OUT }
+    }
+
     fn opacity(&self, now: Instant) -> f32 {
-        let length = if self.to > self.from { FADE_IN } else { FADE_OUT };
-        let progress = (now - self.since).as_secs_f32() / length.as_secs_f32();
-        self.from + (self.to - self.from) * progress.min(1.0)
+        if self.done(now) {
+            return self.to;
+        }
+        let progress = (now - self.since).as_secs_f32() / self.length().as_secs_f32();
+        self.from + (self.to - self.from) * progress
     }
 
     fn toward(self, to: f32, now: Instant) -> Self {
@@ -228,7 +283,7 @@ impl Fade {
     }
 
     fn done(&self, now: Instant) -> bool {
-        self.opacity(now) == self.to
+        now - self.since >= self.length()
     }
 }
 
@@ -272,5 +327,19 @@ mod tests {
         let fade = fade.toward(0.0, start + FADE_IN);
         assert_eq!(fade.opacity(start + FADE_IN), 1.0);
         assert!(fade.done(start + FADE_IN + FADE_OUT));
+    }
+
+    #[test]
+    fn fades_to_a_set_opacity_and_stops() {
+        let start = Instant::now();
+        let fade = Fade {
+            from: 0.95,
+            to: 0.95,
+            since: start,
+        }
+        .toward(0.4, start);
+        assert!(!fade.done(start + FADE_OUT / 2));
+        assert!(fade.done(start + FADE_OUT));
+        assert_eq!(fade.opacity(start + FADE_OUT), 0.4);
     }
 }

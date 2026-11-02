@@ -1,6 +1,7 @@
 :root {
   --bg: #0e0e10;
   --card: #17171b;
+  --raised: #1f1f25;
   --line: #26262c;
   --text: #f4f3ef;
   --muted: #8b8b94;
@@ -30,29 +31,118 @@ body {
   cursor: default;
 }
 
-main {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 100vh;
-  padding: 20px;
+button,
+select {
+  font: inherit;
+  color: inherit;
 }
 
-header {
-  padding: 4px 4px 8px;
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* Sidebar and page */
+
+.app {
+  display: grid;
+  grid-template-columns: 208px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--card);
+}
+
+.sidebar .logo {
+  padding: 0 8px;
 }
 
 .logo svg {
   display: block;
-  height: 36px;
+  height: 32px;
   width: auto;
 }
 
-.card {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
+.sidebar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar button:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.sidebar button.selected {
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sidebar button svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar button.selected svg {
+  stroke: var(--amber);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid var(--bg);
+  border-radius: 5px;
+  background: var(--line);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 h2 {
@@ -71,6 +161,21 @@ p {
 .muted {
   color: var(--muted);
 }
+
+.card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Status */
 
 .status {
   display: flex;
@@ -130,7 +235,7 @@ p {
 
 .activity {
   flex: 1;
-  min-height: 0;
+  min-height: 120px;
   overflow-y: auto;
 }
 
@@ -151,6 +256,244 @@ p {
   border-bottom: none;
 }
 
-time {
+time,
+output,
+.value {
   font-variant-numeric: tabular-nums;
+}
+
+/* Settings */
+
+.section-text {
+  margin: -6px 0 12px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:first-child {
+  padding-top: 0;
+}
+
+.row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row-control {
+  flex: none;
+}
+
+.row.disabled .row-label > p:first-child {
+  color: var(--muted);
+}
+
+.value {
+  color: var(--muted);
+}
+
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.toggle span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s;
+}
+
+.toggle.on {
+  background: var(--amber);
+}
+
+.toggle.on span {
+  background: var(--bg);
+  transform: translateX(18px);
+}
+
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider output {
+  width: 40px;
+  color: var(--muted);
+  text-align: right;
+}
+
+input[type="range"] {
+  width: 180px;
+  height: 4px;
+  margin: 0;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--amber) var(--fill), var(--line) var(--fill));
+  appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  appearance: none;
+}
+
+input[type="range"]:disabled {
+  background: var(--line);
+  cursor: default;
+}
+
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: var(--muted);
+}
+
+.segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.segmented button {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.segmented button[aria-checked="true"] {
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 600;
+}
+
+select {
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The overlay's place: a screen with its taskbar, and nine spots */
+.screen {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 160px;
+  height: 100px;
+  padding: 6px 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.screen button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.screen button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.screen button:hover:not(:disabled, [aria-checked="true"]) span {
+  background: var(--muted);
+}
+
+.screen button[aria-checked="true"] span {
+  width: 34px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--amber);
+}
+
+.screen .taskbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 10px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 8px 8px;
+  background: var(--card);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.button {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--amber);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.08);
 }

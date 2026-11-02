@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { Texts } from "./i18n";
 
 export type BoardMessage =
   | { type: "hello"; firmware: string }
@@ -13,10 +14,8 @@ export type BoardMessage =
 export interface Activity {
   id: number;
   at: Date;
-  text: string;
+  message: BoardMessage;
 }
-
-const BUTTON_NAMES = ["PREV", "NEXT", "STOP", "MUTE ME", "VOICE", "HEAR ME"];
 
 let nextActivityId = 0;
 
@@ -25,8 +24,9 @@ export function useBoardActivity(limit: number): Activity[] {
 
   useEffect(() => {
     const unlisten = listen<BoardMessage>("board-message", (event) => {
-      const text = describe(event.payload);
-      if (text) setActivity((items) => [{ id: nextActivityId++, at: new Date(), text }, ...items].slice(0, limit));
+      const message = event.payload;
+      if (message.type === "hello" || message.type === "ok") return;
+      setActivity((items) => [{ id: nextActivityId++, at: new Date(), message }, ...items].slice(0, limit));
     });
     unlisten.catch((error) => console.error("cannot follow the board activity", error));
     return () => {
@@ -37,20 +37,20 @@ export function useBoardActivity(limit: number): Activity[] {
   return activity;
 }
 
-function describe(message: BoardMessage): string | null {
-  const action = (pressed: boolean) => (pressed ? "pressed" : "released");
+/** In the language shown now, also for what happened before a change */
+export function describe(message: BoardMessage, texts: Texts): string {
   switch (message.type) {
     case "pad":
-      return `Pad ${message.index + 1} ${action(message.pressed)}`;
+      return texts.pad(message.index + 1, message.pressed);
     case "button":
-      return `${BUTTON_NAMES[message.index]} ${action(message.pressed)}`;
+      return texts.button(texts.buttonNames[message.index], message.pressed);
     case "encoder":
-      return message.step > 0 ? "Knob turned right" : "Knob turned left";
+      return texts.knobTurned(message.step > 0);
     case "encoderButton":
-      return `Knob ${action(message.pressed)}`;
+      return texts.knob(message.pressed);
     case "error":
-      return `Board error: ${message.reason}`;
+      return texts.boardError(message.reason);
     default:
-      return null;
+      return "";
   }
 }

@@ -1,4 +1,4 @@
-//! The words on the display, in the simulator's languages: English and Italian, as the system's language.
+//! The words on the display, in the simulator's languages: English and Italian, as picked in the settings.
 
 use crate::soundboard::PlaybackMode;
 
@@ -37,12 +37,6 @@ struct Modes {
 }
 
 impl Texts {
-    /// The language of the system, when there are words for it.
-    pub fn for_system() -> &'static Self {
-        let italian = sys_locale::get_locale().is_some_and(|locale| locale.starts_with("it"));
-        if italian { &ITALIAN } else { &ENGLISH }
-    }
-
     pub fn mode(&self, mode: PlaybackMode) -> &'static str {
         match mode {
             PlaybackMode::PlayRestart => self.modes.restart,

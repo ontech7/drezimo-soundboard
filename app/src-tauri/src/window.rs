@@ -68,8 +68,8 @@ fn build(app: AppHandle, label: String) {
         let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
             .title("Drezimo Soundboard")
             // Fits a 1366×768 screen with its taskbar
-            .inner_size(480.0, 640.0)
-            .min_inner_size(400.0, 560.0)
+            .inner_size(760.0, 560.0)
+            .min_inner_size(680.0, 480.0)
             .center()
             .visible(false)
             .background_color(BACKGROUND)
