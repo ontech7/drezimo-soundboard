@@ -1,74 +1,93 @@
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
-import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad, useBoardView } from "../boardView";
+import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
 import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
-import type { BoardStatus, FirmwareUpdate, Status } from "../status";
+import { PAGE_KEYS_COLOUR, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
+import { MiniBoard } from "../MiniBoard";
+import type { Status } from "../status";
 
-interface Line {
-  dot: "waiting" | "warning" | "ok" | "error";
+interface Notice {
+  dot: "off" | "waiting" | "warning" | "error";
   title: string;
-  badge?: string;
   detail: string;
-  note?: string;
 }
 
-function boardLine(texts: Texts, status: BoardStatus, update: FirmwareUpdate | null): Line {
+/** What to know about Drezimo while it is not ready, if anything: the sidebar says only whether it is connected */
+function boardNotice(texts: Texts, status: Status, playable: boolean): Notice | null {
+  const { board, firmwareUpdate: update } = status;
   if (update?.state === "updating") {
-    return { dot: "warning", title: texts.updatingBoard, detail: texts.updatingDetail(update.from, update.to) };
+    return { dot: "waiting", title: texts.updatingBoard, detail: texts.updatingDetail(update.from, update.to) };
   }
   if (update?.state === "restarting") {
-    return { dot: "warning", title: texts.restartingBoard, detail: texts.restartingDetail(update.to) };
+    return { dot: "waiting", title: texts.restartingBoard, detail: texts.restartingDetail(update.to) };
   }
-  const note = update?.state === "failed" ? texts.updateFailed(update.reason) : undefined;
-  return { ...connectionLine(texts, status), note };
+  if (board.state === "busy") return { dot: "warning", title: texts.busy, detail: texts.busyDetail };
+  if (board.state === "searching") {
+    const detail = playable ? `${texts.searchingDetail} ${texts.playHere}` : texts.searchingDetail;
+    return { dot: "off", title: texts.searching, detail };
+  }
+  if (update?.state === "failed") return { dot: "error", title: "", detail: texts.updateFailed(update.reason) };
+  return null;
 }
 
-function connectionLine(texts: Texts, status: BoardStatus): Line {
-  switch (status.state) {
-    case "searching":
-      return { dot: "waiting", title: texts.searching, detail: texts.searchingDetail };
-    case "busy":
-      return { dot: "warning", title: texts.busy, detail: texts.busyDetail };
-    case "connected":
-      return { dot: "ok", title: texts.boardConnected, detail: "" };
-  }
-}
-
-function voicemodLine(texts: Texts, status: Status): Line {
-  const { voicemod, page, license } = status;
-  switch (voicemod.state) {
-    case "connecting":
-      return { dot: "waiting", title: texts.connectingVoicemod, detail: "" };
-    case "connected":
-      return {
-        dot: "ok",
-        title: texts.voicemodConnected,
-        badge: license ? texts.license(license) : undefined,
-        detail: page ? "" : texts.loadingSoundboards,
-      };
-    case "unreachable":
-      return { dot: "waiting", title: texts.voicemodUnreachable, detail: texts.voicemodUnreachableDetail };
-    case "keyRejected":
-      return { dot: "error", title: texts.keyRejected, detail: texts.keyRejectedDetail };
-    case "missingKey":
-      return { dot: "error", title: texts.missingKey, detail: texts.missingKeyDetail };
-  }
-}
-
-function StatusLine({ line }: { line: Line }) {
+function BoardNotice({ notice }: { notice: Notice }) {
   return (
-    <div className="status">
-      <span className={`dot ${line.dot}`} />
-      <div>
-        <p className="status-title">
-          {line.title}
-          {line.badge && <span className="badge">{line.badge}</span>}
-        </p>
-        {line.detail && <p className="muted">{line.detail}</p>}
-        {line.note && <p className="note">{line.note}</p>}
-      </div>
+    <div className={`notice ${notice.dot}`}>
+      <span className={`dot ${notice.dot}`} />
+      <p>
+        {notice.title && <strong>{notice.title}</strong>}
+        <span className="muted">{notice.detail}</span>
+      </p>
     </div>
+  );
+}
+
+const OFF: null[] = Array(36).fill(null);
+const ALL = (colour: Rgb) => OFF.map(() => colour);
+
+interface Waiting {
+  title: string;
+  text: string;
+  leds: (Rgb | null)[];
+  effect?: "blink" | "wave";
+}
+
+/** Why there are no pads to play yet, with the board as it looks meanwhile */
+function waiting(texts: Texts, status: Status): Waiting {
+  switch (status.voicemod.state) {
+    case "connecting":
+      return { title: texts.connectingVoicemod, text: texts.connectingText, leds: ALL(PAGE_KEYS_COLOUR), effect: "wave" };
+    case "unreachable":
+      return { title: texts.openVoicemod, text: texts.openVoicemodText, leds: ALL(UNAVAILABLE_COLOUR), effect: "blink" };
+    case "keyRejected":
+      return { title: texts.keyRejected, text: texts.keyRejectedDetail, leds: ALL(UNAVAILABLE_COLOUR), effect: "blink" };
+    case "missingKey":
+      return { title: texts.missingKey, text: texts.missingKeyDetail, leds: ALL(UNAVAILABLE_COLOUR), effect: "blink" };
+    case "connected":
+      return status.loaded
+        ? { title: texts.nothingToPlay, text: texts.nothingToPlayText, leds: OFF }
+        : { title: texts.loadingSoundboards, text: texts.loadingText, leds: ALL(PAGE_KEYS_COLOUR), effect: "wave" };
+  }
+}
+
+function Waiting({ status, onMakePage }: { status: Status; onMakePage: () => void }) {
+  const texts = useTexts();
+  const shown = waiting(texts, status);
+  const empty = status.voicemod.state === "connected" && status.loaded;
+  return (
+    <section className="card waiting-card">
+      <MiniBoard leds={shown.leds} effect={shown.effect} solid />
+      <div>
+        <p className="status-title">{shown.title}</p>
+        <p className="muted">{shown.text}</p>
+        {empty && (
+          <button type="button" className="button" onClick={onMakePage}>
+            {texts.makePage}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -167,15 +186,8 @@ function Keys({ view }: { view: BoardView }) {
   );
 }
 
-function Pads({ view }: { view: BoardView | null }) {
+function Pads({ view }: { view: BoardView }) {
   const texts = useTexts();
-  if (!view) {
-    return (
-      <section className="card">
-        <p className="muted">{texts.noPages}</p>
-      </section>
-    );
-  }
   const count = view.pages.length;
   return (
     <section className="card">
@@ -219,21 +231,21 @@ function Pads({ view }: { view: BoardView | null }) {
   );
 }
 
-export function StatusPage({ status }: { status: Status }) {
+interface Props {
+  status: Status;
+  view: BoardView | null | undefined;
+  onMakePage: () => void;
+}
+
+export function StatusPage({ status, view, onMakePage }: Props) {
   const texts = useTexts();
-  const view = useBoardView();
+  const notice = boardNotice(texts, status, !!view);
+  // The pads not known yet, or not there yet while the status already has a page: nothing, rather than a wrong state
+  const settling = view === undefined || (view === null && status.voicemod.state === "connected" && status.page !== null);
   return (
     <>
-      <div className="pair">
-        <section className="card">
-          <StatusLine line={boardLine(texts, status.board, status.firmwareUpdate)} />
-        </section>
-        <section className="card">
-          <StatusLine line={voicemodLine(texts, status)} />
-        </section>
-      </div>
-
-      <Pads view={view} />
+      {notice && <BoardNotice notice={notice} />}
+      {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
   );
 }

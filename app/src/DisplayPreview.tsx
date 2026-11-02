@@ -4,7 +4,11 @@ import { DISPLAY_HEIGHT, DISPLAY_WIDTH, frameBytes, isLit, useDisplayFrame } fro
 const LIT = [235, 240, 255];
 
 export function DisplayPreview() {
-  const frame = useDisplayFrame();
+  return <DisplayCanvas frame={useDisplayFrame()} />;
+}
+
+/** A display picture, as the hex of its DISPLAY message */
+export function DisplayCanvas({ frame, className = "display" }: { frame: string; className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -21,5 +25,5 @@ export function DisplayPreview() {
     context.putImageData(image, 0, 0);
   }, [frame]);
 
-  return <canvas ref={canvas} className="display" width={DISPLAY_WIDTH} height={DISPLAY_HEIGHT} />;
+  return <canvas ref={canvas} className={className} width={DISPLAY_WIDTH} height={DISPLAY_HEIGHT} />;
 }

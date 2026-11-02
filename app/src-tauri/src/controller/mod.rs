@@ -780,7 +780,7 @@ impl Controller {
     }
 
     /// Voicemod sent its voices or soundboards since it connected: there are pages.
-    fn has_lists(&self) -> bool {
+    pub fn has_lists(&self) -> bool {
         self.soundboards_loaded || !self.voices.is_empty()
     }
 

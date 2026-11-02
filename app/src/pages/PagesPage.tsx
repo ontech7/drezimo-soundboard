@@ -27,6 +27,7 @@ import { DotsIcon, PlusIcon, TrashIcon } from "../icons";
 import { useDismiss } from "../dismiss";
 import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
+import { MiniBoard } from "../MiniBoard";
 import { PadPicture } from "../PadPicture";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
@@ -331,15 +332,7 @@ function EmptyPages({ onBlank, onFromSoundboard }: { onBlank: () => void; onFrom
   };
   return (
     <section className="card empty-pages">
-      <div className="mini-board" aria-hidden="true">
-        {Array.from({ length: PAD_COUNT }, (_, i) => (
-          <span
-            key={i}
-            className={lit[i] ? "lit" : undefined}
-            style={lit[i] ? ({ "--led": rgb(lit[i]) } as CSSProperties) : undefined}
-          />
-        ))}
-      </div>
+      <MiniBoard leds={Array.from({ length: PAD_COUNT }, (_, i) => lit[i] ?? null)} />
       <h2>{texts.emptyPagesTitle}</h2>
       <p className="muted">{texts.emptyPagesText}</p>
       <div className="actions">
@@ -508,7 +501,6 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
         const shown = pad && look(pad, lookup, texts);
         const classes = [
           "pad",
-          "edit",
           shown ? "lit" : "empty",
           i === selected ? "selected" : "",
           i === over ? "over" : "",

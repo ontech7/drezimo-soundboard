@@ -75,6 +75,16 @@ impl Texts {
         }
     }
 
+    /// The row overview's heading, such as "ROW 2/6", from row 0.
+    pub fn row_heading(&self, row: usize, rows: usize) -> String {
+        format!("{} {}/{rows}", self.row, row + 1)
+    }
+
+    /// The step a macro is at, such as "STEP 2/5", from step 1.
+    pub fn step_of(&self, step: usize, steps: usize) -> String {
+        format!("{} {step}/{steps}", self.step)
+    }
+
     pub fn mode(&self, mode: PlaybackMode) -> &'static str {
         match mode {
             PlaybackMode::PlayRestart => self.modes.restart,

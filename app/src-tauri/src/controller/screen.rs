@@ -1,7 +1,8 @@
 //! What the display shows, as in the simulator.
 
 use super::{COLUMNS, Controller, ROWS};
-use crate::display::screens::Screen;
+use crate::display::screens::{self, Screen};
+use crate::display::seconds;
 use crate::playback::State;
 use crate::soundboard::{FAVOURITES_ID, Pad, Page, PlaybackMode, VOICES_ID};
 use crate::voicemod::VoicemodStatus;
@@ -57,7 +58,7 @@ impl Controller {
             title: page.map_or("—".to_string(), |page| self.page_title(page)),
             counter,
             name,
-            left: "LIVE".to_string(),
+            left: screens::LIVE.to_string(),
             right,
         };
         let countdown = counting.then(|| now + COUNTDOWN_STEP);
@@ -119,7 +120,7 @@ impl Controller {
         });
         let step = self
             .macro_progress()
-            .map(|progress| (format!("{} {}/{}", texts.step, progress.step, progress.steps), false));
+            .map(|progress| (texts.step_of(progress.step, progress.steps), false));
         let shown = step
             .or(sound_state)
             .or_else(|| Some((self.switch_status()?.to_string(), false)));
@@ -145,7 +146,7 @@ impl Controller {
     fn peek_screen(&self, pad: u8, counter: String) -> Screen {
         let texts = self.texts;
         let pad_index = usize::from(pad);
-        let position = format!("R{} C{}", pad_index / COLUMNS + 1, pad_index % COLUMNS + 1);
+        let position = screens::position(pad_index / COLUMNS, pad_index % COLUMNS);
         if let Some(Pad::Action { name, .. } | Pad::Macro { name, .. }) = self.pad_at(pad) {
             let is_macro = matches!(self.pad_at(pad), Some(Pad::Macro { .. }));
             return Screen::Peek {
@@ -202,18 +203,13 @@ impl Controller {
         let lines = (0..COLUMNS)
             .map(|column| {
                 let content = self.pad_at((row * COLUMNS + column) as u8);
-                format!("{} {}", column + 1, content.map_or("-", |content| content.name()))
+                screens::row_line(column, content.map(|content| content.name()))
             })
             .collect();
         Screen::Row {
-            heading: format!("{} {}/{ROWS}", self.texts.row, row + 1),
+            heading: self.texts.row_heading(row, ROWS),
             counter,
             lines,
         }
     }
-}
-
-/// A duration as the simulator shows it, such as "1.5s".
-fn seconds(duration: Duration) -> String {
-    format!("{:.1}s", duration.as_secs_f64())
 }

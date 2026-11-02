@@ -100,6 +100,22 @@ pub fn start(app: &AppHandle) -> Sender<OverlayUpdate> {
     sender
 }
 
+/// `overlay` as straight RGBA, `width` pixels wide and each LED at its brightest, for the welcome tour.
+pub fn picture(overlay: &Overlay, width: usize) -> (usize, usize, Vec<u8>) {
+    let scale = width as f32 / draw::size(1.0).0 as f32;
+    let image = Painter::new().draw(overlay, scale, |_| 1.0);
+    let mut pixels = image.pixels;
+    for pixel in pixels.as_chunks_mut::<4>().0 {
+        let alpha = u16::from(pixel[3]);
+        for channel in &mut pixel[..3] {
+            if let Some(straight) = (u16::from(*channel) * 255).checked_div(alpha) {
+                *channel = straight.min(255) as u8;
+            }
+        }
+    }
+    (image.width, image.height, pixels)
+}
+
 fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
     let clock = Instant::now();
     let mut painter = Painter::new();

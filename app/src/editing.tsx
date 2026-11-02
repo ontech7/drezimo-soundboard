@@ -64,28 +64,37 @@ export function ColourPicker({ colour, shown, onChange, below }: ColourProps) {
       {open && (
         <div className={below ? "popover below" : "popover"} role="dialog" aria-label={texts.ledAtRest}>
           <p className="muted">{texts.ledAtRest}</p>
-          <div className="swatches">
-            {[null, ...SWATCHES].map((swatch, i) => {
-              const name = swatch ? texts.colourNames[i - 1] : texts.automatic;
-              const on = swatch ? colour?.join() === swatch.join() : colour === null;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  className={on ? "swatch on" : "swatch"}
-                  aria-label={name}
-                  title={name}
-                  aria-pressed={on}
-                  style={swatch ? ({ "--led": rgb(swatch) } as CSSProperties) : undefined}
-                  onClick={() => onChange(swatch)}
-                >
-                  {swatch ? null : "Auto"}
-                </button>
-              );
-            })}
-          </div>
+          <Swatches colour={colour} onChange={onChange} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** The LEDs' colours to pick from, and Auto for the usual one */
+export function Swatches(props: { colour: Rgb | null; disabled?: boolean; onChange: (colour: Rgb | null) => void }) {
+  const texts = useTexts();
+  return (
+    <div className="swatches">
+      {[null, ...SWATCHES].map((swatch, i) => {
+        const name = swatch ? texts.colourNames[i - 1] : texts.automatic;
+        const on = swatch ? props.colour?.join() === swatch.join() : props.colour === null;
+        return (
+          <button
+            key={i}
+            type="button"
+            className={on ? "swatch on" : "swatch"}
+            aria-label={name}
+            title={name}
+            aria-pressed={on}
+            disabled={props.disabled}
+            style={swatch ? ({ "--led": rgb(swatch) } as CSSProperties) : undefined}
+            onClick={() => props.onChange(swatch)}
+          >
+            {swatch ? null : "Auto"}
+          </button>
+        );
+      })}
     </div>
   );
 }

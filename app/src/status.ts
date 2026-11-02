@@ -26,6 +26,8 @@ export interface Status {
   /** Whether the playback shown comes from Voicemod's log, rather than from guesses */
   voicemodLog: boolean;
   page: PageSummary | null;
+  /** Voicemod sent its soundboards or voices: with no page, there is none to show */
+  loaded: boolean;
   firmwareUpdate: FirmwareUpdate | null;
   /** As the connected board keeps them */
   displaySettings: DisplaySettings | null;

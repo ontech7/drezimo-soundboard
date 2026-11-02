@@ -101,7 +101,7 @@ interface Described {
   colour: Rgb;
 }
 
-function describe(step: Step, texts: Texts, library: Library | null, targets: Target[]): Described {
+export function describe(step: Step, texts: Texts, library: Library | null, targets: Target[]): Described {
   switch (step.type) {
     case "sound": {
       const sound = findSound(library, step.id);
@@ -149,7 +149,7 @@ function describe(step: Step, texts: Texts, library: Library | null, targets: Ta
   }
 }
 
-function Tinted({ colour, children }: { colour: Rgb; children: ReactNode }) {
+export function Tinted({ colour, children }: { colour: Rgb; children: ReactNode }) {
   return (
     <span className="picture action" style={{ "--tint": rgb(colour) } as CSSProperties}>
       {children}
@@ -456,7 +456,15 @@ function MacroTabs(props: TabsProps) {
   );
 }
 
-function Timeline({ steps, library, running }: { steps: Step[]; library: Library | null; running: MacroProgress | null }) {
+export function Timeline({
+  steps,
+  library,
+  running,
+}: {
+  steps: Step[];
+  library: Library | null;
+  running: MacroProgress | null;
+}) {
   const texts = useTexts();
   const lengths = steps.map((step) => stepLength(step, library));
   const total = lengths.reduce<number>((sum, length) => sum + (length ?? 0), 0);

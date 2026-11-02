@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { Row, Section, Segmented, Toggle } from "../controls";
-import { useTexts } from "../i18n";
+import { type Texts, useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
 import type { Status } from "../status";
 
@@ -11,9 +11,23 @@ interface About {
 }
 
 // macOS has no login item yet (docs/project.md, phase 5)
-const WINDOWS = navigator.userAgent.includes("Windows");
+export const WINDOWS = navigator.userAgent.includes("Windows");
 
-export function GeneralPage({ settings, status }: { settings: SettingsView; status: Status }) {
+export function languages(texts: Texts): { value: Language; label: string }[] {
+  return [
+    { value: "system", label: texts.system },
+    { value: "italian", label: "Italiano" },
+    { value: "english", label: "English" },
+  ];
+}
+
+interface Props {
+  settings: SettingsView;
+  status: Status;
+  onTour: () => void;
+}
+
+export function GeneralPage({ settings, status, onTour }: Props) {
   const texts = useTexts();
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
@@ -30,11 +44,6 @@ export function GeneralPage({ settings, status }: { settings: SettingsView; stat
       .then(() => invoke<boolean | null>("start_at_login"))
       .then(setStartAtLogin);
   };
-  const languages: { value: Language; label: string }[] = [
-    { value: "system", label: texts.system },
-    { value: "italian", label: "Italiano" },
-    { value: "english", label: "English" },
-  ];
 
   return (
     <>
@@ -42,7 +51,7 @@ export function GeneralPage({ settings, status }: { settings: SettingsView; stat
         <Row label={texts.language}>
           <Segmented
             label={texts.language}
-            options={languages}
+            options={languages(texts)}
             value={settings.language}
             onChange={(language) => saveSettings({ ...settings, language })}
           />
@@ -61,6 +70,11 @@ export function GeneralPage({ settings, status }: { settings: SettingsView; stat
             />
           </Row>
         )}
+        <Row label={texts.tour.label} text={texts.tour.settingText}>
+          <button type="button" className="button secondary" onClick={onTour}>
+            {texts.tour.watch}
+          </button>
+        </Row>
       </Section>
 
       {about && (

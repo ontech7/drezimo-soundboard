@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
-import { useTexts } from "./i18n";
+import { type Texts, useTexts } from "./i18n";
 import { BoardIcon, DiagnosticsIcon, GeneralIcon, MacroIcon, OverlayIcon, PagesIcon, StatusIcon } from "./icons";
+import type { Status } from "./status";
 
 export type PageId = "status" | "pages" | "macros" | "board" | "overlay" | "general" | "diagnostics";
 
@@ -16,7 +17,41 @@ const ICONS: Record<PageId, ReactNode> = {
   diagnostics: <DiagnosticsIcon />,
 };
 
-export function Sidebar({ pages, page, onSelect }: { pages: PageId[]; page: PageId; onSelect: (page: PageId) => void }) {
+/** Drezimo's or Voicemod's state, in a few words: what to do about it shows on the Status page */
+export interface Connection {
+  state: "ok" | "off" | "waiting" | "warning" | "error";
+  label: string;
+  /** On hover */
+  detail?: string;
+}
+
+export function connections(texts: Texts, status: Status): Connection[] {
+  const { board, voicemod, firmwareUpdate: update } = status;
+  let drezimo: Connection;
+  if (update?.state === "updating") drezimo = { state: "waiting", label: texts.updatingBoard };
+  else if (update?.state === "restarting") drezimo = { state: "waiting", label: texts.restartingBoard };
+  else if (board.state === "connected") drezimo = { state: "ok", label: texts.boardConnected };
+  else if (board.state === "busy") drezimo = { state: "warning", label: texts.searching, detail: texts.busy };
+  else drezimo = { state: "off", label: texts.searching };
+
+  let app: Connection;
+  if (voicemod.state === "connected") app = { state: "ok", label: texts.voicemodConnected };
+  else if (voicemod.state === "connecting") app = { state: "waiting", label: texts.connectingVoicemod };
+  else if (voicemod.state === "unreachable") app = { state: "off", label: texts.voicemodOff };
+  else if (voicemod.state === "keyRejected")
+    app = { state: "error", label: texts.voicemodRefused, detail: texts.keyRejectedDetail };
+  else app = { state: "error", label: texts.missingKey };
+  return [drezimo, app];
+}
+
+interface Props {
+  pages: PageId[];
+  page: PageId;
+  connections: Connection[];
+  onSelect: (page: PageId) => void;
+}
+
+export function Sidebar({ pages, page, connections, onSelect }: Props) {
   const texts = useTexts();
   return (
     <nav className="sidebar">
@@ -36,6 +71,14 @@ export function Sidebar({ pages, page, onSelect }: { pages: PageId[]; page: Page
           </li>
         ))}
       </ul>
+      <div className="connections" role="status">
+        {connections.map((connection, i) => (
+          <p key={i} title={connection.detail}>
+            <span className={`dot ${connection.state}`} />
+            {connection.label}
+          </p>
+        ))}
+      </div>
     </nav>
   );
 }

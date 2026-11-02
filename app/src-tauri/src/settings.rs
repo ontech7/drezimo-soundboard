@@ -102,6 +102,8 @@ pub struct Settings {
     pub overlay: OverlaySettings,
     /// Shows the window's page of technical details
     pub diagnostics: bool,
+    /// The welcome tour was seen through or skipped: until then the app opens its window at start, the tour on top
+    pub tour_seen: bool,
 }
 
 impl Default for Settings {
@@ -111,6 +113,7 @@ impl Default for Settings {
             led_brightness: 50,
             overlay: OverlaySettings::default(),
             diagnostics: false,
+            tour_seen: false,
         }
     }
 }

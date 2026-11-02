@@ -65,6 +65,14 @@ export const ACTION_COLOURS: Record<Action, Rgb> = {
 };
 
 export const MACRO_COLOUR: Rgb = [255, 140, 0];
+/** A sound playing, or the voice loaded */
+export const PLAYING_COLOUR: Rgb = [34, 224, 90];
+/** A sound or a voice outside the licence */
+export const LOCKED_COLOUR: Rgb = [90, 16, 16];
+/** Every LED, blinking, while Voicemod cannot be reached */
+export const UNAVAILABLE_COLOUR: Rgb = [255, 42, 42];
+/** The page keys, while there are other pages */
+export const PAGE_KEYS_COLOUR: Rgb = [120, 120, 130];
 
 /** The LEDs' colours the user can pick */
 export const SWATCHES: Rgb[] = [

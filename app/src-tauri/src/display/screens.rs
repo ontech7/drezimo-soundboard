@@ -4,6 +4,18 @@ use super::{Canvas, Size, WIDTH, fit, text_width};
 
 /// The page rows shown at once in the soundboard menu
 const MENU_ROWS: usize = 4;
+/// The home screen's bottom left
+pub const LIVE: &str = "LIVE";
+
+/// A pad's place, such as "R2 C5", from row and column 0.
+pub fn position(row: usize, column: usize) -> String {
+    format!("R{} C{}", row + 1, column + 1)
+}
+
+/// A line of the row overview, such as "3 Airhorn", or "3 -" for an empty pad, from column 0.
+pub fn row_line(column: usize, name: Option<&str>) -> String {
+    format!("{} {}", column + 1, name.unwrap_or("-"))
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Screen {

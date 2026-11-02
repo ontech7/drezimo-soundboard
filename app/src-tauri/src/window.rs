@@ -4,7 +4,7 @@
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::window::Color;
-use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
 
 /// Each window gets a new label ("main-1", "main-2"…), so a new one never clashes with one being destroyed
 const LABEL_PREFIX: &str = "main-";
@@ -125,6 +125,8 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
     }
     api.prevent_close();
     let _ = window.hide();
+    // The page stays: it learns it was closed, rather than only hidden or minimised
+    let _ = window.emit("window-closed", ());
 
     let app = window.app_handle().clone();
     let label = window.label().to_string();

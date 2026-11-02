@@ -5,6 +5,7 @@ pub mod screens;
 pub mod texts;
 
 use std::fmt::Write;
+use std::time::Duration;
 
 pub const WIDTH: i32 = 128;
 pub const HEIGHT: i32 = 64;
@@ -48,6 +49,11 @@ impl Font {
 pub fn text_width(text: &str, size: Size) -> i32 {
     let font = size.font();
     text.chars().map(|ch| i32::from(font.glyph(ch).0)).sum()
+}
+
+/// A duration as the simulator shows it, such as "1.5s".
+pub fn seconds(duration: Duration) -> String {
+    format!("{:.1}s", duration.as_secs_f64())
 }
 
 /// `text`, shortened with an ellipsis to fit `max` pixels.

@@ -11,6 +11,7 @@ mod playback;
 mod protocol;
 mod settings;
 mod soundboard;
+mod tour;
 mod tray;
 mod updates;
 mod voicemod;
@@ -54,6 +55,7 @@ pub fn run() {
             macros::set_macros,
             macros::try_macro,
             macros::stop_macro,
+            tour::tour_pictures,
             window::window_ready
         ])
         .register_asynchronous_uri_scheme_protocol(pictures::SCHEME, |context, request, responder| {
@@ -78,7 +80,8 @@ pub fn run() {
                 updates::start(app.handle());
             }
 
-            if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+            let tour_seen = app.state::<settings::SettingsState>().get().tour_seen;
+            if !std::env::args().any(|arg| arg == AUTOSTART_ARG) || !tour_seen {
                 window::open(app.handle());
             }
             Ok(())

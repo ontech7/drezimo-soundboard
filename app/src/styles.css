@@ -169,19 +169,7 @@ p {
   background: var(--card);
 }
 
-.pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
 /* Status */
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 
 .status-title {
   font-weight: 600;
@@ -226,6 +214,87 @@ p {
 .dot.error {
   background: var(--error);
   animation: none;
+}
+
+.dot.off {
+  background: #4a4a52;
+  animation: none;
+}
+
+/* Drezimo's and Voicemod's state, at the foot of the sidebar */
+.connections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding: 0 10px;
+  color: #a3a3ab;
+  font-size: 12.5px;
+}
+
+.connections p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.connections .dot {
+  width: 8px;
+  height: 8px;
+}
+
+.connections .dot.ok {
+  box-shadow: 0 0 6px var(--ok);
+}
+
+/* What to know about Drezimo while it is not ready */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 13px;
+}
+
+.notice.warning,
+.notice.waiting-card {
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--line));
+}
+
+.notice.error {
+  border-color: color-mix(in srgb, var(--error) 35%, var(--line));
+}
+
+.notice p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.notice strong {
+  font-weight: 600;
+}
+
+/* Why there are no pads to play yet, beside the board as it looks meanwhile */
+.waiting-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 20px;
+}
+
+.waiting-card .muted {
+  max-width: 320px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.waiting-card .button {
+  margin-top: 14px;
 }
 
 @keyframes waiting {
@@ -581,10 +650,16 @@ select:disabled {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  height: 66px;
-  padding: 7px 6px;
+  height: 62px;
+  padding: 6px 5px;
   font-size: 11.5px;
   line-height: 1.2;
+}
+
+/* The same on the Status page and in the Pages editor */
+.pad .picture {
+  width: 30px;
+  height: 30px;
 }
 
 /* The LED: border and tint, animated as the board animates it */
@@ -762,16 +837,6 @@ select:disabled {
 .icon-button.small {
   width: 32px;
   height: 32px;
-}
-
-.editor .pad.edit {
-  height: 62px;
-  padding: 6px 5px;
-}
-
-.editor .pad.edit .picture {
-  width: 30px;
-  height: 30px;
 }
 
 .pad.empty {
@@ -1085,6 +1150,58 @@ input::placeholder {
 .mini-board span.lit {
   background: color-mix(in srgb, var(--led) 22%, transparent);
   box-shadow: inset 0 0 0 1px var(--led);
+}
+
+.mini-board.solid {
+  flex: none;
+  grid-template-columns: repeat(6, 24px);
+}
+
+/* Each pad keeps its outline while its light is off, blinking or fading */
+.mini-board.solid span {
+  position: relative;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px #34343b;
+}
+
+.mini-board.solid span.lit {
+  box-shadow: inset 0 0 0 1px #34343b;
+}
+
+.mini-board.solid span.lit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--led) 90%, transparent);
+}
+
+.mini-board.blink span.lit::before {
+  animation: blink 0.8s steps(1) infinite;
+}
+
+/* From the top left corner to the bottom right */
+.mini-board.wave span.lit::before {
+  animation: wave 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--step) * 90ms);
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-board span.lit::before {
+    animation: none !important;
+  }
 }
 
 /* The picker and the soundboard chooser: modal dialogs over the window */
@@ -1676,4 +1793,766 @@ input.seconds {
   width: 48px;
   height: 48px;
   border-radius: 12px;
+}
+
+/* The welcome tour: a modal over the window, its slides drawn at one size and scaled down to fit */
+
+.tour {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 32px));
+  height: min(588px, calc(100vh - 32px));
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #2c2c33;
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 28px 72px rgb(0 0 0 / 55%);
+}
+
+.tour:not([open]) {
+  display: none;
+}
+
+.tour::backdrop {
+  background: rgb(6 6 8 / 74%);
+}
+
+.tour header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 0 18px;
+}
+
+.tour-dots {
+  display: flex;
+}
+
+.tour-dots button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.tour-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #3a3a42;
+  transition:
+    width 0.25s ease,
+    background 0.25s ease;
+}
+
+.tour-dots .seen span {
+  background: #6b6b74;
+}
+
+.tour-dots button:hover:not([aria-current]) span {
+  background: var(--muted);
+}
+
+.tour-dots [aria-current] span {
+  width: 18px;
+  background: var(--amber);
+}
+
+.tour-skip {
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tour-skip:hover,
+.button.ghost:hover {
+  background: var(--raised);
+  color: var(--text);
+  filter: none;
+}
+
+.tour-well {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 12px 24px 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0b0b0d;
+}
+
+.tour-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 708px;
+  height: 318px;
+  translate: -50% -50%;
+}
+
+.tour-scene {
+  position: absolute;
+  inset: 0;
+  animation: tour-in 0.25s ease;
+}
+
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+.tour-text {
+  min-height: 112px;
+  padding: 18px 32px 0;
+}
+
+.tour-counter {
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tour-text h2 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 28px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tour-text .muted {
+  max-width: 640px;
+  margin-top: 6px;
+  color: #a3a3ab;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tour footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding: 12px 24px 18px;
+}
+
+.tour footer .button {
+  height: 40px;
+  padding: 0 18px 0 22px;
+}
+
+.tour footer .button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.tour footer .button.ghost {
+  margin-right: auto;
+  padding: 0 14px 0 10px;
+}
+
+.button.ghost {
+  background: none;
+  color: #c9c9cf;
+  font-weight: 500;
+}
+
+/* Where to find the tour again */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid #2c2c33;
+  border-radius: 12px;
+  background: var(--raised);
+  color: #c9c9cf;
+  font-size: 13px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+  animation: tour-in 0.25s ease;
+}
+
+.toast button {
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--amber);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toast button:hover {
+  background: #2a2a31;
+}
+
+/* The board as it looks, at 1.5 points per millimetre */
+
+.tour-board {
+  position: absolute;
+  top: 11.7px;
+  left: 34px;
+  width: 195.45px;
+  height: 294.53px;
+  transition: left 0.45s ease;
+}
+
+.tour-board.centred {
+  left: 256.3px;
+}
+
+.tour-board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid #34343b;
+  border-radius: 9px;
+  background: #232328;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 18px 40px rgb(0 0 0 / 50%);
+}
+
+.board-logo {
+  position: absolute;
+  top: 27px;
+  left: 12.79px;
+  width: 54px;
+  color: #fff;
+}
+
+.board-logo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.board-display {
+  position: absolute;
+  top: 22.35px;
+  left: 91.05px;
+  display: grid;
+  place-items: center;
+  width: 51px;
+  height: 28.5px;
+  border: 1px solid #3a3a42;
+  border-radius: 2px;
+  background: #050507;
+}
+
+.board-oled {
+  display: block;
+  width: 44.6px;
+  height: 22.3px;
+}
+
+/* Centred on the logo and the display */
+.board-knob {
+  position: absolute;
+  top: 24.5px;
+  left: 158.36px;
+  width: 21.6px;
+  height: 21.6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #5a5a63, #2a2a30 70%);
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 50%),
+    inset 0 0 0 1px #4a4a52;
+}
+
+.board-knob::after {
+  content: "";
+  position: absolute;
+  top: 2.5px;
+  left: 10px;
+  width: 1.6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--text);
+  opacity: 0.7;
+}
+
+.board-keys,
+.board-pads {
+  position: absolute;
+  left: 12.79px;
+  display: grid;
+  grid-template-columns: repeat(6, 27px);
+  gap: 1.575px;
+}
+
+.board-keys {
+  top: 75.79px;
+}
+
+.board-pads {
+  top: 111.86px;
+}
+
+.board-keys div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Drawn twice as big, then halved: a font that small would be drawn bigger */
+.board-keys div span:last-child {
+  margin-top: 0.8px;
+  color: #9d9da6;
+  font-size: 10.4px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  scale: 0.5;
+  transform-origin: top center;
+}
+
+.board-outline {
+  position: absolute;
+  border: 1.5px solid var(--amber);
+  box-shadow: 0 0 0 4px rgb(255 176 32 / 18%);
+  pointer-events: none;
+  transition:
+    left 0.3s ease,
+    top 0.3s ease,
+    width 0.3s ease,
+    height 0.3s ease,
+    border-radius 0.3s ease;
+}
+
+.board-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #0b0b0d;
+  border-radius: 50%;
+  background: #3a3a42;
+  color: #c9c9cf;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.board-marker.on {
+  background: var(--amber);
+  color: var(--bg);
+  box-shadow: 0 0 0 3px rgb(255 176 32 / 35%);
+}
+
+/* A keycap lit from below by its LED */
+.cap {
+  display: block;
+  flex: none;
+  width: 27px;
+  height: 27px;
+  border-radius: 4px;
+  background: #24242a;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 4%);
+  transition: opacity 0.25s ease;
+}
+
+.cap.lit {
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--led) 0 26%,
+    color-mix(in srgb, var(--led) 40%, transparent) 60%,
+    #2a2a30
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--led) 45%, transparent);
+}
+
+.cap.small {
+  width: 18px;
+  height: 18px;
+}
+
+.choice .cap:not(.lit) {
+  outline: 1px dashed #4a4a52;
+  outline-offset: -1px;
+}
+
+.cap.dim {
+  opacity: 0.14;
+}
+
+.cap.breathe {
+  animation: cap-breathe 2.4s ease-in-out infinite;
+}
+
+.cap.blink {
+  animation: blink 0.8s steps(1) infinite;
+}
+
+@keyframes cap-breathe {
+  50% {
+    filter: brightness(0.35);
+  }
+}
+
+/* What each slide adds, placed in the stage */
+
+.tour-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 266px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  width: 422px;
+}
+
+.tour-parts {
+  gap: 8px;
+}
+
+.tour-parts .choice {
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 0;
+  padding: 9px 12px;
+}
+
+.tour-parts .choice .muted {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.tour-number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #3a3a42;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.choice.on .tour-number {
+  background: var(--amber);
+  color: var(--bg);
+}
+
+.tour-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgb(255 42 42 / 8%);
+  color: #e4e3df;
+  font-size: 12.5px;
+}
+
+.tour-warning .cap {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.tour-display {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 276px;
+}
+
+.tour-display .segmented button {
+  flex: 1;
+}
+
+.tour-display > .muted {
+  padding: 0 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.tour-bezel {
+  padding: 9px;
+  border: 1px solid #2c2c33;
+  border-radius: 10px;
+  background: #1a1a1f;
+}
+
+.tour-oled {
+  display: block;
+  width: 256px;
+  height: 128px;
+  border-radius: 3px;
+  background: #000;
+  image-rendering: pixelated;
+}
+
+.tour-oled.small {
+  width: 192px;
+  height: 96px;
+}
+
+.tour-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.tour-overlay canvas {
+  display: block;
+  filter: drop-shadow(0 12px 24px rgb(0 0 0 / 45%));
+}
+
+.tour-overlay figcaption {
+  font-size: 12px;
+}
+
+.tour-editor,
+.tour-macro {
+  position: absolute;
+  top: 12px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 430px;
+}
+
+.tour-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.tour-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  cursor: default;
+}
+
+.tour-chips .chip.add {
+  display: grid;
+  width: 30px;
+}
+
+.tour-editor .pads {
+  gap: 4px;
+}
+
+.tour-editor .pad {
+  justify-content: center;
+  height: 38px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+
+.tour-editor .pad .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.tour-inspector {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 468px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 220px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.tour-inspector .muted {
+  font-size: 12px;
+}
+
+.tour-inspector .title {
+  margin-top: 2px;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tour-kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.tour-kinds .choice {
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 8px;
+}
+
+.tour-kinds .picture,
+.tour-macro .picture {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.tour-kinds .picture .icon,
+.tour-macro .picture .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.tour-inspector .swatches {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tour-inspector .swatch {
+  height: 24px;
+  border-radius: 6px;
+}
+
+.tour-inspector .swatch:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tour-macro .macro-head {
+  justify-content: space-between;
+}
+
+.tour-macro .chip {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+
+.tour-macro .steps {
+  gap: 4px;
+}
+
+.tour-macro .step {
+  padding: 4px 8px;
+}
+
+.tour-macro .step-row {
+  gap: 8px;
+}
+
+.tour-macro .step .summary {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  cursor: default;
+}
+
+.tour-macro .step .summary .title {
+  font-size: 13px;
+}
+
+.tour-macro-side {
+  position: absolute;
+  top: 12px;
+  left: 470px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 218px;
+}
+
+.tour-macro-side .tour-bezel {
+  padding: 8px;
+}
+
+.tour-macro-side p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.tour-macro-side .muted {
+  font-size: 12px;
+}
+
+/* The General page, a little smaller */
+.tour-window {
+  position: absolute;
+  top: 14px;
+  left: 20px;
+  width: 670px;
+  height: 291px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.tour-window .app {
+  width: 880px;
+  height: 380px;
+  scale: 0.76;
+  transform-origin: top left;
+}
+
+.tour-window .calling {
+  border-color: var(--amber);
+  animation: calling 1.8s ease-out infinite;
+}
+
+@keyframes calling {
+  from {
+    box-shadow: 0 0 0 0 rgb(255 176 32 / 55%);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgb(255 176 32 / 0%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-board,
+  .board-outline,
+  .cap {
+    transition: none;
+  }
+
+  .tour-scene,
+  .toast,
+  .cap.breathe,
+  .cap.blink,
+  .tour-window .calling {
+    animation: none;
+  }
 }

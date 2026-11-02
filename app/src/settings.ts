@@ -24,6 +24,8 @@ export interface Settings {
   overlay: OverlaySettings;
   /** Shows the Diagnostics page */
   diagnostics: boolean;
+  /** The welcome tour was seen through or skipped */
+  tourSeen: boolean;
 }
 
 export interface SettingsView extends Settings {
@@ -64,8 +66,8 @@ export function useSettings(): SettingsView | null {
   return settings;
 }
 
-export function saveSettings({ language, ledBrightness, overlay, diagnostics }: Settings): void {
-  invoke("set_settings", { settings: { language, ledBrightness, overlay, diagnostics } }).catch((error) =>
+export function saveSettings({ language, ledBrightness, overlay, diagnostics, tourSeen }: Settings): void {
+  invoke("set_settings", { settings: { language, ledBrightness, overlay, diagnostics, tourSeen } }).catch((error) =>
     console.error("cannot save the settings", error)
   );
 }

@@ -33,9 +33,9 @@ export interface BoardView {
   keys: Led[];
 }
 
-/** Null while there is nothing to play: Voicemod away, or no soundboards */
-export function useBoardView(): BoardView | null {
-  const [view, setView] = useState<BoardView | null>(null);
+/** Null while there is nothing to play: Voicemod away, or no soundboards; undefined until known */
+export function useBoardView(): BoardView | null | undefined {
+  const [view, setView] = useState<BoardView | null>();
 
   useEffect(() => {
     let updated = false;
