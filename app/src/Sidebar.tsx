@@ -32,7 +32,7 @@ const ICONS: Record<PageId, ReactNode> = {
   ),
 };
 
-const PAGES: PageId[] = ["status", "board", "overlay", "general"];
+const PAGES: PageId[] = ["status", "general", "board", "overlay"];
 
 export function Sidebar({ page, onSelect }: { page: PageId; onSelect: (page: PageId) => void }) {
   const texts = useTexts();
