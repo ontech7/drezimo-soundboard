@@ -3,7 +3,7 @@ import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pres
 import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
-import { PAGE_KEYS_COLOUR, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
+import { PAD_COUNT, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
 import { MiniBoard } from "../MiniBoard";
 import type { Status } from "../status";
 
@@ -43,7 +43,9 @@ function BoardNotice({ notice }: { notice: Notice }) {
   );
 }
 
-const OFF: null[] = Array(36).fill(null);
+const OFF: null[] = Array(PAD_COUNT).fill(null);
+// A soft shimmer over the dark pads, while waiting
+const WAITING: Rgb = [120, 120, 130];
 const ALL = (colour: Rgb) => OFF.map(() => colour);
 
 interface Waiting {
@@ -57,7 +59,7 @@ interface Waiting {
 function waiting(texts: Texts, status: Status): Waiting {
   switch (status.voicemod.state) {
     case "connecting":
-      return { title: texts.connectingVoicemod, text: texts.connectingText, leds: ALL(PAGE_KEYS_COLOUR), effect: "wave" };
+      return { title: texts.connectingVoicemod, text: texts.connectingText, leds: ALL(WAITING), effect: "wave" };
     case "unreachable":
       return { title: texts.openVoicemod, text: texts.openVoicemodText, leds: ALL(UNAVAILABLE_COLOUR), effect: "blink" };
     case "keyRejected":
@@ -67,7 +69,7 @@ function waiting(texts: Texts, status: Status): Waiting {
     case "connected":
       return status.loaded
         ? { title: texts.nothingToPlay, text: texts.nothingToPlayText, leds: OFF }
-        : { title: texts.loadingSoundboards, text: texts.loadingText, leds: ALL(PAGE_KEYS_COLOUR), effect: "wave" };
+        : { title: texts.loadingSoundboards, text: texts.loadingText, leds: ALL(WAITING), effect: "wave" };
   }
 }
 

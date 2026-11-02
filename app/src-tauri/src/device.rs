@@ -58,7 +58,7 @@ pub struct Status {
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses
     pub voicemod_log: bool,
     pub page: Option<PageSummary>,
-    /// Voicemod sent its soundboards or voices: with no page, there is none to show
+    /// Voicemod sent its soundboards: with no page, there is none to show
     pub loaded: bool,
     pub firmware_update: Option<FirmwareUpdate>,
     /// As the connected board keeps them
@@ -304,7 +304,7 @@ fn run(
             update_library(app, |library| library.set_lengths(controller.sound_lengths()));
         }
         status.page = controller.page();
-        status.loaded = controller.has_lists();
+        status.loaded = controller.soundboards_loaded();
         status.running_macro = controller.macro_progress();
         status.voicemod_log = controller.follows_log();
         status.firmware_update = updater.state();

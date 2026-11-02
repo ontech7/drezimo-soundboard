@@ -779,8 +779,13 @@ impl Controller {
         self.playback.resync(&logged, voicemod_log::instant_of(as_of, now), now);
     }
 
+    /// Voicemod sent its soundboards since it connected: with no page, there is none to show.
+    pub fn soundboards_loaded(&self) -> bool {
+        self.soundboards_loaded
+    }
+
     /// Voicemod sent its voices or soundboards since it connected: there are pages.
-    pub fn has_lists(&self) -> bool {
+    fn has_lists(&self) -> bool {
         self.soundboards_loaded || !self.voices.is_empty()
     }
 

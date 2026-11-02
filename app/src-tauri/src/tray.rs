@@ -6,7 +6,7 @@ use crate::firmware::FirmwareUpdate;
 use crate::settings::{Language, SettingsState};
 use crate::voicemod::VoicemodStatus;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 
 struct Items {
@@ -90,14 +90,22 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Drezimo Soundboard")
         .menu(&menu)
-        // As on Windows: the menu on a right click, the window on a double click. A menu bar app shows its menu on any click
+        // As on Windows: the window on a left click or a double click, the menu on a right click. A menu bar app shows its
+        // menu on any click
         .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::DoubleClick {
-                button: MouseButton::Left,
-                ..
-            } = event
-            {
+            let left = matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            );
+            if left && !cfg!(target_os = "macos") {
                 crate::window::open(tray.app_handle());
             }
         })

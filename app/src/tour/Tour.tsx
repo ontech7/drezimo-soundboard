@@ -38,6 +38,8 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
 
   const go = (to: number) => setSlide(Math.max(0, Math.min(slides.length - 1, to)));
   const onKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
+    // A group of choices keeps its arrows
+    if (event.target instanceof Element && event.target.closest("[role=radiogroup]")) return;
     if (event.key === "ArrowRight") go(slide + 1);
     else if (event.key === "ArrowLeft") go(slide - 1);
     else return;

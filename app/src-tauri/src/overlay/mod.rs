@@ -108,7 +108,7 @@ pub fn picture(overlay: &Overlay, width: usize) -> (usize, usize, Vec<u8>) {
     for pixel in pixels.as_chunks_mut::<4>().0 {
         let alpha = u16::from(pixel[3]);
         for channel in &mut pixel[..3] {
-            if let Some(straight) = (u16::from(*channel) * 255).checked_div(alpha) {
+            if let Some(straight) = (u16::from(*channel) * 255 + alpha / 2).checked_div(alpha) {
                 *channel = straight.min(255) as u8;
             }
         }
