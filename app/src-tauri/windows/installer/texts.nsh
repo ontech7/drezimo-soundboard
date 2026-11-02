@@ -1,7 +1,7 @@
 LangString installTitle ${LANG_ENGLISH} "Ready to install"
 LangString installTitle ${LANG_ITALIAN} "Pronto per l'installazione"
-LangString installText ${LANG_ENGLISH} "The app connects Drezimo to Voicemod. It stays in the tray, starts with Windows and keeps itself up to date."
-LangString installText ${LANG_ITALIAN} "L'app collega Drezimo a Voicemod. Resta nell'area di notifica, parte con Windows e si aggiorna da sola."
+LangString installText ${LANG_ENGLISH} "The app connects Drezimo to Voicemod. It stays in the tray and keeps itself up to date."
+LangString installText ${LANG_ITALIAN} "L'app collega Drezimo a Voicemod. Resta nell'area di notifica e si aggiorna da sola."
 LangString installButton ${LANG_ENGLISH} "Install"
 LangString installButton ${LANG_ITALIAN} "Installa"
 
@@ -23,6 +23,18 @@ LangString newerInstalledTitle ${LANG_ENGLISH} "A newer version is installed"
 LangString newerInstalledTitle ${LANG_ITALIAN} "È installata una versione più recente"
 LangString newerInstalledText ${LANG_ENGLISH} "Version $InstalledVersion is installed: installing version ${VERSION} replaces it."
 LangString newerInstalledText ${LANG_ITALIAN} "È installata la versione $InstalledVersion: installando la ${VERSION} la sostituisci."
+
+; The install page's options, after a box
+!define CHECKED "☑  "
+!define UNCHECKED "☐  "
+LangString desktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
+LangString desktopShortcut ${LANG_ITALIAN} "Icona sul desktop"
+LangString startMenuShortcut ${LANG_ENGLISH} "In the Start menu"
+LangString startMenuShortcut ${LANG_ITALIAN} "Nel menu Start"
+LangString startAtLogin ${LANG_ENGLISH} "Start with Windows"
+LangString startAtLogin ${LANG_ITALIAN} "Avvia con Windows"
+LangString openWhenDone ${LANG_ENGLISH} "Open when done"
+LangString openWhenDone ${LANG_ITALIAN} "Apri al termine"
 
 LangString versionLabel ${LANG_ENGLISH} "Version ${VERSION}"
 LangString versionLabel ${LANG_ITALIAN} "Versione ${VERSION}"

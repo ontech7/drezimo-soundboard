@@ -82,6 +82,11 @@ Var OldMainBinaryName
 Var InstalledVersion
 Var Comparison
 Var DeleteAppDataState
+; The install page's options, 1 when ticked: as things are now, or all on for a new installation
+Var DesktopShortcut
+Var StartMenuShortcut
+Var StartAtLogin
+Var OpenWhenDone
 
 Name "${PRODUCTNAME}"
 Caption "${PRODUCTNAME}"
@@ -136,10 +141,10 @@ LoadLanguageFile "${NSISDIR}\Contrib\Language files\\{{this}}.nlf"
 !define AMBER 0xFFB020
 !define CARD 0x17171B
 !define WINDOW_WIDTH 480
-!define WINDOW_HEIGHT 312
+!define WINDOW_HEIGHT 340
 !define MARGIN 32
 !define TEXT_WIDTH 416
-!define BUTTON_TOP 240
+!define BUTTON_TOP 268
 !define BUTTON_HEIGHT 40
 ; WS_CHILD | WS_VISIBLE, with SS_NOPREFIX for text (SS_CENTERIMAGE to centre a line vertically), SS_BITMAP for the
 ; logo, and centred and clickable (SS_NOTIFY) for buttons
@@ -148,6 +153,11 @@ LoadLanguageFile "${NSISDIR}\Contrib\Language files\\{{this}}.nlf"
 !define LOGO_STYLE 0x5000000E
 !define BUTTON_STYLE 0x50000381
 !define TOGGLE_STYLE 0x50000180
+!define /math PROGRESS_TOP ${BUTTON_TOP} + 18
+!define OPTIONS_TOP 192
+!define OPTION_HEIGHT 28
+!define /math OPTION_WIDTH ${TEXT_WIDTH} / 2
+!define /math OPTION_RIGHT ${MARGIN} + ${OPTION_WIDTH}
 
 Var Dpi
 Var TitleFont
@@ -155,6 +165,10 @@ Var BodyFont
 Var ButtonFont
 Var SmallFont
 Var DeleteAppDataToggle
+Var DesktopToggle
+Var StartMenuToggle
+Var LoginToggle
+Var OpenToggle
 
 !macro Px var value
   IntOp ${var} ${value} * $Dpi
@@ -188,6 +202,32 @@ Var DeleteAppDataToggle
   IntOp $R4 $R4 + 1
   System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i R3, i R4, i R6, i R6) p .r9'
   System::Call 'user32::SetWindowRgn(p ${out}, p r9, i 1)'
+  ${NSD_OnClick} ${out} ${on_click}
+!macroend
+
+; A ticked or unticked option showing `text`, brighter when ticked
+!macro ShowOption control state text
+  ${If} ${state} = 1
+    ${NSD_SetText} ${control} "${CHECKED}${text}"
+    SetCtlColors ${control} ${TEXT_COLOR} ${BACKGROUND}
+  ${Else}
+    ${NSD_SetText} ${control} "${UNCHECKED}${text}"
+    SetCtlColors ${control} ${MUTED_COLOR} ${BACKGROUND}
+  ${EndIf}
+!macroend
+
+; An option on the current nsDialogs page, switched by a click on it
+!macro Option x row state text on_click out
+  !insertmacro Px $R1 ${x}
+  IntOp $R2 ${row} * ${OPTION_HEIGHT}
+  IntOp $R2 $R2 + ${OPTIONS_TOP}
+  !insertmacro Px $R2 $R2
+  !insertmacro Px $R3 ${OPTION_WIDTH}
+  !insertmacro Px $R4 24
+  nsDialogs::CreateControl STATIC ${TOGGLE_STYLE} 0 $R1 $R2 $R3 $R4 ""
+  Pop ${out}
+  SendMessage ${out} ${WM_SETFONT} $BodyFont 1
+  !insertmacro ShowOption ${out} ${state} "${text}"
   ${NSD_OnClick} ${out} ${on_click}
 !macroend
 
@@ -288,7 +328,7 @@ Var DeleteAppDataToggle
     StrCpy $R5 $R7
     !insertmacro Label $0 ${TEXT_STYLE} ${MARGIN} 100 ${TEXT_WIDTH} 30 $TitleFont ${TEXT_COLOR} $1
     StrCpy $R5 $R8
-    !insertmacro Label $0 ${TEXT_STYLE} ${MARGIN} 136 ${TEXT_WIDTH} 64 $BodyFont ${MUTED_COLOR} $1
+    !insertmacro Label $0 ${TEXT_STYLE} ${MARGIN} 136 ${TEXT_WIDTH} 48 $BodyFont ${MUTED_COLOR} $1
   FunctionEnd
 
   ; The installation's progress page: the header and a thin amber bar
@@ -316,7 +356,7 @@ Var DeleteAppDataToggle
     SendMessage $1 0x409 0 0x0020B0FF
     SendMessage $1 0x2001 0 0x001B1717
     !insertmacro Px $2 ${MARGIN}
-    !insertmacro Px $3 258
+    !insertmacro Px $3 ${PROGRESS_TOP}
     !insertmacro Px $4 ${TEXT_WIDTH}
     !insertmacro Px $5 4
     System::Call 'user32::SetWindowPos(p r1, p 0, i r2, i r3, i r4, i r5, i 0x34)'
@@ -371,11 +411,39 @@ Function WelcomePage
     StrCpy $R9 "$(installButton)"
   ${EndIf}
   Call Header
+  !insertmacro Option ${MARGIN} 0 $DesktopShortcut "$(desktopShortcut)" ToggleDesktopShortcut $DesktopToggle
+  !insertmacro Option ${OPTION_RIGHT} 0 $StartMenuShortcut "$(startMenuShortcut)" ToggleStartMenuShortcut $StartMenuToggle
+  !insertmacro Option ${MARGIN} 1 $StartAtLogin "$(startAtLogin)" ToggleStartAtLogin $LoginToggle
+  !insertmacro Option ${OPTION_RIGHT} 1 $OpenWhenDone "$(openWhenDone)" ToggleOpenWhenDone $OpenToggle
   StrCpy $R5 "$(versionLabel)"
   !insertmacro Label $0 ${LINE_STYLE} ${MARGIN} ${BUTTON_TOP} 200 ${BUTTON_HEIGHT} $SmallFont ${MUTED_COLOR} $1
   StrCpy $R5 $R9
   !insertmacro Button 316 132 ${BACKGROUND} ${AMBER} Continue $1
   nsDialogs::Show
+FunctionEnd
+
+Function ToggleDesktopShortcut
+  Pop $0
+  IntOp $DesktopShortcut $DesktopShortcut ^ 1
+  !insertmacro ShowOption $DesktopToggle $DesktopShortcut "$(desktopShortcut)"
+FunctionEnd
+
+Function ToggleStartMenuShortcut
+  Pop $0
+  IntOp $StartMenuShortcut $StartMenuShortcut ^ 1
+  !insertmacro ShowOption $StartMenuToggle $StartMenuShortcut "$(startMenuShortcut)"
+FunctionEnd
+
+Function ToggleStartAtLogin
+  Pop $0
+  IntOp $StartAtLogin $StartAtLogin ^ 1
+  !insertmacro ShowOption $LoginToggle $StartAtLogin "$(startAtLogin)"
+FunctionEnd
+
+Function ToggleOpenWhenDone
+  Pop $0
+  IntOp $OpenWhenDone $OpenWhenDone ^ 1
+  !insertmacro ShowOption $OpenToggle $OpenWhenDone "$(openWhenDone)"
 FunctionEnd
 
 Function InstallProgressPage
@@ -385,7 +453,11 @@ Function InstallProgressPage
   ${Else}
     StrCpy $R7 "$(installing)"
   ${EndIf}
-  StrCpy $R8 "$(installingText)"
+  ${If} $OpenWhenDone = 1
+    StrCpy $R8 "$(installingText)"
+  ${Else}
+    StrCpy $R8 ""
+  ${EndIf}
   Call ProgressPage
 FunctionEnd
 
@@ -403,7 +475,7 @@ Function un.ConfirmPage
   Call un.Header
   StrCpy $R5 "$(keepSettings)"
   !insertmacro Px $R1 ${MARGIN}
-  !insertmacro Px $R2 204
+  !insertmacro Px $R2 216
   !insertmacro Px $R3 ${TEXT_WIDTH}
   !insertmacro Px $R4 24
   nsDialogs::CreateControl STATIC ${TOGGLE_STYLE} 0 $R1 $R2 $R3 $R4 $R5
@@ -485,6 +557,19 @@ Function .onInit
   ${If} $InstalledVersion != ""
     nsis_tauri_utils::SemverCompare "${VERSION}" $InstalledVersion
     Pop $Comparison
+  ${EndIf}
+
+  ; A new installation offers everything, /NS no shortcuts; over an installed version things stay as they are
+  StrCpy $OpenWhenDone 1
+  ${If} $InstalledVersion == ""
+    StrCpy $StartAtLogin 1
+    IntOp $DesktopShortcut $NoShortcutMode ^ 1
+    StrCpy $StartMenuShortcut $DesktopShortcut
+  ${Else}
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
+    ${IfThen} $0 != "" ${|} StrCpy $StartAtLogin 1 ${|}
+    ${IfThen} ${FileExists} "$DESKTOP\${PRODUCTNAME}.lnk" ${|} StrCpy $DesktopShortcut 1 ${|}
+    ${IfThen} ${FileExists} "$SMPROGRAMS\${PRODUCTNAME}.lnk" ${|} StrCpy $StartMenuShortcut 1 ${|}
   ${EndIf}
 FunctionEnd
 
@@ -659,7 +744,7 @@ Function .onInstSuccess
       ${GetOptions} $CMDLINE "/ARGS" $R0
       nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" "$R0"
     ${EndIf}
-  ${Else}
+  ${ElseIf} $OpenWhenDone = 1
     nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
   ${EndIf}
 FunctionEnd
@@ -763,7 +848,27 @@ Function RestorePreviousInstallLocation
     StrCpy $INSTDIR $4
 FunctionEnd
 
+; An option unticked over an installed version: its shortcut goes, if it opens the app under its name or an older one
+!macro RemoveShortcut path
+  !insertmacro IsShortcutTarget "${path}" "$INSTDIR\${MAINBINARYNAME}.exe"
+  Pop $0
+  ${If} $0 <> 1
+  ${AndIf} $OldMainBinaryName != ""
+    !insertmacro IsShortcutTarget "${path}" "$INSTDIR\$OldMainBinaryName"
+    Pop $0
+  ${EndIf}
+  ${If} $0 = 1
+    !insertmacro UnpinShortcut "${path}"
+    Delete "${path}"
+  ${EndIf}
+!macroend
+
 Function CreateOrUpdateStartMenuShortcut
+  ${If} $StartMenuShortcut <> 1
+    !insertmacro RemoveShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    Return
+  ${EndIf}
+
   ; Shortcuts to an older main binary name move to the new one
   !insertmacro IsShortcutTarget "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\$OldMainBinaryName"
   Pop $0
@@ -772,25 +877,20 @@ Function CreateOrUpdateStartMenuShortcut
     Return
   ${EndIf}
 
-  ${If} $UpdateMode = 1
-  ${OrIf} $NoShortcutMode = 1
-    Return
-  ${EndIf}
-
   CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
   !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
 FunctionEnd
 
 Function CreateOrUpdateDesktopShortcut
+  ${If} $DesktopShortcut <> 1
+    !insertmacro RemoveShortcut "$DESKTOP\${PRODUCTNAME}.lnk"
+    Return
+  ${EndIf}
+
   !insertmacro IsShortcutTarget "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\$OldMainBinaryName"
   Pop $0
   ${If} $0 = 1
     !insertmacro SetShortcutTarget "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-    Return
-  ${EndIf}
-
-  ${If} $UpdateMode = 1
-  ${OrIf} $NoShortcutMode = 1
     Return
   ${EndIf}
 
