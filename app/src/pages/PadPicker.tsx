@@ -13,6 +13,7 @@ import { useTexts } from "../i18n";
 import { CheckIcon, CloseIcon, LockIcon, PlusIcon, SearchIcon } from "../icons";
 import { type Macro, stepLength } from "../macros";
 import { PadPicture } from "../PadPicture";
+import { SearchSelect } from "../SearchSelect";
 import type { Lookup } from "./PagesPage";
 
 export type Tab = "sounds" | "voices" | "actions" | "macros";
@@ -241,14 +242,18 @@ export function Picker({ page, start, library, lookup, macros, onOpenMacros, onP
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <select aria-label={texts.soundboard} value={soundboard} onChange={(event) => setSoundboard(event.target.value)}>
-            <option value="">{texts.allSoundboards}</option>
-            {(library?.soundboards ?? []).map((board) => (
-              <option key={board.id} value={board.id}>
-                {board.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            label={texts.soundboard}
+            options={[
+              { value: "", label: texts.allSoundboards },
+              ...(library?.soundboards ?? []).map((board) => ({ value: board.id, label: board.name })),
+            ]}
+            value={soundboard}
+            onChange={setSoundboard}
+            searchLabel={texts.searchSoundboard}
+            empty={texts.noSoundboard}
+            align="right"
+          />
         </div>
       )}
       <div className="dialog-body">

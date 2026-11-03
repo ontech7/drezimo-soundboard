@@ -57,6 +57,7 @@ import {
   useMacros,
 } from "../macros";
 import { PadPicture } from "../PadPicture";
+import { SearchSelect } from "../SearchSelect";
 import type { Status } from "../status";
 import { Dialog } from "./PadPicker";
 
@@ -659,23 +660,21 @@ function StepEditor(props: {
             }}
           />
           {step.type === "voice" && (
-            <label className="option">
+            <div className="option">
               <span className="muted">{texts.whichVoice}</span>
-              <select
+              <SearchSelect
+                label={texts.whichVoice}
+                options={licensed.map((voice) => ({ value: voice.id, label: voice.name }))}
                 value={step.id}
-                onChange={(event) => {
-                  const voice = licensed.find((other) => other.id === event.target.value);
+                placeholder={step.name}
+                onChange={(id) => {
+                  const voice = licensed.find((other) => other.id === id);
                   if (voice) onChange({ type: "voice", id: voice.id, name: voice.name });
                 }}
-              >
-                {!licensed.some((voice) => voice.id === step.id) && <option value={step.id}>{step.name}</option>}
-                {licensed.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                searchLabel={texts.searchVoice}
+                empty={texts.noVoice}
+              />
+            </div>
           )}
         </div>
       );
@@ -702,21 +701,18 @@ function StepEditor(props: {
     case "goToPage":
       return (
         <div className="step-editor">
-          <label className="option">
+          <div className="option">
             <span className="muted">{texts.pageToOpen}</span>
-            <select value={step.page} onChange={(event) => onChange({ ...step, page: event.target.value })}>
-              {!props.targets.some((target) => target.id === step.page) && (
-                <option value={step.page} disabled>
-                  {texts.choosePage}
-                </option>
-              )}
-              {props.targets.map((target) => (
-                <option key={target.id} value={target.id}>
-                  {target.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            <SearchSelect
+              label={texts.pageToOpen}
+              options={props.targets.map((target) => ({ value: target.id, label: target.name }))}
+              value={step.page}
+              placeholder={texts.choosePage}
+              onChange={(page) => onChange({ ...step, page })}
+              searchLabel={texts.searchPage}
+              empty={texts.noPage}
+            />
+          </div>
         </div>
       );
   }
@@ -836,14 +832,18 @@ function SoundChooser(props: { library: Library | null; onPick: (sound: LibraryI
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <select aria-label={texts.soundboard} value={soundboard} onChange={(event) => setSoundboard(event.target.value)}>
-            <option value="">{texts.allSoundboards}</option>
-            {(props.library?.soundboards ?? []).map((board) => (
-              <option key={board.id} value={board.id}>
-                {board.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            label={texts.soundboard}
+            options={[
+              { value: "", label: texts.allSoundboards },
+              ...(props.library?.soundboards ?? []).map((board) => ({ value: board.id, label: board.name })),
+            ]}
+            value={soundboard}
+            onChange={setSoundboard}
+            searchLabel={texts.searchSoundboard}
+            empty={texts.noSoundboard}
+            align="right"
+          />
         </div>
       )}
       <div className="dialog-body">

@@ -8,6 +8,7 @@ import { MiniBoard } from "../MiniBoard";
 import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
 import { useNews } from "../updates";
+import { SearchSelect } from "../SearchSelect";
 
 interface Notice {
   dot: "off" | "waiting" | "warning" | "error";
@@ -256,13 +257,14 @@ function Pads({ view }: { view: BoardView }) {
         >
           <ChevronLeft />
         </button>
-        <select aria-label={texts.soundboard} value={view.page} onChange={(event) => goToPage(Number(event.target.value))}>
-          {view.pages.map((title, index) => (
-            <option key={index} value={index}>
-              {title}
-            </option>
-          ))}
-        </select>
+        <SearchSelect
+          label={texts.soundboard}
+          options={view.pages.map((title, index) => ({ value: index, label: title }))}
+          value={view.page}
+          onChange={goToPage}
+          searchLabel={texts.searchPage}
+          empty={texts.noPage}
+        />
         <button
           type="button"
           className="icon-button"

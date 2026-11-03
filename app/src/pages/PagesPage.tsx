@@ -29,6 +29,7 @@ import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
 import { MiniBoard } from "../MiniBoard";
 import { PadPicture } from "../PadPicture";
+import { SearchSelect } from "../SearchSelect";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
 const MAX_PAGE_NAME = 24;
@@ -599,22 +600,19 @@ function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: 
         />
       </label>
       {pad.kind === "action" && pad.action === "goToPage" && (
-        <label className="field">
+        <div className="field">
           {texts.pageToOpen}
-          <select value={pad.page ?? ""} onChange={(event) => onChange({ ...pad, page: event.target.value })}>
-            {/* A page gone, or none picked yet */}
-            {!targets.some((target) => target.id === pad.page) && (
-              <option value={pad.page ?? ""} disabled>
-                {texts.choosePage}
-              </option>
-            )}
-            {targets.map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          {/* A page gone, or none picked yet, shows as the placeholder */}
+          <SearchSelect
+            label={texts.pageToOpen}
+            options={targets.map((target) => ({ value: target.id, label: target.name }))}
+            value={pad.page ?? ""}
+            placeholder={texts.choosePage}
+            onChange={(page) => onChange({ ...pad, page })}
+            searchLabel={texts.searchPage}
+            empty={texts.noPage}
+          />
+        </div>
       )}
       <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
       <button type="button" className="button secondary" onClick={onReplace}>

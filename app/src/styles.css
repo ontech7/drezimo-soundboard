@@ -672,7 +672,8 @@ input[type="range"]:disabled::-webkit-slider-thumb {
 }
 
 /* The arrow is the app's own chevron, clear of the edge */
-select {
+select,
+.select-button {
   min-width: 140px;
   height: 36px;
   padding: 0 40px 0 12px;
@@ -685,8 +686,111 @@ select {
   cursor: pointer;
 }
 
-select:hover:not(:disabled) {
+select:hover:not(:disabled),
+.select-button:hover:not(:disabled) {
   border-color: var(--muted);
+}
+
+/* A select with a search field in its menu, for the long lists (SearchSelect.tsx) */
+.search-select {
+  position: relative;
+  min-width: 0;
+}
+
+.select-button {
+  width: 100%;
+  text-align: left;
+}
+
+.select-button span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max(100%, 260px);
+  max-width: calc(100vw - 48px);
+  padding: 6px;
+  border: 1px solid #2c2c33;
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 50%);
+}
+
+.search-menu.right {
+  right: 0;
+  left: auto;
+}
+
+.search-menu .search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-menu .search .icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.search-menu .search input {
+  width: 100%;
+  height: 34px;
+  padding-left: 34px;
+}
+
+.search-menu ul {
+  max-height: min(280px, calc(100vh - 300px));
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.search-menu li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.search-menu li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-menu li.active {
+  background: #2a2a31;
+}
+
+.search-menu li .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--amber);
+}
+
+.search-menu p {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13px;
 }
 
 button:disabled,
@@ -778,9 +882,8 @@ select:disabled {
   margin-bottom: 12px;
 }
 
-.pages select {
+.pages .search-select {
   flex: 1;
-  min-width: 0;
 }
 
 .pages .counter {
@@ -1202,7 +1305,8 @@ select:disabled {
 }
 
 .field input,
-.field select {
+.field select,
+.field .select-button {
   min-width: 0;
   height: 34px;
   font-size: 13px;
