@@ -104,6 +104,8 @@ pub struct Settings {
     pub diagnostics: bool,
     /// The welcome tour was seen through or skipped: until then the app opens its window at start, the tour on top
     pub tour_seen: bool,
+    /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
+    pub mute_for_me_notice_seen: bool,
 }
 
 impl Default for Settings {
@@ -114,6 +116,7 @@ impl Default for Settings {
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
+            mute_for_me_notice_seen: false,
         }
     }
 }
@@ -346,5 +349,27 @@ mod login {
 
     pub fn set(_enabled: bool) -> Result<(), String> {
         Err("not available on this system".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_older_file_loads_with_the_new_fields() {
+        let older = r#"{
+            "language": "italian",
+            "ledBrightness": 70,
+            "overlay": { "enabled": true, "anchor": "top", "opacity": 90, "seconds": 5, "size": 80 },
+            "diagnostics": true,
+            "tourSeen": true
+        }"#;
+        let settings: Settings = serde_json::from_str(older).unwrap();
+        assert_eq!(settings.language, Language::Italian);
+        assert_eq!(settings.led_brightness, 70);
+        assert_eq!(settings.overlay.anchor, Anchor::Top);
+        assert!(settings.tour_seen);
+        assert!(!settings.mute_for_me_notice_seen);
     }
 }

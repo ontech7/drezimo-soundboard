@@ -26,6 +26,8 @@ export interface Settings {
   diagnostics: boolean;
   /** The welcome tour was seen through or skipped */
   tourSeen: boolean;
+  /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
+  muteForMeNoticeSeen: boolean;
 }
 
 export interface SettingsView extends Settings {
@@ -66,10 +68,9 @@ export function useSettings(): SettingsView | null {
   return settings;
 }
 
-export function saveSettings({ language, ledBrightness, overlay, diagnostics, tourSeen }: Settings): void {
-  invoke("set_settings", { settings: { language, ledBrightness, overlay, diagnostics, tourSeen } }).catch((error) =>
-    console.error("cannot save the settings", error)
-  );
+export function saveSettings({ language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen }: Settings): void {
+  const settings = { language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
+  invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 
 export function saveDisplaySettings(settings: DisplaySettings): void {

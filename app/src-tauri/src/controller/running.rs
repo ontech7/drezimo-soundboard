@@ -188,6 +188,7 @@ impl Controller {
                     key_down: true,
                 });
                 self.playback.press(&sound, now);
+                self.sound_started();
                 if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
                     // Held for its length, once known, else as a tap
                     let hold = self.playback.length(&id).unwrap_or(MIN_HOLD).max(MIN_HOLD);

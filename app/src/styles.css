@@ -279,6 +279,13 @@ p {
   font-weight: 600;
 }
 
+.notice-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+
 /* Why there are no pads to play yet, beside the board as it looks meanwhile */
 .waiting-card {
   display: flex;

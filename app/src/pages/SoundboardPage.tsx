@@ -5,6 +5,7 @@ import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
 import { PAD_COUNT, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
 import { MiniBoard } from "../MiniBoard";
+import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
 
 interface Notice {
@@ -39,6 +40,38 @@ function BoardNotice({ notice }: { notice: Notice }) {
         {notice.title && <strong>{notice.title}</strong>}
         <span className="muted">{notice.detail}</span>
       </p>
+    </div>
+  );
+}
+
+const MUTE_ME = 3;
+
+/** Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight */
+function MutedForMe({ settings }: { settings: Settings }) {
+  const texts = useTexts();
+  const seen = () => saveSettings({ ...settings, muteForMeNoticeSeen: true });
+  return (
+    <div className="notice warning">
+      <span className="dot warning" />
+      <p>
+        <strong>{texts.mutedForMe}</strong>
+        <span className="muted">{texts.mutedForMeDetail}</span>
+      </p>
+      <div className="notice-actions">
+        <button type="button" className="button secondary" onClick={seen}>
+          {texts.fineAsItIs}
+        </button>
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            pressKey(MUTE_ME);
+            seen();
+          }}
+        >
+          {texts.hearAgain}
+        </button>
+      </div>
     </div>
   );
 }
@@ -235,11 +268,12 @@ function Pads({ view }: { view: BoardView }) {
 
 interface Props {
   status: Status;
+  settings: Settings;
   view: BoardView | null | undefined;
   onMakePage: () => void;
 }
 
-export function SoundboardPage({ status, view, onMakePage }: Props) {
+export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
   const texts = useTexts();
   const notice = boardNotice(texts, status, !!view);
   // The pads not known yet, or not there yet while the status already has a page: nothing, rather than a wrong state
@@ -247,6 +281,7 @@ export function SoundboardPage({ status, view, onMakePage }: Props) {
   return (
     <>
       {notice && <BoardNotice notice={notice} />}
+      {status.mutedPlay && !settings.muteForMeNoticeSeen && <MutedForMe settings={settings} />}
       {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
   );

@@ -80,6 +80,8 @@ pub struct Status {
     pub voicemod_version: Option<String>,
     /// The macro running, if any
     pub running_macro: Option<MacroProgress>,
+    /// A sound played while Voicemod's Mute for me was on, which is still on
+    pub muted_play: bool,
 }
 
 #[tauri::command]
@@ -403,6 +405,7 @@ fn run(
         status.loaded = controller.soundboards_loaded();
         status.running_macro = controller.macro_progress();
         status.voicemod_log = controller.follows_log();
+        status.muted_play = controller.played_while_muted();
         status.firmware_update = updater.state();
         if status != published {
             publish(app, &status);

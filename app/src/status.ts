@@ -37,6 +37,8 @@ export interface Status {
   voicemodVersion: string | null;
   /** The macro running, if any */
   runningMacro: MacroProgress | null;
+  /** A sound played while Voicemod's Mute for me was on, which is still on */
+  mutedPlay: boolean;
 }
 
 export function useStatus(): Status | null {

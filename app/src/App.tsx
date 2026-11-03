@@ -74,7 +74,9 @@ export default function App() {
         <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
         <main>
           <h1>{texts.nav[shown]}</h1>
-          {shown === "soundboard" && <SoundboardPage status={status} view={view} onMakePage={() => setPage("pages")} />}
+          {shown === "soundboard" && (
+            <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
+          )}
           {shown === "pages" && <PagesPage onOpenMacros={() => setPage("macros")} />}
           {shown === "macros" && <MacrosPage status={status} />}
           {shown === "board" && <BoardPage settings={settings} status={status} />}

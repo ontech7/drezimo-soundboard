@@ -151,6 +151,8 @@ pub struct Controller {
     peek: Option<Peek>,
     /// The name of the last sound played, or of the last stop, and when
     last: Option<(String, Instant)>,
+    /// A sound started while Mute for me was on: only the others heard it
+    muted_play: bool,
     board_connected: bool,
     /// What the board's LEDs show, when known
     leds: [Option<Led>; LED_COUNT],
@@ -195,6 +197,7 @@ impl Default for Controller {
             menu: None,
             peek: None,
             last: None,
+            muted_play: false,
             board_connected: false,
             leds: [None; LED_COUNT],
             display: Animator::default(),
@@ -292,6 +295,7 @@ impl Controller {
                 self.releases.clear();
                 self.running = None;
                 self.switches = Switches::default();
+                self.muted_play = false;
                 if let Some(page) = self.page_id(self.page) {
                     self.resume = Some(page);
                 }
@@ -343,7 +347,10 @@ impl Controller {
                     self.set_page(page, now);
                 }
             }
-            VoicemodEvent::MuteForMe(on) => self.switches.mute_for_me = on,
+            VoicemodEvent::MuteForMe(on) => {
+                self.switches.mute_for_me = on;
+                self.muted_play &= on;
+            }
             VoicemodEvent::VoiceChanger(on) => self.switches.voice_changer = on,
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
             VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
@@ -452,6 +459,11 @@ impl Controller {
         self.playback.lengths_learned()
     }
 
+    /// Whether a sound played while Mute for me was on, since it was turned on.
+    pub fn played_while_muted(&self) -> bool {
+        self.muted_play
+    }
+
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses.
     pub fn follows_log(&self) -> bool {
         self.playback.follows_log()
@@ -537,6 +549,7 @@ impl Controller {
             key_down: true,
         });
         self.playback.press(&sound, now);
+        self.sound_started();
         self.last = Some((sound.name.clone(), now));
         let held_sound =
             (sound.playback_mode == PlaybackMode::PlayLoopOnPress).then_some(HeldSound { sound, since: now });
@@ -760,8 +773,13 @@ impl Controller {
             // Outside the soundboards, as the Community's sounds are, a sound has no name the app knows
             let name = sound.map_or(self.texts.community, |sound| &sound.name);
             self.last = Some((name.to_string(), now));
+            self.sound_started();
         }
         started_elsewhere
+    }
+
+    fn sound_started(&mut self) {
+        self.muted_play |= self.switches.mute_for_me;
     }
 
     /// A whole play measures a sound's length; until then, its file may tell it.

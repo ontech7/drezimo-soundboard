@@ -1331,3 +1331,31 @@ fn the_stop_key_or_deleting_it_ends_a_macro() {
     controller.set_macros(Vec::new());
     assert_eq!(controller.macro_progress(), None, "deleted while it ran");
 }
+
+#[test]
+fn tells_of_a_sound_played_while_muted_for_me() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    press(&mut controller, 0, true, now);
+    assert!(controller.played_while_muted());
+
+    controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
+    assert!(!controller.played_while_muted());
+}
+
+#[test]
+fn a_sound_started_on_the_computer_counts_too() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    controller.log_input(LogInput::Opened(Vec::new()), now);
+    controller.log_input(LogInput::Lines(vec![played_in_log("honk", SystemTime::now())]), now);
+    assert!(controller.played_while_muted());
+}
+
+#[test]
+fn nothing_to_tell_with_the_sound_on() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
+    press(&mut controller, 0, true, now);
+    assert!(!controller.played_while_muted());
+}
