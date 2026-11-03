@@ -33,6 +33,8 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 # The overlay's text
 fontdue = "0.9"
+# Voicemod sends its pictures as base64
+base64 = "0.23"
 
 # The overlay draws its own picture (src/overlay/), into a native window
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -43,9 +45,9 @@ objc2-core-graphics = { version = "0.3", default-features = false, features = ["
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer"] }
 
-# The overlay's window, and the drives where the board's firmware is written
+# The overlay's window, the drives where the board's firmware is written, and the login item
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 opt-level = "z"

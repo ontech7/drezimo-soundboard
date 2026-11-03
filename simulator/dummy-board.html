@@ -369,13 +369,13 @@ const LOG_CONFIRM_TIMEOUT_MS = 4000;   // unconfirmed prediction -> ask the log 
 
 // Device texts (OLED + printed labels), as the app has them; the language is picked in the panel.
 const LOCALES = {
-  en: { ready: "Ready", noSound: "No sound", soundboards: "SOUNDBOARDS", favorites: "★ Favourites",
+  en: { ready: "Ready", noSound: "No sound", community: "Community", soundboards: "SOUNDBOARDS", favorites: "★ Favourites",
         unreachable: "UNREACHABLE", connecting: "CONNECTING...", updateApp: "UPDATE THE APP", paused: "PAUSED", loop: "LOOP",
         muteMe: "MUTE ME", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOICE OFF", hearMe: "HEAR ME",
         row: "ROW", empty: "EMPTY", locked: "NOT IN LICENCE", stopsOthers: "STOPS OTHERS",
         modes: { PlayRestart: "ONE-SHOT", PlayOverlap: "OVERLAP", PlayStop: "PLAY/STOP", PlayPause: "PLAY/PAUSE", PlayLoopOnPress: "HOLD" },
         fn: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"] },
-  it: { ready: "Pronto", noSound: "Senza suoni", soundboards: "SOUNDBOARD", favorites: "★ Preferiti",
+  it: { ready: "Pronto", noSound: "Senza suoni", community: "Community", soundboards: "SOUNDBOARD", favorites: "★ Preferiti",
         unreachable: "NON RAGGIUNGIBILE", connecting: "CONNESSIONE...", updateApp: "AGGIORNA L'APP", paused: "PAUSA", loop: "LOOP",
         muteMe: "MUTO", micOff: "MIC OFF", stop: "STOP", voiceOff: "VOCE OFF", hearMe: "ASCOLTO",
         row: "RIGA", empty: "VUOTO", locked: "NON IN LICENZA", stopsOthers: "FERMA GLI ALTRI",
@@ -722,7 +722,7 @@ function onLogEvent(ev) {
   const s = soundIndex.get(ev.id), cur = engine.sounds.get(ev.id);
   const entry = cur ? { ...cur } : { startedAt: t, eta: naturalEta(s, t), remaining: null };
   if (ev.type === "play" && !ev.repeat) { entry.startedAt = t; entry.eta = naturalEta(s, t); }
-  if (ev.type === "play" && !ev.repeat && ev.state === "playing" && s) state.last = { name: s.name, at: performance.now() };
+  if (ev.type === "play" && !ev.repeat && ev.state === "playing") state.last = { name: s?.name ?? L().community, at: performance.now() };
   if (ev.state === "paused" && cur?.state !== "paused") { entry.remaining = entry.eta ? entry.eta - t : null; entry.eta = null; }
   if (ev.state === "playing" && cur?.state === "paused") { entry.eta = entry.remaining != null ? t + entry.remaining : null; entry.remaining = null; }
   entry.state = ev.state; entry.count = ev.count;
@@ -1133,19 +1133,20 @@ function fit(text, max, font) {
   return text + "…";
 }
 function statusRight(t) {
-  // Focus on the most recently changed active sound
+  // Focus on the most recently changed active sound; the switches show while it has no state to show
   let focus = null, focusAt = -1;
   for (const [id, e] of engine.sounds) { const at = engine.changed.get(id) ?? 0; if (at > focusAt) { focus = [id, e]; focusAt = at; } }
   const parts = [];
   if ([...engine.sounds.keys()].some(id => soundIndex.get(id)?.muteVoice)) parts.push(L().micOff);
+  let shown = null;
   if (focus) {
     const [id, e] = focus, s = soundIndex.get(id);
-    if (e.state === "paused") parts.push(L().paused);
-    else if (s?.loop || s?.playbackMode === "PlayLoopOnPress") parts.push(L().loop);
-    else if (e.eta) parts.push(`${(Math.max(0, e.eta - t) / 1000).toFixed(1)}s`);
-  } else if (state.muteForMe) parts.push(L().muteMe);
-  else if (!state.voiceChanger) parts.push(L().voiceOff);
-  else if (state.hearMyself) parts.push(L().hearMe);
+    if (e.state === "paused") shown = L().paused;
+    else if (s?.loop || s?.playbackMode === "PlayLoopOnPress") shown = L().loop;
+    else if (e.eta) shown = `${(Math.max(0, e.eta - t) / 1000).toFixed(1)}s`;
+  }
+  shown ??= state.muteForMe ? L().muteMe : !state.voiceChanger ? L().voiceOff : state.hearMyself ? L().hearMe : null;
+  if (shown) parts.push(shown);
   return parts.join(" ");
 }
 function drawOled(now) {

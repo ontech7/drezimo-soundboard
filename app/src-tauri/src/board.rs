@@ -114,7 +114,9 @@ impl BoardLink {
                         attempt.busy = matches!(error, ConnectError::Busy);
                         match error {
                             ConnectError::NoAnswer => attempt.failed_handshakes += 1,
-                            ConnectError::Io(error) => eprintln!("cannot open the board on {port}: {error}"),
+                            ConnectError::Io(error) => {
+                                crate::errors::log(format!("cannot open the board on {port}: {error}"))
+                            }
                             ConnectError::Busy => {}
                         }
                         let delay = if attempt.failed_handshakes < QUICK_RETRIES {
@@ -134,7 +136,7 @@ impl BoardLink {
     /// Runs a session with a connected board until it goes away.
     fn run(&self, path: &str, mut connection: Connection, on_event: &impl Fn(BoardEvent)) {
         if let Err(error) = self.exchange(connection.port.as_mut(), &mut connection.lines, on_event) {
-            eprintln!("board on {path} disconnected: {error}");
+            crate::errors::log(format!("board on {path} disconnected: {error}"));
         }
     }
 
@@ -155,7 +157,7 @@ impl BoardLink {
             for line in received {
                 match BoardMessage::parse(&line) {
                     Some(message) => on_event(BoardEvent::Message(message)),
-                    None => eprintln!("board sent an unknown line: {line:?}"),
+                    None => crate::errors::log(format!("board sent an unknown line: {line:?}")),
                 }
             }
 

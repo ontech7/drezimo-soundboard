@@ -1,13 +1,18 @@
-//! Voicemod's soundboards, and the pages of 36 sounds the pads show them on.
+//! Voicemod's soundboards and voices, the user's own pages, and the pages of 36 pads that show them all.
 
+use crate::custom_pages::{Content, CustomPad, CustomPage};
+use crate::display::texts::Texts;
+use crate::macros::Macro;
 use crate::protocol::PAD_COUNT;
-use serde::Deserialize;
 use serde::de::{IntoDeserializer, value};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 const PADS: usize = PAD_COUNT as usize;
 pub const FAVOURITES_ID: &str = "favourites";
 const FAVOURITES_NAME: &str = "Favourites";
+pub const VOICES_ID: &str = "voices";
+const VOICES_NAME: &str = "Voices";
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Soundboard {
@@ -36,6 +41,9 @@ pub struct Sound {
     pub mute_voice: bool,
     #[serde(default)]
     pub favorited: bool,
+    /// Where Voicemod keeps its picture, named by the picture's checksum
+    #[serde(default, rename = "imageURL")]
+    pub image_url: String,
 }
 
 fn enabled_by_default() -> bool {
@@ -67,57 +75,251 @@ impl PlaybackMode {
     }
 }
 
+/// One of Voicemod's voices, as `getVoices` lists them
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Voice {
+    pub id: String,
+    #[serde(rename = "friendlyName")]
+    pub name: String,
+    /// False for the voices the user's licence does not include
+    #[serde(default = "enabled_by_default")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub favorited: bool,
+    #[serde(default, rename = "imageURL")]
+    pub image_url: String,
+}
+
+/// What a pad of the user's own pages does besides sounds and voices: what the function keys do, and more
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Action {
+    StopSounds,
+    /// Voicemod's microphone, on and off
+    MuteMic,
+    VoiceChanger,
+    /// One of the voices in the licence, other than the current one
+    RandomVoice,
+    HearMyself,
+    MuteForMe,
+    /// Voicemod's background effects, on and off
+    Background,
+    GoToPage,
+}
+
+/// What a pad does
+#[derive(Clone, Debug, PartialEq)]
+pub enum Pad {
+    Sound(Sound),
+    /// Loads the voice into Voicemod's voice changer
+    Voice(Voice),
+    Action {
+        action: Action,
+        name: String,
+        /// The page a GoToPage action opens, by its `Page::soundboard_id`
+        page: Option<String>,
+    },
+    /// Runs one of the user's macros, by its id
+    Macro {
+        id: String,
+        name: String,
+    },
+}
+
+impl Pad {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Sound(sound) => &sound.name,
+            Self::Voice(voice) => &voice.name,
+            Self::Action { name, .. } | Self::Macro { name, .. } => name,
+        }
+    }
+
+    /// Within the user's licence
+    pub fn enabled(&self) -> bool {
+        match self {
+            Self::Sound(sound) => sound.enabled,
+            Self::Voice(voice) => voice.enabled,
+            Self::Action { .. } | Self::Macro { .. } => true,
+        }
+    }
+
+    pub fn image_url(&self) -> &str {
+        match self {
+            Self::Sound(sound) => &sound.image_url,
+            Self::Voice(voice) => &voice.image_url,
+            Self::Action { .. } | Self::Macro { .. } => "",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Page {
+    /// The soundboard's id, FAVOURITES_ID, VOICES_ID or a page of the user's own
     pub soundboard_id: String,
     pub name: String,
     /// Which of the soundboard's pages this is, from 1, when it needs more than one
     pub part: usize,
     pub parts: usize,
     /// One entry per pad
-    pub sounds: Vec<Option<Sound>>,
+    pub pads: Vec<Option<Pad>>,
+    /// The LEDs' colours at rest the user picked, on their own pages
+    pub colours: Vec<Option<[u8; 3]>>,
 }
 
-/// The favourite sounds first, then every soundboard in Voicemod's order, 36 sounds per page.
-pub fn pages(soundboards: &[Soundboard]) -> Vec<Page> {
+impl Page {
+    pub fn colour(&self, pad: u8) -> Option<[u8; 3]> {
+        self.colours.get(usize::from(pad)).copied().flatten()
+    }
+}
+
+/// The user's own pages first, then the favourite sounds, the voices in the licence and every soundboard in Voicemod's
+/// order, 36 pads per page.
+pub fn pages(
+    soundboards: &[Soundboard],
+    voices: &[Voice],
+    custom: &[CustomPage],
+    macros: &[Macro],
+    texts: &Texts,
+) -> Vec<Page> {
+    let voicemods = voicemod_pages(soundboards, voices);
+    // A pad that opens a page names it as the display does, if the board has it
+    let page_name = |id: &str| -> Option<String> {
+        if let Some(page) = custom.iter().find(|page| page.id == id) {
+            return Some(page.name.clone());
+        }
+        let page = voicemods.iter().find(|page| page.soundboard_id == id)?;
+        let name = match id {
+            FAVOURITES_ID => texts.favourites,
+            VOICES_ID => texts.voices,
+            _ => &page.name,
+        };
+        Some(name.to_string())
+    };
+    let mut pages: Vec<Page> = custom
+        .iter()
+        .map(|page| custom_page(page, soundboards, voices, macros, &page_name, texts))
+        .collect();
+    pages.extend(voicemods);
+    pages
+}
+
+/// The favourite sounds, the voices in the licence, then every soundboard in Voicemod's order.
+fn voicemod_pages(soundboards: &[Soundboard], voices: &[Voice]) -> Vec<Page> {
+    let mut pages = Vec::new();
     let mut seen = HashSet::new();
-    let favourites: Vec<Sound> = soundboards
+    let favourites: Vec<Pad> = soundboards
         .iter()
         .flat_map(|soundboard| &soundboard.sounds)
         .filter(|sound| sound.favorited && seen.insert(&sound.id))
-        .cloned()
+        .map(|sound| Pad::Sound(sound.clone()))
         .collect();
 
-    let mut pages = Vec::new();
     if !favourites.is_empty() {
-        add_pages(&mut pages, FAVOURITES_ID, FAVOURITES_NAME, &favourites);
+        add_pages(&mut pages, FAVOURITES_ID, FAVOURITES_NAME, favourites);
+    }
+    // Only those that can be used: a free licence would fill pages with locked voices. The favourites first.
+    let mut usable: Vec<&Voice> = voices.iter().filter(|voice| voice.enabled).collect();
+    usable.sort_by_key(|voice| !voice.favorited);
+    if !usable.is_empty() {
+        let pads = usable.into_iter().map(|voice| Pad::Voice(voice.clone())).collect();
+        add_pages(&mut pages, VOICES_ID, VOICES_NAME, pads);
     }
     for soundboard in soundboards {
-        add_pages(&mut pages, &soundboard.id, &soundboard.name, &soundboard.sounds);
+        let pads = soundboard.sounds.iter().cloned().map(Pad::Sound).collect();
+        add_pages(&mut pages, &soundboard.id, &soundboard.name, pads);
     }
     pages
 }
 
-fn add_pages(pages: &mut Vec<Page>, soundboard_id: &str, name: &str, sounds: &[Sound]) {
+fn add_pages(pages: &mut Vec<Page>, soundboard_id: &str, name: &str, pads: Vec<Pad>) {
     // An empty soundboard still gets its (empty) page, as in Voicemod's list
-    let parts = sounds.len().div_ceil(PADS).max(1);
+    let parts = pads.len().div_ceil(PADS).max(1);
+    let mut pads = pads.into_iter();
     for part in 0..parts {
-        let chunk = sounds.iter().skip(part * PADS).take(PADS);
-        let mut page_sounds: Vec<Option<Sound>> = chunk.cloned().map(Some).collect();
-        page_sounds.resize(PADS, None);
+        let mut page_pads: Vec<Option<Pad>> = pads.by_ref().take(PADS).map(Some).collect();
+        page_pads.resize(PADS, None);
         pages.push(Page {
             soundboard_id: soundboard_id.to_string(),
             name: name.to_string(),
             part: part + 1,
             parts,
-            sounds: page_sounds,
+            pads: page_pads,
+            colours: Vec::new(),
         });
+    }
+}
+
+/// A page of the user's own, its sounds and voices as Voicemod has them now. One Voicemod no longer has, or has not
+/// sent yet, leaves its pad empty.
+fn custom_page(
+    page: &CustomPage,
+    soundboards: &[Soundboard],
+    voices: &[Voice],
+    macros: &[Macro],
+    page_name: &dyn Fn(&str) -> Option<String>,
+    texts: &Texts,
+) -> Page {
+    let named = |name: &str, label: &str| if label.is_empty() { name } else { label }.to_string();
+    let pad = |pad: &CustomPad| match &pad.content {
+        Content::Sound { id, .. } => {
+            let sound = soundboards
+                .iter()
+                .flat_map(|soundboard| &soundboard.sounds)
+                .find(|sound| sound.id == *id)?;
+            Some(Pad::Sound(Sound {
+                name: named(&sound.name, &pad.label),
+                ..sound.clone()
+            }))
+        }
+        Content::Voice { id, .. } => {
+            let voice = voices.iter().find(|voice| voice.id == *id)?;
+            Some(Pad::Voice(Voice {
+                name: named(&voice.name, &pad.label),
+                ..voice.clone()
+            }))
+        }
+        Content::Action { action, page } => {
+            let target = page
+                .as_deref()
+                .filter(|_| *action == Action::GoToPage)
+                .and_then(page_name);
+            let own = match target {
+                Some(target) => format!("{} {target}", texts.go_to),
+                None => texts.action_name(*action).to_string(),
+            };
+            Some(Pad::Action {
+                action: *action,
+                name: named(&own, &pad.label),
+                page: page.clone(),
+            })
+        }
+        Content::Macro { id } => {
+            let item = macros.iter().find(|item| item.id == *id)?;
+            Some(Pad::Macro {
+                id: id.clone(),
+                name: named(&item.name, &pad.label),
+            })
+        }
+    };
+    let mut pads: Vec<Option<Pad>> = page.pads.iter().map(|slot| slot.as_ref().and_then(pad)).collect();
+    pads.resize(PADS, None);
+    let mut colours: Vec<Option<[u8; 3]>> = page.pads.iter().map(|slot| slot.as_ref()?.colour).collect();
+    colours.resize(PADS, None);
+    Page {
+        soundboard_id: page.id.clone(),
+        name: page.name.clone(),
+        part: 1,
+        parts: 1,
+        pads,
+        colours,
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::display::texts::{ENGLISH, ITALIAN};
 
     pub fn sound(id: &str) -> Sound {
         Sound {
@@ -129,6 +331,7 @@ pub mod tests {
             stop_other_sounds: false,
             mute_voice: false,
             favorited: false,
+            image_url: String::new(),
         }
     }
 
@@ -159,16 +362,23 @@ pub mod tests {
     #[test]
     fn splits_soundboards_into_pages_of_36() {
         let big: Vec<Sound> = (0..40).map(|i| sound(&format!("s{i}"))).collect();
-        let pages = pages(&[soundboard("big", big), soundboard("empty", vec![])]);
+        let pages = pages(
+            &[soundboard("big", big), soundboard("empty", vec![])],
+            &[],
+            &[],
+            &[],
+            &ENGLISH,
+        );
 
+        let name = |page: &Page, pad: usize| page.pads[pad].as_ref().map(|pad| pad.name().to_string());
         assert_eq!(pages.len(), 3);
         assert_eq!((pages[0].part, pages[0].parts), (1, 2));
-        assert_eq!(pages[0].sounds[35].as_ref().unwrap().id, "s35");
-        assert_eq!(pages[1].sounds[3].as_ref().unwrap().id, "s39");
-        assert!(pages[1].sounds[4].is_none());
-        assert_eq!(pages[1].sounds.len(), PADS);
+        assert_eq!(name(&pages[0], 35).as_deref(), Some("S35"));
+        assert_eq!(name(&pages[1], 3).as_deref(), Some("S39"));
+        assert!(pages[1].pads[4].is_none());
+        assert_eq!(pages[1].pads.len(), PADS);
         assert_eq!((pages[2].soundboard_id.as_str(), pages[2].parts), ("empty", 1));
-        assert!(pages[2].sounds.iter().all(Option::is_none));
+        assert!(pages[2].pads.iter().all(Option::is_none));
     }
 
     #[test]
@@ -177,20 +387,125 @@ pub mod tests {
             favorited: true,
             ..sound("fav")
         };
-        let pages = pages(&[
-            soundboard("a", vec![sound("x"), favourite.clone()]),
-            soundboard("b", vec![favourite]),
-        ]);
+        let pages = pages(
+            &[
+                soundboard("a", vec![sound("x"), favourite.clone()]),
+                soundboard("b", vec![favourite]),
+            ],
+            &[],
+            &[],
+            &[],
+            &ENGLISH,
+        );
 
         assert_eq!(pages.len(), 3);
         assert_eq!(pages[0].name, FAVOURITES_NAME);
-        let favourites: Vec<_> = pages[0]
-            .sounds
-            .iter()
-            .flatten()
-            .map(|sound| sound.id.as_str())
-            .collect();
-        assert_eq!(favourites, ["fav"]);
+        let favourites: Vec<_> = pages[0].pads.iter().flatten().map(Pad::name).collect();
+        assert_eq!(favourites, ["FAV"]);
         assert_eq!(pages[1].soundboard_id, "a");
+    }
+
+    pub fn voice(id: &str) -> Voice {
+        Voice {
+            id: id.to_string(),
+            name: id.to_uppercase(),
+            enabled: true,
+            favorited: false,
+            image_url: String::new(),
+        }
+    }
+
+    #[test]
+    fn puts_the_usable_voices_after_the_favourites() {
+        let json = r#"[{"id": "v1", "friendlyName": "Dark", "enabled": false, "favorited": false, "isNew": false},
+            {"id": "v2", "friendlyName": "Banana", "enabled": true, "favorited": false}]"#;
+        let mut voices: Vec<Voice> = serde_json::from_str(json).unwrap();
+        voices.push(Voice {
+            favorited: true,
+            ..voice("v3")
+        });
+        let favourite = Sound {
+            favorited: true,
+            ..sound("fav")
+        };
+        let pages = pages(&[soundboard("a", vec![favourite])], &voices, &[], &[], &ENGLISH);
+
+        assert_eq!(pages[1].soundboard_id, VOICES_ID);
+        let names: Vec<_> = pages[1].pads.iter().flatten().map(Pad::name).collect();
+        assert_eq!(names, ["V3", "Banana"]);
+        assert_eq!(pages[2].soundboard_id, "a");
+    }
+
+    pub fn custom_pad(content: Content) -> Option<CustomPad> {
+        Some(CustomPad {
+            content,
+            label: String::new(),
+            colour: None,
+        })
+    }
+
+    pub fn action(action: Action) -> Content {
+        Content::Action { action, page: None }
+    }
+
+    #[test]
+    fn puts_the_users_own_pages_first() {
+        let own = CustomPage {
+            id: "page-1".into(),
+            name: "Gaming".into(),
+            pads: vec![
+                Some(CustomPad {
+                    label: "Fail".into(),
+                    colour: Some([255, 140, 40]),
+                    ..custom_pad(Content::Sound {
+                        id: "honk".into(),
+                        name: "Honk".into(),
+                    })
+                    .unwrap()
+                }),
+                custom_pad(Content::Sound {
+                    id: "gone".into(),
+                    name: "Gone".into(),
+                }),
+                custom_pad(Content::Voice {
+                    id: "v1".into(),
+                    name: String::new(),
+                }),
+                custom_pad(action(Action::MuteMic)),
+                custom_pad(Content::Action {
+                    action: Action::GoToPage,
+                    page: Some(VOICES_ID.into()),
+                }),
+            ],
+        };
+        let pages = pages(
+            &[soundboard("a", vec![sound("honk")])],
+            &[voice("v1")],
+            &[own],
+            &[],
+            &ITALIAN,
+        );
+
+        assert_eq!(
+            (pages[0].soundboard_id.as_str(), pages[0].name.as_str()),
+            ("page-1", "Gaming")
+        );
+        assert_eq!(pages[0].pads.len(), PADS);
+        let names: Vec<_> = pages[0].pads.iter().map(|pad| pad.as_ref().map(Pad::name)).collect();
+        assert_eq!(
+            &names[..6],
+            [
+                Some("Fail"),
+                None,
+                Some("V1"),
+                Some("Muto mic"),
+                Some("Vai a Voci"),
+                None
+            ]
+        );
+        assert!(matches!(&pages[0].pads[0], Some(Pad::Sound(sound)) if sound.id == "honk"));
+        assert_eq!(pages[0].colour(0), Some([255, 140, 40]));
+        assert_eq!(pages[0].colour(3), None);
+        assert_eq!(pages[1].soundboard_id, VOICES_ID);
     }
 }

@@ -198,10 +198,7 @@ fn drives() -> Vec<PathBuf> {
     (0..26u8)
         .filter(|letter| present & (1 << letter) != 0)
         .map(|letter| format!("{}:\\", char::from(b'A' + letter)))
-        .filter(|root| {
-            let wide: Vec<u16> = root.encode_utf16().chain([0]).collect();
-            unsafe { GetDriveTypeW(wide.as_ptr()) == DRIVE_REMOVABLE }
-        })
+        .filter(|root| unsafe { GetDriveTypeW(crate::wide(root).as_ptr()) == DRIVE_REMOVABLE })
         .map(PathBuf::from)
         .collect()
 }

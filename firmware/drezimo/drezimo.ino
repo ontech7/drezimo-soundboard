@@ -10,7 +10,7 @@
 #include "pins.h"
 #include "settings.h"
 
-const char FIRMWARE_VERSION[] = "0.2.0";
+const char FIRMWARE_VERSION[] = "0.2.1";
 const size_t MAX_LINE_LENGTH = 2100;
 const int MAX_FIELDS = 6;
 const uint32_t LOGO_FRAME_MS = 25;
@@ -328,6 +328,8 @@ void setup() {
   ledsBegin();
   inputBegin();
   displayBegin();
+  // From when the display can show it: starting it takes about 300 ms
+  logoShownAt = millis();
 }
 
 void loop() {

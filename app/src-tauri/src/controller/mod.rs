@@ -3,33 +3,41 @@
 //! gets each input with the time it happened and queues the messages for the board and the requests for Voicemod.
 
 mod overlay;
+mod running;
 mod screen;
+mod window;
 
+pub use running::MacroProgress;
+pub use window::BoardView;
+
+use crate::custom_pages::CustomPage;
+use crate::display::Animator;
 use crate::display::Frame;
-use crate::display::screens::{self, Screen};
 use crate::display::texts::{ENGLISH, Texts};
+use crate::macros::Macro;
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
-use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
-use crate::soundboard::{self, Page, PlaybackMode, Sound, Soundboard};
+use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
+use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, RandomState};
 use std::mem;
 use std::time::{Duration, Instant};
 
 const PADS: usize = PAD_COUNT as usize;
 /// How long a pressed pad shows yellow
 const PRESS_FLASH: Duration = Duration::from_millis(200);
+/// How long a pad outside the licence blinks red once pressed
+const REFUSED_BLINK: Duration = Duration::from_millis(1200);
 /// A key-up sent right after the key-down can leave a sound stuck in Voicemod (docs/project.md, section 8)
 const MIN_HOLD: Duration = Duration::from_millis(200);
 /// How long the soundboard menu stays open after the knob last moved
 const MENU_TIME: Duration = Duration::from_secs(6);
 /// How long a peeked name stays after the press
 const PEEK_TIME: Duration = Duration::from_millis(2500);
-const ROWS: usize = 6;
-const COLUMNS: usize = 6;
 
 // Function keys, from the left
 const PREV: u8 = 0;
@@ -41,12 +49,14 @@ const HEAR_ME: u8 = 5;
 
 // The simulator's colours
 const BLUE: [u8; 3] = [47, 107, 255];
+const PURPLE: [u8; 3] = [150, 80, 255];
 const YELLOW: [u8; 3] = [255, 210, 26];
 const GREEN: [u8; 3] = [34, 224, 90];
 const DIM_RED: [u8; 3] = [90, 16, 16];
 const RED: [u8; 3] = [255, 42, 42];
 const WHITE: [u8; 3] = [120, 120, 130];
 const AMBER: [u8; 3] = [255, 140, 0];
+const CYAN: [u8; 3] = [0, 200, 220];
 /// The peeked pad and the row the overview shows
 const HIGHLIGHT: [u8; 3] = [200, 200, 210];
 
@@ -58,6 +68,8 @@ pub enum Output {
     Display(Frame),
     /// What the PC overlay shows now, or None to hide it
     Overlay(Option<Overlay>),
+    /// For the error list of the support report
+    Log(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -100,6 +112,8 @@ struct Switches {
     mute_for_me: bool,
     voice_changer: bool,
     hear_myself: bool,
+    mic_muted: bool,
+    background: bool,
 }
 
 pub struct Controller {
@@ -113,12 +127,29 @@ pub struct Controller {
     playback: Playback,
     /// Voicemod's sounds as its log tells them
     log: LogTracker,
+    /// As Voicemod last sent them, for the pages
+    soundboards: Vec<Soundboard>,
+    voices: Vec<Voice>,
+    /// The user's own, made in the window
+    custom: Vec<CustomPage>,
+    macros: Vec<Macro>,
+    /// The macro running, if any
+    running: Option<running::Running>,
+    /// The voice loaded in Voicemod, and the one a pad asked for, until Voicemod confirms it
+    current_voice: Option<String>,
+    voice_asked: Option<String>,
+    /// The soundboards came since Voicemod connected: until then the pages are not complete
+    soundboards_loaded: bool,
     /// Every sound of every soundboard, by id
     sounds: HashMap<String, Sound>,
     /// The pads held down. The sound is kept, so its key-up still reaches it after a page change.
     held: HashMap<u8, Option<HeldSound>>,
+    /// Those of them held from the window: the board and the window release only what they pressed
+    window_held: HashSet<u8>,
     /// Until when each pressed pad shows yellow
     flashes: HashMap<u8, Instant>,
+    /// Until when each pad outside the licence that was pressed blinks red
+    refused: HashMap<u8, Instant>,
     /// Key-ups waiting for the minimum hold, and when they are due
     releases: Vec<(Instant, HeldSound)>,
     knob: Knob,
@@ -126,13 +157,17 @@ pub struct Controller {
     peek: Option<Peek>,
     /// The name of the last sound played, or of the last stop, and when
     last: Option<(String, Instant)>,
+    /// A sound started while Mute for me was on: only the others heard it
+    muted_play: bool,
     board_connected: bool,
     /// What the board's LEDs show, when known
     leds: [Option<Led>; LED_COUNT],
-    /// What the display shows, when sent
-    screen: Option<Screen>,
+    /// Draws the display's screens, and sends their frames when they change
+    display: Animator,
     /// Until when the overlay shows, besides while the knob is held or the menu open
     overlay_until: Option<Instant>,
+    /// How long it shows; None when turned off
+    overlay_time: Option<Duration>,
     /// What the overlay shows, as sent
     overlay: Option<Overlay>,
     /// When `update` has something to do without any input
@@ -151,18 +186,30 @@ impl Default for Controller {
             resume: None,
             playback: Playback::default(),
             log: LogTracker::default(),
+            soundboards: Vec::new(),
+            voices: Vec::new(),
+            custom: Vec::new(),
+            macros: Vec::new(),
+            running: None,
+            current_voice: None,
+            voice_asked: None,
+            soundboards_loaded: false,
             sounds: HashMap::new(),
             held: HashMap::new(),
+            window_held: HashSet::new(),
             flashes: HashMap::new(),
+            refused: HashMap::new(),
             releases: Vec::new(),
             knob: Knob::default(),
             menu: None,
             peek: None,
             last: None,
+            muted_play: false,
             board_connected: false,
             leds: [None; LED_COUNT],
-            screen: None,
+            display: Animator::default(),
             overlay_until: None,
+            overlay_time: Some(overlay::OVERLAY_TIME),
             overlay: None,
             next_update: None,
             outputs: Vec::new(),
@@ -178,6 +225,32 @@ impl Controller {
         }
     }
 
+    /// The page to show once Voicemod sends its soundboards, as `shown_page` told it in an earlier run.
+    pub fn start_on(&mut self, page: (String, usize)) {
+        self.resume = Some(page);
+    }
+
+    /// The page shown, as soundboard and part, once the pages are complete.
+    pub fn shown_page(&self) -> Option<(String, usize)> {
+        self.soundboards_loaded.then(|| self.page_id(self.page)).flatten()
+    }
+
+    /// The words on the display, in the language picked, the action pads' names among them.
+    pub fn set_texts(&mut self, texts: &'static Texts) {
+        self.texts = texts;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
+    }
+
+    /// The user's own pages, as the editor saved them. Shown once Voicemod sends what is on them.
+    pub fn set_custom_pages(&mut self, pages: Vec<CustomPage>) {
+        self.custom = pages;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
+    }
+
     pub fn set_board_connected(&mut self, connected: bool, now: Instant) {
         if connected == self.board_connected {
             return;
@@ -185,12 +258,17 @@ impl Controller {
         self.board_connected = connected;
         // A board that connects waits for every LED and a picture; one that went away cannot report its keys' release
         self.leds = [None; LED_COUNT];
-        self.screen = None;
+        self.display.forget();
         self.knob = Knob::default();
         if connected {
             self.show_overlay(now);
         } else {
-            let held: Vec<u8> = self.held.keys().copied().collect();
+            let held: Vec<u8> = self
+                .held
+                .keys()
+                .copied()
+                .filter(|pad| !self.window_held.contains(pad))
+                .collect();
             for pad in held {
                 self.pad_released(pad, now);
             }
@@ -200,7 +278,10 @@ impl Controller {
     pub fn board_message(&mut self, message: BoardMessage, now: Instant) {
         match message {
             BoardMessage::Pad { index, pressed: true } => self.pad_pressed(index, now),
-            BoardMessage::Pad { index, pressed: false } => self.pad_released(index, now),
+            // A pad held from the window is the window's to release
+            BoardMessage::Pad { index, pressed: false } if !self.window_held.contains(&index) => {
+                self.pad_released(index, now)
+            }
             BoardMessage::Button { index, pressed: true } => self.button_pressed(index, now),
             BoardMessage::Encoder { step } => self.knob_turned(step.into(), now),
             BoardMessage::EncoderButton { pressed } => self.knob_pressed(pressed, now),
@@ -219,15 +300,52 @@ impl Controller {
                     self.resync(now);
                 }
                 self.releases.clear();
+                self.running = None;
                 self.switches = Switches::default();
+                self.muted_play = false;
                 if let Some(page) = self.page_id(self.page) {
                     self.resume = Some(page);
                 }
                 self.pages.clear();
+                self.soundboards.clear();
+                self.voices.clear();
+                self.current_voice = None;
+                self.voice_asked = None;
+                self.soundboards_loaded = false;
                 self.page = 0;
                 self.menu = None;
             }
-            VoicemodEvent::Soundboards(soundboards) => self.set_soundboards(&soundboards),
+            VoicemodEvent::Soundboards(soundboards) => {
+                let first = !self.soundboards_loaded;
+                self.soundboards = soundboards;
+                self.soundboards_loaded = true;
+                self.rebuild_pages(first);
+            }
+            VoicemodEvent::Voices { voices, current } => {
+                self.voices = voices;
+                if current.is_some() {
+                    self.current_voice = current;
+                }
+                self.rebuild_pages(false);
+            }
+            VoicemodEvent::CurrentVoice(id) => {
+                // A voice picked on the computer shows by name, as a sound started there; the board's already did
+                let asked_here = self.voice_asked.take().is_some_and(|asked| asked == id);
+                let changed = self.current_voice.as_ref().is_some_and(|current| *current != id);
+                let name = self
+                    .voices
+                    .iter()
+                    .find(|voice| voice.id == id)
+                    .map(|voice| voice.name.clone());
+                if let Some(name) = name.filter(|_| changed && !asked_here) {
+                    self.last = Some((name, now));
+                    if self.board_connected {
+                        self.outputs.push(Output::Board("WAKE".to_string()));
+                    }
+                }
+                self.current_voice = Some(id);
+            }
+            VoicemodEvent::License(_) => {}
             VoicemodEvent::ActiveSoundboard(id) => {
                 // Voicemod also tells again of the soundboard already shown: that is no page change
                 let shown = self.pages.get(self.page).is_some_and(|page| page.soundboard_id == id);
@@ -236,9 +354,16 @@ impl Controller {
                     self.set_page(page, now);
                 }
             }
-            VoicemodEvent::MuteForMe(on) => self.switches.mute_for_me = on,
+            VoicemodEvent::MuteForMe(on) => {
+                self.switches.mute_for_me = on;
+                self.muted_play &= on;
+            }
             VoicemodEvent::VoiceChanger(on) => self.switches.voice_changer = on,
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
+            VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
+            VoicemodEvent::Background(on) => self.switches.background = on,
+            // Only for the window (src/pictures.rs) and the status
+            VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
     }
 
@@ -259,9 +384,11 @@ impl Controller {
             }
         }
         self.flashes.retain(|_, until| *until > now);
+        self.refused.retain(|_, until| *until > now);
         if self.playback.update(now) {
             self.resync(now);
         }
+        self.advance_macro(now);
         self.menu = self.menu.take().filter(|menu| menu.until > now);
         // A peek lasts while the knob is held, its blink only its time
         self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.pressed);
@@ -271,9 +398,8 @@ impl Controller {
         }
 
         let (screen, screen_changes) = self.screen(now);
-        if self.screen.as_ref() != Some(&screen) {
-            self.outputs.push(Output::Display(screens::draw(&screen).frame()));
-            self.screen = Some(screen);
+        if let Some(frame) = self.display.frame(&screen, now) {
+            self.outputs.push(Output::Display(frame));
         }
         self.overlay_until = self.overlay_until.filter(|until| *until > now);
         let overlay = self.overlay(now);
@@ -282,7 +408,7 @@ impl Controller {
             self.overlay = overlay;
         }
 
-        let flashes = self.flashes.values().copied();
+        let flashes = self.flashes.values().chain(self.refused.values()).copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
         let menu_end = self.menu.as_ref().map(|menu| menu.until);
         // A peek held past its time only waits for the knob
@@ -293,7 +419,9 @@ impl Controller {
             .chain(menu_end)
             .chain(peek_end)
             .chain(screen_changes)
+            .chain(self.display.next_frame())
             .chain(self.overlay_until)
+            .chain(self.macro_wake())
             .min();
     }
 
@@ -308,13 +436,8 @@ impl Controller {
                 // The past only teaches the sounds' lengths and what is playing now
                 self.log = LogTracker::default();
                 for line in &history {
-                    if let Some(LogEvent::Ended {
-                        id,
-                        length: Some(length),
-                        ..
-                    }) = self.log.feed(line)
-                    {
-                        self.playback.learn_length(&id, length);
+                    if let Some(event) = self.log.feed(line) {
+                        self.learn_length(&event);
                     }
                 }
                 self.playback.follow_log(true);
@@ -334,6 +457,21 @@ impl Controller {
         }
     }
 
+    /// The sounds' lengths known so far.
+    pub fn sound_lengths(&self) -> &HashMap<String, Duration> {
+        self.playback.lengths()
+    }
+
+    /// Changes whenever a sound's length is learned.
+    pub fn lengths_learned(&self) -> u64 {
+        self.playback.lengths_learned()
+    }
+
+    /// Whether a sound played while Mute for me was on, since it was turned on.
+    pub fn played_while_muted(&self) -> bool {
+        self.muted_play
+    }
+
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses.
     pub fn follows_log(&self) -> bool {
         self.playback.follows_log()
@@ -346,7 +484,7 @@ impl Controller {
     pub fn page(&self) -> Option<PageSummary> {
         let page = self.pages.get(self.page)?;
         Some(PageSummary {
-            name: page.name.clone(),
+            name: self.page_name(page).to_string(),
             part: page.part,
             parts: page.parts,
             number: self.page + 1,
@@ -381,21 +519,66 @@ impl Controller {
             }
         }
 
-        let playable = self.sound_at(pad).filter(|sound| sound.enabled).cloned();
-        let Some(sound) = playable.filter(|_| self.voicemod == VoicemodStatus::Connected) else {
+        if let Some(Pad::Action { action, name, page }) = self.pad_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if self.voicemod == VoicemodStatus::Connected {
+                self.act(action, page.as_deref(), now);
+                if !matches!(action, Action::StopSounds | Action::RandomVoice | Action::GoToPage) {
+                    self.last = Some((name, now));
+                }
+            }
+            return;
+        }
+
+        if let Some(Pad::Macro { id, .. }) = self.pad_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if self.voicemod == VoicemodStatus::Connected {
+                self.press_macro(&id, now);
+            }
+            return;
+        }
+
+        if let Some(voice) = self.voice_at(pad).cloned() {
+            self.held.insert(pad, None);
+            if self.voicemod == VoicemodStatus::Connected {
+                if voice.enabled {
+                    self.load_voice(voice, now);
+                } else {
+                    self.refuse(pad, &voice.name, now);
+                }
+            }
+            return;
+        }
+
+        let sound = self.sound_at(pad).cloned();
+        let Some(sound) = sound.filter(|_| self.voicemod == VoicemodStatus::Connected) else {
             self.held.insert(pad, None);
             return;
         };
+        if !sound.enabled {
+            self.held.insert(pad, None);
+            self.refuse(pad, &sound.name, now);
+            return;
+        }
 
         self.request(Request::PlaySound {
             id: sound.id.clone(),
             key_down: true,
         });
         self.playback.press(&sound, now);
+        self.sound_started();
         self.last = Some((sound.name.clone(), now));
         let held_sound =
             (sound.playback_mode == PlaybackMode::PlayLoopOnPress).then_some(HeldSound { sound, since: now });
         self.held.insert(pad, held_sound);
+    }
+
+    /// Outside the licence: Voicemod would not play it, and would not say so
+    fn refuse(&mut self, pad: u8, name: &str, now: Instant) {
+        self.refused.insert(pad, now + REFUSED_BLINK);
+        self.last = Some((self.texts.pro_only.to_string(), now));
+        self.outputs
+            .push(Output::Log(format!("{name} is outside Voicemod's licence: not played")));
     }
 
     fn pad_released(&mut self, pad: u8, now: Instant) {
@@ -405,14 +588,72 @@ impl Controller {
         }
     }
 
+    fn act(&mut self, action: Action, page: Option<&str>, now: Instant) {
+        match action {
+            Action::StopSounds => {
+                self.finish_macro();
+                self.stop_sounds(now);
+            }
+            Action::MuteMic => self.request(Request::ToggleMuteMic),
+            Action::VoiceChanger => self.request(Request::ToggleVoiceChanger),
+            Action::RandomVoice => self.random_voice(now),
+            Action::HearMyself => self.request(Request::ToggleHearMyself),
+            Action::MuteForMe => self.request(Request::ToggleMuteForMe),
+            Action::Background => self.request(Request::ToggleBackground),
+            Action::GoToPage => {
+                let target = page.and_then(|id| self.pages.iter().position(|page| page.soundboard_id == id));
+                if let Some(target) = target {
+                    self.set_page(target, now);
+                }
+            }
+        }
+    }
+
+    fn stop_sounds(&mut self, now: Instant) {
+        self.playback.stop_all(now);
+        self.request(Request::StopAllSounds);
+        self.last = Some((self.texts.stop.to_string(), now));
+    }
+
+    fn load_voice(&mut self, voice: Voice, now: Instant) {
+        self.request(Request::LoadVoice(voice.id.clone()));
+        self.voice_asked = Some(voice.id);
+        self.last = Some((voice.name, now));
+    }
+
+    fn random_voice(&mut self, now: Instant) {
+        if let Some(voice) = self.random_other_voice(now) {
+            self.load_voice(voice, now);
+        }
+    }
+
+    /// The voice loaded, or the one asked for last until Voicemod confirms it.
+    fn voice_loaded(&self) -> Option<&String> {
+        self.voice_asked.as_ref().or(self.current_voice.as_ref())
+    }
+
+    /// Any voice in the licence but the current one.
+    fn random_other_voice(&self, now: Instant) -> Option<Voice> {
+        let others: Vec<&Voice> = self
+            .voices
+            .iter()
+            .filter(|voice| voice.enabled && self.voice_loaded() != Some(&voice.id))
+            .collect();
+        if others.is_empty() {
+            return None;
+        }
+        let pick = RandomState::new().hash_one(now) as usize % others.len();
+        Some(others[pick].clone())
+    }
+
     fn button_pressed(&mut self, button: u8, now: Instant) {
         match button {
             PREV => self.turn_page(-1, now),
             NEXT => self.turn_page(1, now),
             STOP => {
-                self.playback.stop_all(now);
-                self.request(Request::StopAllSounds);
-                self.last = Some((self.texts.stop.to_string(), now));
+                // A macro stops too, or it would play on
+                self.finish_macro();
+                self.stop_sounds(now);
             }
             MUTE_ME => self.request(Request::ToggleMuteForMe),
             VOICE => self.request(Request::ToggleVoiceChanger),
@@ -472,29 +713,58 @@ impl Controller {
         if count > 0 {
             self.set_page((self.page as isize + step).rem_euclid(count) as usize, now);
         }
+        if count > 1 {
+            self.display.page_turned(step > 0);
+        }
     }
 
     /// Goes to a page, and shows its sounds on the overlay.
     fn set_page(&mut self, page: usize, now: Instant) {
-        self.page = page;
+        self.change_page(page);
         self.show_overlay(now);
     }
 
-    fn set_soundboards(&mut self, soundboards: &[Soundboard]) {
-        let current = self.resume.take().or_else(|| self.page_id(self.page));
+    /// A pad's flash or red blink belongs to the page it was pressed on.
+    fn change_page(&mut self, page: usize) {
+        self.page = page;
+        self.flashes.clear();
+        self.refused.clear();
+    }
+
+    /// After the soundboards or the voices changed: the page shown stays, if it is still there. The first soundboards
+    /// after Voicemod (re)connected bring back the page shown before, once, or the first page of sounds.
+    fn rebuild_pages(&mut self, first_soundboards: bool) {
+        let current = if first_soundboards {
+            self.resume.take()
+        } else if self.soundboards_loaded {
+            self.page_id(self.page)
+        } else {
+            // The voices came first: the first page until the soundboards come
+            None
+        };
         let selected = self.menu.as_ref().and_then(|menu| self.page_id(menu.selected));
-        self.sounds = soundboards
+        self.sounds = self
+            .soundboards
             .iter()
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(soundboards);
-        self.page = current.and_then(|id| self.find_page(&id)).unwrap_or(0);
+        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, &self.macros, self.texts);
+        self.page = current
+            .and_then(|id| self.find_page(&id))
+            .unwrap_or_else(|| self.first_page());
         let remapped = selected.and_then(|id| self.find_page(&id));
         let last = self.pages.len().saturating_sub(1);
         if let Some(menu) = &mut self.menu {
             menu.selected = remapped.unwrap_or(menu.selected.min(last));
         }
+    }
+
+    /// Where to start with no page to go back to: a pad of the Voices pages loads a voice, and one pressed first is
+    /// expected to play a sound.
+    fn first_page(&self) -> usize {
+        let voices = |page: &Page| page.soundboard_id == soundboard::VOICES_ID;
+        self.pages.iter().position(|page| !voices(page)).unwrap_or(0)
     }
 
     /// The page of a soundboard and part, after the soundboards changed.
@@ -513,14 +783,7 @@ impl Controller {
         let Some(event) = self.log.feed(line) else {
             return false;
         };
-        if let LogEvent::Ended {
-            id,
-            length: Some(length),
-            ..
-        } = &event
-        {
-            self.playback.learn_length(id, *length);
-        }
+        self.learn_length(&event);
         // A log no longer trusted only teaches lengths
         if self.voicemod != VoicemodStatus::Connected || !self.playback.follows_log() {
             return false;
@@ -538,10 +801,34 @@ impl Controller {
             }
         );
         let started_elsewhere = unpredicted && started;
-        if let Some(sound) = sound.filter(|_| started_elsewhere) {
-            self.last = Some((sound.name.clone(), now));
+        if started_elsewhere {
+            // Outside the soundboards, as the Community's sounds are, a sound has no name the app knows
+            let name = sound.map_or(self.texts.community, |sound| &sound.name);
+            self.last = Some((name.to_string(), now));
+            self.sound_started();
         }
         started_elsewhere
+    }
+
+    fn sound_started(&mut self) {
+        self.muted_play |= self.switches.mute_for_me;
+    }
+
+    /// A whole play measures a sound's length; until then, its file may tell it.
+    fn learn_length(&mut self, event: &LogEvent) {
+        match event {
+            LogEvent::Ended {
+                id,
+                length: Some(length),
+                ..
+            } => self.playback.learn_length(id, *length),
+            LogEvent::Played {
+                id,
+                length: Some(length),
+                ..
+            } if self.playback.length(id).is_none() => self.playback.learn_length(id, *length),
+            _ => {}
+        }
     }
 
     /// Takes what plays from the log, when followed.
@@ -562,6 +849,16 @@ impl Controller {
         self.playback.resync(&logged, voicemod_log::instant_of(as_of, now), now);
     }
 
+    /// Voicemod sent its soundboards since it connected: with no page, there is none to show.
+    pub fn soundboards_loaded(&self) -> bool {
+        self.soundboards_loaded
+    }
+
+    /// Voicemod sent its voices or soundboards since it connected: there are pages.
+    fn has_lists(&self) -> bool {
+        self.soundboards_loaded || !self.voices.is_empty()
+    }
+
     fn page_id(&self, index: usize) -> Option<(String, usize)> {
         let page = self.pages.get(index)?;
         Some((page.soundboard_id.clone(), page.part))
@@ -573,8 +870,22 @@ impl Controller {
         }
     }
 
+    fn pad_at(&self, pad: u8) -> Option<&Pad> {
+        self.pages.get(self.page)?.pads.get(usize::from(pad))?.as_ref()
+    }
+
     fn sound_at(&self, pad: u8) -> Option<&Sound> {
-        self.pages.get(self.page)?.sounds.get(usize::from(pad))?.as_ref()
+        match self.pad_at(pad)? {
+            Pad::Sound(sound) => Some(sound),
+            _ => None,
+        }
+    }
+
+    fn voice_at(&self, pad: u8) -> Option<&Voice> {
+        match self.pad_at(pad)? {
+            Pad::Voice(voice) => Some(voice),
+            _ => None,
+        }
     }
 
     fn refresh_leds(&mut self, now: Instant) {
@@ -609,7 +920,7 @@ impl Controller {
             if usize::from(pad) / COLUMNS == row {
                 return Led::solid(HIGHLIGHT);
             }
-            let led = self.sound_led(pad);
+            let led = self.content_led(pad);
             let dimmed = led.color.map(|level| (f32::from(level) * 0.2).round() as u8);
             return Led { color: dimmed, ..led };
         }
@@ -623,24 +934,64 @@ impl Controller {
                 effect: Effect::Blink,
             };
         }
+        if self.refused.contains_key(&pad) {
+            return Led {
+                color: RED,
+                effect: Effect::Blink,
+            };
+        }
         if self.flashes.contains_key(&pad) {
             return Led::solid(YELLOW);
         }
-        self.sound_led(pad)
+        self.content_led(pad)
     }
 
-    fn sound_led(&self, pad: u8) -> Led {
-        match self.sound_at(pad) {
+    /// A sound blue, green while it plays; a voice purple, green while loaded; an action in its own colour, dim while
+    /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
+    fn content_led(&self, pad: u8) -> Led {
+        let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
+        let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
+        match self.pad_at(pad) {
             None => Led::OFF,
-            Some(sound) if !sound.enabled => Led::solid(DIM_RED),
-            Some(sound) => match self.playback.state(&sound.id) {
-                None => Led::solid(BLUE),
+            Some(content) if !content.enabled() => Led::solid(DIM_RED),
+            Some(Pad::Voice(voice)) if self.current_voice.as_ref() == Some(&voice.id) => Led::solid(GREEN),
+            Some(Pad::Voice(_)) => at_rest(PURPLE),
+            Some(Pad::Sound(sound)) => match self.playback.state(&sound.id) {
+                None => at_rest(BLUE),
                 Some(State::Playing) => Led::solid(GREEN),
                 Some(State::Paused) => Led {
                     color: GREEN,
                     effect: Effect::Breathe,
                 },
             },
+            Some(Pad::Macro { id, .. }) => {
+                let own = self
+                    .macros
+                    .iter()
+                    .find(|item| item.id == *id)
+                    .and_then(|item| item.colour);
+                let color = colour.or(own).unwrap_or(AMBER);
+                let running = self.running.as_ref().is_some_and(|running| running.item.id == *id);
+                let effect = if running { Effect::Breathe } else { Effect::Solid };
+                Led { color, effect }
+            }
+            Some(Pad::Action { action, page, .. }) => {
+                let on = match action {
+                    Action::StopSounds => !self.playback.is_empty(),
+                    Action::MuteMic => self.switches.mic_muted,
+                    Action::VoiceChanger => self.switches.voice_changer,
+                    Action::HearMyself => self.switches.hear_myself,
+                    Action::MuteForMe => self.switches.mute_for_me,
+                    Action::Background => self.switches.background,
+                    Action::RandomVoice => true,
+                    // Dim when its page is gone
+                    Action::GoToPage => page
+                        .as_ref()
+                        .is_some_and(|id| self.pages.iter().any(|page| page.soundboard_id == *id)),
+                };
+                let color = colour.unwrap_or(action_colour(*action));
+                Led::solid(if on { color } else { color.map(|level| level / 4) })
+            }
         }
     }
 
@@ -654,6 +1005,18 @@ impl Controller {
             HEAR_ME => lit(self.switches.hear_myself, GREEN),
             _ => Led::OFF,
         }
+    }
+}
+
+/// As the function key that does the same, where there is one
+fn action_colour(action: Action) -> [u8; 3] {
+    match action {
+        Action::StopSounds | Action::MuteMic => RED,
+        Action::VoiceChanger | Action::HearMyself => GREEN,
+        Action::RandomVoice => PURPLE,
+        Action::MuteForMe => AMBER,
+        Action::Background => CYAN,
+        Action::GoToPage => WHITE,
     }
 }
 

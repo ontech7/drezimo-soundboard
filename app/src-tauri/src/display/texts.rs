@@ -1,28 +1,42 @@
-//! The words on the display, in the simulator's languages: English and Italian, as the system's language.
+//! The words on the display, in the simulator's languages: English and Italian, as picked in the settings.
 
-use crate::soundboard::PlaybackMode;
+use crate::soundboard::{Action, PlaybackMode};
+use std::time::Duration;
 
 pub struct Texts {
     pub ready: &'static str,
     pub no_sound: &'static str,
+    /// The name of a sound outside the soundboards, played from Voicemod's Community
+    pub community: &'static str,
     pub soundboards: &'static str,
     pub favourites: &'static str,
-    pub unreachable: &'static str,
+    pub voices: &'static str,
+    /// What a voice pad does, when peeked
+    pub voice: &'static str,
+    /// Voicemod is not running
+    pub open_voicemod: &'static str,
     pub connecting: &'static str,
     /// Voicemod refused the app's key: a newer app has a valid one
     pub update_app: &'static str,
-    pub paused: &'static str,
     pub looped: &'static str,
-    pub mute_me: &'static str,
-    pub mic_off: &'static str,
     pub stop: &'static str,
+    /// Where the voice loaded shows, while the voice changer is off
     pub voice_off: &'static str,
-    pub hear_me: &'static str,
     pub row: &'static str,
     pub empty: &'static str,
     pub locked: &'static str,
+    /// In place of the name, when a pad outside the licence is pressed
+    pub pro_only: &'static str,
     pub stops_others: &'static str,
+    /// What an action pad does, when peeked
+    pub action: &'static str,
+    /// Before a page's name, on a pad that opens it
+    pub go_to: &'static str,
+    /// What a macro pad does, when peeked
+    pub macro_info: &'static str,
+    decimal_separator: char,
     modes: Modes,
+    actions: Actions,
 }
 
 /// The playback modes' names
@@ -34,11 +48,41 @@ struct Modes {
     hold: &'static str,
 }
 
+/// The action pads' own names
+struct Actions {
+    stop_sounds: &'static str,
+    mute_mic: &'static str,
+    voice_changer: &'static str,
+    random_voice: &'static str,
+    hear_myself: &'static str,
+    mute_for_me: &'static str,
+    background: &'static str,
+    go_to_page: &'static str,
+}
+
 impl Texts {
-    /// The language of the system, when there are words for it.
-    pub fn for_system() -> &'static Self {
-        let italian = sys_locale::get_locale().is_some_and(|locale| locale.starts_with("it"));
-        if italian { &ITALIAN } else { &ENGLISH }
+    pub fn action_name(&self, action: Action) -> &'static str {
+        let names = &self.actions;
+        match action {
+            Action::StopSounds => names.stop_sounds,
+            Action::MuteMic => names.mute_mic,
+            Action::VoiceChanger => names.voice_changer,
+            Action::RandomVoice => names.random_voice,
+            Action::HearMyself => names.hear_myself,
+            Action::MuteForMe => names.mute_for_me,
+            Action::Background => names.background,
+            Action::GoToPage => names.go_to_page,
+        }
+    }
+
+    /// The row overview's heading, such as "ROW 2/6", from row 0.
+    pub fn row_heading(&self, row: usize, rows: usize) -> String {
+        format!("{} {}/{rows}", self.row, row + 1)
+    }
+
+    /// Seconds to a tenth, such as "1.5s".
+    pub fn seconds(&self, duration: Duration) -> String {
+        format!("{:.1}s", duration.as_secs_f64()).replace('.', &self.decimal_separator.to_string())
     }
 
     pub fn mode(&self, mode: PlaybackMode) -> &'static str {
@@ -56,22 +100,26 @@ impl Texts {
 pub const ENGLISH: Texts = Texts {
     ready: "Ready",
     no_sound: "No sound",
+    community: "Community",
     soundboards: "SOUNDBOARDS",
     favourites: "★ Favourites",
-    unreachable: "UNREACHABLE",
-    connecting: "CONNECTING...",
+    voices: "Voices",
+    voice: "VOICE",
+    open_voicemod: "OPEN IT ON YOUR PC",
+    connecting: "CONNECTING",
     update_app: "UPDATE THE APP",
-    paused: "PAUSED",
     looped: "LOOP",
-    mute_me: "MUTE ME",
-    mic_off: "MIC OFF",
     stop: "STOP",
     voice_off: "VOICE OFF",
-    hear_me: "HEAR ME",
     row: "ROW",
     empty: "EMPTY",
     locked: "NOT IN LICENCE",
+    pro_only: "PRO ONLY",
     stops_others: "STOPS OTHERS",
+    action: "ACTION",
+    go_to: "Go to",
+    macro_info: "MACRO",
+    decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
         overlap: "OVERLAP",
@@ -79,27 +127,41 @@ pub const ENGLISH: Texts = Texts {
         pause: "PLAY/PAUSE",
         hold: "HOLD",
     },
+    actions: Actions {
+        stop_sounds: "Stop sounds",
+        mute_mic: "Mute mic",
+        voice_changer: "Voice changer",
+        random_voice: "Random voice",
+        hear_myself: "Hear myself",
+        mute_for_me: "Mute for me",
+        background: "Background",
+        go_to_page: "Go to page",
+    },
 };
 
 pub const ITALIAN: Texts = Texts {
     ready: "Pronto",
     no_sound: "Senza suoni",
+    community: "Community",
     soundboards: "SOUNDBOARD",
     favourites: "★ Preferiti",
-    unreachable: "NON RAGGIUNGIBILE",
-    connecting: "CONNESSIONE...",
+    voices: "Voci",
+    voice: "VOCE",
+    open_voicemod: "APRILO SUL COMPUTER",
+    connecting: "CONNESSIONE",
     update_app: "AGGIORNA L'APP",
-    paused: "PAUSA",
     looped: "LOOP",
-    mute_me: "MUTO",
-    mic_off: "MIC OFF",
     stop: "STOP",
-    voice_off: "VOCE OFF",
-    hear_me: "ASCOLTO",
+    voice_off: "VOCE SPENTA",
     row: "RIGA",
     empty: "VUOTO",
     locked: "NON IN LICENZA",
+    pro_only: "SOLO PRO",
     stops_others: "FERMA GLI ALTRI",
+    action: "AZIONE",
+    go_to: "Vai a",
+    macro_info: "MACRO",
+    decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",
         overlap: "SOVRAPPOSTO",
@@ -107,4 +169,28 @@ pub const ITALIAN: Texts = Texts {
         pause: "PLAY/PAUSA",
         hold: "TIENI PREMUTO",
     },
+    actions: Actions {
+        stop_sounds: "Ferma tutto",
+        mute_mic: "Muto mic",
+        voice_changer: "Cambio voce",
+        random_voice: "Voce casuale",
+        hear_myself: "Ascoltami",
+        mute_for_me: "Non sentire",
+        background: "Sottofondo",
+        go_to_page: "Vai a pagina",
+    },
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writes_seconds_with_the_languages_separator() {
+        let time = Duration::from_millis(1500);
+        assert_eq!(
+            (ENGLISH.seconds(time), ITALIAN.seconds(time)),
+            ("1.5s".into(), "1,5s".into())
+        );
+    }
+}

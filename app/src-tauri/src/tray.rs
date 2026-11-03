@@ -3,22 +3,79 @@
 use crate::board::BoardStatus;
 use crate::device::Status;
 use crate::firmware::FirmwareUpdate;
+use crate::settings::{Language, SettingsState};
 use crate::voicemod::VoicemodStatus;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 
-struct StatusItems {
+struct Items {
     board: MenuItem<Wry>,
     voicemod: MenuItem<Wry>,
+    open: MenuItem<Wry>,
+    quit: MenuItem<Wry>,
+}
+
+struct Words {
+    open: &'static str,
+    quit: &'static str,
+    updating: &'static str,
+    restarting: &'static str,
+    searching: &'static str,
+    busy: &'static str,
+    /// Followed by the firmware's version
+    connected: &'static str,
+    voicemod_connecting: &'static str,
+    voicemod_connected: &'static str,
+    voicemod_unreachable: &'static str,
+    voicemod_key_rejected: &'static str,
+    voicemod_missing_key: &'static str,
+}
+
+const ENGLISH: Words = Words {
+    open: "Open Drezimo Soundboard",
+    quit: "Quit",
+    updating: "Updating Drezimo…",
+    restarting: "Restarting Drezimo…",
+    searching: "Looking for Drezimo…",
+    busy: "Drezimo in use by another program",
+    connected: "Drezimo connected · firmware",
+    voicemod_connecting: "Connecting to Voicemod…",
+    voicemod_connected: "Voicemod connected",
+    voicemod_unreachable: "Voicemod is not running",
+    voicemod_key_rejected: "Voicemod refused the connection",
+    voicemod_missing_key: "Built without a Voicemod key",
+};
+
+const ITALIAN: Words = Words {
+    open: "Apri Drezimo Soundboard",
+    quit: "Esci",
+    updating: "Aggiornamento di Drezimo…",
+    restarting: "Riavvio di Drezimo…",
+    searching: "Ricerca di Drezimo…",
+    busy: "Drezimo usato da un altro programma",
+    connected: "Drezimo collegato · firmware",
+    voicemod_connecting: "Connessione a Voicemod…",
+    voicemod_connected: "Voicemod collegato",
+    voicemod_unreachable: "Voicemod non è aperto",
+    voicemod_key_rejected: "Voicemod ha rifiutato la connessione",
+    voicemod_missing_key: "Compilata senza chiave di Voicemod",
+};
+
+fn words(language: Language) -> &'static Words {
+    match language.resolved() {
+        Language::Italian => &ITALIAN,
+        _ => &ENGLISH,
+    }
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
+    let words = words(app.state::<SettingsState>().get().language);
     let status = Status::default();
-    let board = MenuItem::with_id(app, "board", board_text(&status.board, None), false, None::<&str>)?;
-    let voicemod = MenuItem::with_id(app, "voicemod", voicemod_text(status.voicemod), false, None::<&str>)?;
-    let open = MenuItem::with_id(app, "open", "Open Drezimo Soundboard", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let board = MenuItem::with_id(app, "board", board_text(words, &status), false, None::<&str>)?;
+    let voicemod = MenuItem::with_id(app, "voicemod", voicemod_text(words, &status), false, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", words.open, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", words.quit, true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&board, &voicemod, &separator, &open, &quit])?;
 
@@ -33,43 +90,74 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Drezimo Soundboard")
         .menu(&menu)
+        // As on Windows: the window on a left click or a double click, the menu on a right click. A menu bar app shows its
+        // menu on any click
+        .show_menu_on_left_click(cfg!(target_os = "macos"))
+        .on_tray_icon_event(|tray, event| {
+            let left = matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            );
+            if left && !cfg!(target_os = "macos") {
+                crate::window::open(tray.app_handle());
+            }
+        })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => crate::window::open(app),
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)?;
-    app.manage(StatusItems { board, voicemod });
+    app.manage(Items {
+        board,
+        voicemod,
+        open,
+        quit,
+    });
     Ok(())
 }
 
 pub fn show_status(app: &AppHandle, status: &Status) {
-    let items = app.state::<StatusItems>();
-    let _ = items
-        .board
-        .set_text(board_text(&status.board, status.firmware_update.as_ref()));
-    let _ = items.voicemod.set_text(voicemod_text(status.voicemod));
+    let words = words(app.state::<SettingsState>().get().language);
+    let items = app.state::<Items>();
+    let _ = items.board.set_text(board_text(words, status));
+    let _ = items.voicemod.set_text(voicemod_text(words, status));
 }
 
-fn board_text(status: &BoardStatus, update: Option<&FirmwareUpdate>) -> String {
-    match update {
-        Some(FirmwareUpdate::Updating { .. }) => return "Updating the board…".to_string(),
-        Some(FirmwareUpdate::Restarting { .. }) => return "Restarting the board…".to_string(),
+/// The fixed items; the device thread redoes the status items.
+pub fn set_language(app: &AppHandle, language: Language) {
+    let words = words(language);
+    let items = app.state::<Items>();
+    let _ = items.open.set_text(words.open);
+    let _ = items.quit.set_text(words.quit);
+}
+
+fn board_text(words: &Words, status: &Status) -> String {
+    match status.firmware_update {
+        Some(FirmwareUpdate::Updating { .. }) => return words.updating.to_string(),
+        Some(FirmwareUpdate::Restarting { .. }) => return words.restarting.to_string(),
         _ => {}
     }
-    match status {
-        BoardStatus::Searching => "Looking for the board…".to_string(),
-        BoardStatus::Busy { .. } => "Board in use by another program".to_string(),
-        BoardStatus::Connected { firmware, .. } => format!("Board connected · firmware {firmware}"),
+    match &status.board {
+        BoardStatus::Searching => words.searching.to_string(),
+        BoardStatus::Busy { .. } => words.busy.to_string(),
+        BoardStatus::Connected { firmware, .. } => format!("{} {firmware}", words.connected),
     }
 }
 
-fn voicemod_text(status: VoicemodStatus) -> &'static str {
-    match status {
-        VoicemodStatus::Connecting => "Connecting to Voicemod…",
-        VoicemodStatus::Connected => "Voicemod connected",
-        VoicemodStatus::Unreachable => "Voicemod is not running",
-        VoicemodStatus::KeyRejected => "Voicemod refused the connection",
-        VoicemodStatus::MissingKey => "Built without a Voicemod key",
+fn voicemod_text(words: &Words, status: &Status) -> &'static str {
+    match status.voicemod {
+        VoicemodStatus::Connecting => words.voicemod_connecting,
+        VoicemodStatus::Connected => words.voicemod_connected,
+        VoicemodStatus::Unreachable => words.voicemod_unreachable,
+        VoicemodStatus::KeyRejected => words.voicemod_key_rejected,
+        VoicemodStatus::MissingKey => words.voicemod_missing_key,
     }
 }

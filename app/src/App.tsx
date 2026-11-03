@@ -1,139 +1,117 @@
-import { useEffect } from "react";
-// Inline markup rather than an <img>: nothing left to load once the page is built
-import logo from "./assets/drezimo-logo.svg?raw";
+import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
 import { useBoardActivity } from "./board";
-import { DisplayPreview } from "./DisplayPreview";
-import { type BoardStatus, type FirmwareUpdate, type PageSummary, type VoicemodStatus, useStatus } from "./status";
+import { useBoardView } from "./boardView";
+import { TEXTS, TextsContext } from "./i18n";
+import { BoardPage } from "./pages/BoardPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
+import { GeneralPage } from "./pages/GeneralPage";
+import { MacrosPage } from "./pages/MacrosPage";
+import { OverlayPage } from "./pages/OverlayPage";
+import { PagesPage } from "./pages/PagesPage";
+import { SoundboardPage, SoundboardTitle } from "./pages/SoundboardPage";
+import { DisplayButton } from "./DisplayPreview";
+import { saveSettings, useSettings } from "./settings";
+import { connections, type PageId, Sidebar } from "./Sidebar";
+import { useStatus } from "./status";
+import { Tour } from "./tour/Tour";
 import { windowReady } from "./window";
 
-interface Line {
-  dot: "waiting" | "warning" | "ok" | "error";
-  title: string;
-  detail: string;
-  note?: string;
-}
-
-function boardLine(status: BoardStatus, update: FirmwareUpdate | null): Line {
-  if (update?.state === "updating") {
-    return {
-      dot: "warning",
-      title: "Updating the board…",
-      detail: `Firmware ${update.from} → ${update.to}. Keep it plugged in.`,
-    };
-  }
-  if (update?.state === "restarting") {
-    return { dot: "warning", title: "Restarting the board…", detail: `With firmware ${update.to}.` };
-  }
-  const note = update?.state === "failed" ? `Update failed: ${update.reason} Tried again when the app starts.` : undefined;
-  return { ...connectionLine(status), note };
-}
-
-function connectionLine(status: BoardStatus): Line {
-  switch (status.state) {
-    case "searching":
-      return { dot: "waiting", title: "Looking for the board…", detail: "Plug the board into a USB port." };
-    case "busy":
-      return {
-        dot: "warning",
-        title: "Board in use by another program",
-        detail: "Close the other program and the app connects by itself.",
-      };
-    case "connected":
-      return { dot: "ok", title: "Connected", detail: `Firmware ${status.firmware} · ${status.port}` };
-  }
-}
-
-function voicemodLine(status: VoicemodStatus, page: PageSummary | null, fromLog: boolean): Line {
-  switch (status.state) {
-    case "connecting":
-      return { dot: "waiting", title: "Connecting to Voicemod…", detail: "" };
-    case "connected":
-      return {
-        dot: "ok",
-        title: "Connected",
-        detail: page ? pageText(page) : "Loading the soundboards…",
-        note: fromLog ? undefined : "Voicemod's log cannot be read: the lengths of the sounds are estimated.",
-      };
-    case "unreachable":
-      return {
-        dot: "waiting",
-        title: "Voicemod is not running",
-        detail: "Open Voicemod and the app connects by itself.",
-      };
-    case "keyRejected":
-      return { dot: "error", title: "Voicemod refused the connection", detail: "Update the app to the latest version." };
-    case "missingKey":
-      return { dot: "error", title: "No Voicemod key", detail: "This build was made without VOICEMOD_CLIENT_KEY." };
-  }
-}
-
-function pageText(page: PageSummary): string {
-  const name = page.parts > 1 ? `${page.name} ${page.part}/${page.parts}` : page.name;
-  return `${name} · page ${page.number} of ${page.count}`;
-}
-
-function StatusLine({ line }: { line: Line }) {
-  return (
-    <div className="status">
-      <span className={`dot ${line.dot}`} />
-      <div>
-        <p className="status-title">{line.title}</p>
-        {line.detail && <p className="muted">{line.detail}</p>}
-        {line.note && <p className="note">{line.note}</p>}
-      </div>
-    </div>
-  );
-}
-
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const HINT_TIME = 8000;
 
 export default function App() {
   const status = useStatus();
+  const settings = useSettings();
+  // Kept here, so they go on while another page is shown
   const activity = useBoardActivity(12);
+  const view = useBoardView();
+  const [page, setPage] = useState<PageId>("soundboard");
+  // Until opened or closed here, the tour shows while not seen yet: at the first start, in the first frame
+  const [tour, setTour] = useState<boolean | null>(null);
+  // Where to find the tour again, once it is skipped
+  const [hint, setHint] = useState(false);
+  const ready = status !== null && settings !== null;
+  const language = settings?.shownLanguage ?? "english";
 
-  // The first frame waits for the status, so the window never shows a state that changes at once
+  // The first frame waits for the status and the settings, so the window never shows a state that changes at once
   useEffect(() => {
-    if (status) windowReady();
-  }, [status]);
+    if (ready) windowReady();
+  }, [ready]);
 
-  if (!status) return null;
+  useEffect(() => {
+    if (!hint) return;
+    const timer = setTimeout(() => setHint(false), HINT_TIME);
+    return () => clearTimeout(timer);
+  }, [hint]);
+
+  const tourShown = settings !== null && (tour ?? !settings.tourSeen);
+
+  // Closing the window with the tour on counts as having seen it: the window would open again at each start otherwise
+  useEffect(() => {
+    if (!settings || !tourShown || settings.tourSeen) return;
+    const unlisten = listen("window-closed", () => {
+      setTour(true);
+      saveSettings({ ...settings, tourSeen: true });
+    });
+    return () => {
+      unlisten.then((stop) => stop()).catch(() => {});
+    };
+  }, [settings, tourShown]);
+
+  useEffect(() => {
+    document.documentElement.lang = language === "italian" ? "it" : "en";
+  }, [language]);
+
+  if (!status || !settings) return null;
+  const texts = TEXTS[language];
+  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
+  if (settings.diagnostics) pages.push("diagnostics");
+  // Diagnostics turned off while shown
+  const shown = pages.includes(page) ? page : "soundboard";
 
   return (
-    <main>
-      <header>
-        <div className="logo" role="img" aria-label="Drezimo Soundboard" dangerouslySetInnerHTML={{ __html: logo }} />
-      </header>
-
-      <section className="card">
-        <h2>Board</h2>
-        <StatusLine line={boardLine(status.board, status.firmwareUpdate)} />
-      </section>
-
-      <section className="card">
-        <h2>Voicemod</h2>
-        <StatusLine line={voicemodLine(status.voicemod, status.page, status.voicemodLog)} />
-      </section>
-
-      <section className="card">
-        <h2>Display</h2>
-        <DisplayPreview />
-      </section>
-
-      <section className="card activity">
-        <h2>Activity</h2>
-        {activity.length === 0 ? (
-          <p className="muted">Press a key or turn the knob.</p>
-        ) : (
-          <ul>
-            {activity.map((item) => (
-              <li key={item.id}>
-                <span>{item.text}</span>
-                <time className="muted">{timeFormat.format(item.at)}</time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+    <TextsContext.Provider value={texts}>
+      <div className="app">
+        <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
+        <main>
+          <header className="page-header">
+            {shown === "soundboard" ? <SoundboardTitle status={status} playable={!!view} /> : <h1>{texts.nav[shown]}</h1>}
+            {shown === "soundboard" && <DisplayButton />}
+          </header>
+          {shown === "soundboard" && (
+            <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
+          )}
+          {shown === "pages" && <PagesPage onOpenMacros={() => setPage("macros")} />}
+          {shown === "macros" && <MacrosPage status={status} />}
+          {shown === "board" && <BoardPage settings={settings} status={status} />}
+          {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
+          {shown === "general" && <GeneralPage settings={settings} status={status} onTour={() => setTour(true)} />}
+          {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}
+        </main>
+      </div>
+      {tourShown && (
+        <Tour
+          onClose={(finished) => {
+            setTour(false);
+            setHint(!finished && !settings.tourSeen);
+            if (!settings.tourSeen) saveSettings({ ...settings, tourSeen: true });
+          }}
+        />
+      )}
+      {hint && (
+        <div className="toast" role="status">
+          {texts.tour.later}
+          <button
+            type="button"
+            onClick={() => {
+              setHint(false);
+              setTour(true);
+            }}
+          >
+            {texts.tour.watch}
+          </button>
+        </div>
+      )}
+    </TextsContext.Provider>
   );
 }

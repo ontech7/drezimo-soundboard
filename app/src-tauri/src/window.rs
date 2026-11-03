@@ -3,8 +3,9 @@
 
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
+use tauri::webview::PageLoadEvent;
 use tauri::window::Color;
-use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
 
 /// Each window gets a new label ("main-1", "main-2"…), so a new one never clashes with one being destroyed
 const LABEL_PREFIX: &str = "main-";
@@ -68,18 +69,26 @@ fn build(app: AppHandle, label: String) {
         let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
             .title("Drezimo Soundboard")
             // Fits a 1366×768 screen with its taskbar
-            .inner_size(480.0, 640.0)
-            .min_inner_size(400.0, 560.0)
+            .inner_size(880.0, 660.0)
+            .min_inner_size(760.0, 520.0)
             .center()
             .visible(false)
             .background_color(BACKGROUND)
             // Dark whatever the system theme, title bar included
-            .theme(Some(Theme::Dark));
+            .theme(Some(Theme::Dark))
+            // Tauri's own file drops would take the page's drags, the pads moved in the Pages editor
+            .disable_drag_drop_handler()
+            // A reloaded page knows of no board test: one left running would keep the board from playing
+            .on_page_load(|window, payload| {
+                if payload.event() == PageLoadEvent::Started {
+                    crate::device::end_board_test(window.app_handle());
+                }
+            });
         #[cfg(target_os = "macos")]
         let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
 
         if let Err(error) = builder.build() {
-            eprintln!("cannot open the window: {error}");
+            crate::errors::log(format!("cannot open the window: {error}"));
             let mut state = window_state(&app);
             if state.label() == label {
                 state.phase = Phase::Absent;
@@ -123,6 +132,10 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
     }
     api.prevent_close();
     let _ = window.hide();
+    // The page stays: it learns it was closed, rather than only hidden or minimised
+    let _ = window.emit("window-closed", ());
+    // Nobody sees the test any more: the board plays again
+    crate::device::end_board_test(window.app_handle());
 
     let app = window.app_handle().clone();
     let label = window.label().to_string();

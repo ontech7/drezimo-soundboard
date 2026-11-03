@@ -154,7 +154,7 @@ impl NativeWindow {
     fn report(&mut self, what: &str) {
         if !self.failing {
             let code = unsafe { GetLastError() };
-            eprintln!("{what} (Windows error {code})");
+            crate::errors::log(format!("{what} (Windows error {code})"));
             self.failing = true;
         }
     }

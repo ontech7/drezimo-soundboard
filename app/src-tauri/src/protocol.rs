@@ -1,20 +1,24 @@
 //! The messages between the board and the app, as described in docs/project.md, section 9.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const PAD_COUNT: u8 = 36;
+/// The pads, row by row from the top left
+pub const COLUMNS: usize = 6;
+pub const ROWS: usize = PAD_COUNT as usize / COLUMNS;
 pub const BUTTON_COUNT: u8 = 6;
 /// The pads' LEDs come first in the chain, then the function keys'
 pub const LED_COUNT: usize = (PAD_COUNT + BUTTON_COUNT) as usize;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Led {
     pub color: [u8; 3],
     pub effect: Effect,
 }
 
 /// Animated by the board, so the effects stay smooth whatever the USB timing
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Effect {
     Solid,
     Breathe,
@@ -49,13 +53,59 @@ impl Led {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BoardMessage {
-    Hello { firmware: String },
-    Pad { index: u8, pressed: bool },
-    Button { index: u8, pressed: bool },
-    Encoder { step: i8 },
-    EncoderButton { pressed: bool },
+    Hello {
+        firmware: String,
+    },
+    Pad {
+        index: u8,
+        pressed: bool,
+    },
+    Button {
+        index: u8,
+        pressed: bool,
+    },
+    Encoder {
+        step: i8,
+    },
+    EncoderButton {
+        pressed: bool,
+    },
+    /// The reply to SETTINGS
+    Settings(DisplaySettings),
     Ok,
-    Error { reason: String },
+    Error {
+        reason: String,
+    },
+}
+
+/// The display's settings, which the board keeps in its flash
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplaySettings {
+    /// In percent
+    pub brightness: u8,
+    /// Minutes without any input before the display dims, and before it turns off: 0 is never
+    pub dim_after: u16,
+    pub off_after: u16,
+    /// Minutes between two pixel shifts: 0 is off
+    pub shift_every: u16,
+}
+
+impl DisplaySettings {
+    /// The SET messages that turn `self` into `wanted`.
+    pub fn changes(&self, wanted: &Self) -> Vec<String> {
+        let fields = [
+            ("OLED_BRIGHTNESS", self.brightness.into(), wanted.brightness.into()),
+            ("OLED_DIM_AFTER", self.dim_after, wanted.dim_after),
+            ("OLED_OFF_AFTER", self.off_after, wanted.off_after),
+            ("OLED_SHIFT", self.shift_every, wanted.shift_every),
+        ];
+        fields
+            .into_iter()
+            .filter(|(_, now, then)| now != then)
+            .map(|(name, _, value)| format!("SET,{name},{value}"))
+            .collect()
+    }
 }
 
 impl BoardMessage {
@@ -88,6 +138,12 @@ impl BoardMessage {
             ["ENCBTN", state] => Self::EncoderButton {
                 pressed: parse_pressed(state)?,
             },
+            ["SETTINGS", brightness, dim_after, off_after, shift_every] => Self::Settings(DisplaySettings {
+                brightness: brightness.parse().ok()?,
+                dim_after: dim_after.parse().ok()?,
+                off_after: off_after.parse().ok()?,
+                shift_every: shift_every.parse().ok()?,
+            }),
             ["OK"] => Self::Ok,
             _ => return None,
         };
@@ -137,6 +193,15 @@ mod tests {
             ("ENC,+1", BoardMessage::Encoder { step: 1 }),
             ("ENC,-1", BoardMessage::Encoder { step: -1 }),
             ("ENCBTN,1", BoardMessage::EncoderButton { pressed: true }),
+            (
+                "SETTINGS,50,1,10,3",
+                BoardMessage::Settings(DisplaySettings {
+                    brightness: 50,
+                    dim_after: 1,
+                    off_after: 10,
+                    shift_every: 3,
+                }),
+            ),
             ("OK", BoardMessage::Ok),
             (
                 "ERR,unknown message",
@@ -148,6 +213,26 @@ mod tests {
         for (line, expected) in cases {
             assert_eq!(BoardMessage::parse(line), Some(expected), "{line}");
         }
+    }
+
+    #[test]
+    fn sets_only_the_display_settings_that_changed() {
+        let saved = DisplaySettings {
+            brightness: 50,
+            dim_after: 1,
+            off_after: 10,
+            shift_every: 3,
+        };
+        let wanted = DisplaySettings {
+            brightness: 80,
+            off_after: 0,
+            ..saved
+        };
+        assert_eq!(
+            saved.changes(&wanted),
+            ["SET,OLED_BRIGHTNESS,80", "SET,OLED_OFF_AFTER,0"]
+        );
+        assert!(saved.changes(&saved).is_empty());
     }
 
     #[test]

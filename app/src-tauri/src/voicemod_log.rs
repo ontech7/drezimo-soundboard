@@ -21,6 +21,8 @@ const LOST_AFTER: Duration = Duration::from_secs(2);
 const HISTORY_LIMIT: u64 = 4 * 1024 * 1024;
 /// Shorter plays are not taken as a sound's length
 const MIN_LENGTH: Duration = Duration::from_millis(100);
+/// The largest an Ogg page can be: the last one starts within this many bytes of the end
+const MAX_OGG_PAGE: u64 = 65_307;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LogLine {
@@ -32,12 +34,14 @@ pub struct LogLine {
 pub enum LineKind {
     /// Voicemod started
     Run,
-    /// A press; `repeat` when the sound was already active, `paused` when it was paused
+    /// A press; `repeat` when the sound was already active, `paused` when it was paused, `length` the length of its
+    /// file when readable
     Play {
         id: String,
         mode: PlaybackMode,
         repeat: bool,
         paused: bool,
+        length: Option<Duration>,
     },
     /// A sound left Voicemod's active list
     End {
@@ -84,7 +88,7 @@ pub fn follow(on_input: impl Fn(LogInput) + Send + 'static) {
                     }
                     Err(error) => {
                         if missing_since.get_or_insert_with(Instant::now).elapsed() >= LOST_AFTER {
-                            eprintln!("lost Voicemod's log: {error}");
+                            crate::errors::log(format!("lost Voicemod's log: {error}"));
                             on_input(LogInput::Lost);
                             log = None;
                             missing_since = None;
@@ -97,21 +101,14 @@ pub fn follow(on_input: impl Fn(LogInput) + Send + 'static) {
     });
 }
 
-/// Where Voicemod keeps its log. The Windows folders are still to be verified on a real installation.
+/// Where Voicemod keeps its log.
 fn log_path() -> Option<PathBuf> {
-    let folder = |name| std::env::var_os(name).map(PathBuf::from);
-    let folders: Vec<PathBuf> = if cfg!(windows) {
-        ["APPDATA", "LOCALAPPDATA"].into_iter().filter_map(folder).collect()
+    let folder = if cfg!(windows) {
+        PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
     } else {
-        folder("HOME")
-            .map(|home| home.join("Library/Application Support"))
-            .into_iter()
-            .collect()
+        PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support")
     };
-    folders
-        .into_iter()
-        .map(|folder| folder.join("VoicemodV3/logs/voicemod-desktop.log"))
-        .find(|path| path.is_file())
+    Some(folder.join("VoicemodV3/logs/voicemod-desktop.log")).filter(|path| path.is_file())
 }
 
 /// The log file, read from where the previous read stopped.
@@ -120,6 +117,8 @@ struct Log {
     position: u64,
     /// The start of a line still being written
     partial: Vec<u8>,
+    /// The lengths of the sound files the log names, each read once
+    lengths: HashMap<PathBuf, Option<Duration>>,
 }
 
 impl Log {
@@ -129,6 +128,7 @@ impl Log {
             path: path.to_path_buf(),
             position: start,
             partial: Vec::new(),
+            lengths: HashMap::new(),
         };
         let mut bytes = log.read_from_position()?;
         if start > 0 {
@@ -176,12 +176,75 @@ impl Log {
         let complete: Vec<u8> = self.partial.drain(..=last_end).collect();
         String::from_utf8_lossy(&complete)
             .lines()
-            .filter_map(parse_line)
+            .filter_map(|line| parse_line(line, |file| self.file_length(file)))
             .collect()
+    }
+
+    fn file_length(&mut self, file: &Path) -> Option<Duration> {
+        if let Some(length) = self.lengths.get(file) {
+            return *length;
+        }
+        // A file that cannot be read yet, or is still being written, is tried again at its next play
+        let length = ogg_length(file).ok()?;
+        self.lengths.insert(file.to_path_buf(), length);
+        length
     }
 }
 
-fn parse_line(line: &str) -> Option<LogLine> {
+/// The length of a plain Ogg Vorbis or Opus file, as Voicemod keeps the Community's sounds; None for other files,
+/// such as the soundboards' sounds, which Voicemod keeps obfuscated.
+fn ogg_length(path: &Path) -> io::Result<Option<Duration>> {
+    let mut file = File::open(path)?;
+    let mut head = Vec::new();
+    file.by_ref().take(512).read_to_end(&mut head)?;
+    if head.len() < 4 {
+        return Err(io::ErrorKind::UnexpectedEof.into());
+    }
+    let Some((rate, skipped)) = ogg_format(&head) else {
+        return Ok(None);
+    };
+    let size = file.seek(SeekFrom::End(0))?;
+    file.seek(SeekFrom::Start(size.saturating_sub(MAX_OGG_PAGE)))?;
+    let mut tail = Vec::new();
+    file.read_to_end(&mut tail)?;
+    let granule = last_granule(&tail).ok_or(io::ErrorKind::UnexpectedEof)?;
+    let samples = granule.saturating_sub(skipped) as f64;
+    Ok(Duration::try_from_secs_f64(samples / f64::from(rate)).ok())
+}
+
+/// From the stream's first page: the rate its positions count at, and the samples skipped at the start.
+fn ogg_format(head: &[u8]) -> Option<(u32, u64)> {
+    if !head.starts_with(b"OggS") {
+        return None;
+    }
+    let packet = head.get(27 + usize::from(*head.get(26)?)..)?;
+    if let Some(vorbis) = packet.strip_prefix(b"\x01vorbis") {
+        // After the version and the channel count
+        let rate = u32::from_le_bytes(vorbis.get(5..9)?.try_into().ok()?);
+        Some((rate, 0))
+    } else {
+        // Opus counts at 48 kHz whatever the source's rate, and skips the encoder's delay
+        let opus = packet.strip_prefix(b"OpusHead")?;
+        let skipped = u16::from_le_bytes(opus.get(2..4)?.try_into().ok()?);
+        Some((48_000, u64::from(skipped)))
+    }
+}
+
+/// The position at the end of the stream, from its last page.
+fn last_granule(tail: &[u8]) -> Option<u64> {
+    // Version 0, flagged as the end of the stream
+    let start = tail
+        .windows(6)
+        .rposition(|page| page.starts_with(b"OggS") && page[4] == 0 && page[5] & 4 != 0)?;
+    let granule = i64::from_le_bytes(tail.get(start + 6..start + 14)?.try_into().ok()?);
+    u64::try_from(granule).ok()
+}
+
+/// Voicemod's own sounds, such as the notice its mic mute plays, have ids like this one: they are not the user's
+const OWN_SOUND_ID: &str = "00000000-0000-4000-";
+
+/// One line of the log; `file_length` tells the length of a sound file it names.
+fn parse_line(line: &str, file_length: impl FnOnce(&Path) -> Option<Duration>) -> Option<LogLine> {
     let at = timestamp(line.get(1..24)?)?;
     let kind = if line.ends_with("------ RUN ------") {
         LineKind::Run
@@ -191,18 +254,26 @@ fn parse_line(line: &str) -> Option<LogLine> {
             None => (false, rest),
         };
         let id = rest.strip_prefix("id=")?.split(',').next()?;
+        if id.starts_with(OWN_SOUND_ID) {
+            return None;
+        }
         // The settings follow the sound's path, which could contain anything
-        let settings = &rest[rest.rfind(", repMode=k")?..];
+        let settings_start = rest.rfind(", repMode=k")?;
+        let file = after(&rest[..settings_start], ", path=");
+        let settings = &rest[settings_start..];
         LineKind::Play {
             id: id.to_string(),
             mode: PlaybackMode::from_name(value(settings, "repMode=k")?),
             repeat,
             paused: value(settings, "soundStatus=") == Some("kPaused"),
+            length: file.and_then(|file| file_length(Path::new(file))),
         }
     } else if let Some(rest) = after(line, "Removes a sound=`") {
-        LineKind::End {
-            id: rest.split('`').next()?.to_string(),
+        let id = rest.split('`').next()?;
+        if id.starts_with(OWN_SOUND_ID) {
+            return None;
         }
+        LineKind::End { id: id.to_string() }
     } else if let Some(rest) = after(line, "Requested to stop other sounds before playing a sound=") {
         LineKind::StopOthers {
             playing: rest.trim().to_string(),
@@ -241,12 +312,14 @@ pub fn instant_of(at: SystemTime, now: Instant) -> Instant {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LogEvent {
-    /// `from_start` when the press started the sound, or another instance of it, from the beginning
+    /// `from_start` when the press started the sound, or another instance of it, from the beginning; `length` the
+    /// length of its file, when readable
     Played {
         id: String,
         repeat: bool,
         from_start: bool,
         state: State,
+        length: Option<Duration>,
     },
     /// `left` is the state of the instances still playing, for a sound with overlapping plays; `length` the sound's
     /// natural length, when this play was not cut short
@@ -309,6 +382,7 @@ impl LogTracker {
                 mode,
                 repeat,
                 paused,
+                length,
             } => {
                 // A repeat press is logged with the state the sound had before it
                 let mut from_start = false;
@@ -355,6 +429,7 @@ impl LogTracker {
                     repeat: *repeat,
                     from_start,
                     state: self.active[id].state,
+                    length: length.filter(|length| *length > MIN_LENGTH),
                 })
             }
             LineKind::End { id } => {
@@ -413,8 +488,12 @@ mod tests {
         format!("[2026-11-01 {time}] [AudioAgent] [info] [SoundboardController] {message}")
     }
 
+    fn parse(line: &str) -> Option<LogLine> {
+        parse_line(line, |_| None)
+    }
+
     fn line(time: &str, message: &str) -> LogLine {
-        parse_line(&text(time, message)).expect("a sound line")
+        parse(&text(time, message)).expect("a sound line")
     }
 
     fn play(time: &str, id: &str, mode: &str, repeat: bool, status: &str) -> LogLine {
@@ -443,7 +522,8 @@ mod tests {
                 id: "aa3c".into(),
                 mode: PlaybackMode::PlayPause,
                 repeat: true,
-                paused: true
+                paused: true,
+                length: None
             }
         );
         assert_eq!(end("22:37:18.163", "aa3c").kind, LineKind::End { id: "aa3c".into() });
@@ -458,9 +538,108 @@ mod tests {
         );
 
         let run = "[2026-10-29 10:32:51.111] [voicemod-desktop] [info] ------ RUN ------";
-        assert_eq!(parse_line(run).unwrap().kind, LineKind::Run);
-        assert_eq!(parse_line(&text("22:37:20.000", "Something else")), None);
-        assert_eq!(parse_line("not a log line"), None);
+        assert_eq!(parse(run).unwrap().kind, LineKind::Run);
+        assert_eq!(parse(&text("22:37:20.000", "Something else")), None);
+        assert_eq!(parse("not a log line"), None);
+    }
+
+    #[test]
+    fn reads_the_sound_files_lengths() {
+        // A Community sound played on Windows: its file is downloaded at the first play, and a first press has no status
+        let community = "[2026-11-02 12:12:43.610] [AudioAgent] [info] [SoundboardController] playSound \
+            id=2597e302-6b20-4c7a-86bd-373438cf2ee9, \
+            path=C:/Users/x/AppData/Local/VoicemodV3/tuna/2597e302-6b20-4c7a-86bd-373438cf2ee9.ogg, \
+            repMode=kPlayRestart, stopOthers=true, engIsUpd=true";
+        let mut read = None;
+        let line = parse_line(community, |file| {
+            read = Some(file.to_path_buf());
+            Some(Duration::from_millis(1758))
+        });
+        assert_eq!(
+            line.unwrap().kind,
+            LineKind::Play {
+                id: "2597e302-6b20-4c7a-86bd-373438cf2ee9".into(),
+                mode: PlaybackMode::PlayRestart,
+                repeat: false,
+                paused: false,
+                length: Some(Duration::from_millis(1758))
+            }
+        );
+        let file = "C:/Users/x/AppData/Local/VoicemodV3/tuna/2597e302-6b20-4c7a-86bd-373438cf2ee9.ogg";
+        assert_eq!(read, Some(PathBuf::from(file)));
+
+        let mut read = None;
+        let honk = text(
+            "10:00:00.000",
+            "playSound id=a, path=/x/cache/Memes, vol. 2 - 03 - Honk.ogg, repMode=kPlayRestart, stopOthers=false",
+        );
+        parse_line(&honk, |file| {
+            read = Some(file.to_path_buf());
+            None
+        });
+        assert_eq!(read, Some(PathBuf::from("/x/cache/Memes, vol. 2 - 03 - Honk.ogg")));
+    }
+
+    #[test]
+    fn leaves_out_voicemods_own_sounds() {
+        let notice = "[2026-11-02 19:07:10.229] [AudioAgent] [info] [SoundboardController] playSound             id=00000000-0000-4000-bcd0-000000000001,             path=C:/Users/x/AppData/Local/VoicemodV3/userCache/resources/MuteMicOn.wav,             repMode=kPlayOverlap, stopOthers=false, engIsUpd=true";
+        let removed = "[2026-11-02 19:07:10.904] [AudioAgent] [info] [SoundboardController] Removes a             sound=`00000000-0000-4000-bcd0-000000000001` from active sounds";
+        assert_eq!(parse(notice), None);
+        assert_eq!(parse(removed), None);
+    }
+
+    fn ogg_page(flags: u8, granule: i64, packet: &[u8]) -> Vec<u8> {
+        let mut page = b"OggS\0".to_vec();
+        page.push(flags);
+        page.extend(granule.to_le_bytes());
+        // Stream, sequence number and checksum
+        page.extend([0; 12]);
+        page.extend([1, packet.len() as u8]);
+        page.extend(packet);
+        page
+    }
+
+    #[test]
+    fn reads_the_length_of_plain_ogg_files() {
+        let vorbis = [
+            b"\x01vorbis".as_slice(),
+            &0u32.to_le_bytes(),
+            &[2],
+            &44_100u32.to_le_bytes(),
+        ]
+        .concat();
+        let opus = [
+            b"OpusHead".as_slice(),
+            &[1, 2],
+            &312u16.to_le_bytes(),
+            &48_000u32.to_le_bytes(),
+        ]
+        .concat();
+        let cases = [
+            (
+                "vorbis",
+                [
+                    ogg_page(2, 0, &vorbis),
+                    ogg_page(0, 44_100, &[7; 200]),
+                    ogg_page(4, 88_200, &[7; 100]),
+                ]
+                .concat(),
+                Some(Duration::from_secs(2)),
+            ),
+            (
+                "opus",
+                [ogg_page(2, 0, &opus), ogg_page(4, 48_312, &[7; 100])].concat(),
+                Some(Duration::from_secs(1)),
+            ),
+            ("obfuscated", b"}TP5dijsfhd4zx\"\x08".to_vec(), None),
+        ];
+        for (name, bytes, length) in cases {
+            let path = std::env::temp_dir().join(format!("drezimo-{name}-{}.ogg", std::process::id()));
+            fs::write(&path, bytes).unwrap();
+            let read = ogg_length(&path).unwrap();
+            fs::remove_file(&path).unwrap();
+            assert_eq!(read, length, "{name}");
+        }
     }
 
     #[test]
@@ -538,7 +717,7 @@ mod tests {
         assert_eq!(tracker.active().count(), 0);
 
         tracker.feed(&play("10:00:04.000", "loop", "PlayStop", false, "N/A"));
-        let run = parse_line("[2026-11-01 10:00:05.000] [voicemod-desktop] [info] ------ RUN ------").unwrap();
+        let run = parse("[2026-11-01 10:00:05.000] [voicemod-desktop] [info] ------ RUN ------").unwrap();
         assert_eq!(tracker.feed(&run), Some(LogEvent::Restarted));
         assert_eq!(tracker.active().count(), 0, "a restarted Voicemod plays nothing");
     }
