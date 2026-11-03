@@ -6,6 +6,9 @@ export type Language = "system" | "english" | "italian";
 
 export type Anchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right" | "bottomLeft" | "bottom" | "bottomRight";
 
+/** What a pad does when pressed again while its sound plays (src-tauri/src/press_again.rs) */
+export type PressAgain = "voicemod" | "restart" | "overlap" | "stop" | "pause" | "hold";
+
 /** The screen the mouse is on when the overlay appears, the main one, or one by its system name */
 export type OverlayScreen = "mouse" | "main" | { named: string };
 
@@ -25,6 +28,8 @@ export interface Settings {
   language: Language;
   /** In percent */
   ledBrightness: number;
+  /** Unless picked for a pad in the Pages editor */
+  pressAgain: PressAgain;
   overlay: OverlaySettings;
   /** Shows the Diagnostics page */
   diagnostics: boolean;
@@ -72,8 +77,9 @@ export function useSettings(): SettingsView | null {
   return settings;
 }
 
-export function saveSettings({ language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen }: Settings): void {
-  const settings = { language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
+export function saveSettings(view: Settings): void {
+  const { language, ledBrightness, pressAgain, overlay, diagnostics, tourSeen, muteForMeNoticeSeen } = view;
+  const settings = { language, ledBrightness, pressAgain, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

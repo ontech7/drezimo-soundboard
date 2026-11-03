@@ -12,6 +12,7 @@ mod news;
 mod overlay;
 mod pictures;
 mod playback;
+mod press_again;
 mod protocol;
 mod report;
 mod settings;
@@ -71,6 +72,7 @@ pub fn run() {
             custom_pages::custom_pages,
             custom_pages::set_custom_pages,
             custom_pages::library,
+            press_again::press_outcomes,
             macros::macros,
             macros::set_macros,
             macros::try_macro,

@@ -181,7 +181,10 @@ fn voicemod(status: &Status) -> String {
 
 fn settings_text(settings: &Settings, status: &Status) -> String {
     let overlay = &settings.overlay;
-    let mut text = format!("LEDs {} %", settings.led_brightness);
+    let mut text = format!(
+        "LEDs {} %, pads pressed again: {:?}",
+        settings.led_brightness, settings.press_again
+    );
     if overlay.enabled {
         let _ = write!(
             text,
@@ -365,6 +368,7 @@ mod tests {
             "Pages: 44 (2 of your own), 1 macro",
             "Updates: up to date, checked 2026-11-03 12:40",
             "Start at login: off",
+            "LEDs 50 %, pads pressed again: Voicemod",
             "overlay BottomRight on the screen with the mouse",
             "12:50:21 lost the connection to Voicemod: closed (×3, last 12:55:21)",
             "12:51:02 unreadable pages: pages.json\n",

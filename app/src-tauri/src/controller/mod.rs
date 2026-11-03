@@ -17,8 +17,9 @@ use crate::display::texts::{ENGLISH, Texts};
 use crate::macros::Macro;
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
+use crate::press_again::{self, Command, Outcome, PressAgain};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
-use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
+use crate::soundboard::{self, Action, Pad, Page, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
@@ -82,10 +83,12 @@ pub struct PageSummary {
     pub count: usize,
 }
 
-/// A held pad whose sound plays only while held: it gets a key-up on release
+/// A held pad whose release does something to its sound
 struct HeldSound {
     sound: Sound,
     since: Instant,
+    /// Sent on release, if the sound still plays
+    release: Command,
 }
 
 #[derive(Default)]
@@ -125,6 +128,8 @@ pub struct Controller {
     /// The page to show again when the soundboards come back after Voicemod was away: soundboard and part
     resume: Option<(String, usize)>,
     playback: Playback,
+    /// What a pad does when pressed again, unless the user picked it for that pad
+    press_again: PressAgain,
     /// Voicemod's sounds as its log tells them
     log: LogTracker,
     /// As Voicemod last sent them, for the pages
@@ -185,6 +190,7 @@ impl Default for Controller {
             page: 0,
             resume: None,
             playback: Playback::default(),
+            press_again: PressAgain::default(),
             log: LogTracker::default(),
             soundboards: Vec::new(),
             voices: Vec::new(),
@@ -249,6 +255,11 @@ impl Controller {
         if self.has_lists() {
             self.rebuild_pages(false);
         }
+    }
+
+    /// What a pad does when pressed again, unless the user picked it for that pad.
+    pub fn set_press_again(&mut self, choice: PressAgain) {
+        self.press_again = choice;
     }
 
     pub fn set_board_connected(&mut self, connected: bool, now: Instant) {
@@ -373,14 +384,10 @@ impl Controller {
             .into_iter()
             .partition(|(at, _)| *at <= now);
         self.releases = waiting;
-        for (_, HeldSound { sound, .. }) in due {
-            // Not to a sound stopped meanwhile: Voicemod would take the key-up as a press and start it again
+        for (_, HeldSound { sound, release, .. }) in due {
+            // Not to a sound stopped meanwhile: Voicemod would take a key-up or a click as a press and start it again
             if self.playback.state(&sound.id).is_some() {
-                self.playback.release(&sound, now);
-                self.request(Request::PlaySound {
-                    id: sound.id,
-                    key_down: false,
-                });
+                self.command(release, &sound, now);
             }
         }
         self.flashes.retain(|_, until| *until > now);
@@ -561,16 +568,49 @@ impl Controller {
             return;
         }
 
-        self.request(Request::PlaySound {
-            id: sound.id.clone(),
-            key_down: true,
-        });
-        self.playback.press(&sound, now);
+        let outcome = self.outcome_at(pad, &sound);
+        let active = self.playback.state(&sound.id).is_some();
+        for &command in press_again::on_press(outcome.does, sound.playback_mode, active) {
+            self.command(command, &sound, now);
+        }
         self.sound_started();
         self.last = Some((sound.name.clone(), now));
-        let held_sound =
-            (sound.playback_mode == PlaybackMode::PlayLoopOnPress).then_some(HeldSound { sound, since: now });
+        let held_sound = press_again::on_release(outcome.does, sound.playback_mode).map(|release| HeldSound {
+            sound,
+            since: now,
+            release,
+        });
         self.held.insert(pad, held_sound);
+    }
+
+    /// What pressing a pad's sound again does: as picked for that pad, else as for every pad.
+    fn outcome_at(&self, pad: u8, sound: &Sound) -> Outcome {
+        let picked = self.pages.get(self.page).and_then(|page| page.press_again(pad));
+        press_again::outcome(picked.unwrap_or(self.press_again), sound.playback_mode)
+    }
+
+    fn command(&mut self, command: Command, sound: &Sound, now: Instant) {
+        match command {
+            Command::KeyDown => {
+                self.request(Request::PlaySound {
+                    id: sound.id.clone(),
+                    key_down: true,
+                });
+                self.playback.press(sound, now);
+            }
+            Command::KeyUp => {
+                self.request(Request::PlaySound {
+                    id: sound.id.clone(),
+                    key_down: false,
+                });
+                self.playback.release(sound, now);
+            }
+            Command::StopAll => {
+                // As the STOP key: a macro would play on
+                self.finish_macro();
+                self.stop_every_sound(now);
+            }
+        }
     }
 
     /// Outside the licence: Voicemod would not play it, and would not say so
@@ -582,9 +622,14 @@ impl Controller {
     }
 
     fn pad_released(&mut self, pad: u8, now: Instant) {
-        // Voicemod takes every request as a press: only the sounds that play while held get the key-up
+        // Voicemod takes every request as a press: only a release that does something sends one
         if let Some(Some(held)) = self.held.remove(&pad) {
-            self.releases.push((now.max(held.since + MIN_HOLD), held));
+            // Stopping every sound cannot leave one stuck: waiting would only stop those started meanwhile
+            let at = match held.release {
+                Command::StopAll => now,
+                _ => now.max(held.since + MIN_HOLD),
+            };
+            self.releases.push((at, held));
         }
     }
 
@@ -610,9 +655,13 @@ impl Controller {
     }
 
     fn stop_sounds(&mut self, now: Instant) {
+        self.stop_every_sound(now);
+        self.last = Some((self.texts.stop.to_string(), now));
+    }
+
+    fn stop_every_sound(&mut self, now: Instant) {
         self.playback.stop_all(now);
         self.request(Request::StopAllSounds);
-        self.last = Some((self.texts.stop.to_string(), now));
     }
 
     fn load_voice(&mut self, voice: Voice, now: Instant) {

@@ -81,7 +81,7 @@ export default function App() {
           {shown === "soundboard" && (
             <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
           )}
-          {shown === "pages" && <PagesPage onOpenMacros={() => setPage("macros")} />}
+          {shown === "pages" && <PagesPage pressAgain={settings.pressAgain} onOpenMacros={() => setPage("macros")} />}
           {shown === "macros" && <MacrosPage status={status} />}
           {shown === "board" && <BoardPage settings={settings} status={status} />}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}

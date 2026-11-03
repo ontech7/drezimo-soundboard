@@ -2,8 +2,9 @@
 //! folder. They come first on the board, before Voicemod's soundboards (docs/project.md, section 8).
 
 use crate::pictures;
+use crate::press_again::PressAgain;
 use crate::protocol::PAD_COUNT;
-use crate::soundboard::{Action, Pad, Soundboard, Voice};
+use crate::soundboard::{Action, Pad, PlaybackMode, Soundboard, Voice};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -50,6 +51,13 @@ pub struct CustomPad {
     /// The LED's colour at rest, instead of its kind's
     #[serde(default)]
     pub colour: Option<[u8; 3]>,
+    /// A sound's, when pressed again: instead of the one set for every pad
+    #[serde(
+        default,
+        deserialize_with = "crate::press_again::known",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub press_again: Option<PressAgain>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -114,6 +122,8 @@ struct LibraryItem {
     picture: Option<String>,
     /// A sound's, in seconds, once known
     length: Option<f32>,
+    /// A sound's mode in Voicemod
+    mode: Option<PlaybackMode>,
 }
 
 impl Library {
@@ -158,10 +168,10 @@ impl Library {
 }
 
 fn item(pad: Pad) -> LibraryItem {
-    let (id, name) = match &pad {
-        Pad::Sound(sound) => (sound.id.clone(), sound.name.clone()),
-        Pad::Voice(voice) => (voice.id.clone(), voice.name.clone()),
-        Pad::Action { name, .. } | Pad::Macro { name, .. } => (String::new(), name.clone()),
+    let (id, name, mode) = match &pad {
+        Pad::Sound(sound) => (sound.id.clone(), sound.name.clone(), Some(sound.playback_mode)),
+        Pad::Voice(voice) => (voice.id.clone(), voice.name.clone(), None),
+        Pad::Action { name, .. } | Pad::Macro { name, .. } => (String::new(), name.clone(), None),
     };
     LibraryItem {
         id,
@@ -169,6 +179,7 @@ fn item(pad: Pad) -> LibraryItem {
         enabled: pad.enabled(),
         picture: pictures::path(&pad),
         length: None,
+        mode,
     }
 }
 
@@ -191,6 +202,10 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
             page.pads.resize(PADS, None);
             for pad in page.pads.iter_mut().flatten() {
                 pad.label = shortened(&pad.label, MAX_LABEL);
+                // Only a sound plays again
+                if !matches!(pad.content, Content::Sound { .. }) {
+                    pad.press_again = None;
+                }
             }
             page
         })
@@ -261,9 +276,10 @@ mod tests {
     #[test]
     fn reads_and_writes_the_pages_file() {
         let json = r#"[{"id": "page-1", "name": "Gaming", "pads": [
-            {"kind": "sound", "id": "s1", "name": "Honk", "label": "Fail", "colour": [255, 140, 40]},
+            {"kind": "sound", "id": "s1", "name": "Honk", "label": "Fail", "colour": [255, 140, 40],
+                "pressAgain": "pause"},
             null,
-            {"kind": "voice", "id": "v1"},
+            {"kind": "voice", "id": "v1", "pressAgain": "bounce"},
             {"kind": "action", "action": "muteMic"},
             {"kind": "action", "action": "goToPage", "page": "page-2"},
             {"kind": "action", "action": "somethingNew"},
@@ -279,10 +295,13 @@ mod tests {
                 },
                 label: "Fail".into(),
                 colour: Some([255, 140, 40]),
+                press_again: Some(PressAgain::Pause),
             })
         );
         assert_eq!(pads[1], None);
-        assert!(matches!(&pads[2], Some(CustomPad { content: Content::Voice { id, .. }, .. }) if id == "v1"));
+        assert!(
+            matches!(&pads[2], Some(CustomPad { content: Content::Voice { id, .. }, press_again: None, .. }) if id == "v1")
+        );
         assert!(matches!(
             &pads[4],
             Some(CustomPad { content: Content::Action { action: Action::GoToPage, page: Some(page) }, .. }) if page == "page-2"
@@ -305,6 +324,7 @@ mod tests {
                 },
                 label: "  a label far too long for the display  ".into(),
                 colour: None,
+                press_again: Some(PressAgain::Stop),
             })],
         };
         let pages = checked(vec![
@@ -317,6 +337,8 @@ mod tests {
         let names: Vec<_> = pages.iter().map(|page| page.name.as_str()).collect();
         assert_eq!(names, ["Gaming", "#2"]);
         assert_eq!(pages[0].pads.len(), PADS);
-        assert_eq!(pages[0].pads[0].as_ref().unwrap().label, "a label far too long");
+        let pad = pages[0].pads[0].as_ref().unwrap();
+        assert_eq!(pad.label, "a label far too long");
+        assert_eq!(pad.press_again, None, "an action is not played again");
     }
 }

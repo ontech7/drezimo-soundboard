@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Choice, Row, Section, Slider } from "../controls";
 import { useTexts } from "../i18n";
+import { PressAgainSection } from "../PressAgainControls";
 import { type DisplaySettings, type SettingsView, saveDisplaySettings, saveSettings } from "../settings";
 import type { Status } from "../status";
 
@@ -19,6 +20,8 @@ export function BoardPage({ settings, status }: { settings: SettingsView; status
 
   return (
     <>
+      <PressAgainSection settings={settings} />
+
       <Section title={texts.leds}>
         <Row label={texts.brightness} text={texts.ledBrightnessText}>
           <Slider

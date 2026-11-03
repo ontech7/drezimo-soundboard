@@ -2,6 +2,7 @@
 //! they follow it to another computer (docs/project.md, section 4).
 
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
+use crate::press_again::PressAgain;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -113,6 +114,9 @@ pub struct Settings {
     pub language: Language,
     /// The LEDs' brightness, in percent: the board does not keep it
     pub led_brightness: u8,
+    /// What a pad does when pressed again, unless the user picked it for that pad
+    #[serde(deserialize_with = "crate::press_again::known_or_default")]
+    pub press_again: PressAgain,
     pub overlay: OverlaySettings,
     /// Shows the window's page of technical details
     pub diagnostics: bool,
@@ -127,6 +131,7 @@ impl Default for Settings {
         Self {
             language: Language::default(),
             led_brightness: 50,
+            press_again: PressAgain::default(),
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
@@ -374,7 +379,8 @@ mod tests {
             "ledBrightness": 70,
             "overlay": { "enabled": true, "anchor": "top", "opacity": 90, "seconds": 5, "size": 80 },
             "diagnostics": true,
-            "tourSeen": true
+            "tourSeen": true,
+            "pressAgain": "bounce"
         }"#;
         let settings: Settings = serde_json::from_str(older).unwrap();
         assert_eq!(settings.language, Language::Italian);
@@ -382,6 +388,7 @@ mod tests {
         assert_eq!(settings.overlay.anchor, Anchor::Top);
         assert!(settings.tour_seen);
         assert!(!settings.mute_for_me_notice_seen);
+        assert_eq!(settings.press_again, PressAgain::Voicemod);
         assert_eq!(settings.overlay.screen, OverlayScreen::Mouse);
     }
 

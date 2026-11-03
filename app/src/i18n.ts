@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { PlaybackMode } from "./pressAgain";
 
 const ENGLISH = {
   nav: {
@@ -67,6 +68,68 @@ const ENGLISH = {
   knobTurned: (right: boolean): string => (right ? "Knob turned right" : "Knob turned left"),
   knob: (pressed: boolean): string => (pressed ? "Knob pressed" : "Knob released"),
   boardError: (reason: string) => `Drezimo error: ${reason}`,
+
+  pads: "Pads",
+  pressAgainText:
+    "What a pad does when you press it again while its sound plays. On your own pages a pad can have its own, in the Pages editor.",
+  pressAgainNames: {
+    voicemod: "As in Voicemod",
+    restart: "Start over",
+    overlap: "Stack copies",
+    stop: "Stop",
+    pause: "Pause and resume",
+    hold: "While held",
+  },
+  pressAgainTexts: {
+    voicemod: "Each sound follows its own rule in Voicemod.",
+    restart: "Each press starts it again from the beginning.",
+    overlap: "Each press adds another copy where Voicemod allows it, else it starts over.",
+    stop: "A press stops it, the next one starts it from 0 s.",
+    pause: "A press pauses it, the next one resumes it, where Voicemod allows it.",
+    hold: "It plays only while you hold the pad.",
+  },
+  byDefault: "Default",
+  onYourSounds: (count: number) => (count === 1 ? "On your sound:" : `On your ${count} sounds:`),
+  chosenCount: (count: number) => `${count} as chosen`,
+  stopsAllCount: (count: number) => (count === 1 ? "1 also stops the other sounds" : `${count} also stop the other sounds`),
+  insteadCount: (count: number) => (count === 1 ? "1 does what Voicemod allows" : `${count} do what Voicemod allows`),
+  soundBySound: "Sound by sound",
+  soundsWithMode: (mode: PlaybackMode, count: number) => {
+    const group: Record<PlaybackMode, string> = {
+      PlayRestart: "that Voicemod starts again",
+      PlayOverlap: "that Voicemod stacks",
+      PlayStop: "that Voicemod stops",
+      PlayPause: "that Voicemod pauses",
+      PlayLoopOnPress: "to hold down",
+      Unknown: "of another kind",
+    };
+    return `${count} ${count === 1 ? "sound" : "sounds"} ${group[mode]}`;
+  },
+  pressDoes: {
+    voicemod: {
+      PlayRestart: "starts again",
+      PlayOverlap: "adds another copy",
+      PlayStop: "stops",
+      PlayPause: "pauses, then resumes",
+      PlayLoopOnPress: "plays while held",
+      Unknown: "does as in Voicemod",
+    } as Record<PlaybackMode, string>,
+    restart: "starts again",
+    overlap: "adds another copy",
+    stop: "stops",
+    pause: "pauses, then resumes",
+    hold: "plays while held",
+    asInVoicemod: (what: string) => `as in Voicemod: ${what}`,
+    withOthersStopped: (what: string) => `${what}, stopping the other sounds`,
+    stopsEverySound: "stops every sound",
+    stopsEverySoundWhenLetGo: "stops every sound when let go",
+    startsAndStops: "a press starts it, the next one stops it",
+    notStacked: (what: string) => `${what}: Voicemod does not stack it`,
+  },
+  pressAgainField: "When pressed again",
+  asForEveryPad: "As for every pad",
+  onlyThisPad: "Only for this pad",
+  ownPressAgain: (name: string) => `When pressed again: ${name}`,
 
   leds: "LEDs",
   brightness: "Brightness",
@@ -514,6 +577,69 @@ const ITALIAN: Texts = {
   knobTurned: (right) => (right ? "Manopola girata a destra" : "Manopola girata a sinistra"),
   knob: (pressed) => (pressed ? "Manopola premuta" : "Manopola rilasciata"),
   boardError: (reason) => `Errore di Drezimo: ${reason}`,
+
+  pads: "Pad",
+  pressAgainText:
+    "Cosa fa un pad quando lo ripremi mentre il suo suono sta suonando. Nelle tue pagine un pad può avere una scelta sua, dall'editor Pagine.",
+  pressAgainNames: {
+    voicemod: "Come in Voicemod",
+    restart: "Riparte da capo",
+    overlap: "Copie sovrapposte",
+    stop: "Si ferma",
+    pause: "Pausa e riprendi",
+    hold: "Finché tieni premuto",
+  },
+  pressAgainTexts: {
+    voicemod: "Ogni suono segue la regola che ha in Voicemod.",
+    restart: "Ogni tocco lo fa ripartire dall'inizio.",
+    overlap: "Ogni tocco aggiunge un'altra copia dove Voicemod lo permette, altrimenti riparte da capo.",
+    stop: "Un tocco lo ferma, il successivo lo fa ripartire da 0 s.",
+    pause: "Un tocco lo mette in pausa, il successivo lo fa riprendere, dove Voicemod lo permette.",
+    hold: "Suona solo mentre tieni premuto il pad.",
+  },
+  byDefault: "Predefinito",
+  onYourSounds: (count) => (count === 1 ? "Sul tuo suono:" : `Sui tuoi ${count} suoni:`),
+  chosenCount: (count) => `${count} come scelto`,
+  stopsAllCount: (count) => (count === 1 ? "1 ferma anche gli altri suoni" : `${count} fermano anche gli altri suoni`),
+  insteadCount: (count) => (count === 1 ? "1 fa quello che Voicemod permette" : `${count} fanno quello che Voicemod permette`),
+  soundBySound: "Suono per suono",
+  soundsWithMode: (mode, count) => {
+    const one = count === 1;
+    const group: Record<PlaybackMode, string> = {
+      PlayRestart: "che Voicemod fa ripartire",
+      PlayOverlap: "che Voicemod sovrappone",
+      PlayStop: "che Voicemod ferma",
+      PlayPause: "che Voicemod mette in pausa",
+      PlayLoopOnPress: one ? "da tenere premuto" : "da tenere premuti",
+      Unknown: "di altro tipo",
+    };
+    return `${count} ${one ? "suono" : "suoni"} ${group[mode]}`;
+  },
+  pressDoes: {
+    voicemod: {
+      PlayRestart: "riparte da capo",
+      PlayOverlap: "aggiunge un'altra copia",
+      PlayStop: "si ferma",
+      PlayPause: "va in pausa, poi riprende",
+      PlayLoopOnPress: "suona finché lo tieni premuto",
+      Unknown: "fa come in Voicemod",
+    },
+    restart: "riparte da capo",
+    overlap: "aggiunge un'altra copia",
+    stop: "si ferma",
+    pause: "va in pausa, poi riprende",
+    hold: "suona finché lo tieni premuto",
+    asInVoicemod: (what) => `come in Voicemod: ${what}`,
+    withOthersStopped: (what) => `${what} e ferma gli altri suoni`,
+    stopsEverySound: "ferma tutti i suoni",
+    stopsEverySoundWhenLetGo: "al rilascio ferma tutti i suoni",
+    startsAndStops: "un tocco lo avvia, il successivo lo ferma",
+    notStacked: (what) => `${what}: Voicemod non lo sovrappone`,
+  },
+  pressAgainField: "Se lo ripremi",
+  asForEveryPad: "Come per tutti i pad",
+  onlyThisPad: "Solo per questo pad",
+  ownPressAgain: (name) => `Se lo ripremi: ${name}`,
 
   leds: "LED",
   brightness: "Luminosità",

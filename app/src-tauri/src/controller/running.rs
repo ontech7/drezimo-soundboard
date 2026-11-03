@@ -2,6 +2,7 @@
 
 use super::{Controller, HeldSound, MIN_HOLD};
 use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::press_again::Command;
 use crate::soundboard::{PlaybackMode, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::Serialize;
@@ -183,16 +184,17 @@ impl Controller {
                 let Some(sound) = self.sounds.get(&id).filter(|sound| sound.enabled).cloned() else {
                     return;
                 };
-                self.request(Request::PlaySound {
-                    id: id.clone(),
-                    key_down: true,
-                });
-                self.playback.press(&sound, now);
+                self.command(Command::KeyDown, &sound, now);
                 self.sound_started();
                 if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
                     // Held for its length, once known, else as a tap
                     let hold = self.playback.length(&id).unwrap_or(MIN_HOLD).max(MIN_HOLD);
-                    self.releases.push((now + hold, HeldSound { sound, since: now }));
+                    let held = HeldSound {
+                        sound,
+                        since: now,
+                        release: Command::KeyUp,
+                    };
+                    self.releases.push((now + hold, held));
                 }
                 if let Some(running) = self.running.as_mut().filter(|_| wait_end) {
                     running.waiting = Some((id, now + MAX_SOUND_WAIT));

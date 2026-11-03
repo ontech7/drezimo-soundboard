@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PressAgain } from "./settings";
 
 // The app's icons: 24×24, drawn with a 2-unit stroke in the text's colour (see .icon in styles.css)
 
@@ -233,3 +234,46 @@ export const ChevronDown = () => (
     <polyline points="7 10 12 15 17 10" />
   </Icon>
 );
+
+/** What a pad does when pressed again */
+export function PressAgainIcon({ choice }: { choice: PressAgain }) {
+  switch (choice) {
+    case "voicemod":
+      return (
+        <Icon>
+          <polyline points="3 12 7 12 9 6 12 18 15 9 17 12 21 12" />
+        </Icon>
+      );
+    case "restart":
+      return (
+        <Icon>
+          <path d="M4 12a8 8 0 1 0 2.5-5.8" />
+          <polyline points="4 3 4 8 9 8" />
+        </Icon>
+      );
+    case "overlap":
+      return (
+        <Icon>
+          <rect x="3" y="9" width="12" height="12" rx="2" />
+          <path d="M9 9V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4" />
+        </Icon>
+      );
+    case "stop":
+      return <StopIcon />;
+    case "pause":
+      return (
+        <Icon>
+          <line x1="9" y1="6" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="18" />
+        </Icon>
+      );
+    case "hold":
+      return (
+        <Icon>
+          <line x1="12" y1="3" x2="12" y2="12" />
+          <polyline points="8.5 8.5 12 12 15.5 8.5" />
+          <rect x="5" y="15" width="14" height="5" rx="1.5" />
+        </Icon>
+      );
+  }
+}

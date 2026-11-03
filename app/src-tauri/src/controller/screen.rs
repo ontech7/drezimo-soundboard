@@ -193,6 +193,7 @@ impl Controller {
                 (Some(voice), _) => (voice.name.as_str(), About::locked(texts.locked)),
                 (None, Some(sound)) if !sound.enabled => (sound.name.as_str(), About::locked(texts.locked)),
                 (None, Some(sound)) => {
+                    let outcome = self.outcome_at(pad, sound);
                     let detail = if sound.looped && sound.playback_mode != PlaybackMode::PlayLoopOnPress {
                         texts.looped.to_string()
                     } else {
@@ -201,14 +202,17 @@ impl Controller {
                             .map(|length| texts.seconds(length))
                             .unwrap_or_default()
                     };
+                    let note = if outcome.stops_all {
+                        texts.stops_all
+                    } else if sound.stop_other_sounds {
+                        texts.stops_others
+                    } else {
+                        ""
+                    };
                     let about = About {
-                        info: texts.mode(sound.playback_mode),
+                        info: texts.press_again(outcome.does, sound.playback_mode),
                         detail,
-                        note: if sound.stop_other_sounds {
-                            texts.stops_others
-                        } else {
-                            ""
-                        },
+                        note,
                         locked: false,
                     };
                     (sound.name.as_str(), about)

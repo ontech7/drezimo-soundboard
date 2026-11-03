@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { PlaybackMode } from "./pressAgain";
 import { useSaved } from "./saved";
+import type { PressAgain } from "./settings";
 
 /** What an action pad does (src-tauri/src/soundboard.rs) */
 export type Action =
@@ -20,6 +22,8 @@ export type CustomPad = Content & {
   label: string;
   /** The LED at rest, instead of its kind's colour */
   colour: Rgb | null;
+  /** A sound's, instead of the one set on the Drezimo page */
+  pressAgain?: PressAgain | null;
 };
 
 /** A page of the user's own (src-tauri/src/custom_pages.rs) */
@@ -38,6 +42,8 @@ export interface LibraryItem {
   picture: string | null;
   /** A sound's, in seconds, once known */
   length: number | null;
+  /** A sound's mode in Voicemod */
+  mode: PlaybackMode | null;
 }
 
 /** Voicemod's sounds and voices, as it last sent them */

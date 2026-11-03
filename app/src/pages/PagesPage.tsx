@@ -23,13 +23,16 @@ import {
   VOICES_ID,
 } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
-import { DotsIcon, PlusIcon, TrashIcon } from "../icons";
+import { DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
 import { useDismiss } from "../dismiss";
 import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
 import { MiniBoard } from "../MiniBoard";
 import { PadPicture } from "../PadPicture";
+import { type Outcomes, type PlaybackMode, usePressOutcomes } from "../pressAgain";
+import { PressAgainField } from "../PressAgainControls";
 import { SearchSelect } from "../SearchSelect";
+import type { PressAgain } from "../settings";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
 const MAX_PAGE_NAME = 24;
@@ -152,10 +155,11 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
   }
 }
 
-export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
+export function PagesPage({ pressAgain, onOpenMacros }: { pressAgain: PressAgain; onOpenMacros: () => void }) {
   const texts = useTexts();
   const [pages, save, saveError] = useCustomPages();
   const library = useLibrary();
+  const outcomes = usePressOutcomes();
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [picking, setPicking] = useState<PickerStart | null>(null);
@@ -203,8 +207,10 @@ export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
     contents.forEach((content, k) => {
       const at = slots[k];
       if (at === undefined) return;
-      // A replaced pad keeps the colour picked for it
-      pads[at] = { ...content, colour: content.colour ?? pads[at]?.colour ?? null };
+      // A replaced pad keeps the colour picked for it, and a sound what it does when pressed again
+      const before = pads[at];
+      const pressAgain = content.kind === "sound" && before?.kind === "sound" ? before.pressAgain : null;
+      pads[at] = { ...content, colour: content.colour ?? before?.colour ?? null, pressAgain };
     });
     savePage({ ...page, pads });
     setSelected(start);
@@ -271,6 +277,9 @@ export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
         <Inspector
           pad={selectedPad}
           look={look(selectedPad, lookup, texts)}
+          pressAgain={pressAgain}
+          mode={selectedPad.kind === "sound" ? (lookup.sound(selectedPad.id)?.item.mode ?? null) : null}
+          outcomes={outcomes}
           targets={lookup.targets.filter((target) => target.id !== page.id)}
           onChange={(pad) => setPad(selected, pad)}
           onReplace={() => setPicking(pickerStart(selected, selectedPad))}
@@ -481,6 +490,14 @@ function PageTabs(props: TabsProps) {
   );
 }
 
+/** With what it does when pressed again, where the pad has its own */
+function padLabel(texts: Texts, number: number, name: string, pad: CustomPad | null): string {
+  const label = texts.padLabel(number, name);
+  return pad?.kind === "sound" && pad.pressAgain
+    ? `${label}, ${texts.ownPressAgain(texts.pressAgainNames[pad.pressAgain])}`
+    : label;
+}
+
 interface GridProps {
   page: CustomPage;
   lookup: Lookup;
@@ -513,7 +530,7 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
             type="button"
             className={classes.join(" ")}
             style={shown ? ({ "--led": rgb(shown.colour) } as CSSProperties) : undefined}
-            aria-label={shown ? texts.padLabel(i + 1, shown.name) : texts.emptyPadLabel(i + 1)}
+            aria-label={shown ? padLabel(texts, i + 1, shown.name, pad) : texts.emptyPadLabel(i + 1)}
             aria-pressed={shown ? i === selected : undefined}
             title={shown ? `${shown.name} · ${texts.dragHint}` : undefined}
             draggable={!!shown}
@@ -552,6 +569,11 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
                   tint={shown.colour}
                 />
                 <span className="name">{shown.name}</span>
+                {pad.kind === "sound" && pad.pressAgain && (
+                  <span className="own-press" title={texts.ownPressAgain(texts.pressAgainNames[pad.pressAgain])}>
+                    <PressAgainIcon choice={pad.pressAgain} />
+                  </span>
+                )}
               </>
             ) : (
               <PlusIcon />
@@ -566,13 +588,17 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
 interface InspectorProps {
   pad: CustomPad;
   look: Look;
+  /** As set on the Drezimo page */
+  pressAgain: PressAgain;
+  mode: PlaybackMode | null;
+  outcomes: Outcomes | null;
   targets: { id: string; name: string }[];
   onChange: (pad: CustomPad) => void;
   onReplace: () => void;
   onClear: () => void;
 }
 
-function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: InspectorProps) {
+function Inspector({ pad, look: shown, pressAgain, mode, outcomes, targets, onChange, onReplace, onClear }: InspectorProps) {
   const texts = useTexts();
 
   return (
@@ -613,6 +639,15 @@ function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: 
             empty={texts.noPage}
           />
         </div>
+      )}
+      {pad.kind === "sound" && (
+        <PressAgainField
+          own={pad.pressAgain ?? null}
+          everyPad={pressAgain}
+          mode={mode}
+          outcomes={outcomes}
+          onChange={(pressAgain) => onChange({ ...pad, pressAgain })}
+        />
       )}
       <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
       <button type="button" className="button secondary" onClick={onReplace}>
