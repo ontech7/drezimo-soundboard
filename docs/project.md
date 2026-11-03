@@ -24,6 +24,7 @@
 - 2026-11-02: hardware test on the app's Diagnostics page, for a board just built: every key and the knob ticked as they are used, the LEDs colour by colour at low brightness, and test pictures on the display.
 - 2026-11-03: the display redrawn: icons for Voicemod's switches and the playback state, the voice loaded, a bar of what is left of a sound, long names scrolling, pages sliding in, a scrollbar in the menu, a map of the pads when peeking, and screens that say what to do when Voicemod is away.
 - 2026-11-03: the app's window: a report to copy for support, the update state and what is new after an update, the overlay's screen, a pixel-exact display preview, a locked pad blinking red with PRO ONLY, menus with a search field, a notice when Voicemod's Mute for me silences the sounds for the user, connection failures tested one by one, no browser menu or shortcuts, and screenshots in the README.
+- 2026-11-03: checked on Windows: the overlay on two screens, Escape, no browser shortcuts. A text field's menu now holds only cut, copy and paste there; the Soundboard page's rows give way to a notice instead of the page scrolling; the support report says whether the app starts at login, and gives connection errors in English.
 
 ## 1. Goal
 
@@ -541,14 +542,14 @@ All of the above is implemented in firmware 0.2.1. Tested on the bare module: ev
 - [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS and on a Windows desktop; to be seen over games on a Windows PC).
 - [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module on macOS: 0.1.9 → 0.2.0 in about 5 s, and 0.2.0 → 0.2.1 on 2026-11-03).
 - [x] Installer with its own interface, per user, with auto-start (checked on Windows 11 at 100% scale with an install, a reinstall, a passive update run and a silent uninstall, 2026-11-02; a real self-update from a release is still to be seen).
-- [x] Settings window with a sidebar: the board's LEDs and display, the overlay, the language and starting with Windows (2026-11-02; starting with Windows not yet tried in the installed app).
+- [x] Settings window with a sidebar: the board's LEDs and display, the overlay, the language and starting with Windows (2026-11-02; in the installed app the switch reads the login item right, 2026-11-03, turning it on and off from there is not yet tried).
 - [x] Voices pages and the licence (2026-11-02).
 - [x] Sound and voice pictures on the window's pads, not on the overlay nor on the display (2026-11-02).
 - [x] Custom pages with an editor: pads holding sounds, voices and actions, with their own names and LED colours (2026-11-02).
 - [x] Macros, as a pad of the custom pages: sounds, waits, voices, Voicemod's switches, stop and pages, with a Try button (2026-11-02).
 - [x] Welcome tour at the first start, again from General, with the display and overlay drawn by the app (2026-11-02).
-- [x] Test connection errors and failed commands (2026-11-03, macOS, bare module: the table in section 8). Still for the PCB: real keys held while unplugging, the red blink on the real LEDs; for the Windows PC: the same table there.
-- [ ] On the Windows desktop with two screens: the overlay with each screen choice (where the mouse is, main, each named), each place on the second screen, and a second screen at another scale.
+- [x] Test connection errors and failed commands (2026-11-03, macOS, bare module: the table in section 8). Still for the PCB: real keys held while unplugging, the red blink on the real LEDs. On the Windows PC (2026-11-03): Voicemod closed and opened again, and the port held by another program, as on macOS; the board unplugged there is still to try.
+- [x] On the Windows desktop with two screens (2026-11-03, a 2560×1440 screen above a 1920×1080 one, both at 100 %): the overlay with each screen choice and in each of the nine places on the second screen, clear of its taskbar. Still to see: a second screen at another scale, the chosen screen unplugged, and the overlay over games.
 - [ ] macOS distribution, on a Mac: a DMG in the installer's style (background, window, icon positions), a login item, and the updater's macOS package in the Release workflow. macOS warns that a disk was not ejected properly when the RPI-RP2 drive goes away after a firmware update: to be avoided there. Not signed nor notarized: Gatekeeper's first-launch block is lifted with "Open Anyway" or `xattr -cr`.
 - [ ] Later: custom per-sound idle colours.
 
@@ -620,4 +621,4 @@ All of the above is implemented in firmware 0.2.1. Tested on the bare module: ev
 
 **Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
 
-**Next steps:** the assembled PCB's bring-up; the enclosure; the overlay on the Windows PC with two screens and over games; the macOS installer.
+**Next steps:** the assembled PCB's bring-up; the enclosure; the overlay on the Windows PC over games and on a screen at another scale; the macOS installer.
