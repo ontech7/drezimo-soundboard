@@ -48,6 +48,9 @@ objc2-quartz-core = { version = "0.3", default-features = false, features = ["st
 # The overlay's window, the drives where the board's firmware is written, and the login item
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+# The text fields' menu in the window, as wry's own WebView2 (src/window.rs)
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [profile.release]
 opt-level = "z"
