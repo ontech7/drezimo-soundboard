@@ -18,18 +18,11 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - Custom 2-layer PCB, 3D-printed enclosure
 - Powered from USB only
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/board-top.webp" alt="The PCB from the top: 42 switch footprints with the LED windows, the encoder, the display header and the LED buffer"></td>
-    <td width="50%"><img src="docs/images/board-bottom.webp" alt="The PCB from the bottom: the 42 LEDs with their diodes and capacitors, the RP2040-Zero's place and the Drezimo logo"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Top: the switches, the knob, the display and the LED buffer, soldered by hand</sub></td>
-    <td align="center"><sub>Bottom: the LEDs and the small parts, assembled by the fab, and the RP2040-Zero, soldered by hand</sub></td>
-  </tr>
-</table>
-
-<sub>KiCad renders of the PCB v0.2, until the boards arrive.</sub>
+<p align="center">
+  <img src="hardware/pcba-bottom.png" alt="The bottom of the PCB v0.2: the 42 LEDs with their diodes and capacitors, the RP2040-Zero's place and the Drezimo logo" width="400">
+  <br>
+  <sub>The bottom of the PCB v0.2 as the fab assembles it: the LEDs and the small parts. The switches, the RP2040-Zero, the LED buffer, the knob and the display are soldered by hand.</sub>
+</p>
 
 ## The app
 
