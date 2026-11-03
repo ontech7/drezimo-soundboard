@@ -1,7 +1,7 @@
 use super::overlay::OVERLAY_TIME;
 use super::*;
 use crate::custom_pages::{Content, CustomPad};
-use crate::display::screens::Screen;
+use crate::display::screens::{self, FRAME, Progress, Screen, SoundState};
 use crate::macros::{Again, Macro, Step, Switch, SwitchState};
 use crate::soundboard::tests::{action, custom_pad, sound, soundboard, voice};
 use crate::voicemod_log::LineKind;
@@ -464,11 +464,11 @@ fn holding_and_turning_shows_a_row() {
 
     let outputs = turn(&mut controller, 1, now);
     assert_eq!(led(&outputs, 6), Some("200,200,210"));
-    let Screen::Row { heading, lines, .. } = controller.screen(now).0 else {
+    let Screen::Row { heading, names, .. } = controller.screen(now).0 else {
         panic!("a row");
     };
     assert_eq!(heading, "ROW 2/6");
-    assert_eq!(lines[0], "1 S6");
+    assert_eq!(names[0].as_deref(), Some("S6"));
 
     let outputs = knob(&mut controller, false, now);
     assert_eq!(led(&outputs, 6), Some("47,107,255"));
@@ -484,10 +484,8 @@ fn the_display_shows_the_last_sound_and_its_countdown() {
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("honk")])]);
     let outputs = press(&mut controller, 0, true, start);
     assert!(outputs.iter().any(|output| matches!(output, Output::Display(_))));
-    let Screen::Home { name, right, .. } = controller.screen(start).0 else {
-        panic!("the home screen");
-    };
-    assert_eq!((name.as_str(), right.as_str()), ("HONK", "3.0s"));
+    let screen = controller.screen(start).0;
+    assert_eq!((screen.name(), time_shown(&screen)), (Some("HONK"), "3.0s"));
     assert!(
         controller
             .next_update()
@@ -496,10 +494,7 @@ fn the_display_shows_the_last_sound_and_its_countdown() {
 
     let later = start + Duration::from_millis(1500);
     controller.update(later);
-    let Screen::Home { right, .. } = controller.screen(later).0 else {
-        panic!("the home screen");
-    };
-    assert_eq!(right, "1.5s");
+    assert_eq!(time_shown(&controller.screen(later).0), "1.5s");
 }
 
 #[test]
@@ -545,7 +540,7 @@ fn the_open_menu_keeps_its_selection_when_the_soundboards_change() {
 fn asks_for_a_new_app_when_voicemod_refuses_the_key() {
     let (mut controller, now) = ready(three_soundboards());
     controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::KeyRejected), now);
-    let Screen::Voicemod { message } = controller.screen(now).0 else {
+    let Screen::Voicemod { message, .. } = controller.screen(now).0 else {
         panic!("the Voicemod screen");
     };
     assert_eq!(message, ENGLISH.update_app);
@@ -578,10 +573,8 @@ fn shows_a_community_sound_and_its_countdown() {
     controller.log_input(LogInput::Opened(Vec::new()), now);
     let community = played_file_in_log("2597e302", SystemTime::now(), Some(Duration::from_millis(1800)));
     controller.log_input(LogInput::Lines(vec![community]), now);
-    let Screen::Home { name, right, .. } = controller.screen(now).0 else {
-        panic!("the home screen");
-    };
-    assert_eq!((name.as_str(), right.as_str()), (ENGLISH.community, "1.8s"));
+    let screen = controller.screen(now).0;
+    assert_eq!((screen.name(), time_shown(&screen)), (Some(ENGLISH.community), "1.8s"));
 }
 
 #[test]
@@ -597,22 +590,121 @@ fn a_measured_length_wins_over_the_files() {
     controller.log_input(LogInput::Opened(history), now);
     let again = played_file_in_log("2597e302", SystemTime::now(), file_length);
     controller.log_input(LogInput::Lines(vec![again]), now);
-    let Screen::Home { right, .. } = controller.screen(now).0 else {
-        panic!("the home screen");
-    };
-    assert_eq!(right, "2.0s");
+    assert_eq!(time_shown(&controller.screen(now).0), "2.0s");
 }
 
 #[test]
-fn keeps_the_switches_while_a_sound_has_no_known_end() {
+fn shows_a_sound_with_no_known_end_and_the_switches() {
     let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
     controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
     controller.log_input(LogInput::Opened(Vec::new()), now);
     controller.log_input(LogInput::Lines(vec![played_in_log("2597e302", SystemTime::now())]), now);
-    let Screen::Home { name, right, .. } = controller.screen(now).0 else {
+    let Screen::Home {
+        name,
+        progress,
+        switches,
+        ..
+    } = controller.screen(now).0
+    else {
         panic!("the home screen");
     };
-    assert_eq!((name.as_str(), right.as_str()), (ENGLISH.community, ENGLISH.mute_me));
+    assert_eq!(name, ENGLISH.community);
+    let Some(Progress::Sound { left, time, .. }) = progress else {
+        panic!("the sound");
+    };
+    assert_eq!((left, time.as_str()), (None, ""));
+    assert_eq!(switches, [screens::Switch::MuteForMe]);
+}
+
+#[test]
+fn shows_the_voice_loaded_or_the_voice_changer_off() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.voicemod_event(
+        VoicemodEvent::Voices {
+            voices: vec![voice("dark")],
+            current: Some("dark".into()),
+        },
+        now,
+    );
+    controller.voicemod_event(VoicemodEvent::VoiceChanger(true), now);
+    let voice_shown = |controller: &Controller| match controller.screen(now).0 {
+        Screen::Home { voice, voice_on, .. } => (voice, voice_on),
+        _ => panic!("the home screen"),
+    };
+    assert_eq!(voice_shown(&controller), (Some("DARK".to_string()), true));
+    controller.voicemod_event(VoicemodEvent::VoiceChanger(false), now);
+    assert_eq!(voice_shown(&controller), (Some(ENGLISH.voice_off.to_string()), false));
+}
+
+#[test]
+fn a_loops_bar_follows_its_rounds_and_waits_while_paused() {
+    let looped = Sound {
+        looped: true,
+        playback_mode: PlaybackMode::PlayPause,
+        ..sound("crickets")
+    };
+    let (mut controller, start) = ready(vec![soundboard("b", vec![looped])]);
+    controller.playback.learn_length("crickets", Duration::from_secs(4));
+    let left = |controller: &Controller, at: Instant| match controller.screen(at).0 {
+        Screen::Home {
+            progress: Some(Progress::Sound { state, left, .. }),
+            ..
+        } => (state, left.map(|left| (left * 100.0).round() as u32)),
+        _ => panic!("a sound"),
+    };
+    let second = Duration::from_secs(1);
+
+    press(&mut controller, 0, true, start);
+    press(&mut controller, 0, false, start);
+    assert_eq!(left(&controller, start + second), (SoundState::Looping, Some(75)));
+    press(&mut controller, 0, true, start + second);
+    press(&mut controller, 0, false, start + second);
+    assert_eq!(left(&controller, start + second * 3), (SoundState::Paused, Some(75)));
+    press(&mut controller, 0, true, start + second * 3);
+    press(&mut controller, 0, false, start + second * 3);
+    assert_eq!(
+        left(&controller, start + second * 6),
+        (SoundState::Looping, Some(100)),
+        "a round and a quarter later"
+    );
+}
+
+#[test]
+fn a_sound_still_playing_keeps_its_name() {
+    let (mut controller, start) = ready(vec![soundboard("b", vec![sound("honk")])]);
+    controller.playback.learn_length("honk", Duration::from_secs(20));
+    press(&mut controller, 0, true, start);
+    let later = start + Duration::from_secs(10);
+    controller.update(later);
+    assert_eq!(controller.screen(later).0.name(), Some("HONK"));
+}
+
+#[test]
+fn only_a_page_turn_slides_the_display() {
+    let (mut controller, now) = ready(three_soundboards());
+    let mut soundboards = three_soundboards();
+    soundboards.insert(0, soundboard("new", vec![sound("n")]));
+    controller.voicemod_event(VoicemodEvent::Soundboards(soundboards), now);
+    controller.update(now);
+    assert_eq!(
+        controller.display.next_frame(),
+        None,
+        "the same page, moved down the list"
+    );
+
+    turn(&mut controller, 1, now);
+    assert_eq!(controller.display.next_frame(), Some(now + FRAME));
+}
+
+/// The seconds the home screen shows below the name
+fn time_shown(screen: &Screen) -> &str {
+    match screen {
+        Screen::Home {
+            progress: Some(Progress::Sound { time, .. }),
+            ..
+        } => time,
+        _ => "",
+    }
 }
 
 fn overlay_in(outputs: &[Output]) -> Option<&Option<Overlay>> {
@@ -645,6 +737,8 @@ fn turning_the_page_shows_the_overlay_for_a_while() {
     );
     assert_eq!((shown.cells[1].name.as_str(), shown.cells[1].led), ("", Led::OFF));
 
+    // Once the new page has slid in on the display
+    controller.update(now + Duration::from_millis(200));
     assert_eq!(controller.next_update(), Some(now + OVERLAY_TIME));
     controller.update(now + OVERLAY_TIME);
     assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
@@ -944,10 +1038,10 @@ fn action_pads_light_up_while_on() {
     controller.voicemod_event(VoicemodEvent::MuteMic(true), now);
     assert_eq!(led_of(&controller, 0), Led::solid(RED));
     assert_eq!(led_of(&controller, 1), Led::solid([10, 20, 40]), "the user's colour");
-    let Screen::Home { right, .. } = controller.screen(now).0 else {
+    let Screen::Home { switches, .. } = controller.screen(now).0 else {
         panic!("the home screen");
     };
-    assert_eq!(right, ENGLISH.mic_off);
+    assert_eq!(switches, [screens::Switch::MicOff]);
 }
 
 #[test]
@@ -1082,10 +1176,18 @@ fn a_macro_runs_its_steps_in_turn_and_puts_things_back() {
     assert!(requests_at(&mut controller, at(1000)).is_empty(), "the sound plays");
     let view = controller.board_view(at(1000)).unwrap();
     assert_eq!(view.pads[0].led.effect, Effect::Breathe);
-    let Screen::Home { name, right, .. } = controller.screen(at(1000)).0 else {
+    let Screen::Home {
+        name,
+        progress,
+        switches,
+        ..
+    } = controller.screen(at(1000)).0
+    else {
         panic!("the home screen");
     };
-    assert_eq!((name.as_str(), right.as_str()), ("MACRO-X", "MIC OFF STEP 4/5"));
+    assert_eq!(name, "MACRO-X");
+    assert_eq!(progress, Some(Progress::Macro { step: 4, steps: 5 }));
+    assert_eq!(switches, [screens::Switch::MicOff]);
 
     assert!(requests_at(&mut controller, at(2000)).is_empty(), "then the wait");
     assert_eq!(

@@ -1,6 +1,7 @@
 //! The words on the display, in the simulator's languages: English and Italian, as picked in the settings.
 
 use crate::soundboard::{Action, PlaybackMode};
+use std::time::Duration;
 
 pub struct Texts {
     pub ready: &'static str,
@@ -12,17 +13,15 @@ pub struct Texts {
     pub voices: &'static str,
     /// What a voice pad does, when peeked
     pub voice: &'static str,
-    pub unreachable: &'static str,
+    /// Voicemod is not running
+    pub open_voicemod: &'static str,
     pub connecting: &'static str,
     /// Voicemod refused the app's key: a newer app has a valid one
     pub update_app: &'static str,
-    pub paused: &'static str,
     pub looped: &'static str,
-    pub mute_me: &'static str,
-    pub mic_off: &'static str,
     pub stop: &'static str,
+    /// Where the voice loaded shows, while the voice changer is off
     pub voice_off: &'static str,
-    pub hear_me: &'static str,
     pub row: &'static str,
     pub empty: &'static str,
     pub locked: &'static str,
@@ -33,8 +32,7 @@ pub struct Texts {
     pub go_to: &'static str,
     /// What a macro pad does, when peeked
     pub macro_info: &'static str,
-    /// Before the step a macro is at
-    pub step: &'static str,
+    decimal_separator: char,
     modes: Modes,
     actions: Actions,
 }
@@ -80,9 +78,9 @@ impl Texts {
         format!("{} {}/{rows}", self.row, row + 1)
     }
 
-    /// The step a macro is at, such as "STEP 2/5", from step 1.
-    pub fn step_of(&self, step: usize, steps: usize) -> String {
-        format!("{} {step}/{steps}", self.step)
+    /// Seconds to a tenth, such as "1.5s".
+    pub fn seconds(&self, duration: Duration) -> String {
+        format!("{:.1}s", duration.as_secs_f64()).replace('.', &self.decimal_separator.to_string())
     }
 
     pub fn mode(&self, mode: PlaybackMode) -> &'static str {
@@ -105,16 +103,12 @@ pub const ENGLISH: Texts = Texts {
     favourites: "★ Favourites",
     voices: "Voices",
     voice: "VOICE",
-    unreachable: "UNREACHABLE",
-    connecting: "CONNECTING...",
+    open_voicemod: "OPEN IT ON YOUR PC",
+    connecting: "CONNECTING",
     update_app: "UPDATE THE APP",
-    paused: "PAUSED",
     looped: "LOOP",
-    mute_me: "MUTE ME",
-    mic_off: "MIC OFF",
     stop: "STOP",
     voice_off: "VOICE OFF",
-    hear_me: "HEAR ME",
     row: "ROW",
     empty: "EMPTY",
     locked: "NOT IN LICENCE",
@@ -122,7 +116,7 @@ pub const ENGLISH: Texts = Texts {
     action: "ACTION",
     go_to: "Go to",
     macro_info: "MACRO",
-    step: "STEP",
+    decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
         overlap: "OVERLAP",
@@ -150,16 +144,12 @@ pub const ITALIAN: Texts = Texts {
     favourites: "★ Preferiti",
     voices: "Voci",
     voice: "VOCE",
-    unreachable: "NON RAGGIUNGIBILE",
-    connecting: "CONNESSIONE...",
+    open_voicemod: "APRILO SUL COMPUTER",
+    connecting: "CONNESSIONE",
     update_app: "AGGIORNA L'APP",
-    paused: "PAUSA",
     looped: "LOOP",
-    mute_me: "MUTO",
-    mic_off: "MIC OFF",
     stop: "STOP",
-    voice_off: "VOCE OFF",
-    hear_me: "ASCOLTO",
+    voice_off: "VOCE SPENTA",
     row: "RIGA",
     empty: "VUOTO",
     locked: "NON IN LICENZA",
@@ -167,7 +157,7 @@ pub const ITALIAN: Texts = Texts {
     action: "AZIONE",
     go_to: "Vai a",
     macro_info: "MACRO",
-    step: "PASSO",
+    decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",
         overlap: "SOVRAPPOSTO",
@@ -186,3 +176,17 @@ pub const ITALIAN: Texts = Texts {
         go_to_page: "Vai a pagina",
     },
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writes_seconds_with_the_languages_separator() {
+        let time = Duration::from_millis(1500);
+        assert_eq!(
+            (ENGLISH.seconds(time), ITALIAN.seconds(time)),
+            ("1.5s".into(), "1,5s".into())
+        );
+    }
+}

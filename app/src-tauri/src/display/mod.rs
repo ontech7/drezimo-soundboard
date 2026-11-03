@@ -1,11 +1,16 @@
-//! The board's 128×64 display, drawn by the app as the simulator draws it (docs/project.md, section 9).
+//! The board's 128×64 display, drawn by the app frame by frame (docs/project.md, section 8).
 
+mod animation;
 mod font;
+#[rustfmt::skip]
+pub mod icons;
 pub mod screens;
 pub mod texts;
 
+pub use animation::Animator;
+use icons::Icon;
 use std::fmt::Write;
-use std::time::Duration;
+use std::ops::RangeInclusive;
 
 pub const WIDTH: i32 = 128;
 pub const HEIGHT: i32 = 64;
@@ -51,11 +56,6 @@ pub fn text_width(text: &str, size: Size) -> i32 {
     text.chars().map(|ch| i32::from(font.glyph(ch).0)).sum()
 }
 
-/// A duration as the simulator shows it, such as "1.5s".
-pub fn seconds(duration: Duration) -> String {
-    format!("{:.1}s", duration.as_secs_f64())
-}
-
 /// `text`, shortened with an ellipsis to fit `max` pixels.
 pub fn fit(text: &str, max: i32, size: Size) -> String {
     if text_width(text, size) <= max {
@@ -69,7 +69,7 @@ pub fn fit(text: &str, max: i32, size: Size) -> String {
 }
 
 /// A picture for the display, one bit per pixel.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Canvas {
     rows: [u128; HEIGHT as usize],
 }
@@ -93,13 +93,18 @@ impl Canvas {
 
     /// Draws `text` with its top-left corner at (x, y), lit or dark.
     pub fn text(&mut self, text: &str, x: i32, y: i32, size: Size, lit: bool) {
+        self.text_within(text, x, y, size, lit, 0..=WIDTH - 1);
+    }
+
+    /// Draws `text`, leaving out what falls outside `columns`, as for a name scrolling by.
+    pub fn text_within(&mut self, text: &str, x: i32, y: i32, size: Size, lit: bool, columns: RangeInclusive<i32>) {
         let font = size.font();
         let mut left = x;
         for ch in text.chars() {
             let (advance, rows) = font.glyph(ch);
             for (row, bits) in rows.iter().enumerate().take(font.height) {
                 for column in 0..32 {
-                    if bits & 1 << column != 0 {
+                    if bits & 1 << column != 0 && columns.contains(&(left + column)) {
                         self.set(left + column, y + font.top + row as i32, lit);
                     }
                 }
@@ -117,8 +122,53 @@ impl Canvas {
         self.text(text, right - text_width(text, size), y, size, lit);
     }
 
+    /// Every other pixel of row `y`, from `left` to `right`.
+    pub fn dotted(&mut self, left: i32, right: i32, y: i32) {
+        for x in (left..=right).step_by(2) {
+            self.set(x, y, true);
+        }
+    }
+
+    /// Filled, with its corner pixels left as they were.
+    pub fn rounded_rect(&mut self, x: i32, y: i32, width: i32, height: i32, lit: bool) {
+        let corners = [
+            (x, y),
+            (x + width - 1, y),
+            (x, y + height - 1),
+            (x + width - 1, y + height - 1),
+        ];
+        let kept = corners.map(|(column, row)| self.is_lit(column, row));
+        self.fill_rect(x, y, width, height, lit);
+        for ((column, row), was) in corners.into_iter().zip(kept) {
+            self.set(column, row, was);
+        }
+    }
+
+    pub fn icon(&mut self, icon: &Icon, x: i32, y: i32, lit: bool) {
+        for (column, row) in icon.pixels() {
+            self.set(x + column, y + row, lit);
+        }
+    }
+
+    /// The top `rows` slid sideways from `from` to this picture, `offset` pixels in: forward, `from` leaves on the
+    /// left and this comes in from the right.
+    pub fn slide_from(&mut self, from: &Canvas, offset: i32, forward: bool, rows: usize) {
+        let offset = offset.clamp(0, WIDTH) as u32;
+        let rest = WIDTH as u32 - offset;
+        // What slides over the margin stays dark
+        let inside = !(1 | 1 << (WIDTH - 1));
+        for (row, old) in self.rows.iter_mut().zip(from.rows).take(rows) {
+            let (leaving, coming) = if forward {
+                (old.checked_shr(offset), row.checked_shl(rest))
+            } else {
+                (old.checked_shl(offset), row.checked_shr(rest))
+            };
+            *row = (leaving.unwrap_or(0) | coming.unwrap_or(0)) & inside;
+        }
+    }
+
     pub fn is_lit(&self, x: i32, y: i32) -> bool {
-        self.rows[y as usize] & 1 << x != 0
+        (0..WIDTH).contains(&x) && (0..HEIGHT).contains(&y) && self.rows[y as usize] & 1 << x != 0
     }
 
     /// The bytes the board takes: 8 bands of 8 rows, 128 columns each, least significant bit on top.
@@ -163,6 +213,13 @@ impl Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Whether the pixel the pixel shift may cut off on each side is dark.
+    pub fn margin_is_dark(canvas: &Canvas) -> bool {
+        let edges = (0..WIDTH).flat_map(|x| [(x, 0), (x, HEIGHT - 1)]);
+        let sides = (0..HEIGHT).flat_map(|y| [(0, y), (WIDTH - 1, y)]);
+        edges.chain(sides).all(|(x, y)| !canvas.is_lit(x, y))
+    }
 
     /// The lit pixels of a canvas region, as rows of `#` and `.`.
     pub fn picture(canvas: &Canvas, x: i32, y: i32, width: i32, height: i32) -> Vec<String> {

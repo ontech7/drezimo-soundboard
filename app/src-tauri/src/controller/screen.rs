@@ -1,30 +1,31 @@
-//! What the display shows, as in the simulator.
+//! What the display shows.
 
 use super::{COLUMNS, Controller, ROWS};
-use crate::display::screens::{self, Screen};
-use crate::display::seconds;
-use crate::playback::State;
+use crate::display::screens::{self, FRAME, Progress, Screen, SoundState, Switch};
+use crate::playback::{GUESSED_LENGTH, State};
 use crate::soundboard::{FAVOURITES_ID, Pad, Page, PlaybackMode, VOICES_ID};
 use crate::voicemod::VoicemodStatus;
 use std::time::{Duration, Instant};
 
 /// How long the last sound's name stays on the display
 pub(super) const LAST_SOUND_TIME: Duration = Duration::from_secs(8);
-/// How often a countdown changes
-const COUNTDOWN_STEP: Duration = Duration::from_millis(100);
+/// About the bar's length in pixels: it moves no more often than that many times a sound
+const BAR_STEPS: u32 = 110;
+const TENTH: Duration = Duration::from_millis(100);
 
 impl Controller {
     /// The screen for `now`, and when it changes next by itself.
     pub(super) fn screen(&self, now: Instant) -> (Screen, Option<Instant>) {
         let texts = self.texts;
         if self.voicemod != VoicemodStatus::Connected {
-            let message = match self.voicemod {
-                VoicemodStatus::Connecting => texts.connecting,
-                VoicemodStatus::KeyRejected | VoicemodStatus::MissingKey => texts.update_app,
-                _ => texts.unreachable,
+            let (message, waiting) = match self.voicemod {
+                VoicemodStatus::Connecting => (texts.connecting, true),
+                VoicemodStatus::KeyRejected | VoicemodStatus::MissingKey => (texts.update_app, false),
+                _ => (texts.open_voicemod, false),
             };
             let screen = Screen::Voicemod {
                 message: message.to_string(),
+                waiting,
             };
             return (screen, None);
         }
@@ -41,28 +42,40 @@ impl Controller {
                 heading: texts.soundboards.to_string(),
                 items: self.pages.iter().map(|page| self.page_title(page)).collect(),
                 selected: menu.selected,
+                current: self.page,
             };
             return (screen, None);
         }
 
         let page = self.pages.get(self.page);
-        let (name, name_until) = match (&self.running, &self.last) {
+        let latest = self.playback.latest(now);
+        let (name, name_until) = match (&self.running, &self.last, &latest) {
             // A macro shows by name while it runs
-            (Some(running), _) => (running.item.name.clone(), None),
-            (None, Some((name, at))) => (name.clone(), Some(*at + LAST_SOUND_TIME)),
-            (None, None) if page.is_some() => (texts.ready.to_string(), None),
-            (None, None) => (texts.no_sound.to_string(), None),
+            (Some(running), ..) => (running.item.name.clone(), None),
+            (None, Some((name, at)), _) => (name.clone(), Some(*at + LAST_SOUND_TIME)),
+            // A sound still playing keeps its name above its bar
+            (None, None, Some(latest)) => (self.sound_name(latest.id).to_string(), None),
+            (None, None, None) if page.is_some() => (texts.ready.to_string(), None),
+            (None, None, None) => (texts.no_sound.to_string(), None),
         };
-        let (right, counting) = self.status(now);
+        let (progress, changes) = self.progress(now);
+        let (voice, voice_on) = self.voice_shown();
         let screen = Screen::Home {
             title: page.map_or("—".to_string(), |page| self.page_title(page)),
             counter,
             name,
-            left: screens::LIVE.to_string(),
-            right,
+            progress,
+            voice,
+            voice_on,
+            switches: self.switches_shown(),
         };
-        let countdown = counting.then(|| now + COUNTDOWN_STEP);
-        (screen, name_until.into_iter().chain(countdown).min())
+        let progress_changes = changes.map(|after| now + after);
+        (screen, name_until.into_iter().chain(progress_changes).min())
+    }
+
+    /// A sound's name, or the Community's for one outside the soundboards
+    fn sound_name(&self, id: &str) -> &str {
+        self.sounds.get(id).map_or(self.texts.community, |sound| &sound.name)
     }
 
     /// The page's number and the number of pages, such as "2/7".
@@ -92,124 +105,176 @@ impl Controller {
         }
     }
 
-    /// The bottom right of the home screen: the latest sound's state or, when it has none to show, Voicemod's switches.
-    /// True while it counts down.
-    fn status(&self, now: Instant) -> (String, bool) {
+    /// Below the name: the macro running, or what is left of the latest sound; and in how long that changes.
+    fn progress(&self, now: Instant) -> (Option<Progress>, Option<Duration>) {
+        if let Some(progress) = self.macro_progress() {
+            let steps = Progress::Macro {
+                step: progress.step,
+                steps: progress.steps,
+            };
+            return (Some(steps), None);
+        }
+        let Some(latest) = self.playback.latest(now) else {
+            return (None, None);
+        };
         let texts = self.texts;
-        let mut parts = Vec::new();
+        // As its end was set: learned, else guessed
+        let learned = self.playback.length(latest.id);
+        let length = learned.unwrap_or(GUESSED_LENGTH);
+        let share = |left: Duration| left.as_secs_f32() / length.max(left).as_secs_f32().max(f32::EPSILON);
+        let endless = self
+            .sounds
+            .get(latest.id)
+            .is_some_and(|sound| sound.looped || sound.playback_mode == PlaybackMode::PlayLoopOnPress);
+        // A loop's round, where its length is known: what is left of it, the pauses left out
+        let round_left = learned.filter(|length| !length.is_zero()).map(|length| {
+            let into = latest.played.as_secs_f32() % length.as_secs_f32();
+            1.0 - into / length.as_secs_f32()
+        });
+        let bar_step = (length / BAR_STEPS).max(FRAME);
+        let (state, left, time, changes) = match (latest.state, latest.ends_at) {
+            (State::Paused, _) if endless => (SoundState::Paused, round_left, String::new(), None),
+            (State::Paused, _) => (
+                SoundState::Paused,
+                latest.left.map(share),
+                latest.left.map(|left| texts.seconds(left)).unwrap_or_default(),
+                None,
+            ),
+            (State::Playing, _) if endless => {
+                let changes = round_left.map(|_| bar_step);
+                (SoundState::Looping, round_left, String::new(), changes)
+            }
+            (State::Playing, Some(end)) => {
+                let (shown, next_tenth) = countdown(end.saturating_duration_since(now));
+                let changes = Some(next_tenth.min(bar_step));
+                (SoundState::Playing, Some(share(shown)), texts.seconds(shown), changes)
+            }
+            (State::Playing, None) => (SoundState::Playing, None, String::new(), None),
+        };
+        (Some(Progress::Sound { state, left, time }), changes)
+    }
+
+    /// The voice loaded, by name when known, or that the voice changer is off; and whether it is on.
+    fn voice_shown(&self) -> (Option<String>, bool) {
+        if !self.switches.voice_changer {
+            return (Some(self.texts.voice_off.to_string()), false);
+        }
+        let loaded = self
+            .voice_loaded()
+            .and_then(|id| self.voices.iter().find(|voice| voice.id == *id));
+        (loaded.map(|voice| voice.name.clone()), true)
+    }
+
+    /// The switches away from how they usually are, from the right.
+    fn switches_shown(&self) -> Vec<Switch> {
         let mic_silenced = self.switches.mic_muted
             || self
                 .playback
                 .active()
                 .any(|id| self.sounds.get(id).is_some_and(|sound| sound.mute_voice));
-        if mic_silenced {
-            parts.push(texts.mic_off.to_string());
-        }
-        let sound_state = self.playback.latest().and_then(|(id, state, ends_at)| {
-            let endless = self
-                .sounds
-                .get(id)
-                .is_some_and(|sound| sound.looped || sound.playback_mode == PlaybackMode::PlayLoopOnPress);
-            if state == State::Paused {
-                Some((texts.paused.to_string(), false))
-            } else if endless {
-                Some((texts.looped.to_string(), false))
-            } else {
-                ends_at.map(|end| (seconds(end.saturating_duration_since(now)), true))
-            }
-        });
-        let step = self
-            .macro_progress()
-            .map(|progress| (texts.step_of(progress.step, progress.steps), false));
-        let shown = step
-            .or(sound_state)
-            .or_else(|| Some((self.switch_status()?.to_string(), false)));
-        let counting = shown.as_ref().is_some_and(|(_, counting)| *counting);
-        parts.extend(shown.map(|(text, _)| text));
-        (parts.join(" "), counting)
-    }
-
-    /// The first switch away from how it usually is, if any.
-    fn switch_status(&self) -> Option<&'static str> {
-        let texts = self.texts;
-        if self.switches.mute_for_me {
-            Some(texts.mute_me)
-        } else if !self.switches.voice_changer {
-            Some(texts.voice_off)
-        } else if self.switches.hear_myself {
-            Some(texts.hear_me)
-        } else {
-            None
-        }
+        [
+            (mic_silenced, Switch::MicOff),
+            (self.switches.mute_for_me, Switch::MuteForMe),
+            (self.switches.hear_myself, Switch::HearMe),
+        ]
+        .into_iter()
+        .filter_map(|(on, switch)| on.then_some(switch))
+        .collect()
     }
 
     fn peek_screen(&self, pad: u8, counter: String) -> Screen {
         let texts = self.texts;
         let pad_index = usize::from(pad);
-        let position = screens::position(pad_index / COLUMNS, pad_index % COLUMNS);
-        if let Some(Pad::Action { name, .. } | Pad::Macro { name, .. }) = self.pad_at(pad) {
-            let is_macro = matches!(self.pad_at(pad), Some(Pad::Macro { .. }));
-            return Screen::Peek {
-                position,
-                counter,
-                name: name.clone(),
-                info: if is_macro { texts.macro_info } else { texts.action }.to_string(),
-                note: String::new(),
-            };
-        }
-        if let Some(voice) = self.voice_at(pad) {
-            return Screen::Peek {
-                position,
-                counter,
-                name: voice.name.clone(),
-                info: if voice.enabled { texts.voice } else { texts.locked }.to_string(),
-                note: String::new(),
-            };
-        }
-        let Some(sound) = self.sound_at(pad) else {
-            return Screen::Peek {
-                position,
-                counter,
-                name: texts.empty.to_string(),
-                info: String::new(),
-                note: String::new(),
-            };
+        let (name, about) = match self.pad_at(pad) {
+            Some(Pad::Action { name, .. }) => (name.as_str(), About::info(texts.action)),
+            Some(Pad::Macro { name, .. }) => (name.as_str(), About::info(texts.macro_info)),
+            _ => match (self.voice_at(pad), self.sound_at(pad)) {
+                (Some(voice), _) if voice.enabled => (voice.name.as_str(), About::info(texts.voice)),
+                (Some(voice), _) => (voice.name.as_str(), About::locked(texts.locked)),
+                (None, Some(sound)) if !sound.enabled => (sound.name.as_str(), About::locked(texts.locked)),
+                (None, Some(sound)) => {
+                    let detail = if sound.looped && sound.playback_mode != PlaybackMode::PlayLoopOnPress {
+                        texts.looped.to_string()
+                    } else {
+                        self.playback
+                            .length(&sound.id)
+                            .map(|length| texts.seconds(length))
+                            .unwrap_or_default()
+                    };
+                    let about = About {
+                        info: texts.mode(sound.playback_mode),
+                        detail,
+                        note: if sound.stop_other_sounds {
+                            texts.stops_others
+                        } else {
+                            ""
+                        },
+                        locked: false,
+                    };
+                    (sound.name.as_str(), about)
+                }
+                (None, None) => (texts.empty, About::info("")),
+            },
         };
-        let info = if sound.enabled {
-            let detail = if sound.looped && sound.playback_mode != PlaybackMode::PlayLoopOnPress {
-                texts.looped.to_string()
-            } else {
-                self.playback.length(&sound.id).map(seconds).unwrap_or_default()
-            };
-            [texts.mode(sound.playback_mode), &detail]
-                .into_iter()
-                .filter(|part| !part.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ")
-        } else {
-            texts.locked.to_string()
-        };
-        let stops_others = sound.stop_other_sounds && sound.enabled;
         Screen::Peek {
-            position,
+            position: screens::position(pad_index / COLUMNS, pad_index % COLUMNS),
             counter,
-            name: sound.name.clone(),
-            info,
-            note: if stops_others { texts.stops_others } else { "" }.to_string(),
+            name: name.to_string(),
+            info: about.info.to_string(),
+            detail: about.detail,
+            note: about.note.to_string(),
+            locked: about.locked,
+            pad: pad_index,
         }
     }
 
     fn row_screen(&self, row: usize, counter: String) -> Screen {
-        let lines = (0..COLUMNS)
+        let names = (0..COLUMNS)
             .map(|column| {
                 let content = self.pad_at((row * COLUMNS + column) as u8);
-                screens::row_line(column, content.map(|content| content.name()))
+                content.map(|content| content.name().to_string())
             })
             .collect();
         Screen::Row {
             heading: self.texts.row_heading(row, ROWS),
             counter,
-            lines,
+            names,
         }
+    }
+}
+
+/// What a peek tells about a pad, below its name
+struct About {
+    info: &'static str,
+    detail: String,
+    note: &'static str,
+    locked: bool,
+}
+
+impl About {
+    fn info(info: &'static str) -> Self {
+        Self {
+            info,
+            detail: String::new(),
+            note: "",
+            locked: false,
+        }
+    }
+
+    fn locked(info: &'static str) -> Self {
+        Self {
+            locked: true,
+            ..Self::info(info)
+        }
+    }
+}
+
+/// What is left of a sound, rounded up to a tenth as shown, and in how long that changes.
+fn countdown(left: Duration) -> (Duration, Duration) {
+    let into = Duration::from_nanos((left.as_nanos() % TENTH.as_nanos()) as u64);
+    if into.is_zero() {
+        (left, TENTH)
+    } else {
+        (left - into + TENTH, into)
     }
 }

@@ -7,7 +7,7 @@ use crate::voicemod_log::LogEvent;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-const GUESSED_LENGTH: Duration = Duration::from_secs(3);
+pub const GUESSED_LENGTH: Duration = Duration::from_secs(3);
 /// A length learned again within this is the same: the window is not told again
 const LENGTH_TOLERANCE: Duration = Duration::from_millis(50);
 /// How far apart in time a prediction and the log line that confirms it can be
@@ -36,26 +36,56 @@ struct Active {
     ends_at: Option<Instant>,
     /// How much a paused sound had left
     remaining: Option<Duration>,
+    /// When it would have started, had it never been paused
+    started: Instant,
+    paused_at: Option<Instant>,
 }
 
 impl Active {
-    fn playing(ends_at: Option<Instant>) -> Self {
+    fn playing(ends_at: Option<Instant>, started: Instant) -> Self {
         Self {
             state: State::Playing,
             ends_at,
             remaining: None,
+            started,
+            paused_at: None,
         }
     }
 
     fn pause(&mut self, now: Instant) {
         self.state = State::Paused;
         self.remaining = self.ends_at.take().map(|end| end.saturating_duration_since(now));
+        self.paused_at.get_or_insert(now);
     }
 
     fn resume(&mut self, now: Instant) {
         self.state = State::Playing;
         self.ends_at = self.remaining.take().map(|left| now + left);
+        if let Some(paused_at) = self.paused_at.take() {
+            self.started += now.saturating_duration_since(paused_at);
+        }
     }
+
+    /// From its start
+    fn restart(&mut self, ends_at: Option<Instant>, now: Instant) {
+        self.ends_at = ends_at;
+        self.remaining = None;
+        self.started = now;
+        self.paused_at = None;
+    }
+}
+
+/// The active sound that changed last
+#[derive(Debug, PartialEq)]
+pub struct Latest<'a> {
+    pub id: &'a str,
+    pub state: State,
+    /// When it ends by itself, if known
+    pub ends_at: Option<Instant>,
+    /// How much a paused sound has left, if known
+    pub left: Option<Duration>,
+    /// How far it has played, pauses left out
+    pub played: Duration,
 }
 
 /// A sound the log reports active
@@ -140,13 +170,13 @@ impl Playback {
 
         let natural_end = self.natural_end(Some(sound), id, now);
         let Some(active) = self.sounds.get_mut(id) else {
-            self.sounds.insert(id.clone(), Active::playing(natural_end));
+            self.sounds.insert(id.clone(), Active::playing(natural_end, now));
             return;
         };
         match (active.state, sound.playback_mode) {
             (State::Paused, _) => active.resume(now),
             (_, PlaybackMode::PlayPause) => active.pause(now),
-            (_, PlaybackMode::PlayRestart) => active.ends_at = natural_end,
+            (_, PlaybackMode::PlayRestart) => active.restart(natural_end, now),
             (_, PlaybackMode::PlayOverlap) => active.ends_at = active.ends_at.max(natural_end),
             _ => self.stop(id, now),
         }
@@ -291,6 +321,8 @@ impl Playback {
                 state: logged.state,
                 ends_at: natural_end.filter(|_| playing),
                 remaining: None,
+                started: logged.started,
+                paused_at: (!playing).then_some(as_of),
             };
             self.sounds.insert(id.clone(), active);
             self.changed.insert(id, as_of);
@@ -312,11 +344,17 @@ impl Playback {
         self.sounds.keys().map(String::as_str)
     }
 
-    /// The active sound that changed last, with its state and its end, if known.
-    pub fn latest(&self) -> Option<(&str, State, Option<Instant>)> {
+    pub fn latest(&self, now: Instant) -> Option<Latest<'_>> {
         let changed = |id: &str| self.changed.get(id).copied();
         let (id, active) = self.sounds.iter().max_by_key(|(id, _)| changed(id))?;
-        Some((id, active.state, active.ends_at))
+        let played_until = active.paused_at.unwrap_or(now);
+        Some(Latest {
+            id,
+            state: active.state,
+            ends_at: active.ends_at,
+            left: active.remaining,
+            played: played_until.saturating_duration_since(active.started),
+        })
     }
 
     pub fn length(&self, id: &str) -> Option<Duration> {
@@ -331,10 +369,10 @@ impl Playback {
         let active = self
             .sounds
             .entry(id.to_string())
-            .or_insert_with(|| Active::playing(natural_end));
+            .or_insert_with(|| Active::playing(natural_end, at));
         if from_start {
-            active.ends_at = active.ends_at.max(natural_end);
-            active.remaining = None;
+            let ends_at = active.ends_at.max(natural_end);
+            active.restart(ends_at, at);
         }
         match (previous, state) {
             (Some(State::Paused), State::Playing) => active.resume(at),
@@ -572,7 +610,11 @@ mod tests {
         let line_at = start + 300 * MS;
         assert!(!playback.apply(&played("a", false, State::Playing), line_at, None));
         let end = line_at + Duration::from_secs(2);
-        assert_eq!(playback.latest(), Some(("a", State::Playing, Some(end))));
+        let latest = playback.latest(line_at).unwrap();
+        assert_eq!(
+            (latest.id, latest.state, latest.ends_at),
+            ("a", State::Playing, Some(end))
+        );
     }
 
     #[test]

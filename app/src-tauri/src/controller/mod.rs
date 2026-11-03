@@ -11,13 +11,13 @@ pub use running::MacroProgress;
 pub use window::BoardView;
 
 use crate::custom_pages::CustomPage;
+use crate::display::Animator;
 use crate::display::Frame;
-use crate::display::screens::{self, Screen};
 use crate::display::texts::{ENGLISH, Texts};
 use crate::macros::Macro;
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
-use crate::protocol::{BoardMessage, Effect, LED_COUNT, Led, PAD_COUNT};
+use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
 use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
@@ -36,8 +36,6 @@ const MIN_HOLD: Duration = Duration::from_millis(200);
 const MENU_TIME: Duration = Duration::from_secs(6);
 /// How long a peeked name stays after the press
 const PEEK_TIME: Duration = Duration::from_millis(2500);
-const ROWS: usize = 6;
-const COLUMNS: usize = 6;
 
 // Function keys, from the left
 const PREV: u8 = 0;
@@ -156,8 +154,8 @@ pub struct Controller {
     board_connected: bool,
     /// What the board's LEDs show, when known
     leds: [Option<Led>; LED_COUNT],
-    /// What the display shows, when sent
-    screen: Option<Screen>,
+    /// Draws the display's screens, and sends their frames when they change
+    display: Animator,
     /// Until when the overlay shows, besides while the knob is held or the menu open
     overlay_until: Option<Instant>,
     /// How long it shows; None when turned off
@@ -199,7 +197,7 @@ impl Default for Controller {
             last: None,
             board_connected: false,
             leds: [None; LED_COUNT],
-            screen: None,
+            display: Animator::default(),
             overlay_until: None,
             overlay_time: Some(overlay::OVERLAY_TIME),
             overlay: None,
@@ -240,7 +238,7 @@ impl Controller {
         self.board_connected = connected;
         // A board that connects waits for every LED and a picture; one that went away cannot report its keys' release
         self.leds = [None; LED_COUNT];
-        self.screen = None;
+        self.display.forget();
         self.knob = Knob::default();
         if connected {
             self.show_overlay(now);
@@ -375,9 +373,8 @@ impl Controller {
         }
 
         let (screen, screen_changes) = self.screen(now);
-        if self.screen.as_ref() != Some(&screen) {
-            self.outputs.push(Output::Display(screens::draw(&screen).frame()));
-            self.screen = Some(screen);
+        if let Some(frame) = self.display.frame(&screen, now) {
+            self.outputs.push(Output::Display(frame));
         }
         self.overlay_until = self.overlay_until.filter(|until| *until > now);
         let overlay = self.overlay(now);
@@ -397,6 +394,7 @@ impl Controller {
             .chain(menu_end)
             .chain(peek_end)
             .chain(screen_changes)
+            .chain(self.display.next_frame())
             .chain(self.overlay_until)
             .chain(self.macro_wake())
             .min();
@@ -666,6 +664,9 @@ impl Controller {
         let count = self.pages.len() as isize;
         if count > 0 {
             self.set_page((self.page as isize + step).rem_euclid(count) as usize, now);
+        }
+        if count > 1 {
+            self.display.page_turned(step > 0);
         }
     }
 

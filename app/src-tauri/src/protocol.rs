@@ -3,6 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const PAD_COUNT: u8 = 36;
+/// The pads, row by row from the top left
+pub const COLUMNS: usize = 6;
+pub const ROWS: usize = PAD_COUNT as usize / COLUMNS;
 pub const BUTTON_COUNT: u8 = 6;
 /// The pads' LEDs come first in the chain, then the function keys'
 pub const LED_COUNT: usize = (PAD_COUNT + BUTTON_COUNT) as usize;

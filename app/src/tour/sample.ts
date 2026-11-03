@@ -61,7 +61,9 @@ export const SAMPLE_KEYS: { led: Rgb | null; legend: Legend }[] = [
 
 export const PAGES = 5;
 const PLAYING = 2;
+const PLAYING_LENGTH = 2;
 const PLAYING_LEFT = 1.2;
+const VOICE_LOADED = LAYOUT.indexOf("G");
 const PEEKED = 1;
 const PEEKED_LENGTH = 2.4;
 /** The macro the Macros slide tries, and the one the Pages slide puts on a pad */
@@ -106,6 +108,15 @@ export function sampleMacro(texts: Texts): { steps: Step[]; library: Library } {
   };
 }
 
+/** The voice loaded at each of the sample macro's steps */
+function macroVoices(texts: Texts): string[] {
+  let voice = padName(texts, VOICE_LOADED);
+  return sampleMacro(texts).steps.map((step) => {
+    if (step.type === "voice") voice = step.name;
+    return voice;
+  });
+}
+
 /** The display's pictures, as the hex of their DISPLAY messages, and the overlay's (src-tauri/src/tour.rs) */
 export interface Pictures {
   home: string;
@@ -135,11 +146,14 @@ export function usePictures(texts: Texts, overlayWidth: number): Pictures | null
         locked: pad.locked,
       })),
       playing: PLAYING,
+      played: PLAYING_LENGTH,
       left: PLAYING_LEFT,
+      voice: padName(texts, VOICE_LOADED),
       peeked: PEEKED,
       length: PEEKED_LENGTH,
       macroName: padName(texts, MACRO_PAD),
       macroSteps: sampleMacro(texts).steps.length,
+      macroVoices: macroVoices(texts),
       overlayWidth: Math.round(overlayWidth * window.devicePixelRatio),
     };
     invoke<Drawn>("tour_pictures", { sample })
