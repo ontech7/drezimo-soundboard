@@ -65,6 +65,19 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
     if (!open) setQuery("");
   }, [open]);
 
+  // In a dialog, Escape closes the menu only: WebKit may cancel the dialog despite the key being handled
+  useEffect(() => {
+    const dialog = root.current?.closest("dialog");
+    if (!open || !dialog) return;
+    const cancel = (event: Event) => {
+      event.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    };
+    dialog.addEventListener("cancel", cancel);
+    return () => dialog.removeEventListener("cancel", cancel);
+  }, [open, root]);
+
   const onButtonKey = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
