@@ -246,6 +246,7 @@ pub fn set_start_at_login(enabled: bool) -> Result<(), String> {
 /// The login item the installer adds (windows/hooks.nsh), which Windows' startup apps can also turn off.
 #[cfg(windows)]
 mod login {
+    use crate::wide;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use windows_sys::Win32::Foundation::ERROR_SUCCESS;
@@ -347,10 +348,6 @@ mod login {
 
     fn delete(key: &str) {
         unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, wide(key).as_ptr(), wide(NAME).as_ptr()) };
-    }
-
-    fn wide(text: &str) -> Vec<u16> {
-        text.encode_utf16().chain([0]).collect()
     }
 }
 

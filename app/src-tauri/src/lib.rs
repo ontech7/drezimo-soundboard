@@ -26,6 +26,12 @@ mod window;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, RunEvent};
 
+/// A string as Windows' wide-character functions take it, with its closing zero.
+#[cfg(windows)]
+pub(crate) fn wide(text: &str) -> Vec<u16> {
+    text.encode_utf16().chain([0]).collect()
+}
+
 /// Passed by the login item the installer adds (windows/hooks.nsh): the app then starts in the tray, with no window
 pub(crate) const AUTOSTART_ARG: &str = "--autostart";
 

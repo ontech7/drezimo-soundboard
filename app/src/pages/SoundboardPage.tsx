@@ -65,6 +65,8 @@ function WhatIsNew() {
   );
 }
 
+// The function keys, as the board numbers them
+const STOP = 2;
 const MUTE_ME = 3;
 
 /** Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight */
@@ -149,8 +151,8 @@ function Waiting({ status, onMakePage }: { status: Status; onMakePage: () => voi
 
 // The board's function keys but the page keys, which the page arrows stand for
 const KEYS: { index: number; hint: keyof Texts["keyHints"]; icon: ReactNode }[] = [
-  { index: 2, hint: "stop", icon: <StopIcon /> },
-  { index: 3, hint: "muteMe", icon: <MuteMeIcon /> },
+  { index: STOP, hint: "stop", icon: <StopIcon /> },
+  { index: MUTE_ME, hint: "muteMe", icon: <MuteMeIcon /> },
   { index: 4, hint: "voice", icon: <VoiceChangerIcon /> },
   { index: 5, hint: "hearMe", icon: <HearMeIcon /> },
 ];
@@ -230,7 +232,7 @@ function Keys({ view }: { view: BoardView }) {
             aria-label={texts.keyHints[hint]}
             title={texts.keyHints[hint]}
             // MUTE ME, VOICE and HEAR ME are switches, lit while on
-            aria-pressed={index === 2 ? undefined : lit}
+            aria-pressed={index === STOP ? undefined : lit}
             style={{ "--led": ledColor(led) } as CSSProperties}
             onClick={() => pressKey(index)}
           >

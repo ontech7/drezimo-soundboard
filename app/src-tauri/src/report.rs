@@ -241,11 +241,8 @@ fn os_version() -> String {
     use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
 
     let read = |name: &str| -> Option<String> {
-        let key: Vec<u16> = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-            .encode_utf16()
-            .chain([0])
-            .collect();
-        let name: Vec<u16> = name.encode_utf16().chain([0]).collect();
+        let key = crate::wide(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+        let name = crate::wide(name);
         let mut buffer = [0u16; 64];
         let mut size = (buffer.len() * 2) as u32;
         let found = unsafe {
