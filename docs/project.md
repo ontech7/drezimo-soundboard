@@ -3,7 +3,7 @@
 > Note: the project is in English. The OLED display texts can be localised: English and Italian so far: the system's language by default, or the one set in the app.
 
 > Project document  
-> Status: PCB v0.2 ordered with its LEDs fab-assembled; firmware 0.2.0 tested on a bare RP2040-Zero; the bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. Next: the assembled PCB and the enclosure.
+> Status: PCB v0.2 ordered with its LEDs fab-assembled; firmware 0.2.1 tested on a bare RP2040-Zero with the real OLED; the bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. Next: the assembled PCB and the enclosure.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
@@ -462,7 +462,7 @@ The board reports raw inputs only. Page changes, peek, row overview and the soun
 
 Invalid messages change nothing and get `ERR,unknown message` (also the sign of a firmware older than the app) or `ERR,invalid arguments`. Messages without a reply are fire-and-forget, so a page change (42 `LED` lines) does not flood the link with acknowledgements.
 
-All of the above is implemented in firmware 0.2.0. Tested on the bare module: every message, the errors, settings kept across a reboot, the LED effects through `DEVLED,MIRROR`, and the whole link driven by the simulator over Web Serial. Keys, encoder, LED chain and display wait for the PCB.
+All of the above is implemented in firmware 0.2.1. Tested on the bare module: every message, the errors, settings kept across a reboot, the LED effects through `DEVLED,MIRROR`, and the whole link driven by the simulator over Web Serial. The real OLED was wired to the bare module on 2026-11-03 (VCC to 3V3, SCL to GP29, SDA to GP28): the power-up screen and the app's screens show as in the window's preview, aligned. Keys, encoder and LED chain wait for the PCB.
 
 ### Division of work
 
@@ -470,7 +470,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - **The board keeps what must be immediate or work without the PC:**
   - the LED effects and the ≈400 mA power limiter, so animations stay smooth whatever the USB timing;
   - the burn-in protection: dimming, blanking and the 1 px pixel shift (the app leaves a 1 px margin). The timers count from the last key, knob or `WAKE`. Only an input that wakes a *blank* display is swallowed; on a dimmed one it works normally;
-  - its own screen, shown at power-up and whenever no app is connected, with no text, so the firmware needs no translations. A light wave crosses the 6×6 grid of the logo and leaves the D lit, the wordmark slides in, then three small pads blink in turn while it waits. The real pads play the same wave and keep the D lit in amber, so the keyboard itself shows the logo; they go dark with the display when it blanks. The animation is drawn by code from the 1 KB wordmark bitmap (`logo_bitmap.h`).
+  - its own screen, shown at power-up and whenever no app is connected, with no text, so the firmware needs no translations. A light wave crosses the 6×6 grid of the logo and leaves the D lit, the wordmark slides in, then three small pads blink in turn while it waits. The real pads play the same wave and keep the D lit in amber, so the keyboard itself shows the logo; they go dark with the display when it blanks. The animation is drawn by code from the 1 KB wordmark bitmap (`logo_bitmap.h`). At power-up it starts once the display is ready, about 0.3 s later: U8g2 waits through the SH1106's reset timing even without a reset pin.
 - **Connection:** the board considers the app connected while the serial port is open with DTR on (the app must enable DTR: .NET's `SerialPort` leaves it off by default). On connection the board turns the LEDs off and waits for the app's state; the logo stays on the display until the first `DISPLAY` frame. When the port closes, it shows its own screen again.
 - **PC asleep:** while USB is suspended, the display and the LEDs are off.
 
@@ -516,10 +516,10 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Tauri app skeleton: tray icon, board found automatically, handshake and live activity (`app/`).
 - [x] Voicemod Control API in the app: pages of 36 sounds, Favourites, function keys, knob pages, LED states (tested against Voicemod 3.17.43 on macOS).
 - [x] Log watcher in the app: real playback state and sound lengths (tested against Voicemod 3.17.43 on macOS).
-- [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; to be checked on the real OLED).
+- [x] Display frames drawn by the app, soundboard menu, peek and row overview (window preview; checked on the real OLED wired to the bare module, 2026-11-03).
 - [x] Voicemod log on Windows: `%LOCALAPPDATA%\VoicemodV3\logs\`, same lines; Community sounds shown as "Community" with their countdown (2026-11-02, Voicemod 3.17.45).
 - [x] The 6×6 PC overlay: names and live LED colours, on page changes and while the knob is held (tested on macOS and on a Windows desktop; to be seen over games on a Windows PC).
-- [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module: 0.1.9 → 0.2.0 in about 5 s, on macOS).
+- [x] Firmware update from the app: automatic for a board with an older firmware (tested on the bare module on macOS: 0.1.9 → 0.2.0 in about 5 s, and 0.2.0 → 0.2.1 on 2026-11-03).
 - [x] Installer with its own interface, per user, with auto-start (checked on Windows 11 at 100% scale with an install, a reinstall, a passive update run and a silent uninstall, 2026-11-02; a real self-update from a release is still to be seen).
 - [x] Settings window with a sidebar: the board's LEDs and display, the overlay, the language and starting with Windows (2026-11-02; starting with Windows not yet tried in the installed app).
 - [x] Voices pages and the licence (2026-11-02).
@@ -528,7 +528,7 @@ All of the above is implemented in firmware 0.2.0. Tested on the bare module: ev
 - [x] Macros, as a pad of the custom pages: sounds, waits, voices, Voicemod's switches, stop and pages, with a Try button (2026-11-02).
 - [x] Welcome tour at the first start, again from General, with the display and overlay drawn by the app (2026-11-02).
 - [ ] Test connection errors and failed commands.
-- [ ] macOS distribution, on a Mac: a DMG in the installer's style (background, window, icon positions), a login item, and the updater's macOS package in the Release workflow. Not signed nor notarized: Gatekeeper's first-launch block is lifted with "Open Anyway" or `xattr -cr`.
+- [ ] macOS distribution, on a Mac: a DMG in the installer's style (background, window, icon positions), a login item, and the updater's macOS package in the Release workflow. macOS warns that a disk was not ejected properly when the RPI-RP2 drive goes away after a firmware update: to be avoided there. Not signed nor notarized: Gatekeeper's first-launch block is lifted with "Open Anyway" or `xattr -cr`.
 - [ ] Later: custom per-sound idle colours.
 
 ### Phase 6 — Enclosure and final assembly
