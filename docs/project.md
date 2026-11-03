@@ -411,7 +411,8 @@ Sound metadata used (from `getAllSoundboard`): `playbackMode`, `loop`, `stopOthe
 | `stopOtherSounds` (start from stopped) | Stops every other sound first | `Requested to stop other sounds…` + `Removes` for each |
 | `muteOtherSounds` / `muteVoice` | Handled by Voicemod (ducking / mic mute); nothing in the log | — |
 | STOP (`stopAllMemeSounds`) | Stops everything, paused sounds included. There is no per-sound stop in the API: a single sound is stopped through its own mode, as in Voicemod | `Requested to stop all sounds` + `Removes` for each |
-| `PlayOverlap` | Each press adds an instance (**not verified yet**: no free sound uses it; test with a custom sound) | — |
+| `PlayOverlap` | Each press adds an instance (**not verified yet**: Voicemod 3.17.43 on macOS, free licence, offers no way to set a sound's mode, and a sound uploaded with "Carica suono" comes as `PlayStop`; to be tried where the mode can be set) | — |
+| A sound uploaded by the user (2026-11-03, macOS) | `PlayStop`, stopping the other sounds first: played from the app, a second press stops it, the LED and the countdown following it | `playSound … repMode` + `Requested to stop other sounds…`; on the second press `processRepMode` + `Removes` |
 | A sound of the Community tab (in no soundboard) | Plays as `PlayRestart` and stops the others; its file is downloaded at the first play as plain Ogg. Its id is the online library's, in neither `getAllSoundboard` nor `getMemes` | `playSound id=<library id>, path=…/tuna/<id>.ogg, repMode=kPlayRestart, stopOthers=true` |
 | A licence-locked sound clicked in Voicemod | Not played: Voicemod offers Pro | — |
 
@@ -568,7 +569,7 @@ All of the above is implemented in firmware 0.2.1. Tested on the bare module: ev
 ### Still open
 
 - [ ] Enclosure material: PLA or PETG.
-- [ ] `PlayOverlap` behaviour (test with a custom sound).
+- [ ] `PlayOverlap` behaviour: Voicemod 3.17.43 on macOS cannot set a sound's mode (uploads come as `PlayStop`, checked 2026-11-03); to be tried where it can.
 
 ## 12. Safety and testing rules
 
