@@ -10,14 +10,14 @@ import type { Status } from "../status";
 import { useNews } from "../updates";
 import { SearchSelect } from "../SearchSelect";
 
-interface Notice {
-  dot: "off" | "waiting" | "warning" | "error";
+interface State {
+  dot: "ok" | "off" | "waiting" | "warning" | "error";
   title: string;
   detail: string;
 }
 
-/** What to know about Drezimo while it is not ready, if anything: the sidebar says only whether it is connected */
-function boardNotice(texts: Texts, status: Status, playable: boolean): Notice | null {
+/** Drezimo's state and what to do about it, beside its display: the sidebar says only whether it is connected */
+function boardState(texts: Texts, status: Status, playable: boolean): State {
   const { board, firmwareUpdate: update } = status;
   if (update?.state === "updating") {
     return { dot: "waiting", title: texts.updatingBoard, detail: texts.updatingDetail(update.from, update.to) };
@@ -30,19 +30,24 @@ function boardNotice(texts: Texts, status: Status, playable: boolean): Notice | 
     const detail = playable ? `${texts.searchingDetail} ${texts.playHere}` : texts.searchingDetail;
     return { dot: "off", title: texts.searching, detail };
   }
-  if (update?.state === "failed") return { dot: "error", title: "", detail: texts.updateFailed(update.reason) };
-  return null;
+  if (update?.state === "failed") {
+    return { dot: "error", title: texts.boardConnected, detail: texts.updateFailed(update.reason) };
+  }
+  return { dot: "ok", title: texts.boardConnected, detail: playable ? texts.playOnBoard : "" };
 }
 
-function BoardNotice({ notice }: { notice: Notice }) {
+/** Under the Soundboard page's title */
+export function BoardState({ status, playable }: { status: Status; playable: boolean }) {
+  const texts = useTexts();
+  const { dot, title, detail } = boardState(texts, status, playable);
   return (
-    <div className={`notice ${notice.dot}`}>
-      <span className={`dot ${notice.dot}`} />
-      <p>
-        {notice.title && <strong>{notice.title}</strong>}
-        <span className="muted">{notice.detail}</span>
-      </p>
-    </div>
+    <p className="board-state">
+      <span className={`dot ${dot}`} />
+      <span>
+        <strong>{title}</strong>
+        {detail && <span className="muted">{detail}</span>}
+      </span>
+    </p>
   );
 }
 
@@ -298,14 +303,11 @@ interface Props {
 }
 
 export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
-  const texts = useTexts();
-  const notice = boardNotice(texts, status, !!view);
   // The pads not known yet, or not there yet while the status already has a page: nothing, rather than a wrong state
   const settling = view === undefined || (view === null && status.voicemod.state === "connected" && status.page !== null);
   return (
     <>
       <WhatIsNew />
-      {notice && <BoardNotice notice={notice} />}
       {status.mutedPlay && !settings.muteForMeNoticeSeen && <MutedForMe settings={settings} />}
       {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
