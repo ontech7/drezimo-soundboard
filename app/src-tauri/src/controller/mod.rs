@@ -215,6 +215,16 @@ impl Controller {
         }
     }
 
+    /// The page to show once Voicemod sends its soundboards, as `shown_page` told it in an earlier run.
+    pub fn start_on(&mut self, page: (String, usize)) {
+        self.resume = Some(page);
+    }
+
+    /// The page shown, as soundboard and part, once the pages are complete.
+    pub fn shown_page(&self) -> Option<(String, usize)> {
+        self.soundboards_loaded.then(|| self.page_id(self.page)).flatten()
+    }
+
     /// The words on the display, in the language picked, the action pads' names among them.
     pub fn set_texts(&mut self, texts: &'static Texts) {
         self.texts = texts;
@@ -677,7 +687,7 @@ impl Controller {
     }
 
     /// After the soundboards or the voices changed: the page shown stays, if it is still there. The first soundboards
-    /// after Voicemod (re)connected bring back the page shown before, once, or the first page.
+    /// after Voicemod (re)connected bring back the page shown before, once, or the first page of sounds.
     fn rebuild_pages(&mut self, first_soundboards: bool) {
         let current = if first_soundboards {
             self.resume.take()
@@ -695,12 +705,21 @@ impl Controller {
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
         self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, &self.macros, self.texts);
-        self.page = current.and_then(|id| self.find_page(&id)).unwrap_or(0);
+        self.page = current
+            .and_then(|id| self.find_page(&id))
+            .unwrap_or_else(|| self.first_page());
         let remapped = selected.and_then(|id| self.find_page(&id));
         let last = self.pages.len().saturating_sub(1);
         if let Some(menu) = &mut self.menu {
             menu.selected = remapped.unwrap_or(menu.selected.min(last));
         }
+    }
+
+    /// Where to start with no page to go back to: a pad of the Voices pages loads a voice, and one pressed first is
+    /// expected to play a sound.
+    fn first_page(&self) -> usize {
+        let voices = |page: &Page| page.soundboard_id == soundboard::VOICES_ID;
+        self.pages.iter().position(|page| !voices(page)).unwrap_or(0)
     }
 
     /// The page of a soundboard and part, after the soundboards changed.

@@ -5,6 +5,7 @@ mod custom_pages;
 mod device;
 mod display;
 mod firmware;
+mod last_page;
 mod macros;
 mod overlay;
 mod pictures;

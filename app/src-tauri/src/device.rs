@@ -7,6 +7,7 @@ use crate::controller::MacroProgress;
 use crate::controller::{BoardView, Controller, Output, PageSummary};
 use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
 use crate::firmware::{self, FirmwareUpdate, Updater};
+use crate::last_page;
 use crate::macros::{Macro, MacrosState};
 use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
@@ -161,6 +162,10 @@ fn run(
     let mut controller = Controller::new(settings.language.texts());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
+    let mut kept_page = last_page::load(app);
+    if let Some(page) = kept_page.clone() {
+        controller.start_on(page);
+    }
     let mut shown_lengths = None;
     controller.set_overlay_time(overlay_time(&settings.overlay));
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
@@ -385,6 +390,10 @@ fn run(
         if shown_lengths != Some(controller.lengths_learned()) {
             shown_lengths = Some(controller.lengths_learned());
             update_library(app, |library| library.set_lengths(controller.sound_lengths()));
+        }
+        if let Some(page) = controller.shown_page().filter(|page| kept_page.as_ref() != Some(page)) {
+            last_page::save(app, &page);
+            kept_page = Some(page);
         }
         status.page = controller.page();
         status.loaded = controller.soundboards_loaded();

@@ -256,6 +256,53 @@ fn pages_turn_around_and_follow_voicemod() {
     assert_eq!(requests(&press(&mut controller, 0, true, now)), [&play("b1", true)]);
 }
 
+/// Voicemod connected, its voices sent before its soundboards.
+fn connected_with_voices(controller: &mut Controller, soundboards: Vec<Soundboard>, now: Instant) {
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    voices(controller, "dark", now);
+    controller.voicemod_event(VoicemodEvent::Soundboards(soundboards), now);
+}
+
+#[test]
+fn starts_on_a_page_of_sounds_rather_than_the_voices() {
+    let now = Instant::now();
+    let mut controller = Controller::default();
+    connected_with_voices(&mut controller, vec![soundboard("a", vec![sound("a1")])], now);
+    assert_eq!(controller.page().unwrap().name, "A");
+}
+
+#[test]
+fn starts_on_the_page_shown_last_time() {
+    let now = Instant::now();
+    let mut controller = Controller::default();
+    controller.start_on(("b".into(), 1));
+    connected_with_voices(
+        &mut controller,
+        vec![soundboard("a", vec![]), soundboard("b", vec![])],
+        now,
+    );
+    assert_eq!(controller.page().unwrap().name, "B");
+}
+
+#[test]
+fn tells_the_page_to_remember_once_the_pages_are_complete() {
+    let now = Instant::now();
+    let mut controller = Controller::default();
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    voices(&mut controller, "dark", now);
+    assert_eq!(controller.shown_page(), None);
+
+    controller.voicemod_event(
+        VoicemodEvent::Soundboards(vec![soundboard("a", vec![]), soundboard("b", vec![])]),
+        now,
+    );
+    button(&mut controller, NEXT, now);
+    assert_eq!(controller.shown_page(), Some(("b".into(), 1)));
+
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    assert_eq!(controller.shown_page(), None);
+}
+
 #[test]
 fn keeps_the_page_when_the_soundboards_change() {
     let (mut controller, now) = ready(vec![soundboard("a", vec![]), soundboard("b", vec![])]);
