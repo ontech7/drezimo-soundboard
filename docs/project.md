@@ -23,6 +23,7 @@
 - 2026-11-02: the app shows the 6×6 PC overlay (sound names and live LED colours) when the page changes and while the knob is held, in a native window; the simulator previews it the same way.
 - 2026-11-02: hardware test on the app's Diagnostics page, for a board just built: every key and the knob ticked as they are used, the LEDs colour by colour at low brightness, and test pictures on the display.
 - 2026-11-03: the display redrawn: icons for Voicemod's switches and the playback state, the voice loaded, a bar of what is left of a sound, long names scrolling, pages sliding in, a scrollbar in the menu, a map of the pads when peeking, and screens that say what to do when Voicemod is away.
+- 2026-11-03: the app's window: a report to copy for support, the update state and what is new after an update, the overlay's screen, a pixel-exact display preview, a locked pad blinking red with PRO ONLY, menus with a search field, a notice when Voicemod's Mute for me silences the sounds for the user, connection failures tested one by one, no browser menu or shortcuts, and screenshots in the README.
 
 ## 1. Goal
 
@@ -619,4 +620,4 @@ All of the above is implemented in firmware 0.2.1. Tested on the bare module: ev
 
 **Enclosure:** 130.3 × 196.35 mm, one-piece print on a Bambu Lab P1S, 6 M3 screws, removable bottom.
 
-**Next steps:** sound and voice images in the window, custom pages, macros, a visual tour of the device; the assembled PCB's bring-up; the enclosure.
+**Next steps:** the assembled PCB's bring-up; the enclosure; the overlay on the Windows PC with two screens and over games; the macOS installer.

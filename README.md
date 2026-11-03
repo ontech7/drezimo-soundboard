@@ -7,7 +7,11 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** work in progress. The PCB (v0.2) is designed and ordered; the firmware implements the board ↔ app protocol and waits for the PCB for the hardware tests. The desktop app drives Voicemod, the display, a PC overlay and the board's firmware updates; its installer comes next.
+**Status:** work in progress. The PCB (v0.2) is designed and ordered. The firmware implements the board ↔ app protocol and runs on a bare RP2040-Zero with the real display; the keys and LEDs wait for the PCB. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date.
+
+<p align="center">
+  <img src="docs/images/app-soundboard.webp" alt="The Drezimo app: the board's current page as 6×6 pads with Voicemod's pictures and LED colours, the display's live picture at the top right" width="720">
+</p>
 
 ## Hardware
 
@@ -18,15 +22,36 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - Custom 2-layer PCB, 3D-printed enclosure
 - Powered from USB only
 
+## The app
+
+- **Soundboard:** the board's current page in the window, with Voicemod's pictures and the LEDs' live colours, playable from there too, and the display's live picture. Voicemod's soundboards and voices come as pages of 36 pads; a sound outside the Voicemod licence blinks red with "PRO ONLY" when pressed.
+- **Your own pages:** sounds, voices and actions (stop the sounds, mute the microphone, the voice changer, a random voice, hear myself, mute for me, background effects, go to a page) in the order you want, with your own names and LED colours, before Voicemod's soundboards on the board.
+- **Macros:** one pad playing a sequence of sounds, waits, voices and switches.
+- **PC overlay:** the page's sounds on top of the other windows when the page changes or the knob is held, on the screen and in the corner you choose.
+- **Updates:** the app updates itself and the board's firmware, and says what is new.
+- **Support:** a report to copy, without personal paths, and a hardware test for a board just built.
+- In English and Italian.
+
+<table>
+  <tr>
+    <td width="58%"><img src="docs/images/app-pages.webp" alt="The page editor: a custom page of sounds, voices and actions, with the LED colour menu open"></td>
+    <td width="42%"><img src="docs/images/overlay.webp" alt="The PC overlay: the page's 36 pads with their names and LED colours"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The page editor</sub></td>
+    <td align="center"><sub>The PC overlay</sub></td>
+  </tr>
+</table>
+
 ## Installing the app
 
-Download the Windows installer (`-setup.exe`) from [Releases](https://github.com/ontech7/drezimo-soundboard/releases). The app then starts with Windows, in the notification area, and keeps itself and the board's firmware up to date. The installer is not code-signed: at the first install Windows asks to confirm an unknown publisher (More info → Run anyway).
+Download the Windows installer (`-setup.exe`) from [Releases](https://github.com/ontech7/drezimo-soundboard/releases). It needs Voicemod, free or PRO, on the same PC. The app then starts with Windows, in the notification area, and keeps itself and the board's firmware up to date. The installer is not code-signed: at the first install Windows asks to confirm an unknown publisher (More info → Run anyway).
+
+There is no macOS installer yet: build the app from source (below).
 
 ## How it works
 
-The board talks to a desktop bridge app over USB. The app controls Voicemod through its Control API and reads Voicemod's log to know which sounds are actually playing, so the LEDs and the display match Voicemod's own soundboard.
-
-You need your own Voicemod Control API client key: request one at [control-api.voicemod.net](https://control-api.voicemod.net/), then copy `.env.example` to `.env` and set `VOICEMOD_CLIENT_KEY`.
+The board talks to a desktop bridge app over USB. The app controls Voicemod through its Control API and reads Voicemod's log to know which sounds are actually playing, so the LEDs and the display match Voicemod's own soundboard. The app draws the display's pictures and the board shows them, so the texts are translated in the app.
 
 ## Repository layout
 
@@ -40,7 +65,7 @@ You need your own Voicemod Control API client key: request one at [control-api.v
 | `assets/logo/` | Logo (SVG) and app icon |
 | `simulator/dummy-board.html` | 1:1 browser simulator of the board; can connect to Voicemod |
 | `tools/` | Voicemod API probe, log watcher and behaviour experiments |
-| `docs/project.md` | Design notes and decisions |
+| `docs/` | Design notes and decisions (`project.md`), screenshots |
 
 ## Building the hardware files
 
@@ -84,7 +109,7 @@ yarn tauri build   # installer for the current platform
 cd src-tauri && cargo test
 ```
 
-The Voicemod client key is built into the app: put `VOICEMOD_CLIENT_KEY=<key>` in a `.env` file at the repository root (git ignores it) or set it in the environment. Without it the app builds and runs, but cannot reach Voicemod.
+The Voicemod client key is built into the app. Request your own at [control-api.voicemod.net](https://control-api.voicemod.net/), then copy `.env.example` to `.env` at the repository root (git ignores it) and set `VOICEMOD_CLIENT_KEY`, or set it in the environment. Without it the app builds and runs, but cannot reach Voicemod.
 
 A build made this way does not update itself: only the published ones do. To publish a version, raise `version` in `app/src-tauri/tauri.conf.json`, bring it to `main` and run **Actions → Release**, with what is new in one short line in its **notes** field, if anything: the installed apps show it once they have updated. The workflow needs three repository secrets: `VOICEMOD_CLIENT_KEY`, and the updater's private key and password as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (made with `yarn tauri signer generate`; the public key is in `tauri.conf.json`).
 
