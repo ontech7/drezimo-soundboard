@@ -1403,3 +1403,38 @@ fn a_locked_voice_blinks_red_and_tells_why() {
     };
     assert_eq!(name, ENGLISH.pro_only);
 }
+
+fn logged(outputs: &[Output]) -> Vec<&str> {
+    outputs
+        .iter()
+        .filter_map(|output| match output {
+            Output::Log(message) => Some(message.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_locked_pad_goes_to_the_error_list() {
+    let locked = Sound {
+        enabled: false,
+        name: "Explode".into(),
+        ..sound("locked")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![locked])]);
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(logged(&outputs), ["Explode is outside Voicemod's licence: not played"]);
+}
+
+#[test]
+fn a_page_change_ends_the_red_blink() {
+    let locked = Sound {
+        enabled: false,
+        ..sound("locked")
+    };
+    let (mut controller, now) = ready(vec![soundboard("a", vec![locked]), soundboard("b", vec![sound("b1")])]);
+    press(&mut controller, 0, true, now);
+    controller.go_to_page(1);
+    controller.update(now);
+    assert_eq!(led(&controller.take_outputs(), 0), Some("47,107,255"));
+}

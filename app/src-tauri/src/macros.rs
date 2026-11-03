@@ -211,7 +211,7 @@ pub fn set_macros(app: AppHandle, macros: Vec<Macro>) -> Result<Vec<Macro>, Stri
     app.state::<MacrosState>().0.lock().unwrap().clone_from(&macros);
     crate::device::apply_macros(&app, macros.clone());
     let _ = app.emit("macros", &macros);
-    save(&app, &macros)?;
+    save(&app, &macros).inspect_err(|error| crate::errors::log(format!("cannot save the macros: {error}")))?;
     Ok(macros)
 }
 

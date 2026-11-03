@@ -213,7 +213,7 @@ pub fn set_settings(app: AppHandle, settings: Settings) -> Result<SettingsView, 
     crate::tray::set_language(&app, settings.language);
     let view = SettingsView::from(settings.clone());
     let _ = app.emit("settings", view.clone());
-    save(&app, &settings)?;
+    save(&app, &settings).inspect_err(|error| crate::errors::log(format!("cannot save the settings: {error}")))?;
     Ok(view)
 }
 

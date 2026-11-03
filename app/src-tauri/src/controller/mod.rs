@@ -68,6 +68,8 @@ pub enum Output {
     Display(Frame),
     /// What the PC overlay shows now, or None to hide it
     Overlay(Option<Overlay>),
+    /// For the error list of the support report
+    Log(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -542,7 +544,7 @@ impl Controller {
                 if voice.enabled {
                     self.load_voice(voice, now);
                 } else {
-                    self.refuse(pad, now);
+                    self.refuse(pad, &voice.name, now);
                 }
             }
             return;
@@ -555,7 +557,7 @@ impl Controller {
         };
         if !sound.enabled {
             self.held.insert(pad, None);
-            self.refuse(pad, now);
+            self.refuse(pad, &sound.name, now);
             return;
         }
 
@@ -572,9 +574,11 @@ impl Controller {
     }
 
     /// Outside the licence: Voicemod would not play it, and would not say so
-    fn refuse(&mut self, pad: u8, now: Instant) {
+    fn refuse(&mut self, pad: u8, name: &str, now: Instant) {
         self.refused.insert(pad, now + REFUSED_BLINK);
         self.last = Some((self.texts.pro_only.to_string(), now));
+        self.outputs
+            .push(Output::Log(format!("{name} is outside Voicemod's licence: not played")));
     }
 
     fn pad_released(&mut self, pad: u8, now: Instant) {
@@ -716,8 +720,15 @@ impl Controller {
 
     /// Goes to a page, and shows its sounds on the overlay.
     fn set_page(&mut self, page: usize, now: Instant) {
-        self.page = page;
+        self.change_page(page);
         self.show_overlay(now);
+    }
+
+    /// A pad's flash or red blink belongs to the page it was pressed on.
+    fn change_page(&mut self, page: usize) {
+        self.page = page;
+        self.flashes.clear();
+        self.refused.clear();
     }
 
     /// After the soundboards or the voices changed: the page shown stays, if it is still there. The first soundboards

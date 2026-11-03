@@ -97,7 +97,7 @@ impl Controller {
     /// A page picked in the window: no overlay, since the window shows the page, and no knob menu left open on another.
     pub fn go_to_page(&mut self, page: usize) {
         if page < self.pages.len() {
-            self.page = page;
+            self.change_page(page);
             self.menu = None;
         }
     }

@@ -245,7 +245,7 @@ pub fn set_custom_pages(app: AppHandle, pages: Vec<CustomPage>) -> Result<Vec<Cu
     app.state::<CustomPagesState>().0.lock().unwrap().clone_from(&pages);
     crate::device::apply_custom_pages(&app, pages.clone());
     let _ = app.emit("custom-pages", &pages);
-    save(&app, &pages)?;
+    save(&app, &pages).inspect_err(|error| crate::errors::log(format!("cannot save the pages: {error}")))?;
     Ok(pages)
 }
 

@@ -358,6 +358,7 @@ fn run(
                 Output::Overlay(shown) => {
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
+                Output::Log(message) => crate::errors::log(message),
             }
         }
         match &mut tester {
