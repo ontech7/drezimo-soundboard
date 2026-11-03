@@ -8,6 +8,7 @@ mod errors;
 mod firmware;
 mod last_page;
 mod macros;
+mod news;
 mod overlay;
 mod pictures;
 mod playback;
@@ -38,6 +39,7 @@ pub fn run() {
         .manage(device::BoardTestState::default())
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
+        .manage(updates::UpdateStateHolder::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
@@ -67,6 +69,9 @@ pub fn run() {
             macros::set_macros,
             macros::try_macro,
             macros::stop_macro,
+            news::news,
+            news::dismiss_news,
+            updates::update_state,
             tour::tour_pictures,
             window::window_ready
         ])
@@ -85,6 +90,7 @@ pub fn run() {
             app.manage(pictures::Pictures::new(app.handle()));
             app.manage(custom_pages::load(app.handle()));
             app.manage(macros::load(app.handle()));
+            app.manage(news::load(app.handle()));
             tray::create(app.handle())?;
             device::start(app.handle().clone());
             // A build made here does not replace itself with a published one

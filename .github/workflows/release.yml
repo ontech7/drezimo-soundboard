@@ -6,6 +6,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      notes:
+        description: What's new, one short line shown by the installed apps
+        type: string
+        required: false
 
 concurrency:
   group: release
@@ -59,6 +64,22 @@ jobs:
         with:
           workspaces: app/src-tauri
 
+      # The installed apps show what comes before the --- line, once updated (src-tauri/src/news.rs): the rest is for
+      # the release page. tauri-action also writes it in latest.json, where the updater reads it.
+      - name: Write the release text
+        id: release-text
+        shell: bash
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          {
+            echo "body<<END_OF_BODY"
+            if [ -n "$NOTES" ]; then printf '%s\n\n' "$NOTES"; fi
+            echo "---"
+            echo 'The Windows installer is the `-setup.exe` file. Installed apps update themselves.'
+            echo "END_OF_BODY"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,6 +93,6 @@ jobs:
           args: --config src-tauri/tauri.release.conf.json
           tagName: v__VERSION__
           releaseName: Drezimo Soundboard __VERSION__
-          releaseBody: The Windows installer is the `-setup.exe` file. Installed apps update themselves.
+          releaseBody: ${{ steps.release-text.outputs.body }}
           releaseDraft: false
           prerelease: false

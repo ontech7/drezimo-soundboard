@@ -4,6 +4,7 @@ import { Row, Section, Segmented, Toggle } from "../controls";
 import { type Texts, useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
 import type { Status } from "../status";
+import { type UpdateState, useUpdateState } from "../updates";
 
 interface About {
   version: string;
@@ -12,6 +13,25 @@ interface About {
 
 // macOS has no login item yet (docs/project.md, phase 5)
 export const WINDOWS = navigator.userAgent.includes("Windows");
+
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+
+function updateText(texts: Texts, update: UpdateState): string {
+  switch (update.state) {
+    case "local":
+    case "waiting":
+    case "checking":
+      return texts.appUpdate[update.state];
+    case "upToDate":
+      return texts.appUpdate.upToDate(timeFormat.format(update.checkedAt));
+    case "downloading":
+      return texts.appUpdate.downloading(update.version);
+    case "ready":
+      return texts.appUpdate.ready(update.version);
+    case "failed":
+      return texts.appUpdate.failed(timeFormat.format(update.at));
+  }
+}
 
 export function languages(texts: Texts): { value: Language; label: string }[] {
   return [
@@ -32,6 +52,7 @@ export function GeneralPage({ settings, status, onTour }: Props) {
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
   const [about, setAbout] = useState<About>();
+  const update = useUpdateState();
 
   useEffect(() => {
     invoke<boolean | null>("start_at_login").then(setStartAtLogin);
@@ -88,7 +109,7 @@ export function GeneralPage({ settings, status, onTour }: Props) {
           <Row label={texts.voicemodLicense}>
             <span className="value">{status.license ? texts.license(status.license) : "—"}</span>
           </Row>
-          <Row label={texts.updates} text={texts.updatesText} />
+          {update && <Row label={texts.updates} text={updateText(texts, update)} />}
         </Section>
       )}
 

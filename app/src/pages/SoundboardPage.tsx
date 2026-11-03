@@ -1,12 +1,13 @@
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
-import { ChevronLeft, ChevronRight, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
+import { ChevronLeft, ChevronRight, CloseIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
 import { PAD_COUNT, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
 import { MiniBoard } from "../MiniBoard";
 import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
+import { useNews } from "../updates";
 
 interface Notice {
   dot: "off" | "waiting" | "warning" | "error";
@@ -40,6 +41,25 @@ function BoardNotice({ notice }: { notice: Notice }) {
         {notice.title && <strong>{notice.title}</strong>}
         <span className="muted">{notice.detail}</span>
       </p>
+    </div>
+  );
+}
+
+/** What the version just installed brings, once */
+function WhatIsNew() {
+  const texts = useTexts();
+  const [news, dismiss] = useNews();
+  if (!news) return null;
+  return (
+    <div className="notice news">
+      <span className="dot ok" />
+      <p>
+        <strong>{texts.updatedTo(news.version)}</strong>
+        {news.notes && <span className="muted">{news.notes}</span>}
+      </p>
+      <button type="button" className="icon-button small" aria-label={texts.close} title={texts.close} onClick={dismiss}>
+        <CloseIcon />
+      </button>
     </div>
   );
 }
@@ -280,6 +300,7 @@ export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
   const settling = view === undefined || (view === null && status.voicemod.state === "connected" && status.page !== null);
   return (
     <>
+      <WhatIsNew />
       {notice && <BoardNotice notice={notice} />}
       {status.mutedPlay && !settings.muteForMeNoticeSeen && <MutedForMe settings={settings} />}
       {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
