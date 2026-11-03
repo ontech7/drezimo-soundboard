@@ -15,11 +15,7 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
   const connected = status.voicemod.state === "connected";
   return (
     <>
-      <Section title={texts.support}>
-        <Row label={texts.report} text={texts.reportText}>
-          <CopyReport />
-        </Row>
-      </Section>
+      <Support />
 
       <Section title={texts.connections}>
         <Row label={texts.boardPort}>
@@ -61,9 +57,11 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
 
 type Copying = "idle" | "copied" | "failed";
 
-function CopyReport() {
+/** The report for support, copied; shown here to select by hand when the system refuses the copy */
+function Support() {
   const texts = useTexts();
   const [copying, setCopying] = useState<Copying>("idle");
+  const [uncopied, setUncopied] = useState<string | null>(null);
 
   useEffect(() => {
     if (copying === "idle") return;
@@ -71,19 +69,37 @@ function CopyReport() {
     return () => clearTimeout(timer);
   }, [copying]);
 
-  const copy = () =>
-    invoke<string>("report")
-      .then((report) => navigator.clipboard.writeText(report))
-      .then(() => setCopying("copied"))
-      .catch((error) => {
-        console.error("cannot copy the report", error);
-        setCopying("failed");
-      });
+  const copy = async () => {
+    let report: string | null = null;
+    try {
+      report = await invoke<string>("report");
+      await navigator.clipboard.writeText(report);
+      setUncopied(null);
+      setCopying("copied");
+    } catch (error) {
+      console.error("cannot copy the report", error);
+      setUncopied(report);
+      setCopying("failed");
+    }
+  };
 
   const label = { idle: texts.copyReport, copied: texts.reportCopied, failed: texts.reportNotCopied }[copying];
   return (
-    <button type="button" className="button secondary" onClick={copy}>
-      {label}
-    </button>
+    <Section title={texts.support}>
+      <Row label={texts.report} text={uncopied === null ? texts.reportText : texts.reportByHand}>
+        <button type="button" className="button secondary" onClick={copy}>
+          {label}
+        </button>
+      </Row>
+      {uncopied !== null && (
+        <textarea
+          className="report"
+          aria-label={texts.report}
+          readOnly
+          value={uncopied}
+          onFocus={(event) => event.target.select()}
+        />
+      )}
+    </Section>
   );
 }
