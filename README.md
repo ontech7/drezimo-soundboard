@@ -9,10 +9,6 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 
 **Status:** work in progress. The PCB (v0.2) is designed and ordered. The firmware implements the board ↔ app protocol and runs on a bare RP2040-Zero with the real display; the keys and LEDs wait for the PCB. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date.
 
-<p align="center">
-  <img src="docs/images/app-soundboard.webp" alt="The Drezimo app: the board's current page as 6×6 pads with Voicemod's pictures and LED colours, the display's live picture at the top right" width="720">
-</p>
-
 ## Hardware
 
 - RP2040-Zero (RP2040, USB-C)
@@ -22,7 +18,24 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - Custom 2-layer PCB, 3D-printed enclosure
 - Powered from USB only
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/board-top.webp" alt="The PCB from the top: 42 switch footprints with the LED windows, the encoder, the display header and the LED buffer"></td>
+    <td width="50%"><img src="docs/images/board-bottom.webp" alt="The PCB from the bottom: the 42 LEDs with their diodes and capacitors, the RP2040-Zero's place and the Drezimo logo"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Top: the switches, the knob, the display and the LED buffer, soldered by hand</sub></td>
+    <td align="center"><sub>Bottom: the LEDs and the small parts, assembled by the fab, and the RP2040-Zero, soldered by hand</sub></td>
+  </tr>
+</table>
+
+<sub>KiCad renders of the PCB v0.2, until the boards arrive.</sub>
+
 ## The app
+
+<p align="center">
+  <img src="docs/images/app-soundboard.webp" alt="The Drezimo app: the board's current page as 6×6 pads with Voicemod's pictures and LED colours, the display's live picture at the top right" width="720">
+</p>
 
 - **Soundboard:** the board's current page in the window, with Voicemod's pictures and the LEDs' live colours, playable from there too, and the display's live picture. Voicemod's soundboards and voices come as pages of 36 pads; a sound outside the Voicemod licence blinks red with "PRO ONLY" when pressed.
 - **Your own pages:** sounds, voices and actions (stop the sounds, mute the microphone, the voice changer, a random voice, hear myself, mute for me, background effects, go to a page) in the order you want, with your own names and LED colours, before Voicemod's soundboards on the board.
