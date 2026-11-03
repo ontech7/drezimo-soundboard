@@ -54,7 +54,19 @@ pub enum Anchor {
     BottomRight,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+/// The screen the overlay shows on. A named one that is not connected gives way to the main screen.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OverlayScreen {
+    /// The screen the mouse is on when the overlay appears
+    #[default]
+    Mouse,
+    Main,
+    /// As the system names it
+    Named(String),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlaySettings {
     pub enabled: bool,
@@ -65,6 +77,7 @@ pub struct OverlaySettings {
     pub seconds: u8,
     /// In percent of the full size
     pub size: u8,
+    pub screen: OverlayScreen,
 }
 
 impl OverlaySettings {
@@ -88,12 +101,13 @@ impl Default for OverlaySettings {
             opacity: 100,
             seconds: 4,
             size: 100,
+            screen: OverlayScreen::default(),
         }
     }
 }
 
 /// Missing fields take their defaults, so a file from an older app still loads
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
     pub language: Language,
@@ -153,7 +167,7 @@ pub struct SettingsState(Mutex<Settings>);
 
 impl SettingsState {
     pub fn get(&self) -> Settings {
-        *self.0.lock().unwrap()
+        self.0.lock().unwrap().clone()
     }
 }
 
@@ -194,10 +208,10 @@ pub fn settings(state: State<SettingsState>) -> SettingsView {
 #[tauri::command]
 pub fn set_settings(app: AppHandle, settings: Settings) -> Result<SettingsView, String> {
     let settings = settings.checked();
-    *app.state::<SettingsState>().0.lock().unwrap() = settings;
-    crate::device::apply_settings(&app, settings);
+    *app.state::<SettingsState>().0.lock().unwrap() = settings.clone();
+    crate::device::apply_settings(&app, settings.clone());
     crate::tray::set_language(&app, settings.language);
-    let view = SettingsView::from(settings);
+    let view = SettingsView::from(settings.clone());
     let _ = app.emit("settings", view.clone());
     save(&app, &settings)?;
     Ok(view)
@@ -371,5 +385,18 @@ mod tests {
         assert_eq!(settings.overlay.anchor, Anchor::Top);
         assert!(settings.tour_seen);
         assert!(!settings.mute_for_me_notice_seen);
+        assert_eq!(settings.overlay.screen, OverlayScreen::Mouse);
+    }
+
+    #[test]
+    fn the_overlays_screen_keeps_its_json_forms() {
+        for (screen, json) in [
+            (OverlayScreen::Mouse, r#""mouse""#),
+            (OverlayScreen::Main, r#""main""#),
+            (OverlayScreen::Named("DELL U2720Q".into()), r#"{"named":"DELL U2720Q"}"#),
+        ] {
+            assert_eq!(serde_json::to_string(&screen).unwrap(), json);
+            assert_eq!(serde_json::from_str::<OverlayScreen>(json).unwrap(), screen);
+        }
     }
 }

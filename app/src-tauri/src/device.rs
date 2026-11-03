@@ -452,6 +452,7 @@ fn look(overlay: &OverlaySettings) -> Look {
         anchor: overlay.anchor,
         opacity: f32::from(overlay.opacity) / 100.0,
         size: f64::from(overlay.size) / 100.0,
+        screen: overlay.screen.clone(),
     }
 }
 

@@ -6,6 +6,9 @@ export type Language = "system" | "english" | "italian";
 
 export type Anchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right" | "bottomLeft" | "bottom" | "bottomRight";
 
+/** The screen the mouse is on when the overlay appears, the main one, or one by its system name */
+export type OverlayScreen = "mouse" | "main" | { named: string };
+
 export interface OverlaySettings {
   enabled: boolean;
   anchor: Anchor;
@@ -14,6 +17,7 @@ export interface OverlaySettings {
   seconds: number;
   /** In percent of the full size */
   size: number;
+  screen: OverlayScreen;
 }
 
 /** The app's settings (src-tauri/src/settings.rs) */

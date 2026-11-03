@@ -10,16 +10,17 @@ mod text;
 mod native;
 
 use crate::protocol::{Effect, Led};
-use crate::settings::Anchor;
+use crate::settings::{Anchor, OverlayScreen};
 use draw::Painter;
 use native::NativeWindow;
+use serde::Serialize;
 use std::cell::RefCell;
 use std::f32::consts::TAU;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::AppHandle;
+use tauri::{AppHandle, Monitor};
 
 /// The space between the overlay and the edges of the screen's free area, in points
 const MARGIN: f64 = 16.0;
@@ -56,12 +57,32 @@ pub enum OverlayUpdate {
 }
 
 /// Where the overlay sits, how opaque and how big it is, as set in the window
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Look {
     pub anchor: Anchor,
     pub opacity: f32,
     /// 1 for the full size
     pub size: f64,
+    pub screen: OverlayScreen,
+}
+
+/// A screen, for the window's choice of where the overlay shows
+#[derive(Serialize)]
+pub struct ScreenView {
+    name: String,
+    /// In pixels
+    width: u32,
+    height: u32,
+    main: bool,
+}
+
+/// A screen's free area, in pixels
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -100,6 +121,27 @@ pub fn start(app: &AppHandle) -> Sender<OverlayUpdate> {
     sender
 }
 
+/// The screens connected, as the system names them. Async, as asking the system for them waits on the main thread.
+#[tauri::command]
+pub async fn screens(app: AppHandle) -> Vec<ScreenView> {
+    let main = app.primary_monitor().ok().flatten();
+    let main_name = main.as_ref().and_then(Monitor::name);
+    let monitors = app.available_monitors().unwrap_or_default();
+    monitors
+        .iter()
+        .filter_map(|monitor| {
+            let name = monitor.name()?;
+            let size = monitor.size();
+            Some(ScreenView {
+                name: name.clone(),
+                width: size.width,
+                height: size.height,
+                main: main_name == Some(name),
+            })
+        })
+        .collect()
+}
+
 /// `overlay` as straight RGBA, `width` pixels wide and each LED at its brightest, for the welcome tour.
 pub fn picture(overlay: &Overlay, width: usize) -> (usize, usize, Vec<u8>) {
     let scale = width as f32 / draw::size(1.0).0 as f32;
@@ -132,6 +174,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
         anchor: Anchor::default(),
         opacity: 1.0,
         size: 1.0,
+        screen: OverlayScreen::default(),
     };
     let mut redraw = false;
     // The half period of the blinks last drawn, and whether the window shows something
@@ -186,7 +229,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
             _ => {}
         }
         if visible && placement.is_none() {
-            placement = place(app, look);
+            placement = place(app, &look);
         }
 
         let shows = |effect| {
@@ -252,12 +295,42 @@ fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 's
     });
 }
 
-/// Where the overlay goes on the main screen, clear of the taskbar or the Dock, and at what size.
-fn place(app: &AppHandle, look: Look) -> Option<Placement> {
-    let monitor = app.primary_monitor().ok()??;
-    let scale = monitor.scale_factor();
-    let drawn = scale * look.size;
+/// Where the overlay goes on the screen chosen, clear of the taskbar or the Dock, and at what size.
+fn place(app: &AppHandle, look: &Look) -> Option<Placement> {
+    let monitor = screen(app, &look.screen)?;
     let area = monitor.work_area();
+    let area = Rect {
+        x: area.position.x,
+        y: area.position.y,
+        width: area.size.width,
+        height: area.size.height,
+    };
+    Some(placement(area, monitor.scale_factor(), look))
+}
+
+/// The screen chosen, or the main one when it cannot be found.
+fn screen(app: &AppHandle, chosen: &OverlayScreen) -> Option<Monitor> {
+    let found = match chosen {
+        OverlayScreen::Mouse => mouse_screen(app),
+        OverlayScreen::Main => None,
+        OverlayScreen::Named(name) => app
+            .available_monitors()
+            .ok()
+            .and_then(|monitors| monitors.into_iter().find(|monitor| monitor.name() == Some(name))),
+    };
+    found.or_else(|| app.primary_monitor().ok().flatten())
+}
+
+fn mouse_screen(app: &AppHandle) -> Option<Monitor> {
+    let mouse = app.cursor_position().ok()?;
+    // macOS gives the mouse in the main screen's pixels, but looks for the screen in points
+    #[cfg(target_os = "macos")]
+    let mouse = mouse.to_logical::<f64>(app.primary_monitor().ok()??.scale_factor());
+    app.monitor_from_point(mouse.x, mouse.y).ok()?
+}
+
+fn placement(area: Rect, scale: f64, look: &Look) -> Placement {
+    let drawn = scale * look.size;
     let (width, height) = draw::size(drawn as f32);
     let margin = (MARGIN * scale).round() as i32;
     // 0 at the start of the area, 1 in its middle, 2 at its end
@@ -277,12 +350,12 @@ fn place(app: &AppHandle, look: Look) -> Option<Placement> {
         1 => start + (room as i32 - size as i32) / 2,
         _ => start + room as i32 - size as i32 - margin,
     };
-    Some(Placement {
-        x: along(area.position.x, area.size.width, width, column),
-        y: along(area.position.y, area.size.height, height, row),
+    Placement {
+        x: along(area.x, area.width, width, column),
+        y: along(area.y, area.height, height, row),
         scale,
         drawn,
-    })
+    }
 }
 
 impl Fade {
@@ -325,6 +398,58 @@ fn level(effect: Effect, time: Duration) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::OverlayScreen;
+
+    const ANCHORS: [Anchor; 9] = [
+        Anchor::TopLeft,
+        Anchor::Top,
+        Anchor::TopRight,
+        Anchor::Left,
+        Anchor::Center,
+        Anchor::Right,
+        Anchor::BottomLeft,
+        Anchor::Bottom,
+        Anchor::BottomRight,
+    ];
+
+    fn look(anchor: Anchor, size: f64) -> Look {
+        Look {
+            anchor,
+            opacity: 1.0,
+            size,
+            screen: OverlayScreen::Mouse,
+        }
+    }
+
+    #[test]
+    fn places_on_a_screen_left_of_the_main_one() {
+        let area = Rect {
+            x: -1920,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        for anchor in ANCHORS {
+            let at = placement(area, 1.0, &look(anchor, 1.0));
+            let (width, height) = draw::size(at.drawn as f32);
+            assert!(at.x >= -1920 && at.x + width as i32 <= 0, "{anchor:?} at x {}", at.x);
+            assert!(at.y >= 0 && at.y + height as i32 <= 1040, "{anchor:?} at y {}", at.y);
+        }
+    }
+
+    #[test]
+    fn sizes_with_the_screens_own_scale() {
+        let area = Rect {
+            x: 2560,
+            y: 100,
+            width: 2880,
+            height: 1620,
+        };
+        let at = placement(area, 1.5, &look(Anchor::TopLeft, 0.7));
+        assert!((at.drawn - 1.05).abs() < 1e-9);
+        assert_eq!((at.x, at.y), (2560 + 24, 100 + 24));
+        assert_eq!(at.scale, 1.5);
+    }
 
     #[test]
     fn animates_the_effects_as_the_simulator() {

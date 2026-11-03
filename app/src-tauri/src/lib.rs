@@ -71,6 +71,7 @@ pub fn run() {
             macros::stop_macro,
             news::news,
             news::dismiss_news,
+            overlay::screens,
             updates::update_state,
             tour::tour_pictures,
             window::window_ready
