@@ -12,42 +12,42 @@ import { SearchSelect } from "../SearchSelect";
 
 interface State {
   dot: "ok" | "off" | "waiting" | "warning" | "error";
-  title: string;
-  detail: string;
+  /** In a few words, for the dot's tooltip */
+  label: string;
+  /** What it means, and what to do */
+  line: string;
 }
 
 /** Drezimo's state and what to do about it, beside its display: the sidebar says only whether it is connected */
 function boardState(texts: Texts, status: Status, playable: boolean): State {
   const { board, firmwareUpdate: update } = status;
+  const line = texts.boardLine;
   if (update?.state === "updating") {
-    return { dot: "waiting", title: texts.updatingBoard, detail: texts.updatingDetail(update.from, update.to) };
+    return { dot: "waiting", label: texts.updatingBoard, line: line.updating(update.from, update.to) };
   }
   if (update?.state === "restarting") {
-    return { dot: "waiting", title: texts.restartingBoard, detail: texts.restartingDetail(update.to) };
+    return { dot: "waiting", label: texts.restartingBoard, line: line.restarting(update.to) };
   }
-  if (board.state === "busy") return { dot: "warning", title: texts.busy, detail: texts.busyDetail };
+  if (board.state === "busy") return { dot: "warning", label: texts.busy, line: line.busy };
   if (board.state === "searching") {
-    const detail = playable ? `${texts.searchingDetail} ${texts.playHere}` : texts.searchingDetail;
-    return { dot: "off", title: texts.searching, detail };
+    return { dot: "off", label: texts.searching, line: playable ? line.searchingPlayHere : line.searching };
   }
-  if (update?.state === "failed") {
-    return { dot: "error", title: texts.boardConnected, detail: texts.updateFailed(update.reason) };
-  }
-  return { dot: "ok", title: texts.boardConnected, detail: playable ? texts.playOnBoard : "" };
+  if (update?.state === "failed") return { dot: "error", label: texts.boardConnected, line: line.failed(update.reason) };
+  return { dot: "ok", label: texts.boardConnected, line: playable ? line.connected : line.connectedOnly };
 }
 
-/** Under the Soundboard page's title */
-export function BoardState({ status, playable }: { status: Status; playable: boolean }) {
+/** The Soundboard page's title, with Drezimo's state: a dot beside it, what it means below */
+export function SoundboardTitle({ status, playable }: { status: Status; playable: boolean }) {
   const texts = useTexts();
-  const { dot, title, detail } = boardState(texts, status, playable);
+  const { dot, label, line } = boardState(texts, status, playable);
   return (
-    <p className="board-state">
-      <span className={`dot ${dot}`} />
-      <span>
-        <strong>{title}</strong>
-        {detail && <span className="muted">{detail}</span>}
-      </span>
-    </p>
+    <div className="page-title">
+      <h1>
+        {texts.nav.soundboard}
+        <span className={`dot ${dot}`} role="img" aria-label={label} title={label} />
+      </h1>
+      <p className="muted">{line}</p>
+    </div>
   );
 }
 

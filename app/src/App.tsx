@@ -9,7 +9,7 @@ import { GeneralPage } from "./pages/GeneralPage";
 import { MacrosPage } from "./pages/MacrosPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
-import { BoardState, SoundboardPage } from "./pages/SoundboardPage";
+import { SoundboardPage, SoundboardTitle } from "./pages/SoundboardPage";
 import { DisplayButton } from "./DisplayPreview";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
@@ -75,10 +75,7 @@ export default function App() {
         <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
         <main>
           <header className="page-header">
-            <div>
-              <h1>{texts.nav[shown]}</h1>
-              {shown === "soundboard" && <BoardState status={status} playable={!!view} />}
-            </div>
+            {shown === "soundboard" ? <SoundboardTitle status={status} playable={!!view} /> : <h1>{texts.nav[shown]}</h1>}
             {shown === "soundboard" && <DisplayButton />}
           </header>
           {shown === "soundboard" && (

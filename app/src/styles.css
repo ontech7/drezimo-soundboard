@@ -340,45 +340,28 @@ p {
   margin-bottom: 4px;
 }
 
-.page-header > div {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
 .page-header h1 {
   margin: 0;
 }
 
-/* Drezimo's state, under the Soundboard page's title */
-.board-state {
+/* The Soundboard page's title: Drezimo's state as a dot beside it, and in a line below */
+.page-title {
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.page-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-title p {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-}
-
-.board-state .dot {
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
-}
-
-.board-state > span:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.board-state strong {
-  font-weight: 600;
-}
-
-.board-state .muted {
-  font-size: 12.5px;
 }
 
 .display-button {
