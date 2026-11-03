@@ -25,6 +25,8 @@ pub struct Texts {
     pub row: &'static str,
     pub empty: &'static str,
     pub locked: &'static str,
+    /// In place of the name, when a pad outside the licence is pressed
+    pub pro_only: &'static str,
     pub stops_others: &'static str,
     /// What an action pad does, when peeked
     pub action: &'static str,
@@ -112,6 +114,7 @@ pub const ENGLISH: Texts = Texts {
     row: "ROW",
     empty: "EMPTY",
     locked: "NOT IN LICENCE",
+    pro_only: "PRO ONLY",
     stops_others: "STOPS OTHERS",
     action: "ACTION",
     go_to: "Go to",
@@ -153,6 +156,7 @@ pub const ITALIAN: Texts = Texts {
     row: "RIGA",
     empty: "VUOTO",
     locked: "NON IN LICENZA",
+    pro_only: "SOLO PRO",
     stops_others: "FERMA GLI ALTRI",
     action: "AZIONE",
     go_to: "Vai a",

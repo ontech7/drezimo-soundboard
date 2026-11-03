@@ -204,10 +204,13 @@ fn locked_and_empty_pads_play_nothing() {
     };
     let (mut controller, now) = ready(vec![soundboard("b", vec![locked])]);
     for pad in [0, 1] {
-        let outputs = press(&mut controller, pad, true, now);
-        assert!(requests(&outputs).is_empty());
-        assert_eq!(led(&outputs, pad.into()), Some("255,210,26"));
+        assert!(requests(&press(&mut controller, pad, true, now)).is_empty());
     }
+    assert_eq!(
+        led(&press(&mut controller, 2, true, now), 2),
+        Some("255,210,26"),
+        "an empty pad only flashes"
+    );
 }
 
 #[test]
@@ -1358,4 +1361,45 @@ fn nothing_to_tell_with_the_sound_on() {
     controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
     press(&mut controller, 0, true, now);
     assert!(!controller.played_while_muted());
+}
+
+#[test]
+fn a_locked_pad_blinks_red_and_tells_why() {
+    let locked = Sound {
+        enabled: false,
+        ..sound("locked")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![locked])]);
+    let outputs = press(&mut controller, 0, true, now);
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(led(&outputs, 0), Some("255,42,42,BLINK"));
+    let Screen::Home { name, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, ENGLISH.pro_only);
+
+    controller.update(now + REFUSED_BLINK);
+    assert_eq!(led(&controller.take_outputs(), 0), Some("90,16,16"));
+}
+
+#[test]
+fn a_locked_voice_blinks_red_and_tells_why() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    voices(&mut controller, "dark", now);
+    let locked = Content::Voice {
+        id: "locked".into(),
+        name: "Locked".into(),
+    };
+    controller.set_custom_pages(vec![own_page("mine", vec![custom_pad(locked)])]);
+    controller.go_to_page(0);
+    controller.update(now);
+    controller.take_outputs();
+
+    let outputs = press(&mut controller, 0, true, now);
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(led(&outputs, 0), Some("255,42,42,BLINK"));
+    let Screen::Home { name, .. } = controller.screen(now).0 else {
+        panic!("the home screen");
+    };
+    assert_eq!(name, ENGLISH.pro_only);
 }

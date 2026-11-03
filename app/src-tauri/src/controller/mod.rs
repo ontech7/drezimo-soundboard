@@ -30,6 +30,8 @@ use std::time::{Duration, Instant};
 const PADS: usize = PAD_COUNT as usize;
 /// How long a pressed pad shows yellow
 const PRESS_FLASH: Duration = Duration::from_millis(200);
+/// How long a pad outside the licence blinks red once pressed
+const REFUSED_BLINK: Duration = Duration::from_millis(1200);
 /// A key-up sent right after the key-down can leave a sound stuck in Voicemod (docs/project.md, section 8)
 const MIN_HOLD: Duration = Duration::from_millis(200);
 /// How long the soundboard menu stays open after the knob last moved
@@ -144,6 +146,8 @@ pub struct Controller {
     window_held: HashSet<u8>,
     /// Until when each pressed pad shows yellow
     flashes: HashMap<u8, Instant>,
+    /// Until when each pad outside the licence that was pressed blinks red
+    refused: HashMap<u8, Instant>,
     /// Key-ups waiting for the minimum hold, and when they are due
     releases: Vec<(Instant, HeldSound)>,
     knob: Knob,
@@ -192,6 +196,7 @@ impl Default for Controller {
             held: HashMap::new(),
             window_held: HashSet::new(),
             flashes: HashMap::new(),
+            refused: HashMap::new(),
             releases: Vec::new(),
             knob: Knob::default(),
             menu: None,
@@ -377,6 +382,7 @@ impl Controller {
             }
         }
         self.flashes.retain(|_, until| *until > now);
+        self.refused.retain(|_, until| *until > now);
         if self.playback.update(now) {
             self.resync(now);
         }
@@ -400,7 +406,7 @@ impl Controller {
             self.overlay = overlay;
         }
 
-        let flashes = self.flashes.values().copied();
+        let flashes = self.flashes.values().chain(self.refused.values()).copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
         let menu_end = self.menu.as_ref().map(|menu| menu.until);
         // A peek held past its time only waits for the knob
@@ -532,17 +538,26 @@ impl Controller {
 
         if let Some(voice) = self.voice_at(pad).cloned() {
             self.held.insert(pad, None);
-            if voice.enabled && self.voicemod == VoicemodStatus::Connected {
-                self.load_voice(voice, now);
+            if self.voicemod == VoicemodStatus::Connected {
+                if voice.enabled {
+                    self.load_voice(voice, now);
+                } else {
+                    self.refuse(pad, now);
+                }
             }
             return;
         }
 
-        let playable = self.sound_at(pad).filter(|sound| sound.enabled).cloned();
-        let Some(sound) = playable.filter(|_| self.voicemod == VoicemodStatus::Connected) else {
+        let sound = self.sound_at(pad).cloned();
+        let Some(sound) = sound.filter(|_| self.voicemod == VoicemodStatus::Connected) else {
             self.held.insert(pad, None);
             return;
         };
+        if !sound.enabled {
+            self.held.insert(pad, None);
+            self.refuse(pad, now);
+            return;
+        }
 
         self.request(Request::PlaySound {
             id: sound.id.clone(),
@@ -554,6 +569,12 @@ impl Controller {
         let held_sound =
             (sound.playback_mode == PlaybackMode::PlayLoopOnPress).then_some(HeldSound { sound, since: now });
         self.held.insert(pad, held_sound);
+    }
+
+    /// Outside the licence: Voicemod would not play it, and would not say so
+    fn refuse(&mut self, pad: u8, now: Instant) {
+        self.refused.insert(pad, now + REFUSED_BLINK);
+        self.last = Some((self.texts.pro_only.to_string(), now));
     }
 
     fn pad_released(&mut self, pad: u8, now: Instant) {
@@ -899,6 +920,12 @@ impl Controller {
         {
             return Led {
                 color: HIGHLIGHT,
+                effect: Effect::Blink,
+            };
+        }
+        if self.refused.contains_key(&pad) {
+            return Led {
+                color: RED,
                 effect: Effect::Blink,
             };
         }
