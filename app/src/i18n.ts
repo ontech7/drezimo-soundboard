@@ -85,8 +85,14 @@ const ENGLISH = {
   screen: "Screen",
   screenMouse: "Where the mouse is",
   screenMain: "Main screen",
-  screenNumber: (number: string) => `Screen ${number}`,
-  notConnected: (name: string) => `${name} (not connected)`,
+  screenSides: {
+    main: "Main screen",
+    left: "Screen on the left",
+    right: "Screen on the right",
+    above: "Screen above",
+    below: "Screen below",
+  },
+  savedScreenGone: "Screen chosen (not connected)",
   anchors: {
     topLeft: "Top left",
     top: "Top",
@@ -521,8 +527,14 @@ const ITALIAN: Texts = {
   screen: "Schermo",
   screenMouse: "Dove c'è il mouse",
   screenMain: "Schermo principale",
-  screenNumber: (number: string) => `Schermo ${number}`,
-  notConnected: (name: string) => `${name} (non collegato)`,
+  screenSides: {
+    main: "Schermo principale",
+    left: "Schermo a sinistra",
+    right: "Schermo a destra",
+    above: "Schermo sopra",
+    below: "Schermo sotto",
+  },
+  savedScreenGone: "Schermo scelto (non collegato)",
   anchors: {
     topLeft: "In alto a sinistra",
     top: "In alto",

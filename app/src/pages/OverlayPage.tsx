@@ -7,19 +7,44 @@ import type { Status } from "../status";
 
 const DURATIONS = [2, 4, 6, 10];
 
-/** A screen connected (src-tauri/src/overlay/mod.rs) */
+/** A screen connected (src-tauri/src/overlay/mod.rs), in pixels */
 interface Screen {
+  /** The system's name, unique: what the settings keep */
   name: string;
-  /** In pixels */
+  x: number;
+  y: number;
   width: number;
   height: number;
   main: boolean;
 }
 
-/** Windows names its screens \\.\DISPLAY1 and so on */
-function screenName(texts: Texts, name: string): string {
-  const number = /^\\\\\.\\DISPLAY(\d+)$/.exec(name)?.[1];
-  return number ? texts.screenNumber(number) : name;
+type Side = keyof Texts["screenSides"];
+
+/**
+ * Where a screen is beside the main one: the system's names say little ("\\.\DISPLAY2", "Monitor #41005"),
+ * and Windows' own numbers often differ from them.
+ */
+function side(screen: Screen, main: Screen | undefined): Side {
+  if (screen.main || !main) return "main";
+  const centre = (one: Screen) => [one.x + one.width / 2, one.y + one.height / 2];
+  const [x, y] = centre(screen);
+  const [mainX, mainY] = centre(main);
+  if (Math.abs(x - mainX) >= Math.abs(y - mainY)) return x < mainX ? "left" : "right";
+  return y < mainY ? "above" : "below";
+}
+
+/** Each screen's label, numbered when two are on the same side at the same size */
+function labels(texts: Texts, screens: Screen[]): Map<string, string> {
+  const main = screens.find((screen) => screen.main);
+  const labels = new Map<string, string>();
+  const used = new Map<string, number>();
+  for (const screen of screens) {
+    const label = `${texts.screenSides[side(screen, main)]} · ${screen.width}×${screen.height}`;
+    const count = (used.get(label) ?? 0) + 1;
+    used.set(label, count);
+    labels.set(screen.name, count > 1 ? `${label} (${count})` : label);
+  }
+  return labels;
 }
 
 function screenValue(screen: OverlayScreen): string {
@@ -36,7 +61,8 @@ function ScreenSelect({
   onChange: (screen: OverlayScreen) => void;
 }) {
   const texts = useTexts();
-  const [screens, setScreens] = useState<Screen[]>([]);
+  // Null until known
+  const [screens, setScreens] = useState<Screen[] | null>(null);
   // Asked again on focus, as screens come and go
   const refresh = () => {
     invoke<Screen[]>("screens")
@@ -46,7 +72,11 @@ function ScreenSelect({
   useEffect(refresh, []);
 
   const saved = typeof value === "string" ? null : value.named;
-  const missing = saved !== null && !screens.some((screen) => screen.name === saved);
+  const known = screens ?? [];
+  const names = labels(texts, known);
+  // With one screen there is nothing to pick; the main one is already an option, unless it is the one saved
+  const listed = known.filter((screen) => (known.length > 1 && !screen.main) || screen.name === saved);
+  const missing = saved !== null && !known.some((screen) => screen.name === saved);
   return (
     <select
       aria-label={texts.screen}
@@ -60,13 +90,12 @@ function ScreenSelect({
     >
       <option value="mouse">{texts.screenMouse}</option>
       <option value="main">{texts.screenMain}</option>
-      {screens.length > 1 &&
-        screens.map((screen) => (
-          <option key={screen.name} value={`named:${screen.name}`}>
-            {`${screenName(texts, screen.name)} · ${screen.width}×${screen.height}`}
-          </option>
-        ))}
-      {missing && <option value={`named:${saved}`}>{texts.notConnected(screenName(texts, saved))}</option>}
+      {listed.map((screen) => (
+        <option key={screen.name} value={`named:${screen.name}`}>
+          {names.get(screen.name)}
+        </option>
+      ))}
+      {missing && <option value={`named:${saved}`}>{screens === null ? texts.screen : texts.savedScreenGone}</option>}
     </select>
   );
 }

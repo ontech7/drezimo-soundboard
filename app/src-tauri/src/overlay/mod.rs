@@ -69,11 +69,60 @@ pub struct Look {
 /// A screen, for the window's choice of where the overlay shows
 #[derive(Serialize)]
 pub struct ScreenView {
+    /// As the system names it, with a number added when two screens share a name
     name: String,
-    /// In pixels
+    /// Its top-left corner and size, in pixels: the window tells the screens apart by where they are
+    x: i32,
+    y: i32,
     width: u32,
     height: u32,
     main: bool,
+}
+
+/// The screens connected, with their names made unique, and which of them is the main one.
+fn connected(app: &AppHandle) -> (Vec<Monitor>, Vec<String>, Option<usize>) {
+    let monitors = app.available_monitors().unwrap_or_default();
+    let names = unique_names(
+        monitors
+            .iter()
+            .map(|monitor| monitor.name().cloned().unwrap_or_default())
+            .collect(),
+    );
+    let main = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .and_then(|main| monitors.iter().position(|monitor| same(monitor, &main)));
+    (monitors, names, main)
+}
+
+fn same(one: &Monitor, other: &Monitor) -> bool {
+    one.position() == other.position() && one.size() == other.size()
+}
+
+/// Two identical monitors share a name: the second becomes "name (2)".
+fn unique_names(names: Vec<String>) -> Vec<String> {
+    let mut unique: Vec<String> = Vec::with_capacity(names.len());
+    for name in names {
+        let mut candidate = name.clone();
+        let mut number = 1;
+        while unique.contains(&candidate) {
+            number += 1;
+            candidate = format!("{name} ({number})");
+        }
+        unique.push(candidate);
+    }
+    unique
+}
+
+/// The screen chosen, by index, or the main one when it cannot be found.
+fn pick(chosen: &OverlayScreen, names: &[String], mouse: Option<usize>, main: Option<usize>) -> Option<usize> {
+    let found = match chosen {
+        OverlayScreen::Mouse => mouse,
+        OverlayScreen::Main => None,
+        OverlayScreen::Named(name) => names.iter().position(|other| other == name),
+    };
+    found.or(main)
 }
 
 /// A screen's free area, in pixels
@@ -124,20 +173,18 @@ pub fn start(app: &AppHandle) -> Sender<OverlayUpdate> {
 /// The screens connected, as the system names them. Async, as asking the system for them waits on the main thread.
 #[tauri::command]
 pub async fn screens(app: AppHandle) -> Vec<ScreenView> {
-    let main = app.primary_monitor().ok().flatten();
-    let main_name = main.as_ref().and_then(Monitor::name);
-    let monitors = app.available_monitors().unwrap_or_default();
+    let (monitors, names, main) = connected(&app);
     monitors
         .iter()
-        .filter_map(|monitor| {
-            let name = monitor.name()?;
-            let size = monitor.size();
-            Some(ScreenView {
-                name: name.clone(),
-                width: size.width,
-                height: size.height,
-                main: main_name == Some(name),
-            })
+        .zip(names)
+        .enumerate()
+        .map(|(index, (monitor, name))| ScreenView {
+            name,
+            x: monitor.position().x,
+            y: monitor.position().y,
+            width: monitor.size().width,
+            height: monitor.size().height,
+            main: main == Some(index),
         })
         .collect()
 }
@@ -310,15 +357,15 @@ fn place(app: &AppHandle, look: &Look) -> Option<Placement> {
 
 /// The screen chosen, or the main one when it cannot be found.
 fn screen(app: &AppHandle, chosen: &OverlayScreen) -> Option<Monitor> {
-    let found = match chosen {
-        OverlayScreen::Mouse => mouse_screen(app),
-        OverlayScreen::Main => None,
-        OverlayScreen::Named(name) => app
-            .available_monitors()
-            .ok()
-            .and_then(|monitors| monitors.into_iter().find(|monitor| monitor.name() == Some(name))),
-    };
-    found.or_else(|| app.primary_monitor().ok().flatten())
+    let (monitors, names, main) = connected(app);
+    let mouse = matches!(chosen, OverlayScreen::Mouse)
+        .then(|| mouse_screen(app))
+        .flatten()
+        .and_then(|found| monitors.iter().position(|monitor| same(monitor, &found)));
+    match pick(chosen, &names, mouse, main) {
+        Some(index) => monitors.into_iter().nth(index),
+        None => app.primary_monitor().ok().flatten(),
+    }
 }
 
 fn mouse_screen(app: &AppHandle) -> Option<Monitor> {
@@ -419,6 +466,23 @@ mod tests {
             size,
             screen: OverlayScreen::Mouse,
         }
+    }
+
+    #[test]
+    fn names_identical_screens_apart() {
+        let names = unique_names(["A", "B", "A", "A"].map(String::from).to_vec());
+        assert_eq!(names, ["A", "B", "A (2)", "A (3)"]);
+    }
+
+    #[test]
+    fn a_named_screen_gone_gives_way_to_the_main_one() {
+        let names = ["main", "left"].map(String::from);
+        let named = |name: &str| OverlayScreen::Named(name.into());
+        assert_eq!(pick(&named("left"), &names, None, Some(0)), Some(1));
+        assert_eq!(pick(&named("unplugged"), &names, None, Some(0)), Some(0));
+        assert_eq!(pick(&OverlayScreen::Mouse, &names, Some(1), Some(0)), Some(1));
+        assert_eq!(pick(&OverlayScreen::Mouse, &names, None, Some(0)), Some(0));
+        assert_eq!(pick(&OverlayScreen::Main, &names, Some(1), Some(0)), Some(0));
     }
 
     #[test]
