@@ -35,6 +35,8 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
   const [active, setActive] = useState(0);
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
+  // The list follows the keyboard, not the pointer: an item half in sight would scroll under it
+  const follow = useRef(true);
   const id = useId();
   const root = useDismiss<HTMLDivElement>(open, () => setOpen(false));
 
@@ -45,7 +47,12 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
     const start = typed ? 0 : options.findIndex((option) => option.value === value);
     setQuery(typed);
     setActive(Math.max(0, start));
+    follow.current = true;
     setOpen(true);
+  };
+  const move = (index: number) => {
+    follow.current = true;
+    setActive(Math.min(Math.max(index, 0), shown.length - 1));
   };
   const close = () => {
     setOpen(false);
@@ -58,7 +65,9 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
 
   // The current value, or the one the arrows reach, in sight
   useLayoutEffect(() => {
-    if (open) list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    if (open && follow.current) {
+      list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    }
   }, [open, active]);
 
   useEffect(() => {
@@ -91,8 +100,14 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
   const onSearchKey = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      const step = event.key === "ArrowDown" ? 1 : -1;
-      setActive((index) => Math.min(Math.max(index + step, 0), shown.length - 1));
+      move(active + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      move(event.key === "Home" ? 0 : shown.length - 1);
+    } else if (event.key === "Tab") {
+      // Leaving the field leaves the menu: the focus goes back to the button, the next Tab moves on
+      event.preventDefault();
+      close();
     } else if (event.key === "Enter") {
       event.preventDefault();
       const option = shown[active];
@@ -115,7 +130,7 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
         aria-label={props.label}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-controls={id}
+        aria-controls={open ? id : undefined}
         onClick={() => (open ? close() : show(""))}
         onKeyDown={onButtonKey}
       >
@@ -135,6 +150,7 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
               autoFocus
               onChange={(event) => {
                 setQuery(event.target.value);
+                follow.current = true;
                 setActive(0);
               }}
               onKeyDown={onSearchKey}
@@ -149,7 +165,10 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
                 role="option"
                 aria-selected={option.value === value}
                 className={index === active ? "active" : undefined}
-                onPointerMove={() => setActive(index)}
+                onPointerMove={() => {
+                  follow.current = false;
+                  setActive(index);
+                }}
                 onClick={() => pick(option.value)}
               >
                 <span>{option.label}</span>
