@@ -115,6 +115,7 @@ impl BoardLink {
                         match error {
                             ConnectError::NoAnswer => attempt.failed_handshakes += 1,
                             ConnectError::Io(error) => {
+                                let error = crate::errors::in_english(&error);
                                 crate::errors::log(format!("cannot open the board on {port}: {error}"))
                             }
                             ConnectError::Busy => {}
@@ -136,6 +137,7 @@ impl BoardLink {
     /// Runs a session with a connected board until it goes away.
     fn run(&self, path: &str, mut connection: Connection, on_event: &impl Fn(BoardEvent)) {
         if let Err(error) = self.exchange(connection.port.as_mut(), &mut connection.lines, on_event) {
+            let error = crate::errors::in_english(&error);
             crate::errors::log(format!("board on {path} disconnected: {error}"));
         }
     }
@@ -151,7 +153,7 @@ impl BoardLink {
             let received = lines.read(port)?;
             // Not every driver fails a read once the device is unplugged, but asking the port for its state does
             if received.is_empty() && checked_at.elapsed() >= PRESENCE_CHECK {
-                port.bytes_to_read()?;
+                port.bytes_to_read().map_err(serial_error)?;
                 checked_at = Instant::now();
             }
             for line in received {
@@ -164,9 +166,9 @@ impl BoardLink {
             // Replies to what was just received go out at once, anything else within READ_TIMEOUT
             let pending: String = self.outgoing.try_iter().map(|message| message + "\n").collect();
             if !pending.is_empty() {
-                port.set_timeout(WRITE_TIMEOUT)?;
+                port.set_timeout(WRITE_TIMEOUT).map_err(serial_error)?;
                 port.write_all(pending.as_bytes())?;
-                port.set_timeout(READ_TIMEOUT)?;
+                port.set_timeout(READ_TIMEOUT).map_err(serial_error)?;
             }
         }
     }
@@ -224,7 +226,17 @@ impl From<io::Error> for ConnectError {
 
 impl From<serialport::Error> for ConnectError {
     fn from(error: serialport::Error) -> Self {
-        Self::Io(error.into())
+        Self::Io(serial_error(error))
+    }
+}
+
+/// serialport words an error as the system does, in its language and without its number: the kind says it in English
+fn serial_error(error: serialport::Error) -> io::Error {
+    match error.kind() {
+        serialport::ErrorKind::NoDevice => io::Error::new(io::ErrorKind::NotFound, "no device"),
+        serialport::ErrorKind::InvalidInput => io::ErrorKind::InvalidInput.into(),
+        serialport::ErrorKind::Unknown => io::Error::other("unknown error"),
+        serialport::ErrorKind::Io(kind) => kind.into(),
     }
 }
 
@@ -279,5 +291,24 @@ impl LineReader {
             lines.push(String::from_utf8_lossy(&line).trim().to_string());
         }
         Ok(lines)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_serial_error_is_worded_in_english() {
+        let unplugged = serialport::Error::new(
+            serialport::ErrorKind::NoDevice,
+            "Impossibile trovare il file specificato.",
+        );
+        assert_eq!(serial_error(unplugged).to_string(), "no device");
+        let refused = serialport::Error::new(
+            serialport::ErrorKind::Io(io::ErrorKind::PermissionDenied),
+            "Accesso negato.",
+        );
+        assert_eq!(serial_error(refused).kind(), io::ErrorKind::PermissionDenied);
     }
 }

@@ -24,6 +24,8 @@ pub struct Facts {
     pub settings: Settings,
     pub status: Status,
     pub update: UpdateState,
+    /// None where the app cannot change it: a build not installed, or macOS
+    pub start_at_login: Option<bool>,
     pub own_pages: usize,
     pub macros: usize,
     pub errors: Vec<Error>,
@@ -41,6 +43,7 @@ pub fn report(app: AppHandle) -> String {
         settings: app.state::<SettingsState>().get(),
         status,
         update: app.state::<UpdateStateHolder>().get(),
+        start_at_login: crate::settings::start_at_login(),
         own_pages: app.state::<CustomPagesState>().get().len(),
         macros: app.state::<MacrosState>().get().len(),
         errors: crate::errors::recent(),
@@ -85,6 +88,12 @@ fn write(facts: &Facts) -> String {
         facts.own_pages, facts.macros
     ));
     line(format!("Updates: {}", update_text(&facts.update)));
+    let start_at_login = match facts.start_at_login {
+        Some(true) => "on",
+        Some(false) => "off",
+        None => "not available",
+    };
+    line(format!("Start at login: {start_at_login}"));
     line(format!("Settings: {}", settings_text(settings, status)));
     if facts.errors.is_empty() {
         line("Recent errors: none".to_string());
@@ -315,6 +324,7 @@ mod tests {
             update: UpdateState::UpToDate {
                 checked_at: at(12, 40, 0).timestamp_millis(),
             },
+            start_at_login: Some(false),
             own_pages: 2,
             macros: 1,
             errors: vec![
@@ -354,6 +364,7 @@ mod tests {
             "Voicemod: connected, 3.17.43, free licence, log read",
             "Pages: 44 (2 of your own), 1 macro",
             "Updates: up to date, checked 2026-11-03 12:40",
+            "Start at login: off",
             "overlay BottomRight on the screen with the mouse",
             "12:50:21 lost the connection to Voicemod: closed (×3, last 12:55:21)",
             "12:51:02 unreadable pages: pages.json\n",

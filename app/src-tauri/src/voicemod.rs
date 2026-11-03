@@ -154,7 +154,7 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
                 while requests.try_recv().is_ok() {}
                 report(&mut status, VoicemodStatus::Connected, &on_event);
                 if let Err(error) = exchange(socket, &mut requests, &on_event).await {
-                    crate::errors::log(format!("lost the connection to Voicemod: {error}"));
+                    crate::errors::log(format!("lost the connection to Voicemod: {}", socket_error(&error)));
                 }
                 report(&mut status, VoicemodStatus::Unreachable, &on_event);
                 RETRY_AFTER
@@ -171,6 +171,14 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
             }
         };
         tokio::time::sleep(retry_after).await;
+    }
+}
+
+/// A system error is worded in the system's language: in English instead
+fn socket_error(error: &tungstenite::Error) -> String {
+    match error {
+        tungstenite::Error::Io(error) => crate::errors::in_english(error),
+        other => other.to_string(),
     }
 }
 

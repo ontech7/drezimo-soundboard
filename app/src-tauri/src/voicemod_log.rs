@@ -88,7 +88,7 @@ pub fn follow(on_input: impl Fn(LogInput) + Send + 'static) {
                     }
                     Err(error) => {
                         if missing_since.get_or_insert_with(Instant::now).elapsed() >= LOST_AFTER {
-                            crate::errors::log(format!("lost Voicemod's log: {error}"));
+                            crate::errors::log(format!("lost Voicemod's log: {}", crate::errors::in_english(&error)));
                             on_input(LogInput::Lost);
                             log = None;
                             missing_since = None;
