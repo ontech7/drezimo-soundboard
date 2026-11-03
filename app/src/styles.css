@@ -976,6 +976,36 @@ select:disabled {
   height: 30px;
 }
 
+/* On the Soundboard page the rows give way, down to 48 px, to a notice above them; in a window lower still the page
+   scrolls. The card's floor: its padding and border, the page bar and its margin, six rows of 48 px and their gaps */
+.soundboard {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(2 * 17px + 36px + 12px + 6 * 48px + 5 * 6px);
+}
+
+.soundboard .pads {
+  grid-template-rows: repeat(6, minmax(48px, 62px));
+  min-height: 0;
+}
+
+.soundboard .pad {
+  height: auto;
+}
+
+/* Only the picture gives way: the name keeps its line */
+.soundboard .pad .picture {
+  flex: 0 1 30px;
+  width: auto;
+  height: auto;
+  min-height: 18px;
+  aspect-ratio: 1;
+}
+
+.soundboard .pad .name {
+  flex: none;
+}
+
 /* The LED: border and tint, animated as the board animates it */
 .pad::before,
 .key::before {
