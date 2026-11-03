@@ -102,6 +102,8 @@ pub enum VoicemodEvent {
         of: Picture,
         file: Option<Vec<u8>>,
     },
+    /// Voicemod's own version, once per connection
+    Version(String),
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -152,13 +154,13 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
                 while requests.try_recv().is_ok() {}
                 report(&mut status, VoicemodStatus::Connected, &on_event);
                 if let Err(error) = exchange(socket, &mut requests, &on_event).await {
-                    eprintln!("lost the connection to Voicemod: {error}");
+                    crate::errors::log(format!("lost the connection to Voicemod: {error}"));
                 }
                 report(&mut status, VoicemodStatus::Unreachable, &on_event);
                 RETRY_AFTER
             }
             Ok(Err(Registration::Rejected(reason))) => {
-                eprintln!("Voicemod rejected the client key: {reason}");
+                crate::errors::log(format!("Voicemod rejected the client key: {reason}"));
                 report(&mut status, VoicemodStatus::KeyRejected, &on_event);
                 REJECTED_RETRY_AFTER
             }
@@ -229,10 +231,15 @@ async fn exchange(
         socket.send(frame(action, json!({}))).await?;
     }
     let mut license = None;
+    let mut version_known = false;
     loop {
         tokio::select! {
             message = socket.next() => match message {
                 Some(Ok(Message::Text(text))) => {
+                    if !version_known && let Some(version) = app_version(&text) {
+                        version_known = true;
+                        on_event(VoicemodEvent::Version(version));
+                    }
                     if let Some(Incoming::Event(event)) = parse(&text) {
                         // Another licence locks or unlocks sounds and voices: their lists again
                         if let VoicemodEvent::License(new) = event {
@@ -283,6 +290,12 @@ struct Envelope {
     action_object: Value,
 }
 
+/// Most of Voicemod's messages carry its version.
+fn app_version(text: &str) -> Option<String> {
+    let message: Value = serde_json::from_str(text).ok()?;
+    Some(message["appVersion"].as_str()?.to_string())
+}
+
 fn parse(text: &str) -> Option<Incoming> {
     let envelope: Envelope = serde_json::from_str(text).ok()?;
     let kind = envelope.action_type.or(envelope.action)?;
@@ -302,7 +315,7 @@ fn parse(text: &str) -> Option<Incoming> {
         "getAllSoundboard" => match Vec::<Soundboard>::deserialize(&object["soundboards"]) {
             Ok(soundboards) => VoicemodEvent::Soundboards(soundboards),
             Err(error) => {
-                eprintln!("unexpected soundboard list from Voicemod: {error}");
+                crate::errors::log(format!("unexpected soundboard list from Voicemod: {error}"));
                 return None;
             }
         },
@@ -312,7 +325,7 @@ fn parse(text: &str) -> Option<Incoming> {
                 current: object["currentVoice"].as_str().map(str::to_string),
             },
             Err(error) => {
-                eprintln!("unexpected voice list from Voicemod: {error}");
+                crate::errors::log(format!("unexpected voice list from Voicemod: {error}"));
                 return None;
             }
         },
@@ -360,6 +373,13 @@ mod tests {
     use super::*;
 
     // Shapes recorded from Voicemod 3.17.43
+
+    #[test]
+    fn reads_voicemods_version() {
+        let answer = r#"{"actionType": "commandNotFound", "actionObject": {}, "appVersion": "3.17.43"}"#;
+        assert_eq!(app_version(answer).as_deref(), Some("3.17.43"));
+        assert_eq!(app_version(r#"{"actionType": "playMeme"}"#), None);
+    }
 
     #[test]
     fn reads_the_registration_answer() {

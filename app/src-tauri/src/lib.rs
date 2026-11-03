@@ -4,6 +4,7 @@ mod controller;
 mod custom_pages;
 mod device;
 mod display;
+mod errors;
 mod firmware;
 mod last_page;
 mod macros;
@@ -11,6 +12,7 @@ mod overlay;
 mod pictures;
 mod playback;
 mod protocol;
+mod report;
 mod settings;
 mod soundboard;
 mod tour;
@@ -52,6 +54,7 @@ pub fn run() {
             device::set_display_settings,
             device::preview_led_brightness,
             device::preview_overlay,
+            report::report,
             settings::settings,
             settings::set_settings,
             settings::about,

@@ -33,6 +33,8 @@ export interface Status {
   displaySettings: DisplaySettings | null;
   /** Voicemod's, while connected */
   license: "free" | "pro" | null;
+  /** Voicemod's own version, while connected */
+  voicemodVersion: string | null;
   /** The macro running, if any */
   runningMacro: MacroProgress | null;
 }

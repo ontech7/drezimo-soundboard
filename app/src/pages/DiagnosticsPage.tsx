@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import { type Activity, describe } from "../board";
 import { Row, Section } from "../controls";
 import { DisplayPreview } from "../DisplayPreview";
@@ -13,6 +15,12 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
   const connected = status.voicemod.state === "connected";
   return (
     <>
+      <Section title={texts.support}>
+        <Row label={texts.report} text={texts.reportText}>
+          <CopyReport />
+        </Row>
+      </Section>
+
       <Section title={texts.connections}>
         <Row label={texts.boardPort}>
           <span className="value">{board.state === "searching" ? "—" : board.port}</span>
@@ -48,5 +56,34 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
         )}
       </section>
     </>
+  );
+}
+
+type Copying = "idle" | "copied" | "failed";
+
+function CopyReport() {
+  const texts = useTexts();
+  const [copying, setCopying] = useState<Copying>("idle");
+
+  useEffect(() => {
+    if (copying === "idle") return;
+    const timer = setTimeout(() => setCopying("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [copying]);
+
+  const copy = () =>
+    invoke<string>("report")
+      .then((report) => navigator.clipboard.writeText(report))
+      .then(() => setCopying("copied"))
+      .catch((error) => {
+        console.error("cannot copy the report", error);
+        setCopying("failed");
+      });
+
+  const label = { idle: texts.copyReport, copied: texts.reportCopied, failed: texts.reportNotCopied }[copying];
+  return (
+    <button type="button" className="button secondary" onClick={copy}>
+      {label}
+    </button>
   );
 }

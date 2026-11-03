@@ -348,8 +348,8 @@ impl Controller {
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
             VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
             VoicemodEvent::Background(on) => self.switches.background = on,
-            // Only for the window: src/pictures.rs
-            VoicemodEvent::Picture { .. } => {}
+            // Only for the window (src/pictures.rs) and the status
+            VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
     }
 

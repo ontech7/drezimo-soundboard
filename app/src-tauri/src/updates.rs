@@ -21,7 +21,7 @@ const IDLE_CHECK: Duration = Duration::from_secs(30);
 
 pub fn start(app: &AppHandle) {
     if let Err(error) = app.plugin(tauri_plugin_updater::Builder::new().build()) {
-        eprintln!("cannot look for updates: {error}");
+        crate::errors::log(format!("cannot look for updates: {error}"));
         return;
     }
     let app = app.clone();
@@ -30,7 +30,7 @@ pub fn start(app: &AppHandle) {
             let wait = match update(&app).await {
                 Ok(()) => CHECK_EVERY,
                 Err(error) => {
-                    eprintln!("cannot update the app: {error}");
+                    crate::errors::log(format!("cannot update the app: {error}"));
                     RETRY_AFTER
                 }
             };

@@ -160,7 +160,7 @@ pub fn load(app: &AppHandle) -> SettingsState {
     let settings = match saved.map(|text| serde_json::from_str::<Settings>(&text)) {
         Some(Ok(settings)) => settings.checked(),
         Some(Err(error)) => {
-            eprintln!("unreadable settings, using the defaults: {error}");
+            crate::errors::log(format!("unreadable settings, using the defaults: {error}"));
             Settings::default()
         }
         None => Settings::default(),

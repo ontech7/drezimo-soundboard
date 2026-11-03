@@ -208,7 +208,7 @@ pub fn load(app: &AppHandle) -> CustomPagesState {
         Some(Ok(pages)) => checked(pages),
         Some(Err(error)) => {
             // Kept aside rather than written over at the next save
-            eprintln!("unreadable pages, starting without: {error}");
+            crate::errors::log(format!("unreadable pages, starting without: {error}"));
             if let Some(path) = path(app) {
                 let _ = fs::rename(&path, path.with_extension("json.unreadable"));
             }

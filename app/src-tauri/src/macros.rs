@@ -162,7 +162,7 @@ pub fn load(app: &AppHandle) -> MacrosState {
         ),
         Some(Err(error)) => {
             // Kept aside rather than written over at the next save
-            eprintln!("unreadable macros, starting without: {error}");
+            crate::errors::log(format!("unreadable macros, starting without: {error}"));
             if let Some(path) = path(app) {
                 let _ = fs::rename(&path, path.with_extension("json.unreadable"));
             }

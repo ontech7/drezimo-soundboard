@@ -242,7 +242,7 @@ fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 's
             if window.is_none() {
                 *window = NativeWindow::new();
                 if window.is_none() && !WINDOW_REFUSED.swap(true, Ordering::Relaxed) {
-                    eprintln!("the system refused the overlay's window: trying again at each change");
+                    crate::errors::log("the system refused the overlay's window: trying again at each change");
                 }
             }
             if let Some(window) = window {

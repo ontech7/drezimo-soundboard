@@ -234,7 +234,7 @@ impl Playback {
         let missed = (before - expected.len()) as u32;
         self.misses += missed;
         if self.misses >= MISSES_TO_DISTRUST {
-            eprintln!("Voicemod's log no longer confirms the presses: guessing the playback instead");
+            crate::errors::log("Voicemod's log no longer confirms the presses: guessing the playback instead");
             self.follow_log(false);
             return false;
         }

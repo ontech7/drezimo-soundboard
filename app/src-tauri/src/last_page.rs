@@ -22,7 +22,7 @@ pub fn load(app: &AppHandle) -> Option<(String, usize)> {
 /// A page that cannot be kept is only forgotten: the next start shows the first page of sounds.
 pub fn save(app: &AppHandle, page: &(String, usize)) {
     if let Err(error) = write(app, page) {
-        eprintln!("cannot keep the page shown: {error}");
+        crate::errors::log(format!("cannot keep the page shown: {error}"));
     }
 }
 

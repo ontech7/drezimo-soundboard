@@ -210,7 +210,7 @@ impl Fetcher {
             let file = file.clone();
             tauri::async_runtime::spawn_blocking(move || {
                 if let Err(error) = save(&path, &file) {
-                    eprintln!("cannot keep a picture in {}: {error}", path.display());
+                    crate::errors::log(format!("cannot keep a picture: {error}"));
                 }
             });
         }

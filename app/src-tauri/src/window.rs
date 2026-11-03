@@ -88,7 +88,7 @@ fn build(app: AppHandle, label: String) {
         let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
 
         if let Err(error) = builder.build() {
-            eprintln!("cannot open the window: {error}");
+            crate::errors::log(format!("cannot open the window: {error}"));
             let mut state = window_state(&app);
             if state.label() == label {
                 state.phase = Phase::Absent;

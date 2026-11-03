@@ -76,6 +76,8 @@ pub struct Status {
     pub display_settings: Option<DisplaySettings>,
     /// Voicemod's, while connected
     pub license: Option<License>,
+    /// Voicemod's own version, while connected
+    pub voicemod_version: Option<String>,
     /// The macro running, if any
     pub running_macro: Option<MacroProgress>,
 }
@@ -252,8 +254,10 @@ fn run(
                     VoicemodEvent::Status(voicemod_status) => {
                         status.voicemod = *voicemod_status;
                         status.license = None;
+                        status.voicemod_version = None;
                     }
                     VoicemodEvent::License(license) => status.license = Some(*license),
+                    VoicemodEvent::Version(version) => status.voicemod_version = Some(version.clone()),
                     VoicemodEvent::Soundboards(soundboards) => {
                         update_library(app, |library| library.set_soundboards(soundboards));
                     }
@@ -265,7 +269,7 @@ fn run(
             Some(Input::Log(input)) => controller.log_input(input, now),
             Some(Input::Firmware(result)) => {
                 if let Err(reason) = &result {
-                    eprintln!("the board's firmware update failed: {reason}");
+                    crate::errors::log(format!("the board's firmware update failed: {reason}"));
                 }
                 updater.installed(result, now);
             }
