@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 /** How the app's own updates go (src-tauri/src/updates.rs). Times are Unix milliseconds. */
 export type UpdateState =
   | { state: "local" }
+  | { state: "unavailable" }
   | { state: "waiting" }
   | { state: "checking" }
   | { state: "upToDate"; checkedAt: number }

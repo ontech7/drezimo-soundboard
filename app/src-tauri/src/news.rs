@@ -39,10 +39,11 @@ pub fn save(app: &AppHandle, news: &News) {
     }
 }
 
-/// The release's own words, without what follows the separator.
+/// The release's own words: what comes before the separator. Without one, there are none.
 pub fn notes(body: &str) -> Option<String> {
-    let lines: Vec<&str> = body.lines().take_while(|line| line.trim() != SEPARATOR).collect();
-    let notes = lines.join("\n").trim().to_string();
+    let lines: Vec<&str> = body.lines().collect();
+    let end = lines.iter().position(|line| line.trim() == SEPARATOR)?;
+    let notes = lines[..end].join("\n").trim().to_string();
     (!notes.is_empty()).then_some(notes)
 }
 
@@ -96,6 +97,8 @@ mod tests {
         );
         assert_eq!(notes("---\nThe Windows installer is the `-setup.exe` file."), None);
         assert_eq!(notes(""), None);
+        // A release without notes has no separator: its text is all for the release page
+        assert_eq!(notes("The Windows installer is the `-setup.exe` file."), None);
     }
 
     #[test]

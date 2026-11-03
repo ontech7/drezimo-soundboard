@@ -27,6 +27,8 @@ const IDLE_CHECK: Duration = Duration::from_secs(30);
 pub enum UpdateState {
     /// A build made here: it does not update itself
     Local,
+    /// The updater could not start: nothing is looked for until the app starts again
+    Unavailable,
     /// For the first moment nobody uses the app
     Waiting,
     Checking,
@@ -48,6 +50,12 @@ pub enum UpdateState {
 
 pub struct UpdateStateHolder(Mutex<UpdateState>);
 
+impl UpdateStateHolder {
+    pub fn get(&self) -> UpdateState {
+        self.0.lock().unwrap().clone()
+    }
+}
+
 impl Default for UpdateStateHolder {
     fn default() -> Self {
         Self(Mutex::new(if OFFICIAL {
@@ -60,7 +68,7 @@ impl Default for UpdateStateHolder {
 
 #[tauri::command]
 pub fn update_state(state: State<UpdateStateHolder>) -> UpdateState {
-    state.0.lock().unwrap().clone()
+    state.get()
 }
 
 fn set_state(app: &AppHandle, state: UpdateState) {
@@ -75,6 +83,7 @@ fn now() -> i64 {
 pub fn start(app: &AppHandle) {
     if let Err(error) = app.plugin(tauri_plugin_updater::Builder::new().build()) {
         crate::errors::log(format!("cannot look for updates: {error}"));
+        set_state(app, UpdateState::Unavailable);
         return;
     }
     let app = app.clone();

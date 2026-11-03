@@ -65,19 +65,21 @@ jobs:
           workspaces: app/src-tauri
 
       # The installed apps show what comes before the --- line, once updated (src-tauri/src/news.rs): the rest is for
-      # the release page. tauri-action also writes it in latest.json, where the updater reads it.
+      # the release page. Without notes there is no line, and nothing to show. tauri-action also writes the text in
+      # latest.json, where the updater reads it.
       - name: Write the release text
         id: release-text
         shell: bash
         env:
           NOTES: ${{ inputs.notes }}
         run: |
+          # A delimiter the notes cannot contain
+          end="END_$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')"
           {
-            echo "body<<END_OF_BODY"
-            if [ -n "$NOTES" ]; then printf '%s\n\n' "$NOTES"; fi
-            echo "---"
+            echo "body<<$end"
+            if [ -n "$NOTES" ]; then printf '%s\n\n---\n' "$NOTES"; fi
             echo 'The Windows installer is the `-setup.exe` file. Installed apps update themselves.'
-            echo "END_OF_BODY"
+            echo "$end"
           } >> "$GITHUB_OUTPUT"
 
       - uses: tauri-apps/tauri-action@v0

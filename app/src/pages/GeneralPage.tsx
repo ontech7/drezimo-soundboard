@@ -15,21 +15,32 @@ interface About {
 export const WINDOWS = navigator.userAgent.includes("Windows");
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const dayFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+
+/** The time, and the day too when it was not today: checks wait until nobody uses the app, maybe for days */
+function when(texts: Texts, millis: number): string {
+  const at = new Date(millis);
+  const time = timeFormat.format(at);
+  return at.toDateString() === new Date().toDateString()
+    ? texts.appUpdate.at(time)
+    : texts.appUpdate.onDay(dayFormat.format(at), time);
+}
 
 function updateText(texts: Texts, update: UpdateState): string {
   switch (update.state) {
     case "local":
+    case "unavailable":
     case "waiting":
     case "checking":
       return texts.appUpdate[update.state];
     case "upToDate":
-      return texts.appUpdate.upToDate(timeFormat.format(update.checkedAt));
+      return texts.appUpdate.upToDate(when(texts, update.checkedAt));
     case "downloading":
       return texts.appUpdate.downloading(update.version);
     case "ready":
       return texts.appUpdate.ready(update.version);
     case "failed":
-      return texts.appUpdate.failed(timeFormat.format(update.at));
+      return texts.appUpdate.failed(when(texts, update.at));
   }
 }
 

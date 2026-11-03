@@ -4,11 +4,13 @@
 use crate::board::BoardStatus;
 use crate::custom_pages::CustomPagesState;
 use crate::device::Status;
+use crate::errors::Error;
 use crate::firmware::FirmwareUpdate;
 use crate::macros::MacrosState;
-use crate::settings::{Settings, SettingsState};
+use crate::settings::{OverlayScreen, Settings, SettingsState};
+use crate::updates::{UpdateState, UpdateStateHolder};
 use crate::voicemod::{License, VoicemodStatus};
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, TimeZone};
 use std::fmt::Write;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -21,20 +23,24 @@ pub struct Facts {
     pub os: String,
     pub settings: Settings,
     pub status: Status,
+    pub update: UpdateState,
     pub own_pages: usize,
     pub macros: usize,
-    pub errors: Vec<(DateTime<Local>, String)>,
+    pub errors: Vec<Error>,
 }
 
 #[tauri::command]
 pub fn report(app: AppHandle) -> String {
+    // Not held while the rest is gathered and written: the device thread publishes it
+    let status = app.state::<Mutex<Status>>().lock().unwrap().clone();
     write(&Facts {
         now: Local::now(),
         app_version: app.package_info().version.to_string(),
         official: crate::updates::OFFICIAL,
         os: os_description(),
         settings: app.state::<SettingsState>().get(),
-        status: app.state::<Mutex<Status>>().lock().unwrap().clone(),
+        status,
+        update: app.state::<UpdateStateHolder>().get(),
         own_pages: app.state::<CustomPagesState>().get().len(),
         macros: app.state::<MacrosState>().get().len(),
         errors: crate::errors::recent(),
@@ -78,16 +84,48 @@ fn write(facts: &Facts) -> String {
         "Pages: {pages} ({} of your own), {} {macros}",
         facts.own_pages, facts.macros
     ));
+    line(format!("Updates: {}", update_text(&facts.update)));
     line(format!("Settings: {}", settings_text(settings, status)));
     if facts.errors.is_empty() {
         line("Recent errors: none".to_string());
     } else {
         line("Recent errors:".to_string());
-        for (at, message) in &facts.errors {
-            line(format!("  {} {}", at.format("%H:%M:%S"), without_paths(message)));
+        for error in &facts.errors {
+            let mut text = format!("  {} {}", error.first.format("%H:%M:%S"), without_paths(&error.message));
+            if error.count > 1 {
+                let _ = write!(text, " (×{}, last {})", error.count, error.last.format("%H:%M:%S"));
+            }
+            line(text);
         }
     }
     text
+}
+
+fn update_text(update: &UpdateState) -> String {
+    let at = |millis: i64| {
+        Local
+            .timestamp_millis_opt(millis)
+            .single()
+            .map_or_else(String::new, |at| at.format("%Y-%m-%d %H:%M").to_string())
+    };
+    match update {
+        UpdateState::Local => "development build, none".to_string(),
+        UpdateState::Unavailable => "the updater could not start".to_string(),
+        UpdateState::Waiting => "waiting for a moment nobody uses the app".to_string(),
+        UpdateState::Checking => "looking".to_string(),
+        UpdateState::UpToDate { checked_at } => format!("up to date, checked {}", at(*checked_at)),
+        UpdateState::Downloading { version } => format!("downloading {version}"),
+        UpdateState::Ready { version } => format!("{version} ready to install"),
+        UpdateState::Failed { at: failed } => format!("failed at {}", at(*failed)),
+    }
+}
+
+fn screen_text(screen: &OverlayScreen) -> String {
+    match screen {
+        OverlayScreen::Mouse => "the screen with the mouse".to_string(),
+        OverlayScreen::Main => "the main screen".to_string(),
+        OverlayScreen::Named(name) => format!("screen {name}"),
+    }
 }
 
 fn board(board: &BoardStatus) -> String {
@@ -138,8 +176,12 @@ fn settings_text(settings: &Settings, status: &Status) -> String {
     if overlay.enabled {
         let _ = write!(
             text,
-            ", overlay {:?} at {} % size, {} % opacity, {} s",
-            overlay.anchor, overlay.size, overlay.opacity, overlay.seconds
+            ", overlay {:?} on {} at {} % size, {} % opacity, {} s",
+            overlay.anchor,
+            screen_text(&overlay.screen),
+            overlay.size,
+            overlay.opacity,
+            overlay.seconds
         );
     } else {
         text.push_str(", overlay off");
@@ -164,8 +206,11 @@ fn without_paths(message: &str) -> String {
         return message.to_string();
     };
     // A Windows path starts with its drive
-    if message[..start].ends_with(':') && start >= 2 {
-        start -= 2;
+    if let Some(drive) = message[..start]
+        .strip_suffix(':')
+        .and_then(|before| before.char_indices().last())
+    {
+        start = drive.0;
     }
     let end = message.rfind(['/', '\\']).map_or(message.len(), |last| last + 1);
     format!("{}{}", &message[..start], &message[end..])
@@ -239,6 +284,7 @@ mod tests {
     use super::*;
     use crate::board::BoardStatus;
     use crate::controller::PageSummary;
+    use crate::settings::OverlayScreen;
     use crate::voicemod::{License, VoicemodStatus};
     use chrono::TimeZone;
 
@@ -269,19 +315,34 @@ mod tests {
             os: "macOS 26.0 (aarch64)".into(),
             settings: Settings::default(),
             status,
+            update: UpdateState::UpToDate {
+                checked_at: at(12, 40, 0).timestamp_millis(),
+            },
             own_pages: 2,
             macros: 1,
             errors: vec![
-                (at(12, 50, 21), "lost the connection to Voicemod: closed".into()),
-                (
+                error(at(12, 50, 21), 3, "lost the connection to Voicemod: closed"),
+                error(
                     at(12, 51, 2),
-                    "unreadable pages: /Users/someone/Library/Application Support/x/pages.json".into(),
+                    1,
+                    "unreadable pages: /Users/someone/Library/Application Support/x/pages.json",
                 ),
-                (
+                error(
                     at(12, 52, 3),
-                    r"cannot open C:\Users\someone\AppData\Local\x\settings.json".into(),
+                    1,
+                    r"cannot open C:\Users\someone\AppData\Local\x\settings.json",
                 ),
             ],
+        }
+    }
+
+    /// Repeated every 2.5 minutes
+    fn error(first: DateTime<Local>, count: u32, message: &str) -> Error {
+        Error {
+            message: message.into(),
+            first,
+            last: first + chrono::Duration::seconds(150 * i64::from(count - 1)),
+            count,
         }
     }
 
@@ -295,13 +356,32 @@ mod tests {
             "Board: connected on COM3, firmware 0.2.1",
             "Voicemod: connected, 3.17.43, free licence, log read",
             "Pages: 44 (2 of your own), 1 macro",
-            "12:50:21 lost the connection to Voicemod: closed",
-            "12:51:02 unreadable pages: pages.json",
+            "Updates: up to date, checked 2026-11-03 12:40",
+            "overlay BottomRight on the screen with the mouse",
+            "12:50:21 lost the connection to Voicemod: closed (×3, last 12:55:21)",
+            "12:51:02 unreadable pages: pages.json\n",
             "12:52:03 cannot open settings.json",
         ] {
             assert!(report.contains(line), "missing {line:?} in:\n{report}");
         }
         assert!(!report.contains("someone"), "a path in:\n{report}");
+    }
+
+    #[test]
+    fn names_the_overlays_screen() {
+        let mut facts = facts();
+        facts.settings.overlay.screen = OverlayScreen::Named(r"\\.\DISPLAY2".into());
+        let report = write(&facts);
+        assert!(
+            report.contains(r"overlay BottomRight on screen \\.\DISPLAY2"),
+            "{report}"
+        );
+    }
+
+    #[test]
+    fn cuts_a_path_whatever_comes_before_it() {
+        assert_eq!(without_paths(r"è:\Users\someone\x.txt"), "x.txt");
+        assert_eq!(without_paths("€/Users/someone/x.txt"), "€x.txt");
     }
 
     #[test]
