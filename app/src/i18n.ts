@@ -12,6 +12,7 @@ const ENGLISH = {
   },
 
   display: "Display",
+  displayPreview: "Display preview, click to enlarge",
   activity: "Log",
   updatingBoard: "Updating Drezimo…",
   updatingDetail: (from: string, to: string) => `Firmware ${from} → ${to}. Keep it plugged in.`,
@@ -437,6 +438,7 @@ const ITALIAN: Texts = {
   },
 
   display: "Display",
+  displayPreview: "Anteprima del display, clic per ingrandire",
   activity: "Registro",
   updatingBoard: "Aggiornamento di Drezimo…",
   updatingDetail: (from, to) => `Firmware ${from} → ${to}. Non scollegarla.`,

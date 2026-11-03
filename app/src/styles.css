@@ -319,6 +319,54 @@ p {
   }
 }
 
+/* The title, and on the Soundboard page the live display beside it */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.display-button {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+  cursor: zoom-in;
+}
+
+.display-button:hover {
+  border-color: var(--muted);
+}
+
+.display-small {
+  display: block;
+  background: #000;
+  image-rendering: pixelated;
+}
+
+.display-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 75%);
+  cursor: zoom-out;
+}
+
+.display-zoom .display-small {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 60%);
+}
+
 .display {
   display: block;
   width: 384px;

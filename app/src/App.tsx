@@ -10,6 +10,7 @@ import { MacrosPage } from "./pages/MacrosPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
 import { SoundboardPage } from "./pages/SoundboardPage";
+import { DisplayButton } from "./DisplayPreview";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
 import { useStatus } from "./status";
@@ -73,7 +74,10 @@ export default function App() {
       <div className="app">
         <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
         <main>
-          <h1>{texts.nav[shown]}</h1>
+          <header className="page-header">
+            <h1>{texts.nav[shown]}</h1>
+            {shown === "soundboard" && <DisplayButton />}
+          </header>
           {shown === "soundboard" && (
             <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
           )}
