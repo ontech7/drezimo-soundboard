@@ -904,7 +904,7 @@ select:disabled {
   color: var(--amber);
 }
 
-/* The Backup card on the General page, and its confirmation */
+/* The Backup card on the Settings page, and its confirmation */
 
 .backup-message {
   display: flex;
@@ -3136,7 +3136,7 @@ input.seconds {
   font-size: 12px;
 }
 
-/* The General page, a little smaller */
+/* The Settings page, a little smaller */
 .tour-window {
   position: absolute;
   top: 14px;
@@ -3153,6 +3153,12 @@ input.seconds {
   height: 380px;
   scale: 0.76;
   transform-origin: top left;
+}
+
+/* Tighter, so that the settings at its foot fit the window's height */
+.tour-window .sidebar {
+  gap: 12px;
+  padding-block: 14px;
 }
 
 .tour-window .calling {

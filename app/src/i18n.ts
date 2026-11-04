@@ -8,8 +8,8 @@ const ENGLISH = {
     macros: "Macros",
     board: "Drezimo",
     overlay: "Overlay",
-    general: "General",
     diagnostics: "Diagnostics",
+    settings: "Settings",
   },
 
   display: "Display",
@@ -537,7 +537,7 @@ const ENGLISH = {
     goTo: (number: number) => `Go to part ${number}`,
     settingText: "What Drezimo can do, in a minute.",
     watch: "Watch again",
-    later: "The tour stays in General",
+    later: "The tour stays in Settings",
     slides: [
       {
         title: "Meet Drezimo Soundboard",
@@ -565,7 +565,7 @@ const ENGLISH = {
       },
       {
         title: "All set",
-        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In this window you manage pages, macros and settings; the tour stays in General.",
+        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In this window you manage pages, macros and the rest; the tour stays in Settings.",
       },
     ],
     parts: [
@@ -626,8 +626,8 @@ const ITALIAN: Texts = {
     macros: "Macro",
     board: "Drezimo",
     overlay: "Overlay",
-    general: "Generale",
     diagnostics: "Diagnostica",
+    settings: "Impostazioni",
   },
 
   display: "Display",
@@ -1154,7 +1154,7 @@ const ITALIAN: Texts = {
     goTo: (number) => `Vai alla parte ${number}`,
     settingText: "Cosa sa fare Drezimo, in un minuto.",
     watch: "Rivedi il tour",
-    later: "Il tour resta in Generale",
+    later: "Il tour resta in Impostazioni",
     slides: [
       {
         title: "Ecco Drezimo Soundboard",
@@ -1182,7 +1182,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Tutto pronto",
-        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. Da questa finestra gestisci pagine, macro e impostazioni; il tour resta in Generale.",
+        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. Da questa finestra gestisci pagine, macro e il resto; il tour resta in Impostazioni.",
       },
     ],
     parts: [

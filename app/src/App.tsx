@@ -5,7 +5,7 @@ import { useBoardView } from "./boardView";
 import { TEXTS, TextsContext } from "./i18n";
 import { BoardPage, type BoardTab } from "./pages/BoardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
-import { GeneralPage } from "./pages/GeneralPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { MacrosPage } from "./pages/MacrosPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
@@ -65,10 +65,10 @@ export default function App() {
 
   if (!status || !settings) return null;
   const texts = TEXTS[language];
-  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
+  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay"];
   if (settings.diagnostics) pages.push("diagnostics");
   // Diagnostics turned off while shown
-  const shown = pages.includes(page) ? page : "soundboard";
+  const shown = page === "settings" || pages.includes(page) ? page : "soundboard";
 
   return (
     <TextsContext.Provider value={texts}>
@@ -100,8 +100,8 @@ export default function App() {
             />
           )}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
-          {shown === "general" && <GeneralPage settings={settings} status={status} onTour={() => setTour(true)} />}
           {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}
+          {shown === "settings" && <SettingsPage settings={settings} status={status} onTour={() => setTour(true)} />}
         </main>
       </div>
       {tourShown && (

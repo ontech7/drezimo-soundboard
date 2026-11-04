@@ -94,7 +94,7 @@ function droppedText(texts: Texts, dropped: Dropped): string | null {
   return `${texts.backup.droppedLead} ${kinds.map((kind) => words[kind](dropped[kind])).join(", ")}.`;
 }
 
-/** Export and import of the whole configuration, on the General page */
+/** Export and import of the whole configuration, on the Settings page */
 export function BackupCard() {
   const texts = useTexts();
   const backup = texts.backup;

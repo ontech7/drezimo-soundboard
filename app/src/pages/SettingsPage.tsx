@@ -59,7 +59,7 @@ interface Props {
   onTour: () => void;
 }
 
-export function GeneralPage({ settings, status, onTour }: Props) {
+export function SettingsPage({ settings, status, onTour }: Props) {
   const texts = useTexts();
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
