@@ -1,4 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { useTexts } from "./i18n";
+import { PlayIcon } from "./icons";
 import type { Anchor } from "./settings";
 
 export function Section({ title, text, children }: { title?: string; text?: string; children: ReactNode }) {
@@ -11,11 +13,34 @@ export function Section({ title, text, children }: { title?: string; text?: stri
   );
 }
 
-export function Row(props: { label: string; text?: string; disabled?: boolean; children?: ReactNode }) {
+interface RowProps {
+  label: string;
+  text?: string;
+  disabled?: boolean;
+  /** A ▶ beside the name, showing how the row's choice works */
+  onExplain?: () => void;
+  children?: ReactNode;
+}
+
+export function Row(props: RowProps) {
+  const texts = useTexts();
   return (
     <div className={props.disabled ? "row disabled" : "row"}>
       <div className="row-label">
-        <p>{props.label}</p>
+        <p className={props.onExplain ? "row-name" : undefined}>
+          {props.label}
+          {props.onExplain && (
+            <button
+              type="button"
+              className="explain-button"
+              aria-label={texts.explainButton(props.label)}
+              title={texts.explainHint}
+              onClick={props.onExplain}
+            >
+              <PlayIcon />
+            </button>
+          )}
+        </p>
         {props.text && <p className="muted">{props.text}</p>}
       </div>
       {props.children && <div className="row-control">{props.children}</div>}

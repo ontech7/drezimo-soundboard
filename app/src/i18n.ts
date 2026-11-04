@@ -71,6 +71,9 @@ const ENGLISH = {
     `Knob: ${{ tap: "tap", doubleTap: "double tap", longPress: "long press" }[gesture]}`,
   boardError: (reason: string) => `Drezimo error: ${reason}`,
 
+  explainButton: (row: string): string => `How it works: ${row}`,
+  explainHint: "See how it works",
+
   padPressedAgain: "Pressed again",
   pressAgainText:
     "What a pad does when you press it again while its sound plays, for each kind of sound in Voicemod. On your own pages a pad can have its own choice.",
@@ -688,6 +691,9 @@ const ITALIAN: Texts = {
   knob: (pressed) => (pressed ? "Manopola premuta" : "Manopola rilasciata"),
   knobGesture: (gesture) => `Manopola: ${{ tap: "tocco", doubleTap: "doppio tocco", longPress: "pressione lunga" }[gesture]}`,
   boardError: (reason) => `Errore di Drezimo: ${reason}`,
+
+  explainButton: (row) => `Come funziona: ${row}`,
+  explainHint: "Guarda come funziona",
 
   padPressedAgain: "Pad ripremuto",
   pressAgainText:

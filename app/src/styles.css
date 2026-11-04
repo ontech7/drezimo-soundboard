@@ -596,6 +596,41 @@ output,
   flex: none;
 }
 
+.row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explain-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #34343c;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.explain-button:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.explain-button .icon {
+  width: 10px;
+  height: 10px;
+  margin-left: 1px;
+  fill: currentColor;
+}
+
 .row.disabled .row-label > p:first-child {
   color: var(--muted);
 }
@@ -761,6 +796,11 @@ select:hover:not(:disabled),
 .search-menu.right {
   right: 0;
   left: auto;
+}
+
+.search-menu.above {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 /* A short list without a search field, as wide as its longest option */
