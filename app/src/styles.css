@@ -253,7 +253,7 @@ p {
 
 /* Settings close under the connections, as one group at the foot */
 .sidebar .sidebar-foot {
-  margin-top: calc(8px - var(--sidebar-gap));
+  margin-top: calc(10px - var(--sidebar-gap));
 }
 
 /* A notice on the Soundboard page: what is new, the sounds muted for this PC */
