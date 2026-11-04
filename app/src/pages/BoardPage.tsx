@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { type KeyboardEvent, useId, useRef } from "react";
 import { Choice, Row, Section, Slider } from "../controls";
 import { useTexts } from "../i18n";
+import { KnobTab } from "../KnobControls";
 import { PadTab } from "../PressAgainControls";
 import { type DisplaySettings, type SettingsView, saveDisplaySettings, saveSettings } from "../settings";
 import type { Status } from "../status";
@@ -10,8 +11,8 @@ const DIM_AFTER = [0, 1, 2, 5, 10, 30];
 const OFF_AFTER = [0, 5, 10, 15, 30, 60];
 const SHIFT_EVERY = [0, 1, 3, 5, 10];
 
-export type BoardTab = "pad" | "leds";
-const TABS: BoardTab[] = ["pad", "leds"];
+export type BoardTab = "pad" | "knob" | "leds";
+const TABS: BoardTab[] = ["pad", "knob", "leds"];
 
 interface Props {
   settings: SettingsView;
@@ -64,6 +65,7 @@ export function BoardPage(props: Props) {
         {tab === "pad" && (
           <PadTab settings={props.settings} singleStop={props.status.singleSoundStop} onOpenPages={props.onOpenPages} />
         )}
+        {tab === "knob" && <KnobTab settings={props.settings} status={props.status} />}
         {tab === "leds" && <LedsTab settings={props.settings} status={props.status} />}
       </div>
     </>

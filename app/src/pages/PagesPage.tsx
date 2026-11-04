@@ -5,7 +5,6 @@ import {
   type CustomPad,
   type CustomPage,
   emptyPage,
-  FAVOURITES_ID,
   type Library,
   type LibraryItem,
   MACRO_COLOUR,
@@ -13,6 +12,7 @@ import {
   newId,
   PAD_COUNT,
   padsFrom,
+  pageTargets,
   type Rgb,
   rgb,
   shortened,
@@ -20,7 +20,6 @@ import {
   useCustomPages,
   useLibrary,
   VOICE_COLOUR,
-  VOICES_ID,
 } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
 import { DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
@@ -71,13 +70,7 @@ function useLookup(library: Library | null, pages: CustomPage[], macros: Macro[]
       }
     }
     const voices = new Map((library?.voices ?? []).map((voice) => [voice.id, voice]));
-    const targets = [
-      ...pages.map((page) => ({ id: page.id, name: page.name })),
-      // As the board has them
-      ...(library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
-      ...(library?.voices.some((voice) => voice.enabled) ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
-      ...(library?.soundboards ?? []).map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
-    ];
+    const targets = pageTargets(pages, library, texts);
     return {
       loaded: (library?.soundboards.length ?? 0) > 0,
       macro: (id) => macros.find((item) => item.id === id),

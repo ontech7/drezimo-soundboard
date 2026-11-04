@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import type { Texts } from "./i18n";
 import type { PlaybackMode } from "./pressAgain";
 import { useSaved } from "./saved";
 import type { PressAgain } from "./settings";
@@ -107,6 +108,21 @@ export const ACTIONS: Action[] = [
 // The Favourites and Voices pages' ids (src-tauri/src/soundboard.rs)
 export const FAVOURITES_ID = "favourites";
 export const VOICES_ID = "voices";
+
+export interface PageTarget {
+  id: string;
+  name: string;
+}
+
+/** The pages a pad or the knob can open, as the board has them */
+export function pageTargets(pages: CustomPage[], library: Library | null, texts: Texts): PageTarget[] {
+  return [
+    ...pages.map((page) => ({ id: page.id, name: page.name })),
+    ...(library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
+    ...(library?.voices.some((voice) => voice.enabled) ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
+    ...(library?.soundboards ?? []).map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
+  ];
+}
 
 export function rgb(colour: Rgb): string {
   return `rgb(${colour.join(", ")})`;

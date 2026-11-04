@@ -876,6 +876,30 @@ select:disabled {
   gap: 12px;
 }
 
+/* What each of the knob's gestures does, on the Drezimo page: an action, and a macro or a page for some */
+.knob-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 290px;
+}
+
+.knob-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.knob-notes p {
+  margin: 0;
+}
+
+.knob-notes .warning {
+  color: var(--amber);
+}
+
 /* What a pad does when pressed again: a choice per kind of sound on the Drezimo page, a sound pad's own in the Pages editor */
 
 .press-select {
