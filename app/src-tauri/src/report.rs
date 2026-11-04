@@ -7,6 +7,7 @@ use crate::device::Status;
 use crate::errors::Error;
 use crate::firmware::FirmwareUpdate;
 use crate::macros::MacrosState;
+use crate::press_again::{ByMode, PressAgain};
 use crate::settings::{OverlayScreen, Settings, SettingsState};
 use crate::updates::{UpdateState, UpdateStateHolder};
 use crate::voicemod::{License, VoicemodStatus};
@@ -184,11 +185,25 @@ fn voicemod(status: &Status) -> String {
     }
 }
 
+fn press_again_text(by_mode: &ByMode) -> String {
+    let own: Vec<String> = ByMode::MODES
+        .into_iter()
+        .filter(|&mode| by_mode.get(mode) != PressAgain::Voicemod)
+        .map(|mode| format!("{mode:?} {:?}", by_mode.get(mode)))
+        .collect();
+    if own.is_empty() {
+        "Voicemod".to_string()
+    } else {
+        format!("{}, else Voicemod", own.join(", "))
+    }
+}
+
 fn settings_text(settings: &Settings, status: &Status) -> String {
     let overlay = &settings.overlay;
     let mut text = format!(
-        "LEDs {} %, pads pressed again: {:?}",
-        settings.led_brightness, settings.press_again
+        "LEDs {} %, pads pressed again: {}",
+        settings.led_brightness,
+        press_again_text(&settings.press_again_by_mode)
     );
     if overlay.enabled {
         let _ = write!(
@@ -298,6 +313,7 @@ mod tests {
     use super::*;
     use crate::board::BoardStatus;
     use crate::controller::PageSummary;
+    use crate::press_again::PressAgain;
     use crate::settings::OverlayScreen;
     use crate::voicemod::{License, VoicemodStatus};
     use chrono::TimeZone;
@@ -391,6 +407,18 @@ mod tests {
         let report = write(&facts);
         assert!(
             report.contains(r"overlay BottomRight on screen \\.\DISPLAY2"),
+            "{report}"
+        );
+    }
+
+    #[test]
+    fn names_only_the_modes_with_their_own_choice() {
+        let mut facts = facts();
+        facts.settings.press_again_by_mode.play_pause = PressAgain::Stop;
+        facts.settings.press_again_by_mode.play_loop_on_press = PressAgain::Restart;
+        let report = write(&facts);
+        assert!(
+            report.contains("pads pressed again: PlayPause Stop, PlayLoopOnPress Restart, else Voicemod"),
             "{report}"
         );
     }

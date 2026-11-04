@@ -4,6 +4,7 @@ use crate::custom_pages::{Content, CustomPad};
 use crate::display::screens::{self, FRAME, Progress, Screen, SoundState};
 use crate::macros::{Again, Macro, Step, Switch, SwitchState};
 use crate::playback::GUESSED_LENGTH;
+use crate::press_again::PressAgain;
 use crate::soundboard::PlaybackMode;
 use crate::soundboard::tests::{action, custom_pad, sound, soundboard, voice};
 use crate::voicemod_log::LineKind;
@@ -1451,7 +1452,7 @@ fn with_mode(id: &str, playback_mode: PlaybackMode) -> Sound {
 #[test]
 fn stop_stops_every_sound_where_voicemod_would_start_it_again() {
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a"), sound("b")])]);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     press(&mut controller, 1, true, start);
     press(&mut controller, 0, true, start);
     press(&mut controller, 0, false, start);
@@ -1473,7 +1474,7 @@ fn stop_stops_every_sound_where_voicemod_would_start_it_again() {
 fn restart_clicks_twice_a_sound_that_a_click_stops() {
     let toggling = with_mode("a", PlaybackMode::PlayStop);
     let (mut controller, start) = ready(vec![soundboard("b", vec![toggling])]);
-    controller.set_press_again(PressAgain::Restart);
+    controller.set_press_again(ByMode::from_one(PressAgain::Restart));
     press(&mut controller, 0, true, start);
     press(&mut controller, 0, false, start);
 
@@ -1491,7 +1492,7 @@ fn restart_clicks_twice_a_sound_that_a_click_stops() {
 #[test]
 fn hold_stops_the_sounds_on_release_while_it_still_plays() {
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
-    controller.set_press_again(PressAgain::Hold);
+    controller.set_press_again(ByMode::from_one(PressAgain::Hold));
     press(&mut controller, 0, true, start);
     assert_eq!(
         requests(&press(&mut controller, 0, false, start + Duration::from_millis(50))),
@@ -1514,7 +1515,7 @@ fn hold_stops_the_sounds_on_release_while_it_still_plays() {
 fn hold_clicks_again_on_release_a_sound_that_a_click_stops() {
     let toggling = with_mode("a", PlaybackMode::PlayStop);
     let (mut controller, start) = ready(vec![soundboard("b", vec![toggling])]);
-    controller.set_press_again(PressAgain::Hold);
+    controller.set_press_again(ByMode::from_one(PressAgain::Hold));
     press(&mut controller, 0, true, start);
 
     let released = start + Duration::from_secs(1);
@@ -1529,7 +1530,7 @@ fn hold_clicks_again_on_release_a_sound_that_a_click_stops() {
 fn stop_leaves_a_held_sound_playing_until_pressed_again() {
     let held = with_mode("held", PlaybackMode::PlayLoopOnPress);
     let (mut controller, start) = ready(vec![soundboard("b", vec![held])]);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     press(&mut controller, 0, true, start);
     let released = start + Duration::from_secs(1);
     assert!(requests(&press(&mut controller, 0, false, released)).is_empty());
@@ -1546,7 +1547,7 @@ fn stop_leaves_a_held_sound_playing_until_pressed_again() {
 fn a_pads_own_choice_comes_before_the_one_for_every_pad() {
     let pausing = with_mode("music", PlaybackMode::PlayPause);
     let (mut controller, start) = ready(vec![soundboard("b", vec![pausing.clone()])]);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     let mut music = custom_pad(Content::Sound {
         id: "music".into(),
         name: "MUSIC".into(),
@@ -1588,9 +1589,9 @@ fn a_peek_tells_what_a_press_again_does() {
         (info, note)
     };
     assert_eq!(peek(&mut controller), ("ONE-SHOT".into(), String::new()));
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     assert_eq!(peek(&mut controller), ("PLAY/STOP".into(), "STOPS ALL".into()));
-    controller.set_press_again(PressAgain::Pause);
+    controller.set_press_again(ByMode::from_one(PressAgain::Pause));
     assert_eq!(
         peek(&mut controller),
         ("ONE-SHOT".into(), String::new()),
@@ -1636,11 +1637,57 @@ fn a_pad_that_stops_every_sound_ends_the_macro_too() {
 }
 
 #[test]
+fn a_pad_follows_its_sounds_type_unless_it_has_its_own_choice() {
+    let song = with_mode("song", PlaybackMode::PlayPause);
+    let effect = with_mode("fx", PlaybackMode::PlayRestart);
+    let (mut controller, start) = ready(vec![soundboard("b", vec![song, effect])]);
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
+    controller.set_press_again(ByMode {
+        play_pause: PressAgain::Stop,
+        ..ByMode::default()
+    });
+    for pad in [0, 1] {
+        press(&mut controller, pad, true, start);
+        press(&mut controller, pad, false, start);
+    }
+
+    let again = start + Duration::from_secs(1);
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, again)),
+        [&Request::StopSound("song".into())]
+    );
+    assert_eq!(
+        requests(&press(&mut controller, 1, true, again)),
+        [&play("fx", true)],
+        "as in Voicemod"
+    );
+    press(&mut controller, 0, false, again);
+    press(&mut controller, 1, false, again);
+
+    let mut own = custom_pad(Content::Sound {
+        id: "song".into(),
+        name: "Song".into(),
+    })
+    .unwrap();
+    own.press_again = Some(PressAgain::Restart);
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(own)])]);
+    controller.go_to_page(0);
+    let later = again + Duration::from_secs(1);
+    press(&mut controller, 0, true, later);
+    press(&mut controller, 0, false, later);
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, later + Duration::from_secs(1))),
+        [&Request::StopSound("song".into()), &play("song", true)],
+        "the pad's own choice first"
+    );
+}
+
+#[test]
 fn with_voicemods_bridge_a_pad_stops_its_sound_alone() {
     let music = with_mode("music", PlaybackMode::PlayPause);
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a"), music])]);
     controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     press(&mut controller, 1, true, start);
     press(&mut controller, 1, false, start);
     press(&mut controller, 0, true, start);
@@ -1658,7 +1705,7 @@ fn with_voicemods_bridge_a_pad_stops_its_sound_alone() {
         "the others play on"
     );
 
-    controller.set_press_again(PressAgain::Restart);
+    controller.set_press_again(ByMode::from_one(PressAgain::Restart));
     press(&mut controller, 0, false, again);
     let restarted = again + Duration::from_millis(500);
     assert_eq!(
@@ -1671,7 +1718,7 @@ fn with_voicemods_bridge_a_pad_stops_its_sound_alone() {
 #[test]
 fn without_the_bridge_any_more_a_pad_stops_every_sound_again() {
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
     controller.voicemod_event(VoicemodEvent::SingleSoundStop(false), start);
     press(&mut controller, 0, true, start);
@@ -1687,7 +1734,7 @@ fn without_the_bridge_any_more_a_pad_stops_every_sound_again() {
 fn the_end_line_after_a_single_stop_does_not_undo_a_new_press() {
     let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
     controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
-    controller.set_press_again(PressAgain::Stop);
+    controller.set_press_again(ByMode::from_one(PressAgain::Stop));
     controller.log_input(LogInput::Opened(Vec::new()), start);
     let wall = SystemTime::now();
     let at = |millis| wall + Duration::from_millis(millis);

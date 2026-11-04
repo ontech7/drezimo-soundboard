@@ -133,9 +133,79 @@ pub fn known<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<PressA
     Ok(value.and_then(|value| PressAgain::deserialize(value).ok()))
 }
 
-/// The choice for every pad, as in Voicemod when this app does not know it.
+/// A type's choice, as in Voicemod when this app does not know it.
 pub fn known_or_default<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PressAgain, D::Error> {
     Ok(known(deserializer)?.unwrap_or_default())
+}
+
+/// The choice for each of Voicemod's playback modes, unless a pad has its own
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ByMode {
+    #[serde(deserialize_with = "known_or_default")]
+    pub play_restart: PressAgain,
+    #[serde(deserialize_with = "known_or_default")]
+    pub play_overlap: PressAgain,
+    #[serde(deserialize_with = "known_or_default")]
+    pub play_pause: PressAgain,
+    #[serde(deserialize_with = "known_or_default")]
+    pub play_stop: PressAgain,
+    #[serde(deserialize_with = "known_or_default")]
+    pub play_loop_on_press: PressAgain,
+}
+
+impl ByMode {
+    /// The modes with a choice of their own, in the window's order
+    pub const MODES: [PlaybackMode; 5] = [
+        PlaybackMode::PlayRestart,
+        PlaybackMode::PlayPause,
+        PlaybackMode::PlayStop,
+        PlaybackMode::PlayLoopOnPress,
+        PlaybackMode::PlayOverlap,
+    ];
+
+    pub fn get(&self, mode: PlaybackMode) -> PressAgain {
+        match mode {
+            PlaybackMode::PlayRestart => self.play_restart,
+            PlaybackMode::PlayOverlap => self.play_overlap,
+            PlaybackMode::PlayPause => self.play_pause,
+            PlaybackMode::PlayStop => self.play_stop,
+            PlaybackMode::PlayLoopOnPress => self.play_loop_on_press,
+            PlaybackMode::Unknown => PressAgain::Voicemod,
+        }
+    }
+
+    /// One choice for every pad, from an older app, as the same behaviour for each mode.
+    pub fn from_one(choice: PressAgain) -> Self {
+        // What the choice came to for that mode, which is not always the choice itself
+        let for_mode = |mode| {
+            let does = outcome(choice, mode, true).does;
+            if voicemods_own(mode) == Some(does) {
+                PressAgain::Voicemod
+            } else {
+                does
+            }
+        };
+        Self {
+            play_restart: for_mode(PlaybackMode::PlayRestart),
+            play_overlap: for_mode(PlaybackMode::PlayOverlap),
+            play_pause: for_mode(PlaybackMode::PlayPause),
+            play_stop: for_mode(PlaybackMode::PlayStop),
+            play_loop_on_press: for_mode(PlaybackMode::PlayLoopOnPress),
+        }
+    }
+}
+
+/// The choice that does exactly what Voicemod does with a sound of that mode.
+pub fn voicemods_own(mode: PlaybackMode) -> Option<PressAgain> {
+    match mode {
+        PlaybackMode::PlayRestart => Some(PressAgain::Restart),
+        PlaybackMode::PlayPause => Some(PressAgain::Pause),
+        PlaybackMode::PlayStop => Some(PressAgain::Stop),
+        PlaybackMode::PlayLoopOnPress => Some(PressAgain::Hold),
+        PlaybackMode::PlayOverlap => Some(PressAgain::Overlap),
+        PlaybackMode::Unknown => None,
+    }
 }
 
 #[cfg(test)]
@@ -284,5 +354,62 @@ mod tests {
         assert_eq!(table["Unknown"]["hold"]["does"], "voicemod");
         let single = serde_json::to_value(press_outcomes(SINGLE)).unwrap();
         assert_eq!(single["PlayPause"]["stop"]["stopsAll"], false);
+    }
+
+    #[test]
+    fn one_choice_for_every_pad_becomes_the_same_behaviour_per_mode() {
+        let stop = ByMode::from_one(PressAgain::Stop);
+        // Stop applies to every mode; where it is Voicemod's own, it is stored as Voicemod
+        assert_eq!(stop.play_restart, PressAgain::Stop);
+        assert_eq!(stop.play_overlap, PressAgain::Stop);
+        assert_eq!(stop.play_pause, PressAgain::Stop);
+        assert_eq!(stop.play_stop, PressAgain::Voicemod);
+        assert_eq!(stop.play_loop_on_press, PressAgain::Stop);
+        let pause = ByMode::from_one(PressAgain::Pause);
+        assert_eq!(
+            pause,
+            ByMode::default(),
+            "pause only exists where Voicemod already pauses"
+        );
+        let overlap = ByMode::from_one(PressAgain::Overlap);
+        assert_eq!(overlap.play_overlap, PressAgain::Voicemod);
+        assert_eq!(
+            overlap.play_restart,
+            PressAgain::Voicemod,
+            "overlap on a restart sound is a restart, Voicemod's own"
+        );
+    }
+
+    #[test]
+    fn the_migration_changes_no_pad() {
+        for choice in CHOICES {
+            let by_mode = ByMode::from_one(choice);
+            for mode in MODES {
+                for single in [ALL, SINGLE] {
+                    let before = outcome(choice, mode, single);
+                    let after = outcome(by_mode.get(mode), mode, single);
+                    for active in [false, true] {
+                        assert_eq!(
+                            on_press(before.does, mode, active, single),
+                            on_press(after.does, mode, active, single),
+                            "{choice:?} {mode:?}"
+                        );
+                    }
+                    assert_eq!(
+                        on_release(before.does, mode, single),
+                        on_release(after.does, mode, single),
+                        "{choice:?} {mode:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn an_unknown_choice_for_a_mode_reads_as_voicemod() {
+        let by_mode: ByMode = serde_json::from_str(r#"{"playPause": "stop", "playStop": "fly"}"#).unwrap();
+        assert_eq!(by_mode.play_pause, PressAgain::Stop);
+        assert_eq!(by_mode.play_stop, PressAgain::Voicemod);
+        assert_eq!(by_mode.get(PlaybackMode::Unknown), PressAgain::Voicemod);
     }
 }

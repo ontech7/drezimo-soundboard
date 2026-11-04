@@ -17,7 +17,7 @@ use crate::display::texts::{ENGLISH, Texts};
 use crate::macros::Macro;
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
-use crate::press_again::{self, Command, Outcome, PressAgain};
+use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
 use crate::soundboard::{self, Action, Pad, Page, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
@@ -129,7 +129,7 @@ pub struct Controller {
     resume: Option<(String, usize)>,
     playback: Playback,
     /// What a pad does when pressed again, unless the user picked it for that pad
-    press_again: PressAgain,
+    press_again: ByMode,
     /// Voicemod's bridge was found: a single sound can be stopped
     single_stop: bool,
     /// Voicemod's sounds as its log tells them
@@ -192,7 +192,7 @@ impl Default for Controller {
             page: 0,
             resume: None,
             playback: Playback::default(),
-            press_again: PressAgain::default(),
+            press_again: ByMode::default(),
             single_stop: false,
             log: LogTracker::default(),
             soundboards: Vec::new(),
@@ -261,8 +261,8 @@ impl Controller {
     }
 
     /// What a pad does when pressed again, unless the user picked it for that pad.
-    pub fn set_press_again(&mut self, choice: PressAgain) {
-        self.press_again = choice;
+    pub fn set_press_again(&mut self, by_mode: ByMode) {
+        self.press_again = by_mode;
     }
 
     pub fn set_board_connected(&mut self, connected: bool, now: Instant) {
@@ -588,11 +588,11 @@ impl Controller {
         self.held.insert(pad, held_sound);
     }
 
-    /// What pressing a pad's sound again does: as picked for that pad, else as for every pad.
+    /// What pressing a pad's sound again does: as picked for that pad, else as for its sound's mode.
     fn outcome_at(&self, pad: u8, sound: &Sound) -> Outcome {
         let picked = self.pages.get(self.page).and_then(|page| page.press_again(pad));
         press_again::outcome(
-            picked.unwrap_or(self.press_again),
+            picked.unwrap_or(self.press_again.get(sound.playback_mode)),
             sound.playback_mode,
             self.single_stop,
         )

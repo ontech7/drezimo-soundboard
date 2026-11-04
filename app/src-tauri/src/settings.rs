@@ -2,8 +2,9 @@
 //! they follow it to another computer (docs/project.md, section 4).
 
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
-use crate::press_again::PressAgain;
+use crate::press_again::{ByMode, PressAgain};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -114,9 +115,8 @@ pub struct Settings {
     pub language: Language,
     /// The LEDs' brightness, in percent: the board does not keep it
     pub led_brightness: u8,
-    /// What a pad does when pressed again, unless the user picked it for that pad
-    #[serde(deserialize_with = "crate::press_again::known_or_default")]
-    pub press_again: PressAgain,
+    /// What a pad does when pressed again, by its sound's mode, unless the user picked it for that pad
+    pub press_again_by_mode: ByMode,
     pub overlay: OverlaySettings,
     /// Shows the window's page of technical details
     pub diagnostics: bool,
@@ -131,7 +131,7 @@ impl Default for Settings {
         Self {
             language: Language::default(),
             led_brightness: 50,
-            press_again: PressAgain::default(),
+            press_again_by_mode: ByMode::default(),
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
@@ -179,7 +179,7 @@ impl SettingsState {
 /// The saved settings, or the defaults.
 pub fn load(app: &AppHandle) -> SettingsState {
     let saved = path(app).and_then(|path| fs::read_to_string(path).ok());
-    let settings = match saved.map(|text| serde_json::from_str::<Settings>(&text)) {
+    let settings = match saved.map(|text| read(&text)) {
         Some(Ok(settings)) => settings.checked(),
         Some(Err(error)) => {
             crate::errors::log(format!("unreadable settings, using the defaults: {error}"));
@@ -188,6 +188,20 @@ pub fn load(app: &AppHandle) -> SettingsState {
         None => Settings::default(),
     };
     SettingsState(Mutex::new(settings))
+}
+
+/// A settings file, the single choice for every pad of the apps before the choice by mode included.
+pub fn read(text: &str) -> Result<Settings, serde_json::Error> {
+    let mut value: Value = serde_json::from_str(text)?;
+    if let Some(fields) = value.as_object_mut()
+        && !fields.contains_key("pressAgainByMode")
+        && let Some(one) = fields.get("pressAgain").cloned()
+        && let Ok(one) = PressAgain::deserialize(one)
+    {
+        let by_mode = serde_json::to_value(ByMode::from_one(one))?;
+        fields.insert("pressAgainByMode".into(), by_mode);
+    }
+    Settings::deserialize(value)
 }
 
 fn path(app: &AppHandle) -> Option<PathBuf> {
@@ -388,7 +402,7 @@ mod tests {
         assert_eq!(settings.overlay.anchor, Anchor::Top);
         assert!(settings.tour_seen);
         assert!(!settings.mute_for_me_notice_seen);
-        assert_eq!(settings.press_again, PressAgain::Voicemod);
+        assert_eq!(settings.press_again_by_mode, ByMode::default());
         assert_eq!(settings.overlay.screen, OverlayScreen::Mouse);
     }
 
@@ -402,5 +416,17 @@ mod tests {
             assert_eq!(serde_json::to_string(&screen).unwrap(), json);
             assert_eq!(serde_json::from_str::<OverlayScreen>(json).unwrap(), screen);
         }
+    }
+
+    #[test]
+    fn an_old_single_choice_migrates_and_is_not_written_again() {
+        let settings = read(r#"{"pressAgain": "stop"}"#).unwrap();
+        assert_eq!(settings.press_again_by_mode, ByMode::from_one(PressAgain::Stop));
+        let written = serde_json::to_value(&settings).unwrap();
+        assert!(written.get("pressAgain").is_none());
+        assert!(written.get("pressAgainByMode").is_some());
+        // Both present: the new one wins
+        let both = read(r#"{"pressAgain": "stop", "pressAgainByMode": {}}"#).unwrap();
+        assert_eq!(both.press_again_by_mode, ByMode::default());
     }
 }
