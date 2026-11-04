@@ -73,8 +73,9 @@ impl NativeWindow {
         }
     }
 
-    /// Shows `image` with its top-left corner at (x, y), in pixels.
-    pub fn show(&mut self, image: &Image, x: i32, y: i32, _scale: f64, opacity: f32) {
+    /// Shows `image` with its top-left corner at (x, y), in pixels. Whether the window has just come up, in front of the
+    /// others.
+    pub fn show(&mut self, image: &Image, x: i32, y: i32, _scale: f64, opacity: f32) -> bool {
         let (width, height) = (image.width as i32, image.height as i32);
         let fits = self
             .canvas
@@ -87,7 +88,7 @@ impl NativeWindow {
         }
         let Some(canvas) = &self.canvas else {
             self.report("cannot make the overlay's bitmap");
-            return;
+            return false;
         };
 
         let target = unsafe { slice::from_raw_parts_mut(canvas.pixels, image.pixels.len()) };
@@ -118,14 +119,24 @@ impl NativeWindow {
         };
         if updated == 0 {
             self.report("cannot update the overlay");
-            return;
+            return false;
         }
         self.failing = false;
-        if !self.shown {
+        let appears = !self.shown;
+        if appears {
             // Above the windows made topmost since, without taking the focus
             let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
             unsafe { SetWindowPos(self.window, HWND_TOPMOST, 0, 0, 0, 0, flags) };
             self.shown = true;
+        }
+        appears
+    }
+
+    /// In front of the other topmost windows, if it shows.
+    pub fn raise(&mut self) {
+        if self.shown {
+            let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+            unsafe { SetWindowPos(self.window, HWND_TOPMOST, 0, 0, 0, 0, flags) };
         }
     }
 

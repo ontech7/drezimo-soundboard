@@ -294,7 +294,9 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
             if redraw || breathes || (blinks && drawn_blink != Some(blink)) {
                 let image = painter.draw(overlay, at.drawn as f32, |cell| level(cell.led.effect, time));
                 on_window(app, move |window| {
-                    window.show(&image, at.x, at.y, at.scale, new_opacity)
+                    if window.show(&image, at.x, at.y, at.scale, new_opacity) {
+                        display::raise();
+                    }
                 });
                 redraw = false;
                 drawn_blink = Some(blink);

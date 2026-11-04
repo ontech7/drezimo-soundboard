@@ -341,6 +341,15 @@ thread_local! {
     static WINDOW: RefCell<Option<NativeWindow>> = const { RefCell::new(None) };
 }
 
+/// Back in front of the page's overlay, which has just come up. On the main thread.
+pub(super) fn raise() {
+    WINDOW.with_borrow_mut(|window| {
+        if let Some(window) = window {
+            window.raise();
+        }
+    });
+}
+
 pub fn start(app: &AppHandle, texts: &'static Texts, screen: OverlayScreen) -> Sender<DisplayUpdate> {
     let (sender, updates) = mpsc::channel();
     let app = app.clone();
@@ -423,7 +432,9 @@ fn run(app: &AppHandle, updates: &Receiver<DisplayUpdate>, mut texts: &'static T
         };
         let image = painter.draw(&scene, scale as f32, dot, now);
         let (x, y) = anchored(free, (image.width, image.height), scale, look.anchor);
-        run_on(app, &WINDOW, move |window| window.show(&image, x, y, scale, 1.0));
+        run_on(app, &WINDOW, move |window| {
+            window.show(&image, x, y, scale, 1.0);
+        });
         window_shown = true;
         let replace = area_found + REPLACE_EVERY;
         wake = Some(chips.next_change(now).map_or(replace, |fade| fade.min(replace)));

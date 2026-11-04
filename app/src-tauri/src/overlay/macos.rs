@@ -56,13 +56,14 @@ impl NativeWindow {
         })
     }
 
-    /// Shows `image` with its top-left corner at (x, y), in the pixels of the monitors' positions.
-    pub fn show(&mut self, image: &Image, x: i32, y: i32, scale: f64, opacity: f32) {
+    /// Shows `image` with its top-left corner at (x, y), in the pixels of the monitors' positions. Whether the window
+    /// has just come up, in front of the others.
+    pub fn show(&mut self, image: &Image, x: i32, y: i32, scale: f64, opacity: f32) -> bool {
         let Some(layer) = self.window.contentView().and_then(|view| view.layer()) else {
-            return;
+            return false;
         };
         let Some(picture) = picture(image) else {
-            return;
+            return false;
         };
         let contents: &CFType = &picture;
         unsafe { layer.setContents(Some(contents.as_ref())) };
@@ -79,9 +80,18 @@ impl NativeWindow {
             self.placed = Some(place);
         }
         self.window.setAlphaValue(opacity.into());
-        if !self.visible {
+        let appears = !self.visible;
+        if appears {
             self.window.orderFrontRegardless();
             self.visible = true;
+        }
+        appears
+    }
+
+    /// In front of the other windows at its level, if it shows.
+    pub fn raise(&mut self) {
+        if self.visible {
+            self.window.orderFrontRegardless();
         }
     }
 
