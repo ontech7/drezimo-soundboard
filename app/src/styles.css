@@ -904,6 +904,41 @@ select:disabled {
   color: var(--amber);
 }
 
+/* The Backup card on the General page, and its confirmation */
+
+.backup-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.backup-message p {
+  margin: 0;
+}
+
+.backup-message.failed {
+  color: var(--error);
+}
+
+/* A modal dialog stretches between its insets unless it fits its content */
+.dialog.compact {
+  width: min(500px, calc(100vw - 48px));
+  height: fit-content;
+}
+
+.dialog.compact .dialog-body {
+  flex: 0 1 auto;
+}
+
+.backup-dropped {
+  margin: 14px 0 0;
+  color: var(--amber);
+  font-size: 12.5px;
+}
+
 /* What a pad does when pressed again: a choice per kind of sound on the Drezimo page, a sound pad's own in the Pages editor */
 
 .press-select {

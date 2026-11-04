@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-const FILE_NAME: &str = "macros.json";
+pub const FILE_NAME: &str = "macros.json";
 /// Before every id the editor makes
 const ID_PREFIX: &str = "macro-";
 const MAX_MACROS: usize = 100;
@@ -240,11 +240,16 @@ pub fn stop_macro(app: AppHandle) {
 
 #[tauri::command]
 pub fn set_macros(app: AppHandle, macros: Vec<Macro>) -> Result<Vec<Macro>, String> {
+    apply(&app, macros)
+}
+
+/// The macros in use at once, everywhere, then saved
+pub fn apply(app: &AppHandle, macros: Vec<Macro>) -> Result<Vec<Macro>, String> {
     let macros = checked(macros);
     app.state::<MacrosState>().0.lock().unwrap().clone_from(&macros);
-    crate::device::apply_macros(&app, macros.clone());
+    crate::device::apply_macros(app, macros.clone());
     let _ = app.emit("macros", &macros);
-    save(&app, &macros).inspect_err(|error| crate::errors::log(format!("cannot save the macros: {error}")))?;
+    save(app, &macros).inspect_err(|error| crate::errors::log(format!("cannot save the macros: {error}")))?;
     Ok(macros)
 }
 

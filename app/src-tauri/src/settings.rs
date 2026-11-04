@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-const FILE_NAME: &str = "settings.json";
+pub const FILE_NAME: &str = "settings.json";
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -237,13 +237,18 @@ pub fn settings(state: State<SettingsState>) -> SettingsView {
 
 #[tauri::command]
 pub fn set_settings(app: AppHandle, settings: Settings) -> Result<SettingsView, String> {
+    apply(&app, settings)
+}
+
+/// The settings in use at once, everywhere, then saved
+pub fn apply(app: &AppHandle, settings: Settings) -> Result<SettingsView, String> {
     let settings = settings.checked();
     *app.state::<SettingsState>().0.lock().unwrap() = settings.clone();
-    crate::device::apply_settings(&app, settings.clone());
-    crate::tray::set_language(&app, settings.language);
+    crate::device::apply_settings(app, settings.clone());
+    crate::tray::set_language(app, settings.language);
     let view = SettingsView::from(settings.clone());
     let _ = app.emit("settings", view.clone());
-    save(&app, &settings).inspect_err(|error| crate::errors::log(format!("cannot save the settings: {error}")))?;
+    save(app, &settings).inspect_err(|error| crate::errors::log(format!("cannot save the settings: {error}")))?;
     Ok(view)
 }
 

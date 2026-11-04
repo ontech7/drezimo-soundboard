@@ -493,16 +493,25 @@ pub fn stop_macro(app: &AppHandle) {
     send(app, Input::StopMacro);
 }
 
-/// Within what the firmware takes: minutes up to a day
 #[tauri::command]
 pub fn set_display_settings(app: AppHandle, settings: DisplaySettings) {
+    apply_display_settings(&app, settings);
+}
+
+/// Within what the firmware takes: minutes up to a day
+pub fn apply_display_settings(app: &AppHandle, settings: DisplaySettings) {
     let settings = DisplaySettings {
         brightness: settings.brightness.min(100),
         dim_after: settings.dim_after.min(1440),
         off_after: settings.off_after.min(1440),
         shift_every: settings.shift_every.min(1440),
     };
-    send(&app, Input::DisplaySettings(settings));
+    send(app, Input::DisplaySettings(settings));
+}
+
+/// The connected board's, or none without a board
+pub fn display_settings(app: &AppHandle) -> Option<DisplaySettings> {
+    app.try_state::<Mutex<Status>>()?.lock().unwrap().display_settings
 }
 
 /// The LEDs at `percent` while the slider moves, before it is saved

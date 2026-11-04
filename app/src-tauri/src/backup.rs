@@ -1,17 +1,24 @@
 //! The configuration as a file of its own, to keep aside or take to another PC: exported plainly, imported only after
 //! the same checks as the app's own files (docs/project.md, section 8).
 
-use crate::custom_pages::{self, Content, CustomPage};
+use crate::custom_pages::{self, Content, CustomPage, CustomPagesState};
+use crate::device;
 use crate::knob::{KnobSettings, PressAction};
-use crate::macros::{self, Macro, Step};
+use crate::macros::{self, Macro, MacrosState, Step};
 use crate::press_again::ByMode;
 use crate::protocol::DisplaySettings;
-use crate::settings::{Language, OverlaySettings, Settings};
+use crate::settings::{self, Language, OverlaySettings, Settings, SettingsState};
 use chrono::{DateTime, Local, SecondsFormat};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
+use std::fmt::Display;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::{fs, io};
+use tauri::{AppHandle, Manager, State};
 
 pub const FORMAT: u32 = 1;
 pub const MAX_BYTES: usize = 5 * 1024 * 1024;
@@ -316,6 +323,248 @@ fn cut_missing(knob: &mut KnobSettings, pages: &mut [CustomPage], macros: &mut [
     cut
 }
 
+/// What the app had before the last import
+#[derive(Debug, PartialEq)]
+pub struct Before {
+    pub settings: Settings,
+    pub pages: Vec<CustomPage>,
+    pub macros: Vec<Macro>,
+    pub display: Option<DisplaySettings>,
+}
+
+/// The copy of what the app had before an import, in the app's config folder
+const BEFORE_IMPORT: &str = "before-import";
+const DISPLAY_FILE: &str = "display.json";
+
+/// The copy is written aside, then put in place of the older one, so that it is never half one and half the other.
+pub fn keep_before_import(
+    folder: &Path,
+    settings: &Settings,
+    pages: &[CustomPage],
+    macros: &[Macro],
+    display: Option<DisplaySettings>,
+) -> io::Result<()> {
+    let copy = folder.join(BEFORE_IMPORT);
+    let written = folder.join(format!("{BEFORE_IMPORT}.new"));
+    if written.exists() {
+        fs::remove_dir_all(&written)?;
+    }
+    fs::create_dir_all(&written)?;
+    fs::write(
+        written.join(settings::FILE_NAME),
+        serde_json::to_string_pretty(settings)?,
+    )?;
+    fs::write(
+        written.join(custom_pages::FILE_NAME),
+        serde_json::to_string_pretty(pages)?,
+    )?;
+    fs::write(written.join(macros::FILE_NAME), serde_json::to_string_pretty(macros)?)?;
+    if let Some(display) = display {
+        fs::write(written.join(DISPLAY_FILE), serde_json::to_string_pretty(&display)?)?;
+    }
+    if copy.exists() {
+        fs::remove_dir_all(&copy)?;
+    }
+    fs::rename(&written, &copy)
+}
+
+/// The copy, read with the app's own rules; none if a file of it cannot be read, rather than putting back less
+pub fn before_import(folder: &Path) -> Option<Before> {
+    let copy = folder.join(BEFORE_IMPORT);
+    let read = |name: &str| fs::read_to_string(copy.join(name)).ok();
+    let settings = settings::read(&read(settings::FILE_NAME)?).ok()?.checked();
+    let pages = serde_json::from_str(&read(custom_pages::FILE_NAME)?).ok()?;
+    let macros = serde_json::from_str(&read(macros::FILE_NAME)?).ok()?;
+    let display = read(DISPLAY_FILE).and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    Some(Before {
+        settings,
+        pages: custom_pages::from_values(pages).0,
+        macros: macros::from_values(macros).0,
+        display: display.as_ref().map(display_settings),
+    })
+}
+
+pub fn has_before_import_in(folder: &Path) -> bool {
+    folder.join(BEFORE_IMPORT).join(settings::FILE_NAME).exists()
+}
+
+fn write_atomically(path: &Path, text: &str) -> io::Result<()> {
+    let mut written = path.as_os_str().to_owned();
+    written.push(".new");
+    fs::write(&written, text)?;
+    fs::rename(&written, path).inspect_err(|_| {
+        let _ = fs::remove_file(&written);
+    })
+}
+
+/// A file read and checked; the error is the key of the window's sentence
+pub fn read_file(path: &Path) -> Result<Checked, String> {
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .and_then(|file| file.take(MAX_BYTES as u64 + 1).read_to_end(&mut bytes))
+        .map_err(|_| "cannotRead".to_string())?;
+    check(&bytes).map_err(|refused| {
+        match refused {
+            Refused::TooBig => "tooBig",
+            Refused::NotJson => "notJson",
+            Refused::NotDrezimo => "notDrezimo",
+            Refused::Newer => "newer",
+        }
+        .to_string()
+    })
+}
+
+/// A file checked, until the user imports it or not
+#[derive(Default)]
+pub struct ImportState(Mutex<Option<Checked>>);
+
+impl ImportState {
+    fn keep(&self, checked: Checked) {
+        *self.0.lock().unwrap() = Some(checked);
+    }
+
+    fn take(&self) -> Result<Checked, String> {
+        self.0
+            .lock()
+            .unwrap()
+            .take()
+            .ok_or_else(|| "nothingToImport".to_string())
+    }
+}
+
+/// What the confirmation shows of a file that passed the checks
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreview {
+    exported_at: String,
+    app_version: String,
+    settings: bool,
+    pages: Option<usize>,
+    macros: Option<usize>,
+    display: bool,
+    dropped: Dropped,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    cut: usize,
+    /// Display settings to put on Drezimo while it is not connected
+    display_skipped: bool,
+}
+
+fn config_folder(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().app_config_dir().map_err(|_| "cannotWrite".to_string())
+}
+
+/// The file's name only, for the error list: its folder may hold the user's name
+fn logged(action: &str, path: &Path, error: impl Display) {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    crate::errors::log(format!("cannot {action} the configuration {name}: {error}"));
+}
+
+#[tauri::command]
+pub fn export_configuration(app: AppHandle, path: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    let text = export(
+        &app.state::<SettingsState>().get(),
+        &app.state::<CustomPagesState>().get(),
+        &app.state::<MacrosState>().get(),
+        device::display_settings(&app),
+        &app.package_info().version.to_string(),
+        Local::now(),
+    );
+    write_atomically(&path, &text).map_err(|error| {
+        logged("export", &path, error);
+        "cannotWrite".to_string()
+    })
+}
+
+#[tauri::command]
+pub fn check_import(state: State<ImportState>, path: String) -> Result<ImportPreview, String> {
+    let path = PathBuf::from(path);
+    // A file that fails leaves no older one to import
+    let _ = state.take();
+    let checked = read_file(&path).inspect_err(|key| logged("import", &path, key))?;
+    let preview = ImportPreview {
+        exported_at: checked.exported_at.clone(),
+        app_version: checked.app_version.clone(),
+        settings: checked.settings.is_some(),
+        pages: checked.pages.as_ref().map(Vec::len),
+        macros: checked.macros.as_ref().map(Vec::len),
+        display: checked.display.is_some(),
+        dropped: checked.dropped,
+    };
+    state.keep(checked);
+    Ok(preview)
+}
+
+#[tauri::command]
+pub fn cancel_import(state: State<ImportState>) {
+    let _ = state.take();
+}
+
+/// The parts chosen, after a copy of what the app has now; the error is the key of the window's sentence
+#[tauri::command]
+pub fn apply_import(app: AppHandle, state: State<ImportState>, parts: Parts) -> Result<ImportResult, String> {
+    let checked = state.take()?;
+    let folder = config_folder(&app)?;
+    let settings = app.state::<SettingsState>().get();
+    let pages = app.state::<CustomPagesState>().get();
+    let macros = app.state::<MacrosState>().get();
+    let display = device::display_settings(&app);
+    keep_before_import(&folder, &settings, &pages, &macros, display).map_err(|error| {
+        logged("keep a copy before importing", &folder, error);
+        "cannotWrite".to_string()
+    })?;
+    let merged = merge(&checked, parts, (&settings, &pages, &macros));
+    put(&app, merged.settings, merged.pages, merged.macros)?;
+    Ok(ImportResult {
+        cut: merged.cut,
+        display_skipped: !put_display(&app, merged.display),
+    })
+}
+
+#[tauri::command]
+pub fn has_before_import(app: AppHandle) -> bool {
+    config_folder(&app).is_ok_and(|folder| self::has_before_import_in(&folder))
+}
+
+/// The copy made before the last import, in place of what the import brought; the PC's own settings stay
+#[tauri::command]
+pub fn restore_before_import(app: AppHandle) -> Result<ImportResult, String> {
+    let folder = config_folder(&app)?;
+    let before = before_import(&folder).ok_or_else(|| {
+        logged("restore", &folder, "the copy cannot be read");
+        "cannotRestore".to_string()
+    })?;
+    let settings = SharedSettings::of(&before.settings).onto(app.state::<SettingsState>().get());
+    put(&app, settings, before.pages, before.macros)?;
+    Ok(ImportResult {
+        cut: 0,
+        display_skipped: !put_display(&app, before.display),
+    })
+}
+
+/// Macros first, so that the pages and the knob never point to one not there yet
+fn put(app: &AppHandle, settings: Settings, pages: Vec<CustomPage>, macros: Vec<Macro>) -> Result<(), String> {
+    let cannot_write = |_| "cannotWrite".to_string();
+    macros::apply(app, macros).map_err(cannot_write)?;
+    custom_pages::apply(app, pages).map_err(cannot_write)?;
+    settings::apply(app, settings).map_err(cannot_write)?;
+    Ok(())
+}
+
+/// False when there are display settings for a Drezimo that is not connected
+fn put_display(app: &AppHandle, display: Option<DisplaySettings>) -> bool {
+    let Some(display) = display else { return true };
+    if device::display_settings(app).is_none() {
+        return false;
+    }
+    device::apply_display_settings(app, display);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,5 +823,73 @@ mod tests {
             },
             "a macro still there"
         );
+    }
+
+    fn folder(name: &str) -> std::path::PathBuf {
+        let folder = std::env::temp_dir().join(format!("drezimo-backup-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&folder);
+        fs::create_dir_all(&folder).unwrap();
+        folder
+    }
+
+    #[test]
+    fn the_before_import_copy_restores_every_file() {
+        let folder = folder("copy");
+        assert!(!has_before_import_in(&folder));
+        let pages = vec![page("page-1", Vec::new())];
+        let macros = vec![item("macro-1", vec![Step::StopSounds])];
+        keep_before_import(&folder, &settings(), &pages, &macros, Some(DISPLAY)).unwrap();
+        assert!(has_before_import_in(&folder));
+        let before = before_import(&folder).unwrap();
+        assert_eq!(
+            before,
+            Before {
+                settings: settings(),
+                pages,
+                macros,
+                display: Some(DISPLAY)
+            }
+        );
+
+        // The next import keeps what was there then, without Drezimo connected
+        keep_before_import(&folder, &Settings::default(), &[], &[], None).unwrap();
+        let before = before_import(&folder).unwrap();
+        assert_eq!((before.pages.len(), before.display), (0, None));
+        fs::remove_dir_all(&folder).unwrap();
+    }
+
+    #[test]
+    fn a_failed_check_writes_nothing() {
+        let folder = folder("failed");
+        let big = folder.join("big.json");
+        fs::write(&big, vec![b' '; MAX_BYTES + 10]).unwrap();
+        assert_eq!(read_file(&big).unwrap_err(), "tooBig");
+        assert_eq!(read_file(&folder.join("gone.json")).unwrap_err(), "cannotRead");
+        let notes = folder.join("notes.json");
+        fs::write(&notes, "{\"drezimo\": \"configuration\", \"format\": 9}").unwrap();
+        assert_eq!(read_file(&notes).unwrap_err(), "newer");
+        assert_eq!(fs::read_dir(&folder).unwrap().count(), 2, "nothing written beside them");
+        fs::remove_dir_all(&folder).unwrap();
+    }
+
+    #[test]
+    fn apply_without_a_check_is_refused() {
+        let state = ImportState::default();
+        assert_eq!(state.take().unwrap_err(), "nothingToImport");
+        let content = json!({"drezimo": "configuration", "format": 1, "macros": []});
+        state.keep(check(&file(content)).unwrap());
+        assert!(state.take().is_ok());
+        assert_eq!(state.take().unwrap_err(), "nothingToImport", "once");
+    }
+
+    #[test]
+    fn an_export_replaces_the_file_whole() {
+        let folder = folder("export");
+        let path = folder.join("drezimo-configuration.json");
+        fs::write(&path, "an older one, longer than the new one").unwrap();
+        write_atomically(&path, "{}").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+        assert_eq!(fs::read_dir(&folder).unwrap().count(), 1, "nothing left beside it");
+        fs::remove_dir_all(&folder).unwrap();
     }
 }

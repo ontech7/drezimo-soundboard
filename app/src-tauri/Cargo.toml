@@ -19,6 +19,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 # Published builds update themselves
 tauri-plugin-updater = "2"
+# The system's own save and open dialogs, for the configuration file
+tauri-plugin-dialog = "2"
 # Voicemod's log has local times
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }

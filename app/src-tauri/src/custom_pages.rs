@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-const FILE_NAME: &str = "pages.json";
+pub const FILE_NAME: &str = "pages.json";
 /// Before every id the editor makes, so a page never takes a soundboard's id, nor the Favourites' or the Voices'
 pub const ID_PREFIX: &str = "page-";
 const PADS: usize = PAD_COUNT as usize;
@@ -296,11 +296,16 @@ pub fn custom_pages(state: State<CustomPagesState>) -> Vec<CustomPage> {
 
 #[tauri::command]
 pub fn set_custom_pages(app: AppHandle, pages: Vec<CustomPage>) -> Result<Vec<CustomPage>, String> {
+    apply(&app, pages)
+}
+
+/// The pages in use at once, everywhere, then saved
+pub fn apply(app: &AppHandle, pages: Vec<CustomPage>) -> Result<Vec<CustomPage>, String> {
     let pages = checked(pages);
     app.state::<CustomPagesState>().0.lock().unwrap().clone_from(&pages);
-    crate::device::apply_custom_pages(&app, pages.clone());
+    crate::device::apply_custom_pages(app, pages.clone());
     let _ = app.emit("custom-pages", &pages);
-    save(&app, &pages).inspect_err(|error| crate::errors::log(format!("cannot save the pages: {error}")))?;
+    save(app, &pages).inspect_err(|error| crate::errors::log(format!("cannot save the pages: {error}")))?;
     Ok(pages)
 }
 
