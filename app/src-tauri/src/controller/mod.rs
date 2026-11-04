@@ -378,7 +378,10 @@ impl Controller {
             VoicemodEvent::Background(on) => self.switches.background = on,
             VoicemodEvent::SingleSoundStop(there) => self.single_stop = there,
             // Only for the window (src/pictures.rs) and the status
-            VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
+            VoicemodEvent::Picture { .. }
+            | VoicemodEvent::Version(_)
+            | VoicemodEvent::MixerGain { .. }
+            | VoicemodEvent::SoundVolumes(_) => {}
         }
     }
 

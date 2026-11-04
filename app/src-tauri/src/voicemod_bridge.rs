@@ -1,8 +1,9 @@
 //! Voicemod's own bridge between its window and its engine: a WebSocket on this computer, on a port that changes at
-//! each start of Voicemod, outside the Control API and undocumented. The app uses it only to stop a single sound, which
-//! the Control API cannot do; while it is not found, a pad falls back to stopping every sound (docs/project.md,
-//! section 8).
+//! each start of Voicemod, outside the Control API and undocumented. The app uses it for what the Control API cannot
+//! do: stop a single sound, and read and set the mixer's and a playing sound's volumes. While it is not found, a pad
+//! falls back to stopping every sound and the volumes do nothing (docs/project.md, section 8).
 
+use crate::mixer::Channel;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -39,6 +40,16 @@ enum Job {
     },
     /// A key-down went to the sound: Voicemod loads it, and a stop that came too early for it no longer stands
     Pressed(String),
+    SetGain {
+        channel: Channel,
+        gain: f32,
+    },
+    SetSoundVolume {
+        sound: String,
+        volume: f32,
+    },
+    /// The sounds' saved volumes again, as after Voicemod's soundboards changed
+    ReadSounds,
 }
 
 #[derive(Clone)]
@@ -48,11 +59,11 @@ pub struct Bridge {
 }
 
 impl Bridge {
-    /// Looks for the bridge in the background, again whenever it goes away; `on_found` tells whether it is there.
-    pub fn start(on_found: impl Fn(bool) + Send + 'static) -> Self {
+    /// Looks for the bridge in the background, again whenever it goes away, and tells what it learns.
+    pub fn start(on_event: impl Fn(BridgeEvent) + Send + Sync + 'static) -> Self {
         let (jobs, received) = mpsc::unbounded_channel();
         let connected = Arc::new(AtomicBool::new(false));
-        tauri::async_runtime::spawn(keep_connected(received, connected.clone(), on_found));
+        tauri::async_runtime::spawn(keep_connected(received, connected.clone(), on_event));
         Self { jobs, connected }
     }
 
@@ -78,13 +89,38 @@ impl Bridge {
     }
 
     pub fn pressed(&self, sound: &str) {
+        self.send(Job::Pressed(sound.to_string()));
+    }
+
+    pub fn set_gain(&self, channel: Channel, gain: f32) {
+        self.send(Job::SetGain { channel, gain });
+    }
+
+    /// For the play under way only: Voicemod keeps the sound's saved volume
+    pub fn set_sound_volume(&self, sound: &str, volume: f32) {
+        self.send(Job::SetSoundVolume {
+            sound: sound.to_string(),
+            volume,
+        });
+    }
+
+    pub fn read_sounds(&self) {
+        self.send(Job::ReadSounds);
+    }
+
+    /// Dropped while the bridge is not there
+    fn send(&self, job: Job) {
         if self.connected.load(Ordering::Relaxed) {
-            let _ = self.jobs.send(Job::Pressed(sound.to_string()));
+            let _ = self.jobs.send(job);
         }
     }
 }
 
-async fn keep_connected(mut jobs: mpsc::UnboundedReceiver<Job>, connected: Arc<AtomicBool>, on_found: impl Fn(bool)) {
+async fn keep_connected(
+    mut jobs: mpsc::UnboundedReceiver<Job>,
+    connected: Arc<AtomicBool>,
+    on_event: impl Fn(BridgeEvent),
+) {
     let mut refused = Refused::new();
     // Until the link to Voicemod ends, as in a build without a client key
     while !jobs.is_closed() {
@@ -92,12 +128,12 @@ async fn keep_connected(mut jobs: mpsc::UnboundedReceiver<Job>, connected: Arc<A
             // Asked while it was away: stale
             while jobs.try_recv().is_ok() {}
             connected.store(true, Ordering::Relaxed);
-            on_found(true);
-            let result = serve(socket, &mut jobs).await;
+            on_event(BridgeEvent::Found(true));
+            let result = serve(socket, &mut jobs, &on_event).await;
             connected.store(false, Ordering::Relaxed);
             // Their callers fall back to stopping every sound
             while jobs.try_recv().is_ok() {}
-            on_found(false);
+            on_event(BridgeEvent::Found(false));
             match result {
                 Ok(()) => return,
                 Err(error) => crate::errors::log(format!("lost Voicemod's bridge: {error}")),
@@ -116,16 +152,30 @@ struct Stopping {
 }
 
 /// Until the jobs end, or the bridge fails.
-async fn serve(mut socket: Socket, jobs: &mut mpsc::UnboundedReceiver<Job>) -> Result<(), tungstenite::Error> {
+async fn serve(
+    mut socket: Socket,
+    jobs: &mut mpsc::UnboundedReceiver<Job>,
+    on_event: &impl Fn(BridgeEvent),
+) -> Result<(), tungstenite::Error> {
     let mut stops = Stops::default();
+    // Values from before this connection may be gone, as after Voicemod restarted
+    for channel in Channel::ALL {
+        socket.send(gain_request(&stops.next_id(), channel)).await?;
+    }
+    socket.send(resources_request(&stops.next_id())).await?;
     loop {
         tokio::select! {
-            message = socket.next() => match message {
-                Some(Ok(Message::Text(text))) => {
-                    if let Some(sound) = stops.read(&text) {
-                        stops.send(&mut socket, sound, None).await?;
+            incoming = socket.next() => match incoming {
+                Some(Ok(Message::Text(text))) => match message(&text) {
+                    Some(BridgeMessage::Gain { channel, gain, ours }) => on_event(BridgeEvent::Gain { channel, gain, ours }),
+                    Some(BridgeMessage::SoundVolumes(volumes)) => on_event(BridgeEvent::SoundVolumes(volumes)),
+                    Some(other) => {
+                        if let Some(sound) = stops.read(other) {
+                            stops.send(&mut socket, sound, None).await?;
+                        }
                     }
-                }
+                    None => {}
+                },
                 Some(Ok(_)) => {}
                 Some(Err(error)) => return Err(error),
                 None => return Err(tungstenite::Error::ConnectionClosed),
@@ -133,6 +183,13 @@ async fn serve(mut socket: Socket, jobs: &mut mpsc::UnboundedReceiver<Job>) -> R
             job = jobs.recv() => match job {
                 Some(Job::Stop { sound, done }) => stops.send(&mut socket, sound, Some(done)).await?,
                 Some(Job::Pressed(sound)) => stops.pressed(sound),
+                Some(Job::SetGain { channel, gain }) => {
+                    socket.send(set_gain_request(&stops.next_id(), channel, gain)).await?;
+                }
+                Some(Job::SetSoundVolume { sound, volume }) => {
+                    socket.send(sound_volume_request(&stops.next_id(), &sound, volume)).await?;
+                }
+                Some(Job::ReadSounds) => socket.send(resources_request(&stops.next_id())).await?,
                 None => return Ok(()),
             },
         }
@@ -157,8 +214,7 @@ impl Stops {
         sound: String,
         done: Option<oneshot::Sender<()>>,
     ) -> Result<(), tungstenite::Error> {
-        self.next_id += 1;
-        let message_id = format!("drezimo-{}", self.next_id);
+        let message_id = self.next_id();
         socket.send(stop_request(&message_id, &sound)).await?;
         // Those Voicemod never answered
         self.waiting
@@ -172,14 +228,20 @@ impl Stops {
         Ok(())
     }
 
+    /// The id of the next message sent: Voicemod's answers carry it
+    fn next_id(&mut self) -> String {
+        self.next_id += 1;
+        format!("{OUR_IDS}{}", self.next_id)
+    }
+
     fn pressed(&mut self, sound: String) {
         self.once_started.remove(&sound);
         self.loading.insert(sound);
     }
 
-    /// Follows what the bridge tells; returns a sound to stop again, now that it started.
-    fn read(&mut self, text: &str) -> Option<String> {
-        match message(text)? {
+    /// Follows what the bridge tells about sounds; returns a sound to stop again, now that it started.
+    fn read(&mut self, message: BridgeMessage) -> Option<String> {
+        match message {
             BridgeMessage::StopAnswer { message_id, stopped } => {
                 let stopping = self.waiting.remove(&message_id)?;
                 if !stopped && self.loading.contains(&stopping.sound) {
@@ -191,6 +253,7 @@ impl Stops {
                 }
                 None
             }
+            BridgeMessage::Gain { .. } | BridgeMessage::SoundVolumes(_) => None,
             BridgeMessage::SoundState { sound, state } => {
                 if !matches!(state.as_str(), "created" | "ready") {
                     self.loading.remove(&sound);
@@ -205,14 +268,55 @@ impl Stops {
     }
 }
 
-fn stop_request(message_id: &str, sound: &str) -> Message {
+/// What starts the ids of the app's messages, which Voicemod's answers and broadcasts carry
+const OUR_IDS: &str = "drezimo-";
+
+/// `kind`: "appMessage", for Voicemod's window, or "busMessage", for its engine
+fn request(message_id: &str, kind: &str, command: &str, object: Value) -> Message {
     let request = json!({
         "bridgeData": {
-            "data": { "id": message_id, "object": { "id": sound }, "type": "stopSound" },
-            "type": "appMessage",
+            "data": { "id": message_id, "object": object, "type": command },
+            "type": kind,
         }
     });
     Message::text(request.to_string())
+}
+
+fn stop_request(message_id: &str, sound: &str) -> Message {
+    request(message_id, "appMessage", "stopSound", json!({ "id": sound }))
+}
+
+fn gain_request(message_id: &str, channel: Channel) -> Message {
+    let object = json!({ "controlType": channel.control_type() });
+    request(message_id, "appMessage", "GetVolumeGain", object)
+}
+
+fn set_gain_request(message_id: &str, channel: Channel, gain: f32) -> Message {
+    let object = json!({ "controlType": channel.control_type(), "value": gain });
+    request(message_id, "appMessage", "SetVolumeGain", object)
+}
+
+fn sound_volume_request(message_id: &str, sound: &str, volume: f32) -> Message {
+    request(
+        message_id,
+        "busMessage",
+        "updateSoundVolume",
+        json!({ "id": sound, "volume": volume }),
+    )
+}
+
+/// Every resource of Voicemod's, with its options: about 2 MB
+fn resources_request(message_id: &str) -> Message {
+    request(message_id, "appMessage", "GetAllResources", json!({}))
+}
+
+pub enum BridgeEvent {
+    /// Whether the bridge is there
+    Found(bool),
+    /// A mixer channel's gain. `ours`: the app's own change coming back
+    Gain { channel: Channel, gain: f32, ours: bool },
+    /// Each sound's volume saved in Voicemod, 0 to 1
+    SoundVolumes(HashMap<String, f32>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -226,6 +330,12 @@ enum BridgeMessage {
         sound: String,
         state: String,
     },
+    Gain {
+        channel: Channel,
+        gain: f32,
+        ours: bool,
+    },
+    SoundVolumes(HashMap<String, f32>),
 }
 
 fn message(text: &str) -> Option<BridgeMessage> {
@@ -240,8 +350,30 @@ fn message(text: &str) -> Option<BridgeMessage> {
             sound: object["id"].as_str()?.to_string(),
             state: object["state"].as_str()?.to_string(),
         }),
+        command @ ("GetVolumeGain" | "SetVolumeGain") => Some(BridgeMessage::Gain {
+            channel: Channel::from_control_type(object["controlType"].as_str()?)?,
+            gain: object["value"].as_f64()? as f32,
+            // An answer to a read is Voicemod's own value, whoever asked
+            ours: command == "SetVolumeGain"
+                && object["frontendMessageId"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with(OUR_IDS)),
+        }),
+        "GetAllResources" => Some(BridgeMessage::SoundVolumes(sound_volumes(object))),
         _ => None,
     }
+}
+
+fn sound_volumes(resources: &Value) -> HashMap<String, f32> {
+    let collections = resources["collections"].as_array().into_iter().flatten();
+    collections
+        .flat_map(|collection| collection["resources"].as_array().into_iter().flatten())
+        .filter(|resource| resource["type"] == "sound")
+        .filter_map(|resource| {
+            let volume = resource["options"]["volume"].as_f64()?;
+            Some((resource["id"].as_str()?.to_string(), volume as f32))
+        })
+        .collect()
 }
 
 /// What a message of the bridge carries
@@ -488,6 +620,10 @@ mod tests {
         )
     }
 
+    fn read(stops: &mut Stops, text: &str) -> Option<String> {
+        stops.read(message(text)?)
+    }
+
     fn waiting(stops: &mut Stops, message_id: &str, sound: &str) -> oneshot::Receiver<()> {
         let (done, answered) = oneshot::channel();
         let stopping = Stopping {
@@ -534,11 +670,11 @@ mod tests {
         let mut stops = Stops::default();
         let mut first = waiting(&mut stops, "drezimo-1", "a");
         let mut second = waiting(&mut stops, "drezimo-2", "b");
-        assert_eq!(stops.read(&answer("drezimo-2", false)), None);
+        assert_eq!(read(&mut stops, &answer("drezimo-2", false)), None);
         assert!(second.try_recv().is_ok());
         assert!(first.try_recv().is_err(), "still waiting");
         assert_eq!(
-            stops.read(&answer("drezimo-probe", true)),
+            read(&mut stops, &answer("drezimo-probe", true)),
             None,
             "the one that found the bridge"
         );
@@ -551,31 +687,31 @@ mod tests {
         stops.pressed("b".into());
         waiting(&mut stops, "drezimo-1", "a");
         waiting(&mut stops, "drezimo-2", "b");
-        stops.read(&answer("drezimo-1", true));
-        stops.read(&answer("drezimo-2", true));
-        assert_eq!(stops.read(&state("a", "created")), None);
-        assert_eq!(stops.read(&state("a", "playing")).as_deref(), Some("a"));
-        assert_eq!(stops.read(&state("b", "playing")).as_deref(), Some("b"));
-        assert_eq!(stops.read(&state("a", "playing")), None, "once");
+        read(&mut stops, &answer("drezimo-1", true));
+        read(&mut stops, &answer("drezimo-2", true));
+        assert_eq!(read(&mut stops, &state("a", "created")), None);
+        assert_eq!(read(&mut stops, &state("a", "playing")).as_deref(), Some("a"));
+        assert_eq!(read(&mut stops, &state("b", "playing")).as_deref(), Some("b"));
+        assert_eq!(read(&mut stops, &state("a", "playing")), None, "once");
 
         // Pressed again meanwhile: that press is what the user wants
         stops.pressed("c".into());
         waiting(&mut stops, "drezimo-3", "c");
-        stops.read(&answer("drezimo-3", true));
+        read(&mut stops, &answer("drezimo-3", true));
         stops.pressed("c".into());
-        assert_eq!(stops.read(&state("c", "playing")), None);
+        assert_eq!(read(&mut stops, &state("c", "playing")), None);
     }
 
     #[test]
     fn a_sound_that_already_ended_is_not_stopped_later() {
         let mut stops = Stops::default();
         stops.pressed("a".into());
-        stops.read(&state("a", "playing"));
-        stops.read(&state("a", "finished"));
+        read(&mut stops, &state("a", "playing"));
+        read(&mut stops, &state("a", "finished"));
         waiting(&mut stops, "drezimo-1", "a");
-        stops.read(&answer("drezimo-1", true));
+        read(&mut stops, &answer("drezimo-1", true));
         // Started again from Voicemod's own window
-        assert_eq!(stops.read(&state("a", "playing")), None);
+        assert_eq!(read(&mut stops, &state("a", "playing")), None);
     }
 
     #[test]
@@ -644,6 +780,112 @@ mod tests {
 
             let other = server(vec![Message::text(r#"{"actionType": "playMeme"}"#)], false).await;
             assert!(!is_bridge_at(other).await, "another program's messages");
+        });
+    }
+
+    fn gain_message(command: &str, control_type: &str, message_id: &str, value: f32) -> String {
+        format!(
+            r#"{{"bridgeData":{{"data":{{"id":"","object":{{"controlType":"{control_type}","frontendMessageId":"{message_id}",
+            "sourceTrigger":"UI","value":{value}}},"type":"{command}"}},"type":"appMessage"}}}}"#
+        )
+    }
+
+    #[test]
+    fn reads_gains_and_tells_ours_apart() {
+        let gain = |channel, gain, ours| Some(BridgeMessage::Gain { channel, gain, ours });
+        let monitor = gain_message("GetVolumeGain", "monitor", "probe-3", 0.3025);
+        assert_eq!(message(&monitor), None, "not a channel of the knob's");
+        let read = gain_message("GetVolumeGain", "input", "drezimo-2", 1.5);
+        assert_eq!(
+            message(&read),
+            gain(Channel::Microphone, 1.5, false),
+            "Voicemod's own value, asked by the app"
+        );
+        let ours = gain_message("SetVolumeGain", "streamingSoundboardPreMix", "drezimo-4", 0.25);
+        assert_eq!(message(&ours), gain(Channel::SoundboardForOthers, 0.25, true));
+        let theirs = gain_message("SetVolumeGain", "monitorSoundboardPreMix", "3f1c9a", 0.5);
+        assert_eq!(
+            message(&theirs),
+            gain(Channel::SoundboardForMe, 0.5, false),
+            "Voicemod's own slider"
+        );
+        let no_value = gain_message("SetVolumeGain", "input", "3f1c9a", 1.0).replace(r#""value":1"#, r#""value":"x""#);
+        assert_eq!(message(&no_value), None);
+    }
+
+    #[test]
+    fn reads_every_sounds_saved_volume() {
+        let resources = r#"{"bridgeData":{"data":{"id":"","object":{"collections":[
+            {"id":"c1","type":"soundboard","resources":[
+                {"id":"s1","type":"sound","name":"Honk","options":{"volume":0.5,"loop":false}},
+                {"id":"v1","type":"voice","name":"Robot"},
+                {"id":"s2","type":"sound","name":"Fart"}]},
+            {"id":"c2","type":"soundboard","resources":[
+                {"id":"s3","type":"sound","options":{"volume":1}},
+                {"id":"s4","type":"sound","options":{"volume":"loud"}}]},
+            {"id":"c3"}]},"type":"GetAllResources"},"type":"appMessage"}}"#;
+        let volumes = HashMap::from([("s1".to_string(), 0.5), ("s3".to_string(), 1.0)]);
+        assert_eq!(message(resources), Some(BridgeMessage::SoundVolumes(volumes)));
+    }
+
+    #[test]
+    fn builds_the_volume_messages() {
+        let text = |message: Message| serde_json::from_str::<Value>(message.to_text().unwrap()).unwrap();
+        assert_eq!(
+            text(set_gain_request("drezimo-1", Channel::Microphone, 1.5)),
+            json!({"bridgeData": {"type": "appMessage", "data": {"id": "drezimo-1", "type": "SetVolumeGain",
+                "object": {"controlType": "input", "value": 1.5}}}})
+        );
+        let volume = text(sound_volume_request("drezimo-2", "s1", 0.35));
+        assert_eq!(volume["bridgeData"]["type"], "busMessage");
+        assert_eq!(volume["bridgeData"]["data"]["type"], "updateSoundVolume");
+        assert_eq!(volume["bridgeData"]["data"]["object"]["id"], "s1");
+        assert!((volume["bridgeData"]["data"]["object"]["volume"].as_f64().unwrap() - 0.35).abs() < 1e-6);
+    }
+
+    /// A WebSocket for clients on this computer that passes on every text it receives
+    async fn recording_server() -> (u16, mpsc::UnboundedReceiver<Value>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (heard, received) = mpsc::unbounded_channel();
+        tauri::async_runtime::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+                while let Some(Ok(Message::Text(text))) = socket.next().await {
+                    let _ = heard.send(serde_json::from_str::<Value>(&text).unwrap());
+                }
+            }
+        });
+        (port, received)
+    }
+
+    #[test]
+    fn gains_are_read_again_on_each_connection() {
+        tauri::async_runtime::block_on(async {
+            let (port, mut received) = recording_server().await;
+            for _ in 0..2 {
+                let url = format!("ws://127.0.0.1:{port}/");
+                let (socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+                let (jobs, mut pending) = mpsc::unbounded_channel();
+                let serving = tauri::async_runtime::spawn(async move { serve(socket, &mut pending, &|_| {}).await });
+                let mut asked = Vec::new();
+                for _ in 0..4 {
+                    let request = timeout(ANSWER_TIME, received.recv()).await.unwrap().unwrap();
+                    let data = &request["bridgeData"]["data"];
+                    asked.push((
+                        data["type"].as_str().unwrap().to_string(),
+                        data["object"]["controlType"].clone(),
+                    ));
+                }
+                let read_gains: Vec<_> = Channel::ALL
+                    .iter()
+                    .map(|channel| ("GetVolumeGain".to_string(), json!(channel.control_type())))
+                    .collect();
+                assert_eq!(asked[..3], read_gains);
+                assert_eq!(asked[3].0, "GetAllResources");
+                drop(jobs);
+                assert!(serving.await.unwrap().is_ok());
+            }
         });
     }
 
