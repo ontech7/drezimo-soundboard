@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
 import { useTexts } from "../i18n";
-import { BRIDGE_ACTIONS } from "../KnobControls";
+import { BRIDGE_ACTIONS, goneTarget } from "../KnobControls";
 import type { Macro } from "../macros";
 import { describe } from "../pages/MacrosPage";
 import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
@@ -49,11 +49,18 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
     ? {
         name: chosenMacro.name,
         steps: chosenMacro.steps.slice(0, 4).map((step) => describe(step, texts, library, targets).title),
+        again: chosenMacro.again,
       }
     : null;
   const pageName = press?.action === "page" ? (targets.find((page) => page.id === press.page)?.name ?? null) : null;
   let sentence = shown.kind === "turn" ? words.sentences.turn[shown.action] : words.sentences.press[shown.action];
-  if (story.borrowed) sentence = words.borrowed[gesture === "doubleTap" ? "doubleTap" : "longPress"](name);
+  if (story.borrowed && gesture === "longPress") sentence = words.borrowed.longPress(name);
+  // Two taps: the second one picks the menu's page, or stops or restarts the macro the first one started
+  else if (story.borrowed && shown.action === "menu") sentence = words.borrowed.menu;
+  else if (story.borrowed && shown.action === "macro") sentence = words.borrowed.macro[macro?.again ?? "stop"];
+  else if (story.borrowed) sentence = words.borrowed.doubleTap(name);
+  const gone = press ? goneTarget(press, macros, targets, library, texts) : undefined;
+  const bridgeMissing = !bridge && BRIDGE_ACTIONS.has(story.action) ? texts.knobTab.bridgeMissing : undefined;
   const [pose, setPose] = useState<KnobPose>(KNOB_AT_REST);
   const [caption, setCaption] = useState<GestureCaption>("still");
   const [beats, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
@@ -97,11 +104,12 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
           words={words}
           macro={macro}
           pageName={pageName}
+          released={gesture === "holdTurn" && !pose.held}
         />
       }
       fired={fired}
       sentence={sentence}
-      note={!bridge && BRIDGE_ACTIONS.has(story.action) ? texts.knobTab.bridgeMissing : undefined}
+      note={gone ?? bridgeMissing}
       choiceLabel={words.does}
       repeats={words.repeats}
       closeLabel={texts.close}

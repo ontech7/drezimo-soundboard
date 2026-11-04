@@ -26,10 +26,6 @@ export function held(lane: Lane, now: number, state: Lane["state"]): Lane {
   return { ...lane, played: position(lane, now), since: now, state };
 }
 
-export function remaining(lane: Lane, now: number): number {
-  return lane.length - position(lane, now);
-}
-
 const BARS = 40;
 
 function heights(name: string): number[] {
@@ -46,6 +42,11 @@ export function SoundLanes({ lanes }: { lanes: Lane[] }) {
   const moving = lanes.some((lane) => lane.state === "playing" && position(lane, now) < lane.length);
   useEffect(() => {
     if (!moving) return;
+    // With less motion asked for, the bars move a second at a time, as the seconds shown
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const timer = window.setInterval(() => setFrame((count) => count + 1), 1000);
+      return () => clearInterval(timer);
+    }
     let frame = requestAnimationFrame(function draw() {
       setFrame((count) => count + 1);
       frame = requestAnimationFrame(draw);

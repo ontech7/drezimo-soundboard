@@ -15,8 +15,10 @@ interface Props {
   name: string;
   beats: Beats;
   words: ExplainTexts;
-  macro: { name: string; steps: string[] } | null;
+  macro: { name: string; steps: string[]; again: "stop" | "restart" } | null;
   pageName: string | null;
+  /** A hold-turn's knob let go: what it showed while held goes */
+  released: boolean;
 }
 
 /** The right half of a knob explanation; mounted again for each loop */
@@ -37,7 +39,7 @@ export function ActionHalf(props: Props) {
         return half(acted ? words.onPage(pages[at]) : null, <Display words={words} pages={pages} at={at} />);
       }
       case "rows": {
-        const row = acted ? clamp(beats.sum - 1, 0, 5) : null;
+        const row = acted && !props.released ? clamp(beats.sum - 1, 0, 5) : null;
         return half(row === null ? null : words.onRow(row + 1), <Pads row={row} />);
       }
       case "soundboardForOthers":
@@ -56,8 +58,12 @@ export function ActionHalf(props: Props) {
   }
 
   switch (shown.action) {
-    case "menu":
-      return half(acted ? words.menuOpen : null, <Display words={words} pages={words.sample.pages} at={0} menu={acted} />);
+    case "menu": {
+      // A tap with the menu open picks the page it shows and closes it
+      const open = beats.count % 2 === 1;
+      const caption = acted ? (open ? words.menuOpen : words.menuPicked) : null;
+      return half(caption, <Display words={words} pages={words.sample.pages} at={0} menu={open} />);
+    }
     case "stopSounds":
       return half(acted ? words.allStopped : null, <StopAll words={words} stopped={acted} />);
     case "muteMic":
@@ -290,20 +296,23 @@ function RandomVoice({ name, beats, words }: Props) {
 function MacroSteps({ name, beats, words, macro }: Props) {
   const shown = macro && macro.steps.length > 0 ? macro : words.sample.macro;
   const steps = shown.steps.length;
+  // Pressed again while it runs, a macro stops or starts over, as it is set
+  const stopped = beats.count > 1 && (macro?.again ?? "stop") === "stop";
   const [step, setStep] = useState(-1);
   useEffect(() => {
-    if (beats.count === 0) return;
+    if (beats.count === 0 || stopped) return;
     const timers = Array.from({ length: steps + 1 }, (_, i) => window.setTimeout(() => setStep(i), i * 380));
     return () => timers.forEach((timer) => clearTimeout(timer));
-  }, [beats.count, steps]);
+  }, [beats.count, steps, stopped]);
   const done = step >= steps;
+  const caption = stopped ? words.macroStopped : done ? words.macroDone : null;
   return (
-    <Half caption={done ? words.macroDone : name} live={done}>
+    <Half caption={caption ?? name} live={caption !== null}>
       <div className="explain-steps">
         <h4>{shown.name}</h4>
         {shown.steps.map((label, i) => (
-          <p key={i} className={i < step ? "done" : i === step ? "running" : undefined}>
-            {label}
+          <p key={i} className={i < step ? "done" : i === step && !stopped ? "running" : undefined}>
+            <span>{label}</span>
           </p>
         ))}
       </div>

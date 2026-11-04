@@ -1,8 +1,8 @@
 import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Row, Section } from "./controls";
-import { pageTargets, useCustomPages, useLibrary } from "./customPages";
-import { useTexts } from "./i18n";
-import { useMacros } from "./macros";
+import { type Library, type PageTarget, pageTargets, useCustomPages, useLibrary } from "./customPages";
+import { type Texts, useTexts } from "./i18n";
+import { type Macro, useMacros } from "./macros";
 import { SearchSelect } from "./SearchSelect";
 import { type KnobSettings, type PressAction, type SettingsView, saveSettings, type TurnAction } from "./settings";
 import type { Status } from "./status";
@@ -37,6 +37,27 @@ export const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe",
 
 type TurnGesture = "turn" | "holdTurn";
 type PressGesture = "tap" | "doubleTap" | "longPress";
+
+/** Why a press's macro or page does nothing: it was deleted since */
+export function goneTarget(
+  choice: PressAction,
+  macros: Macro[] | null,
+  targets: PageTarget[],
+  library: Library | null,
+  texts: Texts
+): string | undefined {
+  if (choice.action === "macro") {
+    const missing = macros !== null && choice.macroId !== "" && !macros.some((item) => item.id === choice.macroId);
+    return missing ? texts.knobTab.macroGone : undefined;
+  }
+  if (choice.action === "page") {
+    // Before Voicemod sends its soundboards, no page is known to be gone
+    const loaded = (library?.soundboards.length ?? 0) > 0;
+    const missing = loaded && choice.page !== "" && !targets.some((page) => page.id === choice.page);
+    return missing ? texts.knobTab.pageGone : undefined;
+  }
+  return undefined;
+}
 
 const KnobExplainer = lazy(() => import("./explain/Explainer").then((module) => ({ default: module.KnobExplainer })));
 
@@ -87,11 +108,9 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
       else save(gesture, { action });
     };
     // A target deleted since: the select shows none, and the row says why
-    let gone: string | undefined;
+    const gone = goneTarget(choice, macros, targets, library, texts);
     let target = null;
     if (choice.action === "macro") {
-      const missing = macros !== null && choice.macroId !== "" && !macros.some((item) => item.id === choice.macroId);
-      if (missing) gone = knobTexts.macroGone;
       target = (
         <SearchSelect
           label={knobTexts.whichMacro}
@@ -105,10 +124,6 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
         />
       );
     } else if (choice.action === "page") {
-      // Before Voicemod sends its soundboards, no page is known to be gone
-      const loaded = (library?.soundboards.length ?? 0) > 0;
-      const missing = loaded && choice.page !== "" && !targets.some((page) => page.id === choice.page);
-      if (missing) gone = knobTexts.pageGone;
       target = (
         <SearchSelect
           label={texts.pageToOpen}

@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Dialog } from "../pages/PadPicker";
 
 interface Props {
@@ -20,12 +21,32 @@ interface Props {
 
 /** The dialog of a row's explanation: the gesture, what it does, a sentence and the row's choice */
 export function Stage(props: Props) {
+  const close = useRef(props.onClose);
+  useEffect(() => {
+    close.current = props.onClose;
+  });
+  // Hidden in the tray, the window may still run its timers (WebView2 is not told): the explanation goes
+  useEffect(() => {
+    const unlisten = listen("window-closed", () => close.current());
+    return () => {
+      unlisten.then((stop) => stop()).catch(() => {});
+    };
+  }, []);
+  // The arrow lights at each beat and fades, or only lights while the system asks for less motion
+  const [lit, setLit] = useState(false);
+  useEffect(() => {
+    if (!props.fired) return;
+    setLit(true);
+    const timer = window.setTimeout(() => setLit(false), 120);
+    return () => clearTimeout(timer);
+  }, [props.fired]);
+
   return (
     <Dialog label={props.title} title={props.title} subtitle={props.subtitle} className="explainer" onClose={props.onClose}>
       <div className="dialog-body">
         <div className="explain-stage" aria-hidden="true">
           {props.left}
-          <span key={`arrow ${props.fired}`} className={props.fired ? "explain-arrow fired" : "explain-arrow"}>
+          <span className={lit ? "explain-arrow lit" : "explain-arrow"}>
             <svg viewBox="0 0 16 16">
               <path d="M2 8h11M9 4l4 4-4 4" />
             </svg>

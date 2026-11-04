@@ -26,14 +26,23 @@ export interface ExplainTexts {
   /** What each action does, under the stage */
   sentences: { turn: Record<TurnAction["action"], string>; press: Record<PressAction["action"], string> };
   /** A double tap or a long press with no action of its own, and the tap's action they come to */
-  borrowed: { doubleTap: (action: string) => string; longPress: (action: string) => string };
+  borrowed: {
+    doubleTap: (action: string) => string;
+    longPress: (action: string) => string;
+    /** Two taps on the menu: the second one picks the page it shows */
+    menu: string;
+    /** Two taps on a macro: the second one stops it, or starts it over */
+    macro: { stop: string; restart: string };
+  };
   /** The right half's captions */
   onPage: (name: string) => string;
   onRow: (row: number) => string;
   onVoice: (name: string) => string;
   menuOpen: string;
+  menuPicked: string;
   allStopped: string;
   macroDone: string;
+  macroStopped: string;
   volumesBack: string;
   /** Drezimo's display */
   pageCounter: (page: number, pages: number) => string;
@@ -120,13 +129,21 @@ const ENGLISH: ExplainTexts = {
   borrowed: {
     doubleTap: (action) => `The double tap has no action of its own: it is two taps, so “${action}” happens twice.`,
     longPress: (action) => `The long press has no action of its own: it counts as a tap, so it does “${action}”.`,
+    menu: "The double tap has no action of its own: it is two taps. The first opens the menu, the second picks the page it shows and closes it.",
+    macro: {
+      stop: "The double tap has no action of its own: it is two taps. The first starts the macro, the second stops it.",
+      restart:
+        "The double tap has no action of its own: it is two taps. The first starts the macro, the second starts it over.",
+    },
   },
   onPage: (name) => `Page ${name}`,
   onRow: (row) => `Row ${row} of 6`,
   onVoice: (name) => `Voice ${name}`,
   menuOpen: "Menu open",
+  menuPicked: "Page picked, menu closed",
   allStopped: "All stopped",
   macroDone: "Macro done",
+  macroStopped: "Macro stopped",
   volumesBack: "Voicemod's volumes",
   pageCounter: (page, pages) => `PAGE ${page}/${pages}`,
   menuTitle: "SOUNDBOARDS",
@@ -234,13 +251,21 @@ const ITALIAN: ExplainTexts = {
   borrowed: {
     doubleTap: (action) => `Il doppio tocco non ha un'azione sua: sono due tocchi, quindi «${action}» succede due volte.`,
     longPress: (action) => `La pressione lunga non ha un'azione sua: conta come un tocco, quindi fa «${action}».`,
+    menu: "Il doppio tocco non ha un'azione sua: sono due tocchi. Il primo apre il menu, il secondo sceglie la pagina evidenziata e lo chiude.",
+    macro: {
+      stop: "Il doppio tocco non ha un'azione sua: sono due tocchi. Il primo avvia la macro, il secondo la ferma.",
+      restart:
+        "Il doppio tocco non ha un'azione sua: sono due tocchi. Il primo avvia la macro, il secondo la fa ripartire da capo.",
+    },
   },
   onPage: (name) => `Pagina ${name}`,
   onRow: (row) => `Riga ${row} di 6`,
   onVoice: (name) => `Voce ${name}`,
   menuOpen: "Menu aperto",
+  menuPicked: "Pagina scelta, menu chiuso",
   allStopped: "Tutti fermi",
   macroDone: "Macro finita",
+  macroStopped: "Macro fermata",
   volumesBack: "Volumi di Voicemod",
   pageCounter: (page, pages) => `PAGINA ${page}/${pages}`,
   menuTitle: "SOUNDBOARD",
