@@ -162,7 +162,6 @@ async fn serve(
     for channel in Channel::ALL {
         socket.send(gain_request(&stops.next_id(), channel)).await?;
     }
-    socket.send(resources_request(&stops.next_id())).await?;
     loop {
         tokio::select! {
             incoming = socket.next() => match incoming {
@@ -364,7 +363,10 @@ fn message(text: &str) -> Option<BridgeMessage> {
                 ours: command == "SetVolumeGain" && asked_by_us,
             })
         }
-        "GetAllResources" => Some(BridgeMessage::SoundVolumes(sound_volumes(object))),
+        // Voicemod asks its servers: a failed answer is no empty library
+        "GetAllResources" if data["error"].is_null() && object["collections"].is_array() => {
+            Some(BridgeMessage::SoundVolumes(sound_volumes(object)))
+        }
         _ => None,
     }
 }
@@ -796,6 +798,17 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_resources_answer_is_no_empty_library() {
+        let answer = |data: Value| json!({"bridgeData": {"type": "appMessage", "data": data}}).to_string();
+        let failed = answer(json!({"type": "GetAllResources", "error": {"code": 429}, "object": {}}));
+        assert_eq!(message(&failed), None);
+        let empty = answer(json!({"type": "GetAllResources", "object": {}}));
+        assert_eq!(message(&empty), None);
+        let read = answer(json!({"type": "GetAllResources", "object": {"collections": []}}));
+        assert_eq!(message(&read), Some(BridgeMessage::SoundVolumes(HashMap::new())));
+    }
+
+    #[test]
     fn reads_gains_and_tells_ours_apart() {
         let gain = |channel, gain, ours| Some(BridgeMessage::Gain { channel, gain, ours });
         let monitor = gain_message("GetVolumeGain", "monitor", "probe-3", 0.3025);
@@ -877,7 +890,7 @@ mod tests {
                 let (jobs, mut pending) = mpsc::unbounded_channel();
                 let serving = tauri::async_runtime::spawn(async move { serve(socket, &mut pending, &|_| {}).await });
                 let mut asked = Vec::new();
-                for _ in 0..4 {
+                for _ in 0..3 {
                     let request = timeout(ANSWER_TIME, received.recv()).await.unwrap().unwrap();
                     let data = &request["bridgeData"]["data"];
                     asked.push((
@@ -889,8 +902,7 @@ mod tests {
                     .iter()
                     .map(|channel| ("GetVolumeGain".to_string(), json!(channel.control_type())))
                     .collect();
-                assert_eq!(asked[..3], read_gains);
-                assert_eq!(asked[3].0, "GetAllResources");
+                assert_eq!(asked, read_gains);
                 drop(jobs);
                 assert!(serving.await.unwrap().is_ok());
             }

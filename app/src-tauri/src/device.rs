@@ -167,7 +167,7 @@ fn run(
     let mut settings = app.state::<SettingsState>().get();
     let mut controller = Controller::new(settings.language.texts());
     controller.set_press_again(settings.press_again_by_mode);
-    controller.set_knob(settings.knob.clone());
+    controller.set_knob(settings.knob.clone(), Instant::now());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
     let mut kept_page = last_page::load(app);
@@ -283,7 +283,7 @@ fn run(
             Some(Input::Settings(new)) => {
                 controller.set_texts(new.language.texts());
                 controller.set_press_again(new.press_again_by_mode);
-                controller.set_knob(new.knob.clone());
+                controller.set_knob(new.knob.clone(), Instant::now());
                 controller.set_overlay_time(overlay_time(&new.overlay));
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
                 if new.led_brightness != settings.led_brightness {

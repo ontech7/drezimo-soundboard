@@ -1773,7 +1773,7 @@ fn the_end_line_after_a_single_stop_does_not_undo_a_new_press() {
 }
 
 fn with_knob(controller: &mut Controller, knob: KnobSettings) {
-    controller.set_knob(knob);
+    controller.set_knob(knob, Instant::now());
 }
 
 /// Voicemod's bridge found, with these gains for the soundboard for the others, for the user and the microphone
@@ -1954,6 +1954,7 @@ fn no_sound_playing_tells_so() {
         },
     );
     bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.take_outputs();
     let outputs = turn(&mut controller, 1, now);
     assert!(requests(&outputs).is_empty());
     assert_eq!(home_name(&controller, now), "NO SOUND");
@@ -2274,4 +2275,68 @@ fn the_volume_of_the_sound_playing_skips_a_paused_one() {
     };
     assert_eq!(requests(&outputs), [&expected]);
     assert_eq!(level(&controller, at(1200)), Some(55));
+}
+
+fn volume_reads(outputs: &[Output]) -> usize {
+    requests(outputs)
+        .into_iter()
+        .filter(|request| **request == Request::ReadSoundVolumes)
+        .count()
+}
+
+#[test]
+fn the_sounds_volumes_are_read_only_for_a_gesture_that_needs_them() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.set_knob(KnobSettings::default(), now);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    assert_eq!(volume_reads(&controller.take_outputs()), 0);
+    let knob = KnobSettings {
+        hold_turn: TurnAction::PlayingSound,
+        ..KnobSettings::default()
+    };
+    controller.set_knob(knob, now);
+    assert_eq!(volume_reads(&controller.take_outputs()), 1);
+}
+
+#[test]
+fn the_sounds_volumes_are_read_at_most_once_a_minute() {
+    let effect = Sound {
+        playback_mode: PlaybackMode::PlayStop,
+        ..sound("loop")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![effect])]);
+    let at = |seconds: u64| now + Duration::from_secs(seconds);
+    let knob = KnobSettings {
+        turn: TurnAction::PlayingSound,
+        ..KnobSettings::default()
+    };
+    controller.set_knob(knob, at(0));
+    assert_eq!(volume_reads(&controller.take_outputs()), 0, "not without the bridge");
+    bridge(&mut controller, [1.0, 1.0, 1.0], at(0));
+    controller.voicemod_event(
+        VoicemodEvent::Soundboards(vec![soundboard("b", vec![sound("loop")])]),
+        at(1),
+    );
+    assert_eq!(volume_reads(&controller.take_outputs()), 1);
+
+    // Voicemod restarted soon after: the read waits for its minute
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(false), at(5));
+    bridge(&mut controller, [1.0, 1.0, 1.0], at(10));
+    assert_eq!(volume_reads(&controller.take_outputs()), 0);
+    controller.update(at(59));
+    assert_eq!(volume_reads(&controller.take_outputs()), 0);
+    controller.update(at(60));
+    assert_eq!(volume_reads(&controller.take_outputs()), 1);
+
+    // Voicemod's answer did not hold the sound: a step asks again, in its minute
+    press(&mut controller, 0, true, at(70));
+    press(&mut controller, 0, false, at(70));
+    let outputs = turn(&mut controller, 1, at(71));
+    assert_eq!(volume_reads(&outputs), 0);
+    controller.update(at(119));
+    assert_eq!(volume_reads(&controller.take_outputs()), 0);
+    controller.update(at(120));
+    assert_eq!(volume_reads(&controller.take_outputs()), 1);
+    controller.update(at(500));
+    assert_eq!(volume_reads(&controller.take_outputs()), 0, "nothing asks again");
 }

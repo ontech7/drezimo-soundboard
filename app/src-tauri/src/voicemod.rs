@@ -68,6 +68,8 @@ pub enum Request {
         id: String,
         volume: f32,
     },
+    /// The sounds' saved volumes, through the bridge only: Voicemod asks its servers for them
+    ReadSoundVolumes,
 }
 
 /// The picture of a sound or a voice, by its id
@@ -91,7 +93,7 @@ impl Request {
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
             Self::ToggleMuteMic => ("toggleMuteMic", json!({})),
             Self::ToggleBackground => ("toggleBackground", json!({})),
-            Self::SetGain { .. } | Self::SetSoundVolume { .. } => return None,
+            Self::SetGain { .. } | Self::SetSoundVolume { .. } | Self::ReadSoundVolumes => return None,
         })
     }
 }
@@ -296,10 +298,6 @@ async fn exchange(
                             }
                             license = Some(new);
                         }
-                        // The sounds' saved volumes may have changed with them
-                        if let VoicemodEvent::Soundboards(_) = event {
-                            bridge.read_sounds();
-                        }
                         on_event(event);
                     }
                 }
@@ -321,6 +319,10 @@ async fn exchange(
                     }
                     Request::SetSoundVolume { id, volume } => {
                         bridge.set_sound_volume(id, *volume);
+                        true
+                    }
+                    Request::ReadSoundVolumes => {
+                        bridge.read_sounds();
                         true
                     }
                     _ => false,
@@ -555,6 +557,7 @@ mod tests {
         };
         assert_eq!(gain.action(), None, "the bridge's only");
         assert_eq!(volume.action(), None, "the bridge's only");
+        assert_eq!(Request::ReadSoundVolumes.action(), None, "the bridge's only");
 
         let Message::Text(text) = frame("stopAllMemeSounds", json!({})) else {
             panic!("a text message")

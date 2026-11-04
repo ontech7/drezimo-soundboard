@@ -12,6 +12,8 @@ const ROW_TIME: Duration = Duration::from_secs(4);
 /// Voicemod gets at most one volume for each channel or sound in that time, and one voice to load
 const VOLUME_EVERY: Duration = Duration::from_millis(100);
 const VOICE_EVERY: Duration = Duration::from_millis(250);
+/// Voicemod asks its servers for the sounds' saved volumes, and they turn away requests too close together
+const READ_EVERY: Duration = Duration::from_secs(60);
 
 impl KnobSend {
     fn every(&self) -> Duration {
@@ -23,9 +25,10 @@ impl KnobSend {
 }
 
 impl Controller {
-    pub fn set_knob(&mut self, knob: KnobSettings) {
+    pub fn set_knob(&mut self, knob: KnobSettings, now: Instant) {
         self.knob_settings = knob;
         self.knob_waits();
+        self.read_sound_volumes(now);
     }
 
     /// A tap waits for a second one only while a double tap does something, and never in the open menu, where it picks.
@@ -77,6 +80,9 @@ impl Controller {
         self.level = self.level.take().filter(|level| level.until > now);
         self.mixer.keep_playing(|sound| self.playback.state(sound).is_some());
         self.send_waiting(now);
+        if self.volumes_read_waiting {
+            self.read_sound_volumes(now);
+        }
     }
 
     /// When the knob has something to do without any input.
@@ -85,9 +91,17 @@ impl Controller {
             .knob_waiting
             .keys()
             .filter_map(|target| Some(*self.knob_sent.get(target)? + target.every()));
+        let read = self
+            .volumes_read
+            .filter(|_| self.volumes_read_waiting && self.wants_sound_volumes())
+            .map(|read| read + READ_EVERY);
         let row = self.row.as_ref().and_then(|row| row.until);
         let level = self.level.as_ref().map(|level| level.until);
-        waiting.chain(row).chain(level).chain(self.knob.next_update())
+        waiting
+            .chain(read)
+            .chain(row)
+            .chain(level)
+            .chain(self.knob.next_update())
     }
 
     fn gestures(&mut self, gestures: Vec<Gesture>, now: Instant) {
@@ -210,6 +224,7 @@ impl Controller {
         };
         // Its saved volume not known yet: better nothing than a guess
         let Some(percent) = self.mixer.step_sound(&id, step) else {
+            self.read_sound_volumes(now);
             return self.tell(self.texts.not_available, now);
         };
         let volume = f32::from(percent) / 100.0;
@@ -318,6 +333,27 @@ impl Controller {
                 self.knob_sent.insert(target, now);
                 self.request(request);
             }
+        }
+    }
+
+    /// Only a gesture on the volume of the sound playing needs the sounds' saved volumes
+    fn wants_sound_volumes(&self) -> bool {
+        let settings = &self.knob_settings;
+        self.single_stop && [settings.turn, settings.hold_turn].contains(&TurnAction::PlayingSound)
+    }
+
+    /// Asks Voicemod for the sounds' saved volumes now, or once a minute has passed since the last time
+    pub(super) fn read_sound_volumes(&mut self, now: Instant) {
+        if !self.wants_sound_volumes() {
+            self.volumes_read_waiting = false;
+            return;
+        }
+        if self.volumes_read.is_none_or(|read| now >= read + READ_EVERY) {
+            self.volumes_read = Some(now);
+            self.volumes_read_waiting = false;
+            self.request(Request::ReadSoundVolumes);
+        } else {
+            self.volumes_read_waiting = true;
         }
     }
 

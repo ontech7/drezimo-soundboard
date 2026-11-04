@@ -188,6 +188,9 @@ pub struct Controller {
     /// When a volume last went to Voicemod, and the latest one waiting to go
     knob_sent: HashMap<KnobSend, Instant>,
     knob_waiting: HashMap<KnobSend, Request>,
+    /// When the sounds' saved volumes were last asked for, and whether they are to be asked again once allowed
+    volumes_read: Option<Instant>,
+    volumes_read_waiting: bool,
     menu: Option<Menu>,
     peek: Option<Peek>,
     /// The name of the last sound played, or of the last stop, and when
@@ -245,6 +248,8 @@ impl Default for Controller {
             mixer: Mixer::default(),
             knob_sent: HashMap::new(),
             knob_waiting: HashMap::new(),
+            volumes_read: None,
+            volumes_read_waiting: false,
             menu: None,
             peek: None,
             last: None,
@@ -415,6 +420,7 @@ impl Controller {
             VoicemodEvent::SingleSoundStop(there) => {
                 self.single_stop = there;
                 self.volumes_forgotten();
+                self.read_sound_volumes(now);
             }
             VoicemodEvent::MixerGain { channel, gain, ours } => self.mixer.voicemod_gain(channel, gain, ours),
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
