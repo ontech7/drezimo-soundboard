@@ -2,33 +2,49 @@ import type { Outcome } from "../pressAgain";
 import type { KnobSettings, PressAction, PressAgain, TurnAction } from "../settings";
 
 export type KnobGesture = keyof KnobSettings;
-export type KnobAction = TurnAction["action"] | PressAction["action"];
 export type Behaviour = Exclude<PressAgain, "voicemod">;
+
+/** What the knob's gesture does: a turn's action answers each detent, a press's each time it acts */
+export type Shown = { kind: "turn"; action: TurnAction["action"] } | { kind: "press"; action: PressAction["action"] };
 
 /** What a knob row's explanation shows, as the board's gestures behave (src-tauri/src/knob.rs) */
 export interface KnobStory {
-  action: KnobAction;
-  /** Per loop: a double tap with no action of its own is two taps */
-  times: 1 | 2;
-  /** The tap's action, for a double tap or a long press that has none */
+  shown: Shown;
+  /** The press whose macro or page it shows */
+  press: PressAction | null;
+  /** The tap's action, for a double tap or a long press that has none: a double tap is then two taps */
   borrowed: boolean;
   /** The tap waits 0.3 s for a second one before it acts */
   waits: boolean;
 }
 
 export function knobStory(gesture: KnobGesture, knob: KnobSettings): KnobStory {
-  const own = knob[gesture].action;
-  const tap = knob.tap.action;
-  const doubleTapUsed = knob.doubleTap.action !== "nothing";
-  const canBorrow = gesture === "doubleTap" || gesture === "longPress";
-  const borrowed = canBorrow && own === "nothing" && tap !== "nothing";
+  if (gesture === "turn" || gesture === "holdTurn") {
+    return { shown: { kind: "turn", action: knob[gesture].action }, press: null, borrowed: false, waits: false };
+  }
+  const own = knob[gesture];
+  const borrowed = gesture !== "tap" && own.action === "nothing" && knob.tap.action !== "nothing";
+  const press = borrowed ? knob.tap : own;
   return {
-    action: borrowed ? tap : own,
-    times: borrowed && gesture === "doubleTap" ? 2 : 1,
+    shown: { kind: "press", action: press.action },
+    press,
     borrowed,
     // With no double-tap action a tap acts at once, and so does a long hold that counts as one
-    waits: doubleTapUsed && (gesture === "tap" || (gesture === "longPress" && borrowed)),
+    waits: knob.doubleTap.action !== "nothing" && (gesture === "tap" || (gesture === "longPress" && borrowed)),
   };
+}
+
+/**
+ * A macro run once whose steps take no time is over before a second tap can come (the 0.3 s of a double tap):
+ * that tap starts it again instead of stopping it. `lengths` in seconds, null when not known.
+ */
+export function overAtOnce(repeat: number, lengths: (number | null)[]): boolean {
+  let total = 0;
+  for (const length of lengths) {
+    if (length === null) return false;
+    total += length;
+  }
+  return repeat === 1 && total < 0.3;
 }
 
 /** What a pad pressed again does to its sound, from the choice and what the app makes of it */

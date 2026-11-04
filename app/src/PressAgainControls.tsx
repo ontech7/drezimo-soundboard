@@ -98,7 +98,6 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
             mode={explained[0]}
             choice={byMode[explained[1]]}
             outcome={outcomes?.[explained[0]][byMode[explained[1]]] ?? null}
-            language={props.settings.shownLanguage}
             onClose={() => setExplained(null)}
           >
             {control(explained[0], explained[1], true)}

@@ -51,6 +51,8 @@ export function Dialog(props: {
   title: string;
   subtitle?: string;
   className?: string;
+  /** The ids of what says what the dialog is about */
+  describedBy?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -68,6 +70,7 @@ export function Dialog(props: {
       ref={dialog}
       className={props.className ? `dialog ${props.className}` : "dialog"}
       aria-label={props.label}
+      aria-describedby={props.describedBy}
       onClose={props.onClose}
       onClick={(event) => {
         if (event.target === dialog.current) props.onClose();

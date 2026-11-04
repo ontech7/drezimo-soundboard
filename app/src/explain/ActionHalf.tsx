@@ -1,13 +1,10 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { ACTION_COLOURS, MACRO_COLOUR, type Rgb, rgb, SOUND_COLOUR, VOICE_COLOUR } from "../customPages";
-import type { PressAction, TurnAction } from "../settings";
 import type { Beats } from "./KnobHalf";
 import { Half } from "./Stage";
 import { held, type Lane, SoundLanes } from "./SoundLanes";
+import type { Shown } from "./story";
 import type { ExplainTexts, SwitchAction } from "./texts";
-
-/** What the knob's gesture does: a turn's action answers each detent, a press's each time it acts */
-export type Shown = { kind: "turn"; action: TurnAction["action"] } | { kind: "press"; action: PressAction["action"] };
 
 interface Props {
   shown: Shown;
@@ -271,19 +268,23 @@ function RandomVoice({ name, beats, words }: Props) {
   const [landed, setLanded] = useState<string | null>(null);
   useEffect(() => {
     if (beats.count === 0) return;
+    const picked = 1 + Math.floor(Math.random() * (voices.length - 1));
+    const land = () => {
+      setAt(picked);
+      setLanded(voices[picked]);
+    };
+    // With less motion asked for, it lands at once instead of spinning
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      land();
+      return;
+    }
     const timers: number[] = [];
     let delay = 0;
     for (let i = 0; i < 7; i++) {
       delay += 70 + i * 22;
       timers.push(window.setTimeout(() => setAt((current) => 1 + (current % (voices.length - 1))), delay));
     }
-    timers.push(
-      window.setTimeout(() => {
-        const picked = 1 + Math.floor(Math.random() * (voices.length - 1));
-        setAt(picked);
-        setLanded(voices[picked]);
-      }, delay + 120)
-    );
+    timers.push(window.setTimeout(land, delay + 120));
     return () => timers.forEach((timer) => clearTimeout(timer));
   }, [beats.count, voices]);
   return (
@@ -294,11 +295,7 @@ function RandomVoice({ name, beats, words }: Props) {
 }
 
 function MacroSteps({ name, beats, words, macro }: Props) {
-  // A macro with no steps yet keeps its name, with the sample's steps
-  const shown = {
-    name: macro?.name ?? words.sample.macro.name,
-    steps: macro?.steps.length ? macro.steps : words.sample.macro.steps,
-  };
+  const shown = macro ?? words.sample.macro;
   const steps = shown.steps.length;
   // Pressed again while it runs, a macro stops or starts over, as it is set
   const stopped = beats.count > 1 && (macro?.again ?? "stop") === "stop";

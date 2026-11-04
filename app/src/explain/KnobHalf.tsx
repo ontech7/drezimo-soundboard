@@ -144,6 +144,7 @@ export async function playGesture(gesture: KnobGesture, story: KnobStory, run: R
       ripple += 1;
       show({ down: false, ring: false, ripple });
       await act();
+      show({}, "released");
       await run.wait(2300);
       break;
   }

@@ -775,17 +775,6 @@
   opacity: 1;
 }
 
-@media (max-width: 560px) {
-  .explain-stage {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .explain-arrow svg {
-    rotate: 90deg;
-  }
-}
-
 /* A short window: the halves shrink, so that the dialog's foot stays in sight */
 @media (max-height: 600px) {
   .dialog.explainer .dialog-body {

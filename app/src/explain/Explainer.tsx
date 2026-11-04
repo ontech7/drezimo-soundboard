@@ -1,23 +1,31 @@
 import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
 import { useTexts } from "../i18n";
-import { BRIDGE_ACTIONS, goneTarget } from "../KnobControls";
-import type { Macro } from "../macros";
+import { BRIDGE_ACTIONS, goneTarget } from "../knob";
+import { type Macro, stepLength } from "../macros";
 import { describe } from "../pages/MacrosPage";
 import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
-import type { PressAction, PressAgain, SettingsView, TurnAction } from "../settings";
-import { ActionHalf, type Shown } from "./ActionHalf";
+import type { PressAction, PressAgain, SettingsView } from "../settings";
+import { ActionHalf } from "./ActionHalf";
 import "./explain.css";
 import { type Beats, KNOB_AT_REST, KnobHalf, type KnobPose, playGesture } from "./KnobHalf";
 import { useLoop } from "./loop";
 import { PAD_AT_REST, type PadCaption, PadHalf, type PadPose, playPad, type SoundCaption } from "./PadHalf";
 import { type Lane, SoundLanes } from "./SoundLanes";
 import { Half, Stage } from "./Stage";
-import { type Behaviour, type KnobGesture, knobStory, padStory } from "./story";
-import { explainTexts, type GestureCaption } from "./texts";
+import { type Behaviour, type KnobGesture, knobStory, overAtOnce, padStory, type Shown } from "./story";
+import { type ExplainTexts, type GestureCaption, useExplainTexts } from "./texts";
 
 /** The captions of a knob at rest, muted */
 const STILL: GestureCaption[] = ["still", "released"];
+
+/** Why a press does nothing with no macro or page chosen, or with a macro that has no steps */
+function unsetTarget(press: PressAction, macro: Macro | undefined, words: ExplainTexts): string | undefined {
+  if (press.action === "macro" && press.macroId === "") return words.idle.noMacro;
+  if (press.action === "macro" && macro?.steps.length === 0) return words.idle.emptyMacro;
+  if (press.action === "page" && press.page === "") return words.idle.noPage;
+  return undefined;
+}
 
 interface KnobProps {
   gesture: KnobGesture;
@@ -34,43 +42,55 @@ interface KnobProps {
 /** How a knob gesture works: the gesture, then what it does with the current settings */
 export function KnobExplainer({ gesture, settings, bridge, macros, targets, library, children, onClose }: KnobProps) {
   const texts = useTexts();
-  const words = explainTexts(settings.shownLanguage);
+  const words = useExplainTexts();
   const story = knobStory(gesture, settings.knob);
-  const turn = gesture === "turn" || gesture === "holdTurn";
-  // A turn gesture's story always holds a turn action, a press gesture's a press action
-  const shown: Shown = turn
-    ? { kind: "turn", action: story.action as TurnAction["action"] }
-    : { kind: "press", action: story.action as PressAction["action"] };
-  const name = shown.kind === "turn" ? texts.knobTab.turnActions[shown.action] : texts.knobTab.pressActions[shown.action];
-  // The macro or page of the press it shows: the tap's, when the gesture has no action of its own
-  const press = story.borrowed ? settings.knob.tap : turn ? null : settings.knob[gesture as "tap" | "doubleTap" | "longPress"];
+  const { press, borrowed } = story;
+  const chosen = story.shown;
+  const name = chosen.kind === "turn" ? texts.knobTab.turnActions[chosen.action] : texts.knobTab.pressActions[chosen.action];
   const chosenMacro = press?.action === "macro" ? macros?.find((macro) => macro.id === press.macroId) : undefined;
+  // A target the board cannot find or run: the gesture does nothing, and the note says why
+  const idle = press
+    ? (goneTarget(press, macros, targets, library, texts) ?? unsetTarget(press, chosenMacro, words))
+    : undefined;
+  // Two quick taps on a macro over at once run it twice: the second one finds nothing to stop
+  const twice =
+    borrowed &&
+    gesture === "doubleTap" &&
+    !idle &&
+    chosenMacro !== undefined &&
+    overAtOnce(
+      chosenMacro.repeat,
+      chosenMacro.steps.map((step) => stepLength(step, library))
+    );
   const macro = chosenMacro
     ? {
         name: chosenMacro.name,
         steps: chosenMacro.steps.slice(0, 4).map((step) => describe(step, texts, library, targets).title),
-        again: chosenMacro.again,
+        again: twice ? ("restart" as const) : chosenMacro.again,
       }
     : null;
   const pageName = press?.action === "page" ? (targets.find((page) => page.id === press.page)?.name ?? null) : null;
-  let sentence = shown.kind === "turn" ? words.sentences.turn[shown.action] : words.sentences.press[shown.action];
-  if (story.borrowed && gesture === "longPress") sentence = words.borrowed.longPress(name);
+  const shown: Shown = idle ? { kind: "press", action: "nothing" } : chosen;
+
+  let sentence = chosen.kind === "turn" ? words.sentences.turn[chosen.action] : words.sentences.press[chosen.action];
+  if (borrowed && gesture === "longPress") sentence = words.borrowed.longPress(name);
   // Two taps: the second one picks the menu's page, or stops or restarts the macro the first one started
-  else if (story.borrowed && shown.action === "menu") sentence = words.borrowed.menu;
-  else if (story.borrowed && shown.action === "macro") sentence = words.borrowed.macro[macro?.again ?? "stop"];
-  else if (story.borrowed) sentence = words.borrowed.doubleTap(name);
-  const gone = press ? goneTarget(press, macros, targets, library, texts) : undefined;
-  const bridgeMissing = !bridge && BRIDGE_ACTIONS.has(story.action) ? texts.knobTab.bridgeMissing : undefined;
+  else if (borrowed && chosen.action === "menu") sentence = words.borrowed.menu;
+  else if (borrowed && chosen.action === "macro" && !twice) sentence = words.borrowed.macro[macro?.again ?? "stop"];
+  else if (borrowed) sentence = words.borrowed.doubleTap(name);
+  const bridgeMissing = !bridge && BRIDGE_ACTIONS.has(chosen.action) ? texts.knobTab.bridgeMissing : undefined;
+
   const [pose, setPose] = useState<KnobPose>(KNOB_AT_REST);
   const [caption, setCaption] = useState<GestureCaption>("still");
   const [beats, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
   const [loop, setLoop] = useState(0);
   const [fired, setFired] = useState(0);
-  const key = `${gesture} ${JSON.stringify(story)}`;
-  // Another action starts from rest at once, never shown for a frame with the last one's beats
+  // The loop starts over when what it shows changes, the halves from rest at once
+  const key = JSON.stringify([gesture, story, shown, macro?.again]);
   const [shownKey, setShownKey] = useState(key);
   if (shownKey !== key) {
     setShownKey(key);
+    setLoop((count) => count + 1);
     setPose(KNOB_AT_REST);
     setCaption("still");
     setBeats({ count: 0, sum: 0, total: 0 });
@@ -115,7 +135,7 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
       }
       fired={fired}
       sentence={sentence}
-      note={gone ?? bridgeMissing}
+      note={idle ?? bridgeMissing}
       choiceLabel={words.does}
       repeats={words.repeats}
       closeLabel={texts.close}
@@ -131,16 +151,15 @@ interface PadProps {
   choice: PressAgain;
   /** What the app makes of the choice for this type of sound, once known */
   outcome: Outcome | null;
-  language: "english" | "italian";
   /** The row's control */
   children: ReactNode;
   onClose: () => void;
 }
 
 /** How a pad pressed again works for a type of sound: the pad, and what happens to its sound */
-export function PadExplainer({ mode, choice, outcome, language, children, onClose }: PadProps) {
+export function PadExplainer({ mode, choice, outcome, children, onClose }: PadProps) {
   const texts = useTexts();
-  const words = explainTexts(language);
+  const words = useExplainTexts();
   // A type of sound always has a behaviour of its own in Voicemod
   const story = padStory(choice, voicemodsOwn(mode) as Behaviour, outcome);
   const [pose, setPose] = useState<PadPose>(PAD_AT_REST);

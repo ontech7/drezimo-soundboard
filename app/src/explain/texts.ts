@@ -1,3 +1,4 @@
+import { TEXTS, useTexts } from "../i18n";
 import type { KindMode } from "../pressAgain";
 import type { PressAction, TurnAction } from "../settings";
 
@@ -44,6 +45,8 @@ export interface ExplainTexts {
   macroDone: string;
   macroStopped: string;
   volumesBack: string;
+  /** Why the board does nothing with the macro or the page chosen */
+  idle: { noMacro: string; noPage: string; emptyMacro: string };
   /** Drezimo's display */
   pageCounter: (page: number, pages: number) => string;
   menuTitle: string;
@@ -145,6 +148,11 @@ const ENGLISH: ExplainTexts = {
   macroDone: "Macro done",
   macroStopped: "Macro stopped",
   volumesBack: "Voicemod's volumes",
+  idle: {
+    noMacro: "No macro chosen yet: until you choose one, nothing happens.",
+    noPage: "No page chosen yet: until you choose one, nothing happens.",
+    emptyMacro: "This macro has no steps yet: for now, nothing happens.",
+  },
   pageCounter: (page, pages) => `PAGE ${page}/${pages}`,
   menuTitle: "SOUNDBOARDS",
   volumes: { soundboardForOthers: "Soundboard, for others", soundboardForMe: "Soundboard, for you", microphone: "Microphone" },
@@ -267,6 +275,11 @@ const ITALIAN: ExplainTexts = {
   macroDone: "Macro finita",
   macroStopped: "Macro fermata",
   volumesBack: "Volumi di Voicemod",
+  idle: {
+    noMacro: "Nessuna macro scelta: finché non ne scegli una, non succede niente.",
+    noPage: "Nessuna pagina scelta: finché non ne scegli una, non succede niente.",
+    emptyMacro: "Questa macro non ha ancora passi: per ora non succede niente.",
+  },
   pageCounter: (page, pages) => `PAGINA ${page}/${pages}`,
   menuTitle: "SOUNDBOARD",
   volumes: { soundboardForOthers: "Soundboard, per gli altri", soundboardForMe: "Soundboard, per te", microphone: "Microfono" },
@@ -330,6 +343,7 @@ const ITALIAN: ExplainTexts = {
   },
 };
 
-export function explainTexts(language: "english" | "italian"): ExplainTexts {
-  return language === "italian" ? ITALIAN : ENGLISH;
+/** The explanations' words in the window's language */
+export function useExplainTexts(): ExplainTexts {
+  return useTexts() === TEXTS.italian ? ITALIAN : ENGLISH;
 }

@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Dialog } from "../pages/PadPicker";
 
 interface Props {
@@ -40,9 +40,18 @@ export function Stage(props: Props) {
     const timer = window.setTimeout(() => setLit(false), 120);
     return () => clearTimeout(timer);
   }, [props.fired]);
+  const sentence = useId();
+  const note = useId();
 
   return (
-    <Dialog label={props.title} title={props.title} subtitle={props.subtitle} className="explainer" onClose={props.onClose}>
+    <Dialog
+      label={`${props.subtitle}: ${props.title}`}
+      title={props.title}
+      subtitle={props.subtitle}
+      className="explainer"
+      describedBy={props.note ? `${sentence} ${note}` : sentence}
+      onClose={props.onClose}
+    >
       <div className="dialog-body">
         <div className="explain-stage" aria-hidden="true">
           {props.left}
@@ -53,8 +62,14 @@ export function Stage(props: Props) {
           </span>
           {props.right}
         </div>
-        <p className="explain-sentence">{props.sentence}</p>
-        {props.note && <p className="explain-note">{props.note}</p>}
+        <p id={sentence} className="explain-sentence">
+          {props.sentence}
+        </p>
+        {props.note && (
+          <p id={note} className="explain-note">
+            {props.note}
+          </p>
+        )}
         <div className="explain-choice">
           <span className="muted">{props.choiceLabel}</span>
           {props.children}

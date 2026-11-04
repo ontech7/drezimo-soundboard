@@ -38,12 +38,15 @@ export function PadHalf({ pose, caption, live }: { pose: PadPose; caption: strin
   );
 }
 
-/** The sound's length, and the song's, which plays longer before its pause */
+// The sounds' lengths in ms: a song plays longer before its pause, a held one outlasts the hold
 const SOUND = 3200;
 const SONG = 3600;
 const HELD = 4000;
+
+// The lanes: another pad's sound, this pad's, and its copy
 const OTHER = 0;
 const OWN = 1;
+const COPY = 2;
 
 /** One loop of a pad pressed again, as its story says */
 export async function playPad(story: PadStory, run: Run, stage: PadStage, words: ExplainTexts["pad"], names: [string, string]) {
@@ -118,7 +121,7 @@ export async function playPad(story: PadStory, run: Run, stage: PadStage, words:
       await press("again", 1);
       stage.lanes((current, now) => [
         ...current,
-        { id: 2, name: sound, note: words.copyNote, length: SOUND, played: 0, since: now, state: "playing" },
+        { id: COPY, name: sound, note: words.copyNote, length: SOUND, played: 0, since: now, state: "playing" },
       ]);
       stopOthers();
       stage.sound("copies");
