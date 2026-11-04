@@ -15,8 +15,13 @@ use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::{self, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-const CONTROL_API_PORT: u16 = 59129;
+/// Voicemod's fixed ports, never the bridge: 59129 is the Control API's, and a WebSocket's handshake on 39998 made
+/// Voicemod quit (macOS)
+const NOT_THE_BRIDGE: [u16; 3] = [59129, 39998, 39999];
 const SEARCH_EVERY: Duration = Duration::from_secs(5);
+/// A port of Voicemod's that does not answer as the bridge is tried again for a while, in case Voicemod is still
+/// starting, then left alone while its process runs: an update may have changed the bridge
+const GIVE_UP_AFTER: Duration = Duration::from_secs(120);
 /// For the bridge to greet the app, and to answer a stop: it answers within about 150 ms
 const ANSWER_TIME: Duration = Duration::from_secs(1);
 /// A sound Voicemod is still loading cannot be stopped yet (a first play takes up to 0.7 s): it is stopped once it
@@ -24,6 +29,8 @@ const ANSWER_TIME: Duration = Duration::from_secs(1);
 const STOP_ONCE_STARTED: Duration = Duration::from_secs(3);
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+/// Voicemod's ports, by process, that did not answer as the bridge, and since when
+type Refused = HashMap<(u32, u16), Instant>;
 
 enum Job {
     Stop {
@@ -78,9 +85,10 @@ impl Bridge {
 }
 
 async fn keep_connected(mut jobs: mpsc::UnboundedReceiver<Job>, connected: Arc<AtomicBool>, on_found: impl Fn(bool)) {
+    let mut refused = Refused::new();
     // Until the link to Voicemod ends, as in a build without a client key
     while !jobs.is_closed() {
-        if let Some(socket) = find().await {
+        if let Some(socket) = find(&mut refused).await {
             // Asked while it was away: stale
             while jobs.try_recv().is_ok() {}
             connected.store(true, Ordering::Relaxed);
@@ -151,13 +159,7 @@ impl Stops {
     ) -> Result<(), tungstenite::Error> {
         self.next_id += 1;
         let message_id = format!("drezimo-{}", self.next_id);
-        let request = json!({
-            "bridgeData": {
-                "data": { "id": message_id, "object": { "id": sound }, "type": "stopSound" },
-                "type": "appMessage",
-            }
-        });
-        socket.send(Message::text(request.to_string())).await?;
+        socket.send(stop_request(&message_id, &sound)).await?;
         // Those Voicemod never answered
         self.waiting
             .retain(|_, stopping| stopping.sent.elapsed() < ANSWER_TIME * 5);
@@ -203,6 +205,16 @@ impl Stops {
     }
 }
 
+fn stop_request(message_id: &str, sound: &str) -> Message {
+    let request = json!({
+        "bridgeData": {
+            "data": { "id": message_id, "object": { "id": sound }, "type": "stopSound" },
+            "type": "appMessage",
+        }
+    });
+    Message::text(request.to_string())
+}
+
 #[derive(Debug, PartialEq)]
 enum BridgeMessage {
     /// `stopped` false when Voicemod could not, as for a sound not playing, or not yet
@@ -238,20 +250,49 @@ fn data(text: &str) -> Option<Value> {
     Some(message.get_mut("bridgeData")?.get_mut("data")?.take())
 }
 
-/// The bridge among the ports Voicemod listens on, if any: it greets every client with the state of Voicemod's window.
-async fn find() -> Option<Socket> {
-    for port in bridge_ports(&listeners(), is_voicemod) {
-        let url = format!("ws://127.0.0.1:{port}/");
+/// The bridge among the ports Voicemod listens on, if any.
+async fn find(refused: &mut Refused) -> Option<Socket> {
+    let listeners = tauri::async_runtime::spawn_blocking(listeners)
+        .await
+        .unwrap_or_default();
+    refused.retain(|&(process, port), _| {
+        listeners
+            .iter()
+            .any(|listener| listener.process == process && listener.port == port)
+    });
+    for listener in bridge_candidates(&listeners, is_voicemod) {
+        let key = (listener.process, listener.port);
+        if refused.get(&key).is_some_and(|since| since.elapsed() > GIVE_UP_AFTER) {
+            continue;
+        }
+        let url = format!("ws://127.0.0.1:{}/", listener.port);
         let Ok(Ok((mut socket, _))) = timeout(ANSWER_TIME, tokio_tungstenite::connect_async(url)).await else {
             continue;
         };
-        if let Ok(Some(Ok(Message::Text(text)))) = timeout(ANSWER_TIME, socket.next()).await
-            && data(&text).is_some()
-        {
+        if is_bridge(&mut socket).await {
+            refused.remove(&key);
             return Some(socket);
         }
+        refused.entry(key).or_insert_with(Instant::now);
     }
     None
+}
+
+/// On Windows the bridge greets every client with the state of Voicemod's window. On macOS it waits to be asked: it is
+/// asked to stop a sound that does not exist, which it answers with an error and nothing else.
+async fn is_bridge(socket: &mut Socket) -> bool {
+    let probe = stop_request("drezimo-probe", "drezimo-probe");
+    if cfg!(target_os = "macos") && socket.send(probe).await.is_err() {
+        return false;
+    }
+    let until = tokio::time::Instant::now() + ANSWER_TIME;
+    while let Ok(Some(Ok(message))) = tokio::time::timeout_at(until, socket.next()).await {
+        // Past the WebSocket's own frames, such as a ping
+        if let Message::Text(text) = message {
+            return data(&text).is_some();
+        }
+    }
+    false
 }
 
 /// A socket listening for connections
@@ -261,12 +302,13 @@ struct Listener {
     process: u32,
 }
 
-/// Voicemod's ports on this computer only, except the Control API's.
-fn bridge_ports(listeners: &[Listener], is_voicemod: impl Fn(u32) -> bool) -> Vec<u16> {
+/// Voicemod's ports on this computer only, except the fixed ones.
+fn bridge_candidates(listeners: &[Listener], is_voicemod: impl Fn(u32) -> bool) -> Vec<&Listener> {
     listeners
         .iter()
-        .filter(|listener| listener.loopback && listener.port != CONTROL_API_PORT && is_voicemod(listener.process))
-        .map(|listener| listener.port)
+        .filter(|listener| {
+            listener.loopback && !NOT_THE_BRIDGE.contains(&listener.port) && is_voicemod(listener.process)
+        })
         .collect()
 }
 
@@ -333,13 +375,90 @@ fn is_voicemod(process: u32) -> bool {
             .ends_with("\\voicemod.exe")
 }
 
-/// Not looked for yet on macOS: the pads stop every sound there
-#[cfg(not(windows))]
+/// Voicemod's only, and none while it is closed: lsof is a program to start, and looks at every process otherwise.
+#[cfg(target_os = "macos")]
+fn listeners() -> Vec<Listener> {
+    let voicemod: Vec<String> = processes()
+        .into_iter()
+        .filter(|&process| is_voicemod(process))
+        .map(|process| process.to_string())
+        .collect();
+    if voicemod.is_empty() {
+        return Vec::new();
+    }
+    // -b and -w: not held up by a network drive that does not answer
+    let lsof = std::process::Command::new("/usr/sbin/lsof")
+        .args([
+            "-nP",
+            "-b",
+            "-w",
+            "-a",
+            "-iTCP",
+            "-sTCP:LISTEN",
+            "-Fpn",
+            "-p",
+            &voicemod.join(","),
+        ])
+        .output();
+    match lsof {
+        Ok(output) => lsof_listeners(&String::from_utf8_lossy(&output.stdout)),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// lsof's `-F` output: a `p` line for each process, then an `n` line for each of its sockets.
+#[cfg(target_os = "macos")]
+fn lsof_listeners(output: &str) -> Vec<Listener> {
+    let mut process = 0;
+    let mut listeners = Vec::new();
+    for line in output.lines() {
+        if let Some(pid) = line.strip_prefix('p') {
+            process = pid.parse().unwrap_or(0);
+        } else if let Some(name) = line.strip_prefix('n')
+            && let Some((address, port)) = name.rsplit_once(':')
+            && let Ok(port) = port.parse()
+        {
+            listeners.push(Listener {
+                port,
+                loopback: address == "127.0.0.1",
+                process,
+            });
+        }
+    }
+    listeners
+}
+
+#[cfg(target_os = "macos")]
+fn processes() -> Vec<u32> {
+    let count = unsafe { libc::proc_listallpids(std::ptr::null_mut(), 0) };
+    // With room for those started in between
+    let mut processes = vec![0i32; count.max(0) as usize + 32];
+    let size = std::mem::size_of_val(processes.as_slice()) as i32;
+    let count = unsafe { libc::proc_listallpids(processes.as_mut_ptr().cast(), size) };
+    processes.truncate(count.max(0) as usize);
+    processes.into_iter().map(|process| process as u32).collect()
+}
+
+#[cfg(target_os = "macos")]
+fn is_voicemod(process: u32) -> bool {
+    let mut path = [0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+    let length = unsafe { libc::proc_pidpath(process as i32, path.as_mut_ptr().cast(), path.len() as u32) };
+    length > 0 && is_voicemod_path(&path[..length as usize])
+}
+
+/// Voicemod's launcher in Applications, and the app it keeps up to date in Application Support
+#[cfg(target_os = "macos")]
+fn is_voicemod_path(path: &[u8]) -> bool {
+    path.ends_with(b"/Voicemod.app/Contents/MacOS/Voicemod")
+}
+
+/// Not looked for on other systems: the pads stop every sound there
+#[cfg(not(any(target_os = "macos", windows)))]
 fn listeners() -> Vec<Listener> {
     Vec::new()
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn is_voicemod(_process: u32) -> bool {
     false
 }
@@ -348,7 +467,7 @@ fn is_voicemod(_process: u32) -> bool {
 mod tests {
     use super::*;
 
-    // Shapes recorded from Voicemod 3.17.45 on Windows
+    // Shapes recorded from Voicemod 3.17.45 on Windows, the same as 3.17.43's on macOS
 
     fn answer(message_id: &str, failed: bool) -> String {
         let error = if failed {
@@ -418,6 +537,11 @@ mod tests {
         assert_eq!(stops.read(&answer("drezimo-2", false)), None);
         assert!(second.try_recv().is_ok());
         assert!(first.try_recv().is_err(), "still waiting");
+        assert_eq!(
+            stops.read(&answer("drezimo-probe", true)),
+            None,
+            "the one that found the bridge"
+        );
     }
 
     #[test]
@@ -465,8 +589,105 @@ mod tests {
             listener(59129, true, 7),
             listener(50658, true, 7),
             listener(39998, false, 7),
+            listener(39999, true, 7),
             listener(50700, true, 8),
         ];
-        assert_eq!(bridge_ports(&listeners, |process| process == 7), [50658]);
+        let ports: Vec<_> = bridge_candidates(&listeners, |process| process == 7)
+            .iter()
+            .map(|listener| listener.port)
+            .collect();
+        assert_eq!(ports, [50658]);
+    }
+
+    /// A WebSocket for one client on this computer: it sends `first` at once, then answers each message as the bridge
+    /// answers a stop, if `answers`
+    async fn server(first: Vec<Message>, answers: bool) -> u16 {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tauri::async_runtime::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            for message in first {
+                let _ = socket.send(message).await;
+            }
+            while let Some(Ok(message)) = socket.next().await {
+                if answers && message.is_text() {
+                    let _ = socket.send(Message::text(answer("drezimo-probe", true))).await;
+                }
+            }
+        });
+        port
+    }
+
+    async fn is_bridge_at(port: u16) -> bool {
+        let url = format!("ws://127.0.0.1:{port}/");
+        let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+        is_bridge(&mut socket).await
+    }
+
+    #[test]
+    fn knows_the_bridge_by_what_it_says() {
+        tauri::async_runtime::block_on(async {
+            let greeting = Message::text(state("s1", "playing"));
+            let greets = server(vec![Message::Ping(Default::default()), greeting], false).await;
+            assert!(is_bridge_at(greets).await, "greets, as on Windows");
+
+            let answers = server(Vec::new(), true).await;
+            assert_eq!(
+                is_bridge_at(answers).await,
+                cfg!(target_os = "macos"),
+                "answers, as on macOS"
+            );
+
+            let silent = server(Vec::new(), false).await;
+            assert!(!is_bridge_at(silent).await);
+
+            let other = server(vec![Message::text(r#"{"actionType": "playMeme"}"#)], false).await;
+            assert!(!is_bridge_at(other).await, "another program's messages");
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reads_the_listening_sockets_from_lsof() {
+        let output = "p631\nf5\nn*:7000\np89725\nf30\nn127.0.0.1:50106\nf38\nn*:39998\nf41\nn[::1]:59130\n";
+        let listeners = lsof_listeners(output);
+        let read: Vec<_> = listeners
+            .iter()
+            .map(|listener| (listener.port, listener.loopback, listener.process))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (7000, false, 631),
+                (50106, true, 89725),
+                (39998, false, 89725),
+                (59130, false, 89725)
+            ]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn knows_voicemod_by_its_path() {
+        let support = "/Users/me/Library/Application Support/VoicemodV3/app/last/Voicemod.app";
+        assert!(is_voicemod_path(b"/Applications/Voicemod.app/Contents/MacOS/Voicemod"));
+        assert!(is_voicemod_path(
+            format!("{support}/Contents/MacOS/Voicemod").as_bytes()
+        ));
+        assert!(!is_voicemod_path(
+            format!("{support}/Contents/MacOS/crashpad_handler").as_bytes()
+        ));
+        let helper = "/Contents/Frameworks/QtWebEngineCore.framework/Helpers/QtWebEngineProcess.app/Contents/MacOS";
+        assert!(!is_voicemod_path(
+            format!("{support}{helper}/QtWebEngineProcess").as_bytes()
+        ));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn lists_the_processes() {
+        assert!(processes().contains(&std::process::id()));
+        assert!(!is_voicemod(std::process::id()));
     }
 }

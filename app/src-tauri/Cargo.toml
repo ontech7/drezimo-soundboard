@@ -44,6 +44,8 @@ objc2-core-foundation = { version = "0.3", default-features = false, features = 
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGColorSpace", "CGDataProvider", "CGImage"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer"] }
+# Voicemod's processes, to find its bridge
+libc = "0.2"
 
 # The overlay's window, the drives where the board's firmware is written, the login item and Voicemod's ports
 [target.'cfg(windows)'.dependencies]
