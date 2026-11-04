@@ -3,6 +3,27 @@ import type { Texts } from "./i18n";
 import type { Macro } from "./macros";
 import type { KnobSettings, PressAction, TurnAction } from "./settings";
 
+/** A wheel's notch in the legacy `wheelDelta`, Chromium's and WebKit's alike, whatever the system's lines to scroll */
+const NOTCH_TICKS = 120;
+/** Without it, a notch in pixels at Windows' default of 3 lines */
+const NOTCH_PIXELS = 100;
+
+/** The notches a wheel event turns, positive away from the user: a touchpad's moves are a fraction of one */
+export function notches(event: WheelEvent): number {
+  const legacy = event as WheelEvent & {
+    wheelDeltaX?: number;
+    wheelDeltaY?: number;
+    webkitDirectionInvertedFromDevice?: boolean;
+  };
+  // macOS's natural scrolling turns the numbers round, not the hand's move
+  const sense = legacy.webkitDirectionInvertedFromDevice ? -1 : 1;
+  // Sideways only with Shift, when the system turns the wheel that way: a touchpad's own sideways move is no turn
+  const ticks = legacy.wheelDeltaY || (event.shiftKey ? legacy.wheelDeltaX : 0);
+  if (ticks) return (sense * ticks) / NOTCH_TICKS;
+  const moved = event.deltaY || (event.shiftKey ? event.deltaX : 0);
+  return sense * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? -moved / NOTCH_PIXELS : -Math.sign(moved));
+}
+
 /** In the order the selects list them */
 export const TURN_ACTIONS: TurnAction["action"][] = [
   "page",

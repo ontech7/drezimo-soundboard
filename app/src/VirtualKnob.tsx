@@ -2,11 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useDisplayFrame } from "./display";
 import { useTexts } from "./i18n";
+import { notches } from "./knob";
 
-/** A wheel's notch in the legacy `wheelDelta`, Chromium's and WebKit's alike, whatever the system's lines to scroll */
-const NOTCH_TICKS = 120;
-/** Without it, a notch in pixels at Windows' default of 3 lines */
-const NOTCH_PIXELS = 100;
 /** A new wheel gesture: its first move is a step, and a touchpad's leftover does not carry over */
 const WHEEL_PAUSE = 400;
 /** The indicator's turn per step: the knob has 20 steps a turn */
@@ -59,16 +56,6 @@ function letGoWithTheWindow() {
   window.addEventListener("wheel", shiftGone);
   window.addEventListener("blur", releaseKnob);
   document.addEventListener("visibilitychange", releaseKnob);
-}
-
-/** The notches a wheel event turns, positive away from the user: a touchpad's moves are a fraction of one */
-function notches(event: WheelEvent): number {
-  const legacy = event as WheelEvent & { wheelDeltaX?: number; wheelDeltaY?: number };
-  // With Shift, Chromium turns the wheel sideways
-  const ticks = legacy.wheelDeltaY || legacy.wheelDeltaX;
-  if (ticks) return ticks / NOTCH_TICKS;
-  const moved = event.deltaY || event.deltaX;
-  return event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? -moved / NOTCH_PIXELS : -Math.sign(moved);
 }
 
 function turnKnob(step: 1 | -1) {
@@ -133,6 +120,7 @@ export function VirtualKnob() {
     const steps: Record<string, 1 | -1> = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
     if (event.key in steps) {
       event.preventDefault();
+      holdWithShift(event);
       turn(steps[event.key]);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -144,6 +132,8 @@ export function VirtualKnob() {
     <button
       ref={knob}
       type="button"
+      // Without it, a button on macOS's WebKit takes the focus neither from a click nor from Tab, and its keys never come
+      tabIndex={0}
       className={down ? "virtual-knob down" : "virtual-knob"}
       aria-label={texts.virtualKnob}
       title={texts.virtualKnobHint}
