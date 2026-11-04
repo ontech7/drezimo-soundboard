@@ -5,6 +5,7 @@ import { Row, Section } from "../controls";
 import { useTexts } from "../i18n";
 import type { Status } from "../status";
 import { BoardTestCard } from "./BoardTestCard";
+import { DisplayOnScreenCard } from "./DisplayOnScreenCard";
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -30,6 +31,8 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
           <span className="value">{connected ? (status.singleSoundStop ? texts.available : texts.unavailable) : "—"}</span>
         </Row>
       </Section>
+
+      <DisplayOnScreenCard />
 
       <BoardTestCard status={status} />
 

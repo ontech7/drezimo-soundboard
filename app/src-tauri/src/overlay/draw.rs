@@ -14,7 +14,7 @@ const HEADER: f32 = 22.0;
 const CELL_WIDTH: f32 = 92.0;
 const CELL_HEIGHT: f32 = 38.0;
 const GAP: f32 = 4.0;
-const PANEL_RADIUS: f32 = 12.0;
+pub(super) const PANEL_RADIUS: f32 = 12.0;
 const CELL_RADIUS: f32 = 6.0;
 const CELL_PADDING: f32 = 6.0;
 const TITLE_SIZE: f32 = 13.0;
@@ -24,11 +24,11 @@ const NAME_LINE: f32 = 14.0;
 const NAME_LINES: usize = 2;
 
 // The settings window's colours (src/styles.css)
-const BACKGROUND: [u8; 3] = [14, 14, 16];
-const BACKGROUND_ALPHA: f32 = 0.94;
-const LINE: [u8; 3] = [38, 38, 44];
-const TEXT: [u8; 3] = [244, 243, 239];
-const MUTED: [u8; 3] = [139, 139, 148];
+pub(super) const BACKGROUND: [u8; 3] = [14, 14, 16];
+pub(super) const BACKGROUND_ALPHA: f32 = 0.94;
+pub(super) const LINE: [u8; 3] = [38, 38, 44];
+pub(super) const TEXT: [u8; 3] = [244, 243, 239];
+pub(super) const MUTED: [u8; 3] = [139, 139, 148];
 /// How much an LED's colour tints its pad, as in the simulator
 const TINT: f32 = 0.18;
 /// A sound outside the licence, as in the simulator
@@ -43,11 +43,11 @@ pub struct Image {
 }
 
 #[derive(Clone, Copy)]
-struct Rect {
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
+pub(super) struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
 /// The overlay's size in pixels, on a screen of `scale`.
@@ -198,7 +198,7 @@ impl Painter {
 }
 
 impl Image {
-    fn new(width: usize, height: usize) -> Self {
+    pub(super) fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
@@ -239,14 +239,24 @@ impl Image {
         }
     }
 
-    fn fill_rounded_rect(&mut self, rect: Rect, radius: f32, color: [u8; 3], alpha: f32) {
+    pub(super) fn fill_rounded_rect(&mut self, rect: Rect, radius: f32, color: [u8; 3], alpha: f32) {
         self.paint_rounded_rect(rect, radius, |distance| coverage(distance) * alpha, color);
     }
 
     /// A border `width` pixels wide, inside the rectangle.
-    fn stroke_rounded_rect(&mut self, rect: Rect, radius: f32, width: f32, color: [u8; 3], alpha: f32) {
+    pub(super) fn stroke_rounded_rect(&mut self, rect: Rect, radius: f32, width: f32, color: [u8; 3], alpha: f32) {
         let ring = |distance: f32| (coverage(distance) - coverage(distance + width)) * alpha;
         self.paint_rounded_rect(rect, radius, ring, color);
+    }
+
+    /// Covers whole pixels with `color`, opaque.
+    pub(super) fn fill_pixels(&mut self, x: usize, y: usize, width: usize, height: usize, color: [u8; 3]) {
+        for row in y..(y + height).min(self.height) {
+            for column in x..(x + width).min(self.width) {
+                let index = (row * self.width + column) * 4;
+                self.pixels[index..index + 4].copy_from_slice(&[color[0], color[1], color[2], 255]);
+            }
+        }
     }
 
     /// Paints each pixel of the rectangle with the alpha its distance from the rounded edge gives (negative inside).

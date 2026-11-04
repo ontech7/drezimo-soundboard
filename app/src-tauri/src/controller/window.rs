@@ -83,6 +83,15 @@ impl Controller {
         }
     }
 
+    /// The knob turned in the window, as on the board: gestures and all.
+    pub fn window_knob_turned(&mut self, step: i8, now: Instant) {
+        self.knob_turned(step, now);
+    }
+
+    pub fn window_knob_pressed(&mut self, pressed: bool, now: Instant) {
+        self.knob_pressed(pressed, now);
+    }
+
     /// A function key clicked in the window, as on the board.
     pub fn window_key(&mut self, key: u8, now: Instant) {
         self.board_message(

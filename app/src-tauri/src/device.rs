@@ -9,6 +9,7 @@ use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::last_page;
 use crate::macros::{Macro, MacrosState};
+use crate::overlay::display::{Control, DisplayLook, DisplayUpdate, Touch};
 use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
@@ -41,6 +42,9 @@ enum Input {
         pressed: bool,
     },
     Key(u8),
+    /// The knob turned in the window: +1 to the right
+    KnobTurn(i8),
+    KnobPress(bool),
     Page(usize),
     CustomPages(Vec<CustomPage>),
     Macros(Vec<Macro>),
@@ -48,6 +52,8 @@ enum Input {
     TryMacro(String),
     StopMacro,
     Test(TestInput),
+    /// The display on the PC screen, as Diagnostics sets it
+    DisplayLook(DisplayLook),
 }
 
 enum TestInput {
@@ -113,6 +119,20 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
+/// The display on the PC screen, as Diagnostics shows it: off at each start
+#[derive(Default)]
+pub struct DisplayLookState(Mutex<DisplayLook>);
+
+#[tauri::command]
+pub fn display_look(look: State<DisplayLookState>) -> DisplayLook {
+    look.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn set_display_look(app: AppHandle, look: DisplayLook) {
+    send(&app, Input::DisplayLook(look.checked()));
+}
+
 /// The board test, while one runs
 #[derive(Default)]
 pub struct BoardTestState(Mutex<Option<BoardTest>>);
@@ -123,7 +143,7 @@ pub fn board_test(test: State<BoardTestState>) -> Option<BoardTest> {
 }
 
 /// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`,
-/// `BoardTestState`, `LastUse`, `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to
+/// `BoardTestState`, `DisplayLookState`, `LastUse`, `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to
 /// be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
@@ -153,17 +173,35 @@ pub fn start(app: AppHandle) {
     });
     app.state::<Pictures>().connect(voicemod.clone());
     let overlay = overlay::start(&app);
-    thread::spawn(move || run(&app, &received, &firmware_inputs, &board, &voicemod, &overlay));
+    let settings = app.state::<SettingsState>().get();
+    let display = overlay::display::start(&app, settings.language.texts(), settings.overlay.screen);
+    thread::spawn(move || {
+        let outputs = Outputs {
+            board,
+            voicemod,
+            overlay,
+            display,
+        };
+        run(&app, &received, &firmware_inputs, &outputs);
+    });
 }
 
-fn run(
-    app: &AppHandle,
-    inputs: &Receiver<Input>,
-    firmware_inputs: &Sender<Input>,
-    board: &Board,
-    voicemod: &Voicemod,
-    overlay: &Sender<OverlayUpdate>,
-) {
+/// Where the controller's work goes
+struct Outputs {
+    board: Board,
+    voicemod: Voicemod,
+    overlay: Sender<OverlayUpdate>,
+    /// The display on the PC screen
+    display: Sender<DisplayUpdate>,
+}
+
+fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input>, outputs: &Outputs) {
+    let Outputs {
+        board,
+        voicemod,
+        overlay,
+        display,
+    } = outputs;
     let mut settings = app.state::<SettingsState>().get();
     let mut controller = Controller::new(settings.language.texts());
     controller.set_press_again(settings.press_again_by_mode);
@@ -229,6 +267,7 @@ fn run(
                 }
                 if !matches!(board_status, BoardStatus::Connected { .. }) {
                     status.display_settings = None;
+                    let _ = display.send(DisplayUpdate::BoardGone);
                 }
                 status.board = board_status;
             }
@@ -240,15 +279,9 @@ fn run(
             }
             Some(Input::Board(BoardEvent::Message(message))) => {
                 let _ = app.emit("board-message", &message);
-                let used = matches!(
-                    message,
-                    BoardMessage::Pad { .. }
-                        | BoardMessage::Button { .. }
-                        | BoardMessage::Encoder { .. }
-                        | BoardMessage::EncoderButton { .. }
-                );
-                if used {
+                if let Some(touch) = touch(&message) {
                     *app.state::<LastUse>().0.lock().unwrap() = Some(now);
+                    let _ = display.send(DisplayUpdate::Input { touch, window: false });
                 }
                 match &mut tester {
                     Some(tester) => tester.board_message(&message),
@@ -286,6 +319,11 @@ fn run(
                 controller.set_knob(new.knob.clone(), Instant::now());
                 controller.set_overlay_time(overlay_time(&new.overlay));
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
+                let _ = display.send(DisplayUpdate::Texts(new.language.texts()));
+                let _ = display.send(DisplayUpdate::Screen(new.overlay.screen.clone()));
+                if !new.diagnostics {
+                    show_display(app, display, DisplayLook::default());
+                }
                 if new.led_brightness != settings.led_brightness {
                     board.send(brightness_message(led_brightness(&new, tester.is_some())));
                 }
@@ -311,8 +349,24 @@ fn run(
                 }
                 controller.preview_overlay(now);
             }
-            Some(Input::Pad { index, pressed }) => controller.window_pad(index, pressed, now),
-            Some(Input::Key(index)) => controller.window_key(index, now),
+            Some(Input::Pad { index, pressed }) => {
+                controller.window_pad(index, pressed, now);
+                window_touch(display, Touch::Press(Control::Pad(index), pressed));
+            }
+            Some(Input::Key(index)) => {
+                controller.window_key(index, now);
+                // A click: pressed and let go at once
+                window_touch(display, Touch::Press(Control::Key(index), true));
+                window_touch(display, Touch::Press(Control::Key(index), false));
+            }
+            Some(Input::KnobTurn(step)) => {
+                controller.window_knob_turned(step, now);
+                window_touch(display, Touch::Turn(step));
+            }
+            Some(Input::KnobPress(pressed)) => {
+                controller.window_knob_pressed(pressed, now);
+                window_touch(display, Touch::Press(Control::Knob, pressed));
+            }
             Some(Input::Page(index)) => controller.go_to_page(index),
             Some(Input::CustomPages(pages)) => controller.set_custom_pages(pages),
             Some(Input::Macros(macros)) => controller.set_macros(macros),
@@ -335,6 +389,7 @@ fn run(
                 }
                 _ => {}
             },
+            Some(Input::DisplayLook(look)) => show_display(app, display, look),
             None => {}
         }
         updater.update(now);
@@ -359,7 +414,7 @@ fn run(
                         board.send(protocol::display_message(&screen));
                     }
                     if tester.is_none() {
-                        show_frame(app, screen.clone());
+                        show_frame(app, display, screen.clone());
                     }
                 }
                 Output::Overlay(shown) => {
@@ -384,6 +439,7 @@ fn run(
         if picture != shown_picture {
             show_frame(
                 app,
+                display,
                 tester
                     .as_ref()
                     .map_or_else(|| screen.clone(), |tester| tester.picture().hex()),
@@ -425,10 +481,33 @@ fn run(
     }
 }
 
-/// The display's picture, for the window's preview: stored before it is announced
-fn show_frame(app: &AppHandle, hex: String) {
+/// The display's picture, for the window's preview, stored before it is announced, and for the display on the PC
+/// screen
+fn show_frame(app: &AppHandle, display: &Sender<DisplayUpdate>, hex: String) {
     app.state::<DisplayFrame>().0.lock().unwrap().clone_from(&hex);
     let _ = app.emit("display", &hex);
+    let _ = display.send(DisplayUpdate::Frame(hex));
+}
+
+/// The display on the PC screen as asked, stored for the window
+fn show_display(app: &AppHandle, display: &Sender<DisplayUpdate>, look: DisplayLook) {
+    app.state::<DisplayLookState>().0.lock().unwrap().clone_from(&look);
+    let _ = display.send(DisplayUpdate::Look(look));
+}
+
+fn window_touch(display: &Sender<DisplayUpdate>, touch: Touch) {
+    let _ = display.send(DisplayUpdate::Input { touch, window: true });
+}
+
+/// A key, a pad or the knob, as the display on the PC screen shows it
+fn touch(message: &BoardMessage) -> Option<Touch> {
+    match *message {
+        BoardMessage::Pad { index, pressed } => Some(Touch::Press(Control::Pad(index), pressed)),
+        BoardMessage::Button { index, pressed } => Some(Touch::Press(Control::Key(index), pressed)),
+        BoardMessage::Encoder { step } => Some(Touch::Turn(step)),
+        BoardMessage::EncoderButton { pressed } => Some(Touch::Press(Control::Knob, pressed)),
+        _ => None,
+    }
 }
 
 /// The editor's library follows Voicemod's lists.
@@ -532,6 +611,20 @@ pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
     if index < PAD_COUNT {
         send(&app, Input::Pad { index, pressed });
     }
+}
+
+/// The knob turned in the window, a step at a time
+#[tauri::command]
+pub fn turn_knob(app: AppHandle, step: i8) {
+    if step != 0 {
+        send(&app, Input::KnobTurn(step.signum()));
+    }
+}
+
+/// The knob pressed or let go in the window
+#[tauri::command]
+pub fn press_knob(app: AppHandle, pressed: bool) {
+    send(&app, Input::KnobPress(pressed));
 }
 
 /// A function key clicked in the window

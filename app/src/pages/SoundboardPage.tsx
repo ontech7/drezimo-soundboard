@@ -9,6 +9,7 @@ import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
 import { useNews } from "../updates";
 import { SearchSelect } from "../SearchSelect";
+import { holdWithShift } from "../VirtualKnob";
 
 interface State {
   dot: "ok" | "off" | "waiting" | "warning" | "error";
@@ -201,6 +202,8 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
       onPointerDown={(event) => {
         if (event.button !== 0 || !pad.name) return;
         event.currentTarget.setPointerCapture(event.pointerId);
+        // Shift holds the knob, as a hand on it: the pad is then peeked
+        holdWithShift(event);
         press(true);
       }}
       onPointerUp={() => press(false)}

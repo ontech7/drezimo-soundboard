@@ -52,6 +52,18 @@ const ENGLISH = {
   missingKey: "No Voicemod key",
   missingKeyDetail: "This build was made without VOICEMOD_CLIENT_KEY.",
   noActivity: "Press a key or turn the knob.",
+  displayOnScreen: "Display on the screen",
+  showDisplayOnScreen: "Show Drezimo's display",
+  showDisplayOnScreenText:
+    "Above the other windows, also while you change page or close this one. Off again when the app quits.",
+  displayOnScreenPlace: "On the overlay's screen.",
+  displayOnScreenSize: "Each dot of the display 2 or 3 times as big, always sharp.",
+  latestInputs: "Latest keys",
+  latestInputsText:
+    "Below the display, what Drezimo sent: in amber the keys still held, → ← the knob's steps. In grey, what came from this window.",
+  virtualKnob: "Knob",
+  virtualKnobHint:
+    "Knob: the mouse wheel turns it, a click presses it, a held click is a long press. Shift + a pad: the knob held and the pad pressed.",
   soundboard: "Soundboard",
   previousPage: "Previous page",
   nextPage: "Next page",
@@ -572,7 +584,7 @@ const ENGLISH = {
       },
       {
         title: "All set",
-        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In Settings you find the tour again and a backup of the whole configuration.",
+        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob, or with the mouse on the Soundboard page, where the wheel turns the knob. In Settings you find the tour again and a backup of the whole configuration.",
       },
     ],
     parts: [
@@ -678,6 +690,18 @@ const ITALIAN: Texts = {
   missingKey: "Manca la chiave di Voicemod",
   missingKeyDetail: "Questa build è stata fatta senza VOICEMOD_CLIENT_KEY.",
   noActivity: "Premi un tasto o gira la manopola.",
+  displayOnScreen: "Display sullo schermo",
+  showDisplayOnScreen: "Mostra il display di Drezimo",
+  showDisplayOnScreenText:
+    "Sopra le altre finestre, anche cambiando pagina o chiudendo questa. Si spegne quando l'app si chiude.",
+  displayOnScreenPlace: "Sullo schermo dell'overlay.",
+  displayOnScreenSize: "Ogni punto del display 2 o 3 volte più grande, sempre nitido.",
+  latestInputs: "Ultimi tasti",
+  latestInputsText:
+    "Sotto il display, cosa ha mandato Drezimo: in ambra i tasti ancora premuti, → ← gli scatti della manopola. In grigio, quelli dati da questa finestra.",
+  virtualKnob: "Manopola",
+  virtualKnobHint:
+    "Manopola: la rotella del mouse la gira, il clic la preme, il clic tenuto è una pressione lunga. Maiusc + un pad: manopola tenuta e pad premuto.",
   soundboard: "Soundboard",
   previousPage: "Pagina precedente",
   nextPage: "Pagina successiva",
@@ -1196,7 +1220,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Tutto pronto",
-        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. In Impostazioni ritrovi il tour e il backup di tutta la configurazione.",
+        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola, o col mouse nella pagina Soundboard, dove la rotella gira la manopola. In Impostazioni ritrovi il tour e il backup di tutta la configurazione.",
       },
     ],
     parts: [

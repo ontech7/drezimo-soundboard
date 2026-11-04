@@ -47,6 +47,12 @@ pub struct Texts {
     /// What the knob would do needs Voicemod's bridge, or a value it has not told yet
     pub not_available: &'static str,
     pub volumes_reset: &'static str,
+    /// The display on the PC screen: the knob's button among the latest inputs
+    pub knob: &'static str,
+    /// The function keys, as printed on the case
+    pub keys: [&'static str; 6],
+    /// The display on the PC screen, before any input
+    pub press_something: &'static str,
     decimal_separator: char,
     modes: Modes,
     actions: Actions,
@@ -154,6 +160,9 @@ pub const ENGLISH: Texts = Texts {
     nothing_playing: "NO SOUND",
     not_available: "NOT AVAILABLE",
     volumes_reset: "VOLUMES RESET",
+    knob: "Knob",
+    keys: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"],
+    press_something: "Press a key or turn the knob",
     decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
@@ -205,6 +214,9 @@ pub const ITALIAN: Texts = Texts {
     nothing_playing: "NESSUN SUONO",
     not_available: "NON DISPONIBILE",
     volumes_reset: "VOLUMI RIPRISTINATI",
+    knob: "Manopola",
+    keys: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"],
+    press_something: "Premi un tasto o gira la manopola",
     decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",

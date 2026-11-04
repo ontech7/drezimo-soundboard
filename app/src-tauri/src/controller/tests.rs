@@ -2390,3 +2390,16 @@ fn voicemod_confirming_an_earlier_voice_keeps_the_knobs_walk() {
     let outputs = turn(&mut controller, 1, at(600));
     assert_eq!(requests(&outputs), [&Request::LoadVoice("v5".into())]);
 }
+
+#[test]
+fn the_windows_knob_works_as_the_boards() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.window_knob_turned(1, now);
+    controller.update(now);
+    assert_eq!(controller.page().unwrap().number, 2, "a turn changes the page");
+    let later = now + Duration::from_millis(50);
+    controller.window_knob_pressed(true, now);
+    controller.window_knob_pressed(false, later);
+    controller.update(later);
+    assert!(controller.menu.is_some(), "a tap opens the menu");
+}

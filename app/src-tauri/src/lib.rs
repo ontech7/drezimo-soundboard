@@ -49,6 +49,7 @@ pub fn run() {
         .manage(device::DisplayFrame::default())
         .manage(device::BoardViewState::default())
         .manage(device::BoardTestState::default())
+        .manage(device::DisplayLookState::default())
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .manage(updates::UpdateStateHolder::default())
@@ -59,6 +60,10 @@ pub fn run() {
             device::board_view,
             device::press_pad,
             device::press_key,
+            device::turn_knob,
+            device::press_knob,
+            device::display_look,
+            device::set_display_look,
             device::go_to_page,
             device::board_test,
             device::start_board_test,

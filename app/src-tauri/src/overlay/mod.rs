@@ -2,6 +2,7 @@
 //! while the knob is held (docs/project.md, section 8). The app draws it into a native window that lets the mouse
 //! through and stays above the other windows: a webview would be throttled while hidden on Windows, and slow to appear.
 
+pub mod display;
 mod draw;
 mod text;
 
@@ -18,7 +19,7 @@ use std::cell::RefCell;
 use std::f32::consts::TAU;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::thread;
+use std::thread::{self, LocalKey};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Monitor};
 
@@ -325,14 +326,23 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
     }
 }
 
-/// Runs `action` on the native window, on the main thread as the system requires.
+/// Runs `action` on the overlay's native window, on the main thread as the system requires.
 fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 'static) {
+    run_on(app, &WINDOW, action);
+}
+
+/// Runs `action` on a native window of the main thread's, made there when first needed.
+fn run_on(
+    app: &AppHandle,
+    window: &'static LocalKey<RefCell<Option<NativeWindow>>>,
+    action: impl FnOnce(&mut NativeWindow) + Send + 'static,
+) {
     let _ = app.run_on_main_thread(move || {
-        WINDOW.with_borrow_mut(|window| {
+        window.with_borrow_mut(|window| {
             if window.is_none() {
                 *window = NativeWindow::new();
                 if window.is_none() && !WINDOW_REFUSED.swap(true, Ordering::Relaxed) {
-                    crate::errors::log("the system refused the overlay's window: trying again at each change");
+                    crate::errors::log("the system refused an overlay's window: trying again at each change");
                 }
             }
             if let Some(window) = window {
@@ -344,7 +354,13 @@ fn on_window(app: &AppHandle, action: impl FnOnce(&mut NativeWindow) + Send + 's
 
 /// Where the overlay goes on the screen chosen, clear of the taskbar or the Dock, and at what size.
 fn place(app: &AppHandle, look: &Look) -> Option<Placement> {
-    let monitor = screen(app, &look.screen)?;
+    let (area, scale) = free_area(app, &look.screen)?;
+    Some(placement(area, scale, look))
+}
+
+/// The free area of the screen chosen, clear of the taskbar or the Dock, and its scale.
+fn free_area(app: &AppHandle, chosen: &OverlayScreen) -> Option<(Rect, f64)> {
+    let monitor = screen(app, chosen)?;
     let area = monitor.work_area();
     let area = Rect {
         x: area.position.x,
@@ -352,7 +368,7 @@ fn place(app: &AppHandle, look: &Look) -> Option<Placement> {
         width: area.size.width,
         height: area.size.height,
     };
-    Some(placement(area, monitor.scale_factor(), look))
+    Some((area, monitor.scale_factor()))
 }
 
 /// The screen chosen, or the main one when it cannot be found.
@@ -378,10 +394,16 @@ fn mouse_screen(app: &AppHandle) -> Option<Monitor> {
 
 fn placement(area: Rect, scale: f64, look: &Look) -> Placement {
     let drawn = scale * look.size;
-    let (width, height) = draw::size(drawn as f32);
+    let (x, y) = anchored(area, draw::size(drawn as f32), scale, look.anchor);
+    Placement { x, y, scale, drawn }
+}
+
+/// The top-left corner of a picture `size` pixels big at `anchor` in a screen's free `area`, at the margin from its
+/// edges.
+fn anchored(area: Rect, (width, height): (usize, usize), scale: f64, anchor: Anchor) -> (i32, i32) {
     let margin = (MARGIN * scale).round() as i32;
     // 0 at the start of the area, 1 in its middle, 2 at its end
-    let (column, row) = match look.anchor {
+    let (column, row) = match anchor {
         Anchor::TopLeft => (0, 0),
         Anchor::Top => (1, 0),
         Anchor::TopRight => (2, 0),
@@ -397,12 +419,10 @@ fn placement(area: Rect, scale: f64, look: &Look) -> Placement {
         1 => start + (room as i32 - size as i32) / 2,
         _ => start + room as i32 - size as i32 - margin,
     };
-    Placement {
-        x: along(area.x, area.width, width, column),
-        y: along(area.y, area.height, height, row),
-        scale,
-        drawn,
-    }
+    (
+        along(area.x, area.width, width, column),
+        along(area.y, area.height, height, row),
+    )
 }
 
 impl Fade {
