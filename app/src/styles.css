@@ -233,15 +233,17 @@ p {
   font-size: 12.5px;
 }
 
+/* Lined up with the pages under it: the dot centred on their icons, the words where their names start */
 .connections p {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .connections .dot {
   width: 8px;
   height: 8px;
+  margin-inline: 5px;
 }
 
 .connections .dot.ok {
