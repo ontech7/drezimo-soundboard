@@ -350,15 +350,20 @@ fn message(text: &str) -> Option<BridgeMessage> {
             sound: object["id"].as_str()?.to_string(),
             state: object["state"].as_str()?.to_string(),
         }),
-        command @ ("GetVolumeGain" | "SetVolumeGain") => Some(BridgeMessage::Gain {
-            channel: Channel::from_control_type(object["controlType"].as_str()?)?,
-            gain: object["value"].as_f64()? as f32,
-            // An answer to a read is Voicemod's own value, whoever asked
-            ours: command == "SetVolumeGain"
-                && object["frontendMessageId"]
-                    .as_str()
-                    .is_some_and(|id| id.starts_with(OUR_IDS)),
-        }),
+        command @ ("GetVolumeGain" | "SetVolumeGain") => {
+            let asked_by_us = object["frontendMessageId"]
+                .as_str()
+                .is_some_and(|id| id.starts_with(OUR_IDS));
+            // The app's own read is Voicemod's own value; another client's read tells the knob's changes too
+            if command == "GetVolumeGain" && !asked_by_us {
+                return None;
+            }
+            Some(BridgeMessage::Gain {
+                channel: Channel::from_control_type(object["controlType"].as_str()?)?,
+                gain: object["value"].as_f64()? as f32,
+                ours: command == "SetVolumeGain" && asked_by_us,
+            })
+        }
         "GetAllResources" => Some(BridgeMessage::SoundVolumes(sound_volumes(object))),
         _ => None,
     }
@@ -801,6 +806,9 @@ mod tests {
             gain(Channel::Microphone, 1.5, false),
             "Voicemod's own value, asked by the app"
         );
+        // Another client's read tells the value now, the knob's changes included: not Voicemod's own
+        let their_read = gain_message("GetVolumeGain", "input", "3f1c9a", 1.2);
+        assert_eq!(message(&their_read), None);
         let ours = gain_message("SetVolumeGain", "streamingSoundboardPreMix", "drezimo-4", 0.25);
         assert_eq!(message(&ours), gain(Channel::SoundboardForOthers, 0.25, true));
         let theirs = gain_message("SetVolumeGain", "monitorSoundboardPreMix", "3f1c9a", 0.5);
