@@ -33,7 +33,7 @@ const PRESS_ACTIONS: PressAction["action"][] = [
   "nothing",
 ];
 /** What goes through Voicemod's bridge (src-tauri/src/voicemod_bridge.rs) */
-const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe", "playingSound", "microphone", "resetVolumes"]);
+export const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe", "playingSound", "microphone", "resetVolumes"]);
 
 type TurnGesture = "turn" | "holdTurn";
 type PressGesture = "tap" | "doubleTap" | "longPress";

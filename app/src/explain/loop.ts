@@ -26,10 +26,10 @@ function newRun(): Run & { stop(): void } {
 }
 
 /**
- * Plays `script` again and again while the window is in sight. `key` names everything the script reads: a new one
- * starts it over, as the window coming back does.
+ * Plays `script` again and again while the window is in sight, `round` counting from 0. `key` names everything the
+ * script reads: a new one starts it over, as the window coming back does.
  */
-export function useLoop(script: (run: Run) => Promise<void>, key: string): void {
+export function useLoop(script: (run: Run, round: number) => Promise<void>, key: string): void {
   useEffect(() => {
     let run: ReturnType<typeof newRun> | null = null;
     const start = () => {
@@ -38,7 +38,7 @@ export function useLoop(script: (run: Run) => Promise<void>, key: string): void 
       if (document.hidden) return;
       const current = (run = newRun());
       (async () => {
-        for (;;) await script(current);
+        for (let round = 0; ; round++) await script(current, round);
       })();
     };
     start();

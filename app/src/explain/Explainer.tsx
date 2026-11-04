@@ -1,12 +1,15 @@
 import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
 import { useTexts } from "../i18n";
+import { BRIDGE_ACTIONS } from "../KnobControls";
 import type { Macro } from "../macros";
-import type { SettingsView } from "../settings";
+import { describe } from "../pages/MacrosPage";
+import type { PressAction, SettingsView, TurnAction } from "../settings";
+import { ActionHalf, type Shown } from "./ActionHalf";
 import "./explain.css";
 import { type Beats, KNOB_AT_REST, KnobHalf, type KnobPose, playGesture } from "./KnobHalf";
 import { useLoop } from "./loop";
-import { Half, Stage } from "./Stage";
+import { Stage } from "./Stage";
 import { type KnobGesture, knobStory } from "./story";
 import { explainTexts, type GestureCaption } from "./texts";
 
@@ -26,21 +29,40 @@ interface KnobProps {
 }
 
 /** How a knob gesture works: the gesture, then what it does with the current settings */
-export function KnobExplainer({ gesture, settings, children, onClose }: KnobProps) {
+export function KnobExplainer({ gesture, settings, bridge, macros, targets, library, children, onClose }: KnobProps) {
   const texts = useTexts();
   const words = explainTexts(settings.shownLanguage);
   const story = knobStory(gesture, settings.knob);
+  const turn = gesture === "turn" || gesture === "holdTurn";
+  // A turn gesture's story always holds a turn action, a press gesture's a press action
+  const shown: Shown = turn
+    ? { kind: "turn", action: story.action as TurnAction["action"] }
+    : { kind: "press", action: story.action as PressAction["action"] };
+  const name = shown.kind === "turn" ? texts.knobTab.turnActions[shown.action] : texts.knobTab.pressActions[shown.action];
+  // The macro or page of the press it shows: the tap's, when the gesture has no action of its own
+  const press = story.borrowed ? settings.knob.tap : turn ? null : settings.knob[gesture as "tap" | "doubleTap" | "longPress"];
+  const chosenMacro = press?.action === "macro" ? macros?.find((macro) => macro.id === press.macroId) : undefined;
+  const macro = chosenMacro
+    ? {
+        name: chosenMacro.name,
+        steps: chosenMacro.steps.slice(0, 4).map((step) => describe(step, texts, library, targets).title),
+      }
+    : null;
+  const pageName = press?.action === "page" ? (targets.find((page) => page.id === press.page)?.name ?? null) : null;
+  let sentence = shown.kind === "turn" ? words.sentences.turn[shown.action] : words.sentences.press[shown.action];
+  if (story.borrowed) sentence = words.borrowed[gesture === "doubleTap" ? "doubleTap" : "longPress"](name);
   const [pose, setPose] = useState<KnobPose>(KNOB_AT_REST);
   const [caption, setCaption] = useState<GestureCaption>("still");
-  const [, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
+  const [beats, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
   const [loop, setLoop] = useState(0);
   const [fired, setFired] = useState(0);
 
   useLoop(
-    async (run) => {
+    async (run, round) => {
       setLoop((count) => count + 1);
       setPose(KNOB_AT_REST);
-      setBeats((beats) => ({ count: 0, sum: 0, total: beats.total }));
+      // A switch goes back and forth between loops, from where it starts for this action
+      setBeats((beats) => ({ count: 0, sum: 0, total: round === 0 ? 0 : beats.total }));
       await playGesture(
         gesture,
         story,
@@ -64,15 +86,19 @@ export function KnobExplainer({ gesture, settings, children, onClose }: KnobProp
       subtitle={texts.knobTab.title}
       left={<KnobHalf key={`knob ${loop}`} pose={pose} caption={words.gestures[caption]} live={!STILL.includes(caption)} />}
       right={
-        <Half caption={texts.knobTab.pressActions.nothing} live={false}>
-          <p className="explain-nothing">
-            <b>—</b>
-            {words.nothing}
-          </p>
-        </Half>
+        <ActionHalf
+          key={`action ${loop}`}
+          shown={shown}
+          name={name}
+          beats={beats}
+          words={words}
+          macro={macro}
+          pageName={pageName}
+        />
       }
       fired={fired}
-      sentence={words.nothing}
+      sentence={sentence}
+      note={!bridge && BRIDGE_ACTIONS.has(story.action) ? texts.knobTab.bridgeMissing : undefined}
       choiceLabel={words.does}
       repeats={words.repeats}
       closeLabel={texts.close}
