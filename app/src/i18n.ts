@@ -29,7 +29,7 @@ const ENGLISH = {
     restarting: (to: string) => `Drezimo is restarting with firmware ${to}.`,
     failed: (reason: string) => `Drezimo's update failed: ${reason} Tried again when the app starts.`,
   },
-  mutedForMe: "You do not hear the sounds on this PC: the others do.",
+  mutedForMe: "You do not hear the sounds on this computer: the others do.",
   mutedForMeDetail: "Voicemod's Mute for me is on.",
   mutedForMeVolume: "In Voicemod's mixer, the sounds' volume for your headphones is at zero.",
   hearAgain: "Hear them again",
@@ -561,7 +561,7 @@ const ENGLISH = {
       },
       {
         title: "How it's made",
-        text: "Everything happens on Drezimo, without looking at the PC. Pick a part to see what it does.",
+        text: "Everything happens on Drezimo, without looking at the computer. Pick a part to see what it does.",
       },
       {
         title: "The LEDs' colours",
@@ -569,7 +569,7 @@ const ENGLISH = {
       },
       {
         title: "Display and overlay",
-        text: "The display shows the page and the last sound. On the PC, the overlay shows the names of the whole page when you change it or hold the knob.",
+        text: "The display shows the page and the last sound. On the computer, the overlay shows the names of the whole page when you change it or hold the knob.",
       },
       {
         title: "Your pages",
@@ -615,7 +615,7 @@ const ENGLISH = {
       peek: "Hold the knob and press a pad: you read its name without playing it.",
       row: "Hold the knob and turn it: one row at a time lights up white.",
     },
-    onThePc: "The overlay, on the PC",
+    onTheComputer: "The overlay, on the computer",
     page: "Stream",
     otherPage: "Gaming",
     // The page shown, row by row (tour/sample.ts)
@@ -667,7 +667,7 @@ const ITALIAN: Texts = {
     restarting: (to) => `Drezimo si riavvia con il firmware ${to}.`,
     failed: (reason) => `L'aggiornamento di Drezimo non è riuscito: ${reason} Ci riprovo al prossimo avvio dell'app.`,
   },
-  mutedForMe: "Non senti i suoni su questo PC: gli altri sì.",
+  mutedForMe: "Non senti i suoni su questo computer: gli altri sì.",
   mutedForMeDetail: "In Voicemod è attivo Mute for me.",
   mutedForMeVolume: "Nel mixer di Voicemod il volume dei suoni per le tue cuffie è a zero.",
   hearAgain: "Riattiva l'audio",
@@ -1198,7 +1198,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Com'è fatto",
-        text: "Si comanda tutto da Drezimo, senza guardare il PC. Scegli una parte per sapere a cosa serve.",
+        text: "Si comanda tutto da Drezimo, senza guardare il computer. Scegli una parte per sapere a cosa serve.",
       },
       {
         title: "I colori dei LED",
@@ -1206,7 +1206,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Display e overlay",
-        text: "Il display mostra la pagina e l'ultimo suono. Sul PC, l'overlay mostra i nomi di tutta la pagina quando la cambi o tieni premuta la manopola.",
+        text: "Il display mostra la pagina e l'ultimo suono. Sul computer, l'overlay mostra i nomi di tutta la pagina quando la cambi o tieni premuta la manopola.",
       },
       {
         title: "Le tue pagine",
@@ -1252,7 +1252,7 @@ const ITALIAN: Texts = {
       peek: "Tieni premuta la manopola e premi un tasto: ne leggi il nome senza farlo suonare.",
       row: "Tieni premuta la manopola e ruotala: una riga alla volta si accende di bianco.",
     },
-    onThePc: "L'overlay, sul PC",
+    onTheComputer: "L'overlay, sul computer",
     page: "Stream",
     otherPage: "Gaming",
     // prettier-ignore

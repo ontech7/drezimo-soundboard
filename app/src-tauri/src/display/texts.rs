@@ -138,7 +138,7 @@ pub const ENGLISH: Texts = Texts {
     favourites: "★ Favourites",
     voices: "Voices",
     voice: "VOICE",
-    open_voicemod: "OPEN IT ON YOUR PC",
+    open_voicemod: "OPEN IT ON THE COMPUTER",
     connecting: "CONNECTING",
     update_app: "UPDATE THE APP",
     looped: "LOOP",

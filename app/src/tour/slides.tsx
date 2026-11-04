@@ -126,7 +126,7 @@ export function Screens({ pictures }: { pictures: Pictures | null }) {
       </div>
       <figure className="tour-overlay">
         {pictures && <OverlayPicture picture={pictures.overlay} />}
-        <figcaption className="muted">{texts.tour.onThePc}</figcaption>
+        <figcaption className="muted">{texts.tour.onTheComputer}</figcaption>
       </figure>
     </>
   );
