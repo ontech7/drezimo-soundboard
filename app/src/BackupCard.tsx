@@ -36,12 +36,13 @@ interface ImportResult {
   displaySkipped: boolean;
 }
 
-interface Message {
-  lines: string[];
-  warning?: boolean;
-}
-
 type ErrorKey = keyof Texts["backup"]["errors"];
+
+/** What the card says after an action: worded when drawn, so that it follows a language the import changed */
+type Message =
+  | { kind: "exported"; name: string }
+  | { kind: "imported" | "restored"; result: ImportResult }
+  | { kind: "failed"; key: ErrorKey };
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -55,18 +56,29 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-/** The commands fail with the key of a sentence; anything else is a plain retry */
+/** The commands fail with the key of a sentence; anything else, a system dialog's failure too, is a plain retry */
 function failed(texts: Texts, error: unknown): Message {
-  const errors = texts.backup.errors;
-  const key = typeof error === "string" && error in errors ? (error as ErrorKey) : "other";
-  return { lines: [errors[key]], warning: true };
+  const key = typeof error === "string" && error in texts.backup.errors ? (error as ErrorKey) : "other";
+  return { kind: "failed", key };
 }
 
-function done(texts: Texts, first: string, result: ImportResult): Message {
-  const lines = [first];
-  if (result.cut > 0) lines.push(texts.backup.cut(result.cut));
-  if (result.displaySkipped) lines.push(texts.backup.displaySkipped);
-  return { lines };
+function lines(texts: Texts, message: Message): string[] {
+  const backup = texts.backup;
+  switch (message.kind) {
+    case "exported":
+      return [backup.exported(message.name)];
+    case "failed":
+      return [backup.errors[message.key]];
+    case "imported":
+    case "restored": {
+      const { cut, displaySkipped } = message.result;
+      return [
+        message.kind === "imported" ? backup.imported : backup.restored,
+        ...(cut > 0 ? [backup.cut(cut)] : []),
+        ...(displaySkipped ? [backup.displaySkipped] : []),
+      ];
+    }
+  }
 }
 
 function subtitle(texts: Texts, preview: ImportPreview): string | undefined {
@@ -109,12 +121,12 @@ export function BackupCard() {
 
   const exportFile = () =>
     run(async () => {
-      const filters = [{ name: backup.filter, extensions: ["json"] }];
-      const path = await save({ defaultPath: backup.fileName(today()), filters }).catch(() => null);
-      if (!path) return null;
       try {
+        const filters = [{ name: backup.filter, extensions: ["json"] }];
+        const path = await save({ defaultPath: backup.fileName(today()), filters });
+        if (!path) return null;
         await invoke("export_configuration", { path });
-        return { lines: [backup.exported(fileName(path))] };
+        return { kind: "exported", name: fileName(path) };
       } catch (error) {
         return failed(texts, error === "cannotWrite" ? "cannotSave" : error);
       }
@@ -122,10 +134,10 @@ export function BackupCard() {
 
   const importFile = () =>
     run(async () => {
-      const filters = [{ name: backup.filter, extensions: ["json"] }];
-      const path = await open({ multiple: false, directory: false, filters }).catch(() => null);
-      if (typeof path !== "string") return null;
       try {
+        const filters = [{ name: backup.filter, extensions: ["json"] }];
+        const path = await open({ multiple: false, directory: false, filters });
+        if (typeof path !== "string") return null;
         const checked = await invoke<ImportPreview>("check_import", { path });
         setParts({
           settings: checked.settings,
@@ -151,7 +163,7 @@ export function BackupCard() {
       setPreview(null);
       try {
         const result = await invoke<ImportResult>("apply_import", { parts });
-        return done(texts, backup.imported, result);
+        return { kind: "imported", result };
       } catch (error) {
         return failed(texts, error);
       } finally {
@@ -163,7 +175,7 @@ export function BackupCard() {
     run(async () => {
       try {
         const result = await invoke<ImportResult>("restore_before_import");
-        return done(texts, backup.restored, result);
+        return { kind: "restored", result };
       } catch (error) {
         return failed(texts, error);
       }
@@ -199,8 +211,8 @@ export function BackupCard() {
           </Row>
         )}
         {message && (
-          <div className={message.warning ? "backup-message failed" : "backup-message"} role="status">
-            {message.lines.map((line) => (
+          <div className={message.kind === "failed" ? "backup-message failed" : "backup-message"} role="status">
+            {lines(texts, message).map((line) => (
               <p key={line}>{line}</p>
             ))}
           </div>
