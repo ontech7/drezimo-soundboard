@@ -32,13 +32,14 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
   const [pages] = useCustomPages();
   const outcomes = usePressOutcomes(props.singleStop);
   const byMode = props.settings.pressAgainByMode;
-  const sounds = soundNamesByMode(library);
+  // Before Voicemod first sends its soundboards there is nothing to count
+  const sounds = library?.soundboards.length ? soundNamesByMode(library) : null;
   const ownChoices = (pages ?? []).flatMap((page) => page.pads).filter((pad) => pad?.kind === "sound" && pad.pressAgain).length;
 
   const choose = (key: keyof PressAgainByMode, choice: PressAgain) =>
     saveSettings({ ...props.settings, pressAgainByMode: { ...byMode, [key]: choice } });
   const label = (mode: PlaybackMode, choice: PressAgain) => {
-    if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.pressDoes.voicemod[mode]}`;
+    if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[mode]}`;
     const name = texts.pressAgainNames[choice];
     return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
   };
@@ -48,7 +49,7 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
       {MODE_ROWS.map((mode) => {
         const key = modeKey(mode);
         if (!key) return null;
-        const names = sounds.get(mode) ?? [];
+        const names = sounds?.get(mode) ?? [];
         const choice = byMode[key];
         const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({
           value,
@@ -58,8 +59,8 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
           <Row
             key={mode}
             label={texts.kindNames[mode]}
-            text={texts.soundsOfKind(names.length, names.slice(0, NAMES_SHOWN))}
-            disabled={names.length === 0}
+            text={sounds ? texts.soundsOfKind(names.length, names.slice(0, NAMES_SHOWN)) : undefined}
+            disabled={sounds !== null && names.length === 0}
           >
             <div className={choice === "voicemod" ? "press-select" : "press-select own"}>
               <SearchSelect
@@ -67,8 +68,6 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
                 options={options}
                 value={choice}
                 onChange={(picked) => choose(key, picked)}
-                searchLabel={texts.searchChoices}
-                empty={texts.noChoiceFound}
                 align="right"
               />
             </div>

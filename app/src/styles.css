@@ -763,6 +763,17 @@ select:hover:not(:disabled),
   left: auto;
 }
 
+/* A short list without a search field, as wide as its longest option */
+.search-menu.plain {
+  width: max-content;
+  min-width: 100%;
+  max-width: min(420px, calc(100vw - 48px));
+}
+
+.search-menu ul:focus {
+  outline: none;
+}
+
 .search-menu .search {
   position: relative;
   display: flex;
@@ -843,6 +854,7 @@ select:disabled {
   padding: 9px 14px;
   border: none;
   border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -867,7 +879,7 @@ select:disabled {
 /* What a pad does when pressed again: a choice per kind of sound on the Drezimo page, a sound pad's own in the Pages editor */
 
 .press-select {
-  width: 280px;
+  width: 290px;
 }
 
 .press-select.own .select-button {

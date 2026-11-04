@@ -81,10 +81,10 @@ export function outcomeText(texts: Texts, choice: PressAgain, mode: PlaybackMode
 }
 
 /** The names of the sounds in the licence, by their mode, each sound once */
-export function soundNamesByMode(library: Library | null): Map<PlaybackMode, string[]> {
+export function soundNamesByMode(library: Library): Map<PlaybackMode, string[]> {
   const seen = new Set<string>();
   const names = new Map<PlaybackMode, string[]>();
-  for (const soundboard of library?.soundboards ?? []) {
+  for (const soundboard of library.soundboards) {
     for (const sound of soundboard.sounds) {
       if (!sound.enabled || seen.has(sound.id)) continue;
       seen.add(sound.id);

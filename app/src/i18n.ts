@@ -84,9 +84,15 @@ const ENGLISH = {
     count === 0
       ? "None of your sounds"
       : `${count} ${count === 1 ? "sound" : "sounds"} · ${names.join(", ")}${count > names.length ? "…" : ""}`,
+  voicemodDoes: {
+    PlayRestart: "starts again",
+    PlayPause: "pauses",
+    PlayStop: "stops",
+    PlayLoopOnPress: "while held",
+    PlayOverlap: "stacks",
+    Unknown: "",
+  } as Record<PlaybackMode, string>,
   alsoStopsOthers: "also stops the other sounds",
-  searchChoices: "Search",
-  noChoiceFound: "Nothing found",
   ownChoices: (count: number) => `Pads with a choice of their own: ${count}`,
   seeInPages: "See in Pages",
   boardTabs: { pad: "Pads", knob: "Knob", leds: "LEDs and display" },
@@ -591,9 +597,15 @@ const ITALIAN: Texts = {
     count === 0
       ? "Nessuno dei tuoi suoni"
       : `${count} ${count === 1 ? "suono" : "suoni"} · ${names.join(", ")}${count > names.length ? "…" : ""}`,
+  voicemodDoes: {
+    PlayRestart: "riparte",
+    PlayPause: "pausa",
+    PlayStop: "si ferma",
+    PlayLoopOnPress: "finché premuto",
+    PlayOverlap: "sovrappone",
+    Unknown: "",
+  },
   alsoStopsOthers: "ferma anche gli altri suoni",
-  searchChoices: "Cerca",
-  noChoiceFound: "Nessun risultato",
   ownChoices: (count) => `Pad con una scelta loro: ${count}`,
   seeInPages: "Vedi nelle Pagine",
   boardTabs: { pad: "Pad", knob: "Manopola", leds: "LED e display" },
