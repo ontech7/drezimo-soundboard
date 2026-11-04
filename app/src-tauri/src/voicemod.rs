@@ -58,10 +58,11 @@ pub enum Request {
     ToggleBackground,
     /// Answered only for a sound or voice Voicemod knows
     GetPicture(Picture),
-    /// The bridge's only, dropped while it is not found
+    /// The bridge's only, dropped while it is not found. `enabled` false mutes the channel, as Voicemod's mixer does
     SetGain {
         channel: Channel,
         gain: f32,
+        enabled: bool,
     },
     /// For the play under way, through the bridge only
     SetSoundVolume {
@@ -126,10 +127,12 @@ pub enum VoicemodEvent {
     Version(String),
     /// Whether a single sound can be stopped: Voicemod's bridge was found
     SingleSoundStop(bool),
-    /// A mixer channel's gain, from the bridge. `ours`: the app's own change coming back
+    /// A mixer channel's gain, from the bridge, and whether it is on when Voicemod tells. `ours`: the app's own
+    /// change coming back
     MixerGain {
         channel: Channel,
         gain: f32,
+        enabled: Option<bool>,
         ours: bool,
     },
     /// Each sound's volume saved in Voicemod, 0 to 1, from the bridge
@@ -158,7 +161,17 @@ impl Voicemod {
         let bridge = Bridge::start(move |event| {
             found(match event {
                 BridgeEvent::Found(there) => VoicemodEvent::SingleSoundStop(there),
-                BridgeEvent::Gain { channel, gain, ours } => VoicemodEvent::MixerGain { channel, gain, ours },
+                BridgeEvent::Gain {
+                    channel,
+                    gain,
+                    enabled,
+                    ours,
+                } => VoicemodEvent::MixerGain {
+                    channel,
+                    gain,
+                    enabled,
+                    ours,
+                },
                 BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
             })
         });
@@ -313,8 +326,8 @@ async fn exchange(
                 // Waits for Voicemod to stop it, so that a press asked next comes after it
                 let stopped_alone = match &request {
                     Request::StopSound(id) => bridge.stop_sound(id).await,
-                    Request::SetGain { channel, gain } => {
-                        bridge.set_gain(*channel, *gain);
+                    Request::SetGain { channel, gain, enabled } => {
+                        bridge.set_gain(*channel, *gain, *enabled);
                         true
                     }
                     Request::SetSoundVolume { id, volume } => {
@@ -410,8 +423,9 @@ fn parse(text: &str) -> Option<Incoming> {
                 .or(object["profileId"].as_str())?;
             VoicemodEvent::ActiveSoundboard(id.to_string())
         }
-        // Voicemod 3.17 answers the status requests with the toggle actions
-        "toggleMuteMemeForMe" | "getMuteMemeForMeStatus" => VoicemodEvent::MuteForMe(switch()?),
+        // Voicemod 3.17 answers the status requests with the toggle actions. For Mute for me it tells whether the user
+        // hears the sounds: true while its mixer's soundboard channel for them is on (measured with 3.17.45)
+        "toggleMuteMemeForMe" | "getMuteMemeForMeStatus" => VoicemodEvent::MuteForMe(!switch()?),
         "toggleVoiceChanger" | "getVoiceChangerStatus" => VoicemodEvent::VoiceChanger(switch()?),
         "voiceChangerEnabledEvent" => VoicemodEvent::VoiceChanger(true),
         "voiceChangerDisabledEvent" => VoicemodEvent::VoiceChanger(false),
@@ -471,7 +485,7 @@ mod tests {
     #[test]
     fn reads_the_switches() {
         let cases = [
-            ("toggleMuteMemeForMe", true, VoicemodEvent::MuteForMe(true)),
+            ("toggleMuteMemeForMe", true, VoicemodEvent::MuteForMe(false)),
             ("toggleVoiceChanger", false, VoicemodEvent::VoiceChanger(false)),
             ("toggleHearMyVoice", true, VoicemodEvent::HearMyself(true)),
         ];
@@ -550,6 +564,7 @@ mod tests {
         let gain = Request::SetGain {
             channel: Channel::Microphone,
             gain: 1.0,
+            enabled: true,
         };
         let volume = Request::SetSoundVolume {
             id: "s1".into(),

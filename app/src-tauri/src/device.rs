@@ -4,7 +4,7 @@
 use crate::board::{Board, BoardEvent, BoardStatus};
 use crate::board_test::{BoardTest, DisplayTest, LedTest, TEST_BRIGHTNESS, Tester};
 use crate::controller::MacroProgress;
-use crate::controller::{BoardView, Controller, Output, PageSummary};
+use crate::controller::{BoardView, Controller, MutedBy, Output, PageSummary};
 use crate::custom_pages::{CustomPage, CustomPagesState, Library, LibraryState};
 use crate::firmware::{self, FirmwareUpdate, Updater};
 use crate::last_page;
@@ -42,6 +42,8 @@ enum Input {
         pressed: bool,
     },
     Key(u8),
+    /// The notice's Hear them again
+    HearAgain,
     /// The knob turned in the window: +1 to the right
     KnobTurn(i8),
     KnobPress(bool),
@@ -86,8 +88,8 @@ pub struct Status {
     pub voicemod_version: Option<String>,
     /// The macro running, if any
     pub running_macro: Option<MacroProgress>,
-    /// A sound played while Voicemod's Mute for me was on, which is still on
-    pub muted_play: bool,
+    /// Why a sound that played was not heard by the user, while it is still so
+    pub muted_play: Option<MutedBy>,
     /// Voicemod's bridge was found: a pad can stop a single sound
     pub single_sound_stop: bool,
 }
@@ -359,6 +361,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 window_touch(display, Touch::Press(Control::Key(index), true));
                 window_touch(display, Touch::Press(Control::Key(index), false));
             }
+            Some(Input::HearAgain) => controller.hear_sounds_again(),
             Some(Input::KnobTurn(step)) => {
                 controller.window_knob_turned(step, now);
                 window_touch(display, Touch::Turn(step));
@@ -611,6 +614,12 @@ pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
     if index < PAD_COUNT {
         send(&app, Input::Pad { index, pressed });
     }
+}
+
+/// Brings back the sounds the user did not hear, whatever kept them away
+#[tauri::command]
+pub fn hear_sounds_again(app: AppHandle) {
+    send(&app, Input::HearAgain);
 }
 
 /// The knob turned in the window, a step at a time

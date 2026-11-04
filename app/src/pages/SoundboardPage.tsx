@@ -1,4 +1,5 @@
-import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
 import { ChevronLeft, ChevronRight, CloseIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
@@ -75,16 +76,28 @@ function WhatIsNew() {
 const STOP = 2;
 const MUTE_ME = 3;
 
-/** Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight */
-function MutedForMe({ settings }: { settings: Settings }) {
+/** The notice of a volume at zero, closed until the app starts again: no choice of the user's to remember */
+let volumeNoticeClosed = false;
+
+/**
+ * Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight, and its mixer's volume
+ * for the user too
+ */
+function MutedForMe({ settings, cause }: { settings: Settings; cause: "switch" | "volume" }) {
   const texts = useTexts();
-  const seen = () => saveSettings({ ...settings, muteForMeNoticeSeen: true });
+  const [, setClosed] = useState(false);
+  const seen = () => {
+    if (cause === "switch") return saveSettings({ ...settings, muteForMeNoticeSeen: true });
+    volumeNoticeClosed = true;
+    setClosed(true);
+  };
+  if (cause === "switch" ? settings.muteForMeNoticeSeen : volumeNoticeClosed) return null;
   return (
     <div className="notice warning">
       <span className="dot warning" />
       <p>
         <strong>{texts.mutedForMe}</strong>
-        <span className="muted">{texts.mutedForMeDetail}</span>
+        <span className="muted">{cause === "switch" ? texts.mutedForMeDetail : texts.mutedForMeVolume}</span>
       </p>
       <div className="notice-actions">
         <button type="button" className="button secondary" onClick={seen}>
@@ -94,7 +107,7 @@ function MutedForMe({ settings }: { settings: Settings }) {
           type="button"
           className="button"
           onClick={() => {
-            pressKey(MUTE_ME);
+            invoke("hear_sounds_again");
             seen();
           }}
         >
@@ -311,7 +324,7 @@ export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
   return (
     <>
       <WhatIsNew />
-      {status.mutedPlay && !settings.muteForMeNoticeSeen && <MutedForMe settings={settings} />}
+      {status.mutedPlay && <MutedForMe settings={settings} cause={status.mutedPlay} />}
       {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
   );

@@ -1345,10 +1345,77 @@ fn tells_of_a_sound_played_while_muted_for_me() {
     let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
     controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
     press(&mut controller, 0, true, now);
-    assert!(controller.played_while_muted());
+    assert_eq!(controller.played_while_muted(), Some(MutedBy::Switch));
 
     controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
-    assert!(!controller.played_while_muted());
+    assert_eq!(controller.played_while_muted(), None);
+}
+
+#[test]
+fn tells_of_a_sound_played_with_the_volume_for_the_user_at_zero() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
+    bridge(&mut controller, [1.0, 0.0, 1.0], now);
+    press(&mut controller, 0, true, now);
+    assert_eq!(controller.played_while_muted(), Some(MutedBy::Volume));
+
+    // Voicemod's slider moved up
+    let up = VoicemodEvent::MixerGain {
+        channel: Channel::SoundboardForMe,
+        gain: 0.5,
+        enabled: Some(true),
+        ours: false,
+    };
+    controller.voicemod_event(up, now);
+    assert_eq!(controller.played_while_muted(), None);
+}
+
+#[test]
+fn hearing_the_sounds_again_turns_the_channel_on_and_up() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    bridge(&mut controller, [1.0, 0.0, 1.0], now);
+    press(&mut controller, 0, true, now);
+    controller.take_outputs();
+    controller.hear_sounds_again();
+    let expected = Request::SetGain {
+        channel: Channel::SoundboardForMe,
+        gain: 1.0,
+        enabled: true,
+    };
+    assert_eq!(requests(&controller.take_outputs()), [&expected]);
+    assert_eq!(controller.played_while_muted(), None);
+    assert!(!controller.switches.mute_for_me);
+}
+
+#[test]
+fn without_the_bridge_hearing_again_only_turns_mute_for_me_off() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    controller.take_outputs();
+    controller.hear_sounds_again();
+    assert_eq!(requests(&controller.take_outputs()), [&Request::ToggleMuteForMe]);
+}
+
+#[test]
+fn the_knob_keeps_a_muted_channel_muted() {
+    let (mut controller, now) = ready(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::SoundboardForMe,
+            ..KnobSettings::default()
+        },
+    );
+    controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let outputs = turn(&mut controller, -1, now);
+    let expected = Request::SetGain {
+        channel: Channel::SoundboardForMe,
+        gain: gain(95),
+        enabled: false,
+    };
+    assert_eq!(requests(&outputs), [&expected]);
 }
 
 #[test]
@@ -1357,7 +1424,7 @@ fn a_sound_started_on_the_computer_counts_too() {
     controller.voicemod_event(VoicemodEvent::MuteForMe(true), now);
     controller.log_input(LogInput::Opened(Vec::new()), now);
     controller.log_input(LogInput::Lines(vec![played_in_log("honk", SystemTime::now())]), now);
-    assert!(controller.played_while_muted());
+    assert_eq!(controller.played_while_muted(), Some(MutedBy::Switch));
 }
 
 #[test]
@@ -1365,7 +1432,7 @@ fn nothing_to_tell_with_the_sound_on() {
     let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
     controller.voicemod_event(VoicemodEvent::MuteForMe(false), now);
     press(&mut controller, 0, true, now);
-    assert!(!controller.played_while_muted());
+    assert_eq!(controller.played_while_muted(), None);
 }
 
 #[test]
@@ -1783,6 +1850,7 @@ fn bridge(controller: &mut Controller, gains: [f32; 3], now: Instant) {
         let event = VoicemodEvent::MixerGain {
             channel,
             gain,
+            enabled: None,
             ours: false,
         };
         controller.voicemod_event(event, now);
@@ -1803,7 +1871,11 @@ fn home_name(controller: &Controller, now: Instant) -> String {
 }
 
 fn set_gain(channel: Channel, gain: f32) -> Request {
-    Request::SetGain { channel, gain }
+    Request::SetGain {
+        channel,
+        gain,
+        enabled: true,
+    }
 }
 
 #[test]
@@ -2172,6 +2244,7 @@ fn a_quick_turn_keeps_every_step_when_voicemod_answers() {
     let echo = VoicemodEvent::MixerGain {
         channel: Channel::SoundboardForOthers,
         gain: gain(95),
+        enabled: Some(true),
         ours: true,
     };
     controller.voicemod_event(echo, at(15));

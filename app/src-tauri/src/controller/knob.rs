@@ -212,7 +212,12 @@ impl Controller {
             return self.tell(self.texts.not_available, now);
         };
         let gain = mixer::gain(percent);
-        self.send_limited(KnobSend::Channel(channel), Request::SetGain { channel, gain }, now);
+        let enabled = self.mixer.is_on(channel);
+        self.send_limited(
+            KnobSend::Channel(channel),
+            Request::SetGain { channel, gain, enabled },
+            now,
+        );
         self.show_level(label.to_string(), percent, channel.max_percent(), now);
     }
 
@@ -269,7 +274,12 @@ impl Controller {
         }
         let reset = self.mixer.reset();
         for (channel, gain) in reset.channels {
-            self.send_limited(KnobSend::Channel(channel), Request::SetGain { channel, gain }, now);
+            let enabled = self.mixer.is_on(channel);
+            self.send_limited(
+                KnobSend::Channel(channel),
+                Request::SetGain { channel, gain, enabled },
+                now,
+            );
         }
         for (id, volume) in reset.sounds {
             let request = Request::SetSoundVolume { id: id.clone(), volume };
@@ -371,6 +381,8 @@ impl Controller {
     /// The bridge came or went: the volumes are read again, none waits to be sent; a voice goes through the Control API
     pub(super) fn volumes_forgotten(&mut self) {
         self.mixer.connected();
+        // Known from the Control API, which a read through the bridge does not tell
+        self.mixer.set_on(Channel::SoundboardForMe, !self.switches.mute_for_me);
         self.knob_sent.retain(|target, _| *target == KnobSend::Voice);
         self.knob_waiting.retain(|target, _| *target == KnobSend::Voice);
     }

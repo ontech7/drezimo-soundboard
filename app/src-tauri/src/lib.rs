@@ -60,6 +60,7 @@ pub fn run() {
             device::board_view,
             device::press_pad,
             device::press_key,
+            device::hear_sounds_again,
             device::turn_knob,
             device::press_knob,
             device::display_look,

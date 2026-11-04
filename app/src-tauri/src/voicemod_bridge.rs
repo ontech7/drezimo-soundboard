@@ -43,6 +43,7 @@ enum Job {
     SetGain {
         channel: Channel,
         gain: f32,
+        enabled: bool,
     },
     SetSoundVolume {
         sound: String,
@@ -92,8 +93,10 @@ impl Bridge {
         self.send(Job::Pressed(sound.to_string()));
     }
 
-    pub fn set_gain(&self, channel: Channel, gain: f32) {
-        self.send(Job::SetGain { channel, gain });
+    /// `enabled` false is the channel's mute in Voicemod's mixer, as its window sends it: Mute for me, for the
+    /// soundboard for the user. Sent without it, Voicemod's window takes the channel as on.
+    pub fn set_gain(&self, channel: Channel, gain: f32, enabled: bool) {
+        self.send(Job::SetGain { channel, gain, enabled });
     }
 
     /// For the play under way only: Voicemod keeps the sound's saved volume
@@ -166,7 +169,9 @@ async fn serve(
         tokio::select! {
             incoming = socket.next() => match incoming {
                 Some(Ok(Message::Text(text))) => match message(&text) {
-                    Some(BridgeMessage::Gain { channel, gain, ours }) => on_event(BridgeEvent::Gain { channel, gain, ours }),
+                    Some(BridgeMessage::Gain { channel, gain, enabled, ours }) => {
+                        on_event(BridgeEvent::Gain { channel, gain, enabled, ours });
+                    }
                     Some(BridgeMessage::SoundVolumes(volumes)) => on_event(BridgeEvent::SoundVolumes(volumes)),
                     Some(other) => {
                         if let Some(sound) = stops.read(other) {
@@ -182,8 +187,8 @@ async fn serve(
             job = jobs.recv() => match job {
                 Some(Job::Stop { sound, done }) => stops.send(&mut socket, sound, Some(done)).await?,
                 Some(Job::Pressed(sound)) => stops.pressed(sound),
-                Some(Job::SetGain { channel, gain }) => {
-                    socket.send(set_gain_request(&stops.next_id(), channel, gain)).await?;
+                Some(Job::SetGain { channel, gain, enabled }) => {
+                    socket.send(set_gain_request(&stops.next_id(), channel, gain, enabled)).await?;
                 }
                 Some(Job::SetSoundVolume { sound, volume }) => {
                     socket.send(sound_volume_request(&stops.next_id(), &sound, volume)).await?;
@@ -290,8 +295,8 @@ fn gain_request(message_id: &str, channel: Channel) -> Message {
     request(message_id, "appMessage", "GetVolumeGain", object)
 }
 
-fn set_gain_request(message_id: &str, channel: Channel, gain: f32) -> Message {
-    let object = json!({ "controlType": channel.control_type(), "value": gain });
+fn set_gain_request(message_id: &str, channel: Channel, gain: f32, enabled: bool) -> Message {
+    let object = json!({ "controlType": channel.control_type(), "enabled": enabled, "value": gain });
     request(message_id, "appMessage", "SetVolumeGain", object)
 }
 
@@ -312,8 +317,13 @@ fn resources_request(message_id: &str) -> Message {
 pub enum BridgeEvent {
     /// Whether the bridge is there
     Found(bool),
-    /// A mixer channel's gain. `ours`: the app's own change coming back
-    Gain { channel: Channel, gain: f32, ours: bool },
+    /// A mixer channel's gain, and whether it is on when Voicemod tells. `ours`: the app's own change coming back
+    Gain {
+        channel: Channel,
+        gain: f32,
+        enabled: Option<bool>,
+        ours: bool,
+    },
     /// Each sound's volume saved in Voicemod, 0 to 1
     SoundVolumes(HashMap<String, f32>),
 }
@@ -332,6 +342,7 @@ enum BridgeMessage {
     Gain {
         channel: Channel,
         gain: f32,
+        enabled: Option<bool>,
         ours: bool,
     },
     SoundVolumes(HashMap<String, f32>),
@@ -360,6 +371,8 @@ fn message(text: &str) -> Option<BridgeMessage> {
             Some(BridgeMessage::Gain {
                 channel: Channel::from_control_type(object["controlType"].as_str()?)?,
                 gain: object["value"].as_f64()? as f32,
+                // A change tells it, a read does not: a channel off then reads as 0
+                enabled: object["enabled"].as_bool(),
                 ours: command == "SetVolumeGain" && asked_by_us,
             })
         }
@@ -798,6 +811,19 @@ mod tests {
     }
 
     #[test]
+    fn reads_a_channel_turned_off() {
+        let muted = r#"{"bridgeData":{"data":{"id":"","object":{"controlType":"monitorSoundboardPreMix",
+            "enabled":false,"sourceTrigger":"Websocket","value":1},"type":"SetVolumeGain"},"type":"appMessage"}}"#;
+        let expected = BridgeMessage::Gain {
+            channel: Channel::SoundboardForMe,
+            gain: 1.0,
+            enabled: Some(false),
+            ours: false,
+        };
+        assert_eq!(message(muted), Some(expected));
+    }
+
+    #[test]
     fn a_failed_resources_answer_is_no_empty_library() {
         let answer = |data: Value| json!({"bridgeData": {"type": "appMessage", "data": data}}).to_string();
         let failed = answer(json!({"type": "GetAllResources", "error": {"code": 429}, "object": {}}));
@@ -810,7 +836,14 @@ mod tests {
 
     #[test]
     fn reads_gains_and_tells_ours_apart() {
-        let gain = |channel, gain, ours| Some(BridgeMessage::Gain { channel, gain, ours });
+        let gain = |channel, gain, ours| {
+            Some(BridgeMessage::Gain {
+                channel,
+                gain,
+                enabled: None,
+                ours,
+            })
+        };
         let monitor = gain_message("GetVolumeGain", "monitor", "probe-3", 0.3025);
         assert_eq!(message(&monitor), None, "not a channel of the knob's");
         let read = gain_message("GetVolumeGain", "input", "drezimo-2", 1.5);
@@ -853,9 +886,9 @@ mod tests {
     fn builds_the_volume_messages() {
         let text = |message: Message| serde_json::from_str::<Value>(message.to_text().unwrap()).unwrap();
         assert_eq!(
-            text(set_gain_request("drezimo-1", Channel::Microphone, 1.5)),
+            text(set_gain_request("drezimo-1", Channel::Microphone, 1.5, true)),
             json!({"bridgeData": {"type": "appMessage", "data": {"id": "drezimo-1", "type": "SetVolumeGain",
-                "object": {"controlType": "input", "value": 1.5}}}})
+                "object": {"controlType": "input", "enabled": true, "value": 1.5}}}})
         );
         let volume = text(sound_volume_request("drezimo-2", "s1", 0.35));
         assert_eq!(volume["bridgeData"]["type"], "busMessage");
