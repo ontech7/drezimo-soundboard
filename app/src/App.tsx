@@ -83,13 +83,13 @@ export default function App() {
           )}
           {shown === "pages" && (
             <PagesPage
-              pressAgain={settings.pressAgain}
+              pressAgainByMode={settings.pressAgainByMode}
               singleStop={status.singleSoundStop}
               onOpenMacros={() => setPage("macros")}
             />
           )}
           {shown === "macros" && <MacrosPage status={status} />}
-          {shown === "board" && <BoardPage settings={settings} status={status} />}
+          {shown === "board" && <BoardPage settings={settings} status={status} onOpenPages={() => setPage("pages")} />}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
           {shown === "general" && <GeneralPage settings={settings} status={status} onTour={() => setTour(true)} />}
           {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}

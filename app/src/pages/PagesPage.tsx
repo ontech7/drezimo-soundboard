@@ -29,10 +29,10 @@ import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
 import { MiniBoard } from "../MiniBoard";
 import { PadPicture } from "../PadPicture";
-import { type Outcomes, type PlaybackMode, usePressOutcomes } from "../pressAgain";
+import { type Outcomes, type PlaybackMode, typeChoice, usePressOutcomes } from "../pressAgain";
 import { PressAgainField } from "../PressAgainControls";
 import { SearchSelect } from "../SearchSelect";
-import type { PressAgain } from "../settings";
+import type { PressAgainByMode } from "../settings";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
 const MAX_PAGE_NAME = 24;
@@ -157,13 +157,13 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
 
 interface PagesProps {
   /** As set on the Drezimo page */
-  pressAgain: PressAgain;
+  pressAgainByMode: PressAgainByMode;
   /** Voicemod's bridge was found: a pad can stop a single sound */
   singleStop: boolean;
   onOpenMacros: () => void;
 }
 
-export function PagesPage({ pressAgain, singleStop, onOpenMacros }: PagesProps) {
+export function PagesPage({ pressAgainByMode, singleStop, onOpenMacros }: PagesProps) {
   const texts = useTexts();
   const [pages, save, saveError] = useCustomPages();
   const library = useLibrary();
@@ -285,7 +285,7 @@ export function PagesPage({ pressAgain, singleStop, onOpenMacros }: PagesProps) 
         <Inspector
           pad={selectedPad}
           look={look(selectedPad, lookup, texts)}
-          pressAgain={pressAgain}
+          pressAgainByMode={pressAgainByMode}
           mode={selectedPad.kind === "sound" ? (lookup.sound(selectedPad.id)?.item.mode ?? null) : null}
           outcomes={outcomes}
           targets={lookup.targets.filter((target) => target.id !== page.id)}
@@ -597,7 +597,7 @@ interface InspectorProps {
   pad: CustomPad;
   look: Look;
   /** As set on the Drezimo page */
-  pressAgain: PressAgain;
+  pressAgainByMode: PressAgainByMode;
   mode: PlaybackMode | null;
   outcomes: Outcomes | null;
   targets: { id: string; name: string }[];
@@ -606,7 +606,17 @@ interface InspectorProps {
   onClear: () => void;
 }
 
-function Inspector({ pad, look: shown, pressAgain, mode, outcomes, targets, onChange, onReplace, onClear }: InspectorProps) {
+function Inspector({
+  pad,
+  look: shown,
+  pressAgainByMode,
+  mode,
+  outcomes,
+  targets,
+  onChange,
+  onReplace,
+  onClear,
+}: InspectorProps) {
   const texts = useTexts();
 
   return (
@@ -651,7 +661,7 @@ function Inspector({ pad, look: shown, pressAgain, mode, outcomes, targets, onCh
       {pad.kind === "sound" && (
         <PressAgainField
           own={pad.pressAgain ?? null}
-          everyPad={pressAgain}
+          typeChoice={typeChoice(pressAgainByMode, mode)}
           mode={mode}
           outcomes={outcomes}
           onChange={(pressAgain) => onChange({ ...pad, pressAgain })}

@@ -1,114 +1,95 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { Section } from "./controls";
-import { useLibrary } from "./customPages";
+import { Row, Section } from "./controls";
+import { useCustomPages, useLibrary } from "./customPages";
 import { useDismiss } from "./dismiss";
 import { useTexts } from "./i18n";
-import { BoardIcon, CheckIcon, ChevronDown, PressAgainIcon } from "./icons";
+import { BoardIcon, CheckIcon, PressAgainIcon } from "./icons";
 import {
   CHOICES,
+  choicesFor,
+  MODE_ROWS,
+  modeKey,
   type Outcome,
   type Outcomes,
   outcomeText,
   type PlaybackMode,
   reach,
   type Reach,
-  soundsByMode,
+  soundNamesByMode,
   usePressOutcomes,
 } from "./pressAgain";
-import { type PressAgain, type SettingsView, saveSettings } from "./settings";
+import { SearchSelect } from "./SearchSelect";
+import { type PressAgain, type PressAgainByMode, type SettingsView, saveSettings } from "./settings";
 
 const MARKS: Record<Reach, string> = { chosen: "✓", stopsAll: "!", instead: "→" };
+/** How many of a kind's sound names show under it */
+const NAMES_SHOWN = 3;
 
-/** The Drezimo page's choice for every pad, and what it does to the user's sounds */
-export function PressAgainSection({ settings, singleStop }: { settings: SettingsView; singleStop: boolean }) {
+/** The Drezimo page's choice for each kind of sound, and how many of the user's sounds are of that kind */
+export function PadTab(props: { settings: SettingsView; singleStop: boolean; onOpenPages: () => void }) {
   const texts = useTexts();
   const library = useLibrary();
-  const outcomes = usePressOutcomes(singleStop);
-  const choice = settings.pressAgain;
-  const groups = soundsByMode(library);
+  const [pages] = useCustomPages();
+  const outcomes = usePressOutcomes(props.singleStop);
+  const byMode = props.settings.pressAgainByMode;
+  const sounds = soundNamesByMode(library);
+  const ownChoices = (pages ?? []).flatMap((page) => page.pads).filter((pad) => pad?.kind === "sound" && pad.pressAgain).length;
+
+  const choose = (key: keyof PressAgainByMode, choice: PressAgain) =>
+    saveSettings({ ...props.settings, pressAgainByMode: { ...byMode, [key]: choice } });
+  const label = (mode: PlaybackMode, choice: PressAgain) => {
+    if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.pressDoes.voicemod[mode]}`;
+    const name = texts.pressAgainNames[choice];
+    return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
+  };
 
   return (
-    <Section title={texts.pads} text={texts.pressAgainText}>
-      <div className="press-choices" role="radiogroup" aria-label={texts.pads}>
-        {CHOICES.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={option === choice}
-            className="press-choice"
-            onClick={() => saveSettings({ ...settings, pressAgain: option })}
+    <Section title={texts.padPressedAgain} text={texts.pressAgainText}>
+      {MODE_ROWS.map((mode) => {
+        const key = modeKey(mode);
+        if (!key) return null;
+        const names = sounds.get(mode) ?? [];
+        const choice = byMode[key];
+        const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({
+          value,
+          label: label(mode, value),
+        }));
+        return (
+          <Row
+            key={mode}
+            label={texts.kindNames[mode]}
+            text={texts.soundsOfKind(names.length, names.slice(0, NAMES_SHOWN))}
+            disabled={names.length === 0}
           >
-            <span className="glyph">
-              <PressAgainIcon choice={option} />
-            </span>
-            <span className="name">
-              {texts.pressAgainNames[option]}
-              {option === "voicemod" && <span className="tag">{texts.byDefault}</span>}
-            </span>
-            <span className="muted">{texts.pressAgainTexts[option]}</span>
-          </button>
-        ))}
-      </div>
-      {outcomes && groups.length > 0 && <Effect choice={choice} groups={groups} outcomes={outcomes} />}
-    </Section>
-  );
-}
-
-function Effect(props: { choice: PressAgain; groups: [PlaybackMode, number][]; outcomes: Outcomes }) {
-  const texts = useTexts();
-  const [open, setOpen] = useState(false);
-  const rows = props.groups.map(([mode, count]) => {
-    const outcome = props.outcomes[mode][props.choice];
-    return { mode, count, reach: reach(props.choice, outcome), text: outcomeText(texts, props.choice, mode, outcome) };
-  });
-  const total = (kind?: Reach) => rows.filter((row) => !kind || row.reach === kind).reduce((sum, row) => sum + row.count, 0);
-  const counts: [Reach, string][] = [
-    ["chosen", texts.chosenCount(total("chosen"))],
-    ["stopsAll", texts.stopsAllCount(total("stopsAll"))],
-    ["instead", texts.insteadCount(total("instead"))],
-  ];
-
-  return (
-    <div className="press-effect">
-      <div className="press-summary">
-        <span className="muted">{texts.onYourSounds(total())}</span>
-        {counts
-          .filter(([kind]) => total(kind) > 0)
-          .map(([kind, text]) => (
-            <span key={kind} className={`press-count ${kind}`}>
-              {MARKS[kind]} {text}
-            </span>
-          ))}
-        <button type="button" className="disclosure" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {texts.soundBySound}
-          <ChevronDown />
+            <div className={choice === "voicemod" ? "press-select" : "press-select own"}>
+              <SearchSelect
+                label={texts.kindNames[mode]}
+                options={options}
+                value={choice}
+                onChange={(picked) => choose(key, picked)}
+                searchLabel={texts.searchChoices}
+                empty={texts.noChoiceFound}
+                align="right"
+              />
+            </div>
+          </Row>
+        );
+      })}
+      <p className="muted press-own">
+        {texts.ownChoices(ownChoices)} ·{" "}
+        <button type="button" className="link" onClick={props.onOpenPages}>
+          {texts.seeInPages}
         </button>
-      </div>
-      {open && (
-        <table className="press-details">
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.mode}>
-                <td className="muted">{texts.soundsWithMode(row.mode, row.count)}</td>
-                <td className={row.reach}>
-                  <span className="mark">{MARKS[row.reach]}</span>
-                  {row.text}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+      </p>
+    </Section>
   );
 }
 
 interface FieldProps {
   /** Picked for this pad, if any */
   own: PressAgain | null;
-  /** As set on the Drezimo page */
-  everyPad: PressAgain;
+  /** As set on the Drezimo page for the sound's kind */
+  typeChoice: PressAgain;
   /** The sound's own rule in Voicemod, once known */
   mode: PlaybackMode | null;
   outcomes: Outcomes | null;
@@ -116,7 +97,7 @@ interface FieldProps {
 }
 
 /** A sound pad's choice in the Pages editor, each option saying what it does to that sound */
-export function PressAgainField({ own, everyPad, mode, outcomes, onChange }: FieldProps) {
+export function PressAgainField({ own, typeChoice, mode, outcomes, onChange }: FieldProps) {
   const texts = useTexts();
   const labelId = useId();
   const valueId = useId();
@@ -126,7 +107,7 @@ export function PressAgainField({ own, everyPad, mode, outcomes, onChange }: Fie
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const outcomeOf = (choice: PressAgain): Outcome | null => (mode && outcomes ? outcomes[mode][choice] : null);
-  const choice = own ?? everyPad;
+  const choice = own ?? typeChoice;
   const outcome = outcomeOf(choice);
 
   useEffect(() => {
@@ -154,12 +135,12 @@ export function PressAgainField({ own, everyPad, mode, outcomes, onChange }: Fie
     items[(next + items.length) % items.length]?.focus();
   };
   const item = (option: PressAgain | null, name: ReactNode) => {
-    const shown = option ?? everyPad;
+    const shown = option ?? typeChoice;
     const result = outcomeOf(shown);
     const kind = result && reach(shown, result);
     return (
       <button
-        key={option ?? "everyPad"}
+        key={option ?? "typeChoice"}
         type="button"
         role="menuitemradio"
         aria-checked={option === own}
@@ -194,7 +175,7 @@ export function PressAgainField({ own, everyPad, mode, outcomes, onChange }: Fie
         >
           <PressAgainIcon choice={choice} />
           <span id={valueId}>
-            {own ? texts.pressAgainNames[own] : `${texts.asForEveryPad} · ${texts.pressAgainNames[everyPad]}`}
+            {own ? texts.pressAgainNames[own] : `${texts.asItsKind} · ${texts.pressAgainNames[typeChoice]}`}
           </span>
           {outcome?.stopsAll && <span className="stops-all" />}
         </button>
@@ -203,7 +184,7 @@ export function PressAgainField({ own, everyPad, mode, outcomes, onChange }: Fie
             {item(
               null,
               <>
-                {texts.asForEveryPad} <span className="muted">· {texts.pressAgainNames[everyPad]}</span>
+                {texts.asItsKind} <span className="muted">· {texts.pressAgainNames[typeChoice]}</span>
               </>
             )}
             <hr />

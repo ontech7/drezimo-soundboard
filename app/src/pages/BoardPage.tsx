@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { type KeyboardEvent, useId, useRef, useState } from "react";
 import { Choice, Row, Section, Slider } from "../controls";
 import { useTexts } from "../i18n";
-import { PressAgainSection } from "../PressAgainControls";
+import { PadTab } from "../PressAgainControls";
 import { type DisplaySettings, type SettingsView, saveDisplaySettings, saveSettings } from "../settings";
 import type { Status } from "../status";
 
@@ -9,7 +10,64 @@ const DIM_AFTER = [0, 1, 2, 5, 10, 30];
 const OFF_AFTER = [0, 5, 10, 15, 30, 60];
 const SHIFT_EVERY = [0, 1, 3, 5, 10];
 
-export function BoardPage({ settings, status }: { settings: SettingsView; status: Status }) {
+type Tab = "pad" | "leds";
+const TABS: Tab[] = ["pad", "leds"];
+
+interface Props {
+  settings: SettingsView;
+  status: Status;
+  onOpenPages: () => void;
+}
+
+export function BoardPage(props: Props) {
+  const texts = useTexts();
+  const id = useId();
+  const [tab, setTab] = useState<Tab>("pad");
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const keys = (event: KeyboardEvent) => {
+    const at = TABS.indexOf(tab);
+    const next = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TABS.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const moved = (next + TABS.length) % TABS.length;
+    setTab(TABS[moved]);
+    buttons.current[moved]?.focus();
+  };
+
+  return (
+    <>
+      <div className="tabs" role="tablist" aria-label={texts.nav.board} onKeyDown={keys}>
+        {TABS.map((name, index) => (
+          <button
+            key={name}
+            ref={(button) => {
+              buttons.current[index] = button;
+            }}
+            type="button"
+            role="tab"
+            id={`${id}-${name}`}
+            aria-selected={tab === name}
+            aria-controls={`${id}-${name}-panel`}
+            tabIndex={tab === name ? 0 : -1}
+            className={tab === name ? "tab on" : "tab"}
+            onClick={() => setTab(name)}
+          >
+            {texts.boardTabs[name]}
+          </button>
+        ))}
+      </div>
+      <div className="tab-panel" role="tabpanel" id={`${id}-${tab}-panel`} aria-labelledby={`${id}-${tab}`}>
+        {tab === "pad" && (
+          <PadTab settings={props.settings} singleStop={props.status.singleSoundStop} onOpenPages={props.onOpenPages} />
+        )}
+        {tab === "leds" && <LedsTab settings={props.settings} status={props.status} />}
+      </div>
+    </>
+  );
+}
+
+function LedsTab({ settings, status }: { settings: SettingsView; status: Status }) {
   const texts = useTexts();
   const display = status.displaySettings;
   const change = (changed: Partial<DisplaySettings>) => {
@@ -20,8 +78,6 @@ export function BoardPage({ settings, status }: { settings: SettingsView; status
 
   return (
     <>
-      <PressAgainSection settings={settings} singleStop={status.singleSoundStop} />
-
       <Section title={texts.leds}>
         <Row label={texts.brightness} text={texts.ledBrightnessText}>
           <Slider

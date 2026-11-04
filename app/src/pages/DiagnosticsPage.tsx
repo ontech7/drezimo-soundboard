@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { type Activity, describe } from "../board";
 import { Row, Section } from "../controls";
-import { DisplayPreview } from "../DisplayPreview";
 import { useTexts } from "../i18n";
 import type { Status } from "../status";
 import { BoardTestCard } from "./BoardTestCard";
@@ -33,11 +32,6 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
       </Section>
 
       <BoardTestCard status={status} />
-
-      <section className="card">
-        <h2>{texts.display}</h2>
-        <DisplayPreview />
-      </section>
 
       <section className="card activity">
         <h2>{texts.activity}</h2>

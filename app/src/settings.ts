@@ -9,6 +9,9 @@ export type Anchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right
 /** What a pad does when pressed again while its sound plays (src-tauri/src/press_again.rs) */
 export type PressAgain = "voicemod" | "restart" | "overlap" | "stop" | "pause" | "hold";
 
+/** The choice for each of Voicemod's playback modes */
+export type PressAgainByMode = Record<"playRestart" | "playOverlap" | "playPause" | "playStop" | "playLoopOnPress", PressAgain>;
+
 /** The screen the mouse is on when the overlay appears, the main one, or one by its system name */
 export type OverlayScreen = "mouse" | "main" | { named: string };
 
@@ -28,8 +31,8 @@ export interface Settings {
   language: Language;
   /** In percent */
   ledBrightness: number;
-  /** Unless picked for a pad in the Pages editor */
-  pressAgain: PressAgain;
+  /** By the sound's mode, unless picked for a pad in the Pages editor */
+  pressAgainByMode: PressAgainByMode;
   overlay: OverlaySettings;
   /** Shows the Diagnostics page */
   diagnostics: boolean;
@@ -78,8 +81,8 @@ export function useSettings(): SettingsView | null {
 }
 
 export function saveSettings(view: Settings): void {
-  const { language, ledBrightness, pressAgain, overlay, diagnostics, tourSeen, muteForMeNoticeSeen } = view;
-  const settings = { language, ledBrightness, pressAgain, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen } = view;
+  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

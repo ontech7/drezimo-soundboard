@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { Library } from "./customPages";
 import type { Texts } from "./i18n";
-import type { PressAgain } from "./settings";
+import type { PressAgain, PressAgainByMode } from "./settings";
 
 /** A sound's own rule in Voicemod */
 export type PlaybackMode = "PlayRestart" | "PlayOverlap" | "PlayStop" | "PlayPause" | "PlayLoopOnPress" | "Unknown";
@@ -19,7 +19,41 @@ export type Outcomes = Record<PlaybackMode, Record<PressAgain, Outcome>>;
 
 export const CHOICES: PressAgain[] = ["voicemod", "restart", "overlap", "stop", "pause", "hold"];
 
-const MODES: PlaybackMode[] = ["PlayRestart", "PlayOverlap", "PlayStop", "PlayPause", "PlayLoopOnPress", "Unknown"];
+/** The modes with a choice of their own, in the order the Drezimo page lists them */
+export const MODE_ROWS: PlaybackMode[] = ["PlayRestart", "PlayPause", "PlayStop", "PlayLoopOnPress", "PlayOverlap"];
+
+export function modeKey(mode: PlaybackMode): keyof PressAgainByMode | null {
+  if (mode === "Unknown") return null;
+  return `p${mode.slice(1)}` as keyof PressAgainByMode;
+}
+
+/** The choice for a sound of that mode, as set on the Drezimo page */
+export function typeChoice(byMode: PressAgainByMode, mode: PlaybackMode | null): PressAgain {
+  const key = mode && modeKey(mode);
+  return key ? byMode[key] : "voicemod";
+}
+
+/** The choice that does exactly what Voicemod does with a sound of that mode (src-tauri/src/press_again.rs) */
+export function voicemodsOwn(mode: PlaybackMode): PressAgain | null {
+  const own: Record<PlaybackMode, PressAgain | null> = {
+    PlayRestart: "restart",
+    PlayPause: "pause",
+    PlayStop: "stop",
+    PlayLoopOnPress: "hold",
+    PlayOverlap: "overlap",
+    Unknown: null,
+  };
+  return own[mode];
+}
+
+/** What can be picked for a mode: as in Voicemod first, then each different thing the choices come to */
+export function choicesFor(mode: PlaybackMode, outcomes: Outcomes): PressAgain[] {
+  const does = CHOICES.map((choice) => outcomes[mode][choice].does);
+  const others = does.filter(
+    (choice, index) => does.indexOf(choice) === index && choice !== "voicemod" && choice !== voicemodsOwn(mode)
+  );
+  return ["voicemod", ...others];
+}
 
 /** As chosen, stopping every sound, or what Voicemod allows instead */
 export type Reach = "chosen" | "stopsAll" | "instead";
@@ -46,21 +80,19 @@ export function outcomeText(texts: Texts, choice: PressAgain, mode: PlaybackMode
   return outcome.does === choice ? what : words.notStacked(what);
 }
 
-/** How many of the sounds in the licence have each mode, the most common first */
-export function soundsByMode(library: Library | null): [PlaybackMode, number][] {
+/** The names of the sounds in the licence, by their mode, each sound once */
+export function soundNamesByMode(library: Library | null): Map<PlaybackMode, string[]> {
   const seen = new Set<string>();
-  const counts = new Map<PlaybackMode, number>();
+  const names = new Map<PlaybackMode, string[]>();
   for (const soundboard of library?.soundboards ?? []) {
     for (const sound of soundboard.sounds) {
       if (!sound.enabled || seen.has(sound.id)) continue;
       seen.add(sound.id);
       const mode = sound.mode ?? "Unknown";
-      counts.set(mode, (counts.get(mode) ?? 0) + 1);
+      names.set(mode, [...(names.get(mode) ?? []), sound.name]);
     }
   }
-  return MODES.filter((mode) => counts.has(mode))
-    .map((mode): [PlaybackMode, number] => [mode, counts.get(mode) ?? 0])
-    .sort((a, b) => b[1] - a[1]);
+  return names;
 }
 
 /** They change only with `singleStop`: whether Voicemod's bridge, which stops a single sound, was found */

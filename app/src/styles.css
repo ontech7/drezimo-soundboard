@@ -831,172 +831,77 @@ select:disabled {
   cursor: default;
 }
 
-/* What a pad does when pressed again: six choices on the Drezimo page, a sound pad's own in the Pages editor */
-
-.press-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+/* The Drezimo page's tabs, under its title */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
 }
 
-.press-choice {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-content: start;
-  gap: 2px 10px;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  text-align: left;
+.tab {
+  margin-bottom: -1px;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
   cursor: pointer;
 }
 
-.press-choice:hover {
-  border-color: #3a3a42;
+.tab:hover {
+  color: var(--text);
 }
 
-.press-choice[aria-checked="true"] {
+.tab.on {
   border-color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 7%, var(--bg));
-}
-
-.press-choice .glyph {
-  display: grid;
-  grid-row: span 2;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: var(--raised);
-  color: var(--muted);
-}
-
-.press-choice[aria-checked="true"] .glyph {
-  color: var(--amber);
-}
-
-.press-choice .name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
+  color: var(--text);
   font-weight: 600;
 }
 
-.press-choice .tag {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 500;
-}
-
-.press-choice .muted {
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-
-.press-effect {
+.tab-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  gap: 12px;
 }
 
-.press-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
+/* What a pad does when pressed again: a choice per kind of sound on the Drezimo page, a sound pad's own in the Pages editor */
+
+.press-select {
+  width: 280px;
 }
 
-.press-count {
-  padding: 2px 9px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+.press-select.own .select-button {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
+.press-own {
+  margin: 10px 0 0;
   font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
 }
 
-.press-count.chosen {
-  border-color: color-mix(in srgb, var(--ok) 35%, var(--line));
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--amber);
+  font: inherit;
+  cursor: pointer;
 }
 
-.press-count.stopsAll {
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+.link:hover {
+  text-decoration: underline;
 }
 
-.press-count.chosen,
-.press-details .chosen,
 .press-item .outcome.chosen {
   color: var(--ok);
 }
 
-.press-count.stopsAll,
-.press-details .stopsAll,
 .press-item .outcome.stopsAll {
   color: var(--amber);
 }
 
-.press-count.instead,
-.press-details .instead,
 .press-item .outcome.instead {
   color: var(--muted);
-}
-
-.disclosure {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 2px 4px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.disclosure:hover {
-  color: var(--text);
-}
-
-.disclosure .icon {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.15s;
-}
-
-.disclosure[aria-expanded="true"] .icon {
-  transform: rotate(180deg);
-}
-
-.press-details {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.press-details td {
-  padding: 7px 0;
-  border-top: 1px solid var(--line);
-  vertical-align: top;
-}
-
-.press-details td:first-child {
-  width: 46%;
-  padding-right: 16px;
-}
-
-.press-details .mark {
-  display: inline-block;
-  width: 18px;
-  font-weight: 700;
 }
 
 .press-field {
