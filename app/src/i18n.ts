@@ -515,7 +515,10 @@ const ENGLISH = {
     ],
     parts: [
       { title: "Display", text: "The page, the last sound and Voicemod's state." },
-      { title: "Knob", text: "Turn it to change page, tap it for the list. Hold it and press a pad to read its name." },
+      {
+        title: "Knob",
+        text: "Turn it to change page, tap it for the list. Hold it and press a pad to read its name. What each gesture does can be changed on the Drezimo page.",
+      },
       { title: "Function keys", text: "Previous and next page, Stop, Mute for me, Voice and Hear me." },
       { title: "36 pads", text: "Sounds, voices, actions and macros: the colour tells what they do and what is happening." },
     ],
@@ -1075,7 +1078,7 @@ const ITALIAN: Texts = {
       { title: "Display", text: "La pagina, l'ultimo suono e lo stato di Voicemod." },
       {
         title: "Manopola",
-        text: "Ruota per cambiare pagina, tocca per l'elenco. Tienila premuta e premi un tasto per leggerne il nome.",
+        text: "Ruota per cambiare pagina, tocca per l'elenco. Tienila premuta e premi un tasto per leggerne il nome. Cosa fa ogni gesto si cambia nella pagina Drezimo.",
       },
       { title: "Tasti funzione", text: "Pagina precedente e successiva, Stop, Muto, Voce e Ascolto." },
       { title: "36 tasti", text: "Suoni, voci, azioni e macro: il colore dice cosa fanno e cosa sta succedendo." },
