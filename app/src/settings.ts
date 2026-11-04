@@ -40,6 +40,38 @@ export interface Settings {
   tourSeen: boolean;
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
+  knob: KnobSettings;
+}
+
+/** What turning the knob does, plain or held down (src-tauri/src/knob.rs) */
+export interface TurnAction {
+  action: "page" | "rows" | "soundboardForOthers" | "soundboardForMe" | "playingSound" | "microphone" | "voice" | "nothing";
+}
+
+/** What a tap, a double tap or a long press does */
+export type PressAction =
+  | {
+      action:
+        | "menu"
+        | "stopSounds"
+        | "muteMic"
+        | "muteForMe"
+        | "voiceChanger"
+        | "hearMyself"
+        | "background"
+        | "randomVoice"
+        | "resetVolumes"
+        | "nothing";
+    }
+  | { action: "macro"; macroId: string }
+  | { action: "page"; page: string };
+
+export interface KnobSettings {
+  turn: TurnAction;
+  holdTurn: TurnAction;
+  tap: PressAction;
+  doubleTap: PressAction;
+  longPress: PressAction;
 }
 
 export interface SettingsView extends Settings {
@@ -81,8 +113,8 @@ export function useSettings(): SettingsView | null {
 }
 
 export function saveSettings(view: Settings): void {
-  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen } = view;
-  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob } = view;
+  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

@@ -2,6 +2,7 @@
 //! they follow it to another computer (docs/project.md, section 4).
 
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
+use crate::knob::KnobSettings;
 use crate::press_again::{ByMode, PressAgain};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -125,6 +126,7 @@ pub struct Settings {
     pub tour_seen: bool,
     /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
     pub mute_for_me_notice_seen: bool,
+    pub knob: KnobSettings,
 }
 
 impl Default for Settings {
@@ -137,6 +139,7 @@ impl Default for Settings {
             diagnostics: false,
             tour_seen: false,
             mute_for_me_notice_seen: false,
+            knob: KnobSettings::default(),
         }
     }
 }
@@ -412,6 +415,7 @@ mod tests {
         assert!(!settings.mute_for_me_notice_seen);
         assert_eq!(settings.press_again_by_mode, ByMode::default());
         assert_eq!(settings.overlay.screen, OverlayScreen::Mouse);
+        assert_eq!(settings.knob, KnobSettings::default());
     }
 
     #[test]

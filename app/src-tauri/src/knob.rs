@@ -2,7 +2,9 @@
 
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +18,85 @@ pub enum Gesture {
 
 pub const DOUBLE_TAP: Duration = Duration::from_millis(300);
 pub const LONG_PRESS: Duration = Duration::from_millis(600);
+
+/// What turning the knob does, plain or held down
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "action", rename_all = "camelCase")]
+pub enum TurnAction {
+    #[default]
+    Page,
+    Rows,
+    SoundboardForOthers,
+    SoundboardForMe,
+    PlayingSound,
+    Microphone,
+    Voice,
+    Nothing,
+}
+
+/// What a tap, a double tap or a long press does
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "action", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum PressAction {
+    #[default]
+    Menu,
+    StopSounds,
+    MuteMic,
+    MuteForMe,
+    VoiceChanger,
+    HearMyself,
+    Background,
+    RandomVoice,
+    Macro {
+        macro_id: String,
+    },
+    Page {
+        page: String,
+    },
+    ResetVolumes,
+    Nothing,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnobSettings {
+    pub turn: TurnAction,
+    pub hold_turn: TurnAction,
+    pub tap: PressAction,
+    pub double_tap: PressAction,
+    pub long_press: PressAction,
+}
+
+impl Default for KnobSettings {
+    fn default() -> Self {
+        Self {
+            turn: TurnAction::Page,
+            hold_turn: TurnAction::Rows,
+            tap: PressAction::Menu,
+            double_tap: PressAction::Nothing,
+            long_press: PressAction::Nothing,
+        }
+    }
+}
+
+/// Each gesture falls back to its own default when missing or unreadable, so one bad entry loses nothing else.
+impl<'de> Deserialize<'de> for KnobSettings {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(deserializer)?;
+        let defaults = Self::default();
+        Ok(Self {
+            turn: field(&value, "turn").unwrap_or(defaults.turn),
+            hold_turn: field(&value, "holdTurn").unwrap_or(defaults.hold_turn),
+            tap: field(&value, "tap").unwrap_or(defaults.tap),
+            double_tap: field(&value, "doubleTap").unwrap_or(defaults.double_tap),
+            long_press: field(&value, "longPress").unwrap_or(defaults.long_press),
+        })
+    }
+}
+
+fn field<T: DeserializeOwned>(value: &Value, name: &str) -> Option<T> {
+    T::deserialize(value.get(name)?).ok()
+}
 
 #[derive(Default)]
 pub struct Gestures {
@@ -306,5 +387,60 @@ mod tests {
         assert_eq!(gestures.next_update(), None);
         // What the knob does stays set
         assert_eq!(tap(&mut gestures, start, 1000), []);
+    }
+
+    #[test]
+    fn the_defaults_are_todays_knob() {
+        let knob = KnobSettings::default();
+        assert_eq!((knob.turn, knob.hold_turn), (TurnAction::Page, TurnAction::Rows));
+        assert_eq!(
+            (knob.tap, knob.double_tap, knob.long_press),
+            (PressAction::Menu, PressAction::Nothing, PressAction::Nothing)
+        );
+    }
+
+    #[test]
+    fn each_gesture_falls_back_alone() {
+        let knob: KnobSettings = serde_json::from_str(
+            r#"{"turn": {"action": "dance"}, "tap": {"action": "macro"}, "longPress": {"action": "muteMic"}, "holdTurn": 3}"#,
+        )
+        .unwrap();
+        assert_eq!(knob.turn, TurnAction::Page);
+        assert_eq!(knob.tap, PressAction::Menu, "a macro action without its macro");
+        assert_eq!(knob.long_press, PressAction::MuteMic);
+        assert_eq!(knob.hold_turn, TurnAction::Rows);
+        assert_eq!(knob.double_tap, PressAction::Nothing);
+        for broken in ["null", "[]", r#""menu""#] {
+            assert_eq!(
+                serde_json::from_str::<KnobSettings>(broken).unwrap(),
+                KnobSettings::default()
+            );
+        }
+    }
+
+    #[test]
+    fn knob_settings_round_trip() {
+        let knob = KnobSettings {
+            turn: TurnAction::SoundboardForOthers,
+            hold_turn: TurnAction::PlayingSound,
+            tap: PressAction::Macro {
+                macro_id: "macro-1".into(),
+            },
+            double_tap: PressAction::Page {
+                page: "drezimo-page-2".into(),
+            },
+            long_press: PressAction::ResetVolumes,
+        };
+        let json = serde_json::to_value(&knob).unwrap();
+        assert_eq!(
+            json["tap"],
+            serde_json::json!({"action": "macro", "macroId": "macro-1"})
+        );
+        assert_eq!(
+            json["doubleTap"],
+            serde_json::json!({"action": "page", "page": "drezimo-page-2"})
+        );
+        assert_eq!(json["turn"], serde_json::json!({"action": "soundboardForOthers"}));
+        assert_eq!(serde_json::from_value::<KnobSettings>(json).unwrap(), knob);
     }
 }
