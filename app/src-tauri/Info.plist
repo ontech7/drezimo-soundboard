@@ -5,5 +5,11 @@
 	<!-- A menu bar app. Without it, macOS puts the app back in the Dock when it is opened again while running -->
 	<key>LSUIElement</key>
 	<true/>
+	<!-- The system's own save and open dialogs speak the system's language when it is one of these -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>it</string>
+	</array>
 </dict>
 </plist>
