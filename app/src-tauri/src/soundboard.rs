@@ -3,6 +3,7 @@
 use crate::custom_pages::{Content, CustomPad, CustomPage};
 use crate::display::texts::Texts;
 use crate::macros::Macro;
+use crate::press_again::PressAgain;
 use crate::protocol::PAD_COUNT;
 use serde::de::{IntoDeserializer, value};
 use serde::{Deserialize, Serialize};
@@ -51,7 +52,7 @@ fn enabled_by_default() -> bool {
 }
 
 /// What a press does to a sound that is already playing (docs/project.md, section 8).
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum PlaybackMode {
     /// Starts it again
     #[default]
@@ -165,11 +166,17 @@ pub struct Page {
     pub pads: Vec<Option<Pad>>,
     /// The LEDs' colours at rest the user picked, on their own pages
     pub colours: Vec<Option<[u8; 3]>>,
+    /// What a pad does when pressed again, where the user picked it for that pad
+    pub presses: Vec<Option<PressAgain>>,
 }
 
 impl Page {
     pub fn colour(&self, pad: u8) -> Option<[u8; 3]> {
         self.colours.get(usize::from(pad)).copied().flatten()
+    }
+
+    pub fn press_again(&self, pad: u8) -> Option<PressAgain> {
+        self.presses.get(usize::from(pad)).copied().flatten()
     }
 }
 
@@ -246,6 +253,7 @@ fn add_pages(pages: &mut Vec<Page>, soundboard_id: &str, name: &str, pads: Vec<P
             parts,
             pads: page_pads,
             colours: Vec::new(),
+            presses: Vec::new(),
         });
     }
 }
@@ -306,6 +314,8 @@ fn custom_page(
     pads.resize(PADS, None);
     let mut colours: Vec<Option<[u8; 3]>> = page.pads.iter().map(|slot| slot.as_ref()?.colour).collect();
     colours.resize(PADS, None);
+    let mut presses: Vec<Option<PressAgain>> = page.pads.iter().map(|slot| slot.as_ref()?.press_again).collect();
+    presses.resize(PADS, None);
     Page {
         soundboard_id: page.id.clone(),
         name: page.name.clone(),
@@ -313,6 +323,7 @@ fn custom_page(
         parts: 1,
         pads,
         colours,
+        presses,
     }
 }
 
@@ -441,6 +452,7 @@ pub mod tests {
             content,
             label: String::new(),
             colour: None,
+            press_again: None,
         })
     }
 

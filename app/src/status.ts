@@ -39,6 +39,8 @@ export interface Status {
   runningMacro: MacroProgress | null;
   /** A sound played while Voicemod's Mute for me was on, which is still on */
   mutedPlay: boolean;
+  /** Voicemod's bridge was found: a pad can stop a single sound */
+  singleSoundStop: boolean;
 }
 
 export function useStatus(): Status | null {

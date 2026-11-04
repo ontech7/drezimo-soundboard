@@ -2,6 +2,7 @@
 
 use super::{Controller, HeldSound, MIN_HOLD};
 use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::press_again::Command;
 use crate::soundboard::{PlaybackMode, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::Serialize;
@@ -98,10 +99,11 @@ impl Controller {
                 }
             }
             None => {
-                self.finish_macro();
+                // One deleted since does nothing, the one running goes on
                 let Some(item) = self.macros.iter().find(|item| item.id == id).cloned() else {
                     return;
                 };
+                self.finish_macro();
                 self.running = Some(Running {
                     item,
                     step: 0,
@@ -169,8 +171,7 @@ impl Controller {
         let voice = running.voice_before.filter(|_| running.voice_changed);
         if let Some(voice) = voice.filter(|voice| self.voice_loaded() != Some(voice)) {
             // Put back quietly: the display keeps what it shows
-            self.request(Request::LoadVoice(voice.clone()));
-            self.voice_asked = Some(voice);
+            self.ask_voice(voice);
         }
         for (switch, before) in running.switches_before {
             self.set_switch(switch, before);
@@ -183,16 +184,17 @@ impl Controller {
                 let Some(sound) = self.sounds.get(&id).filter(|sound| sound.enabled).cloned() else {
                     return;
                 };
-                self.request(Request::PlaySound {
-                    id: id.clone(),
-                    key_down: true,
-                });
-                self.playback.press(&sound, now);
+                self.command(Command::KeyDown, &sound, now);
                 self.sound_started();
                 if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
                     // Held for its length, once known, else as a tap
                     let hold = self.playback.length(&id).unwrap_or(MIN_HOLD).max(MIN_HOLD);
-                    self.releases.push((now + hold, HeldSound { sound, since: now }));
+                    let held = HeldSound {
+                        sound,
+                        since: now,
+                        release: Command::KeyUp,
+                    };
+                    self.releases.push((now + hold, held));
                 }
                 if let Some(running) = self.running.as_mut().filter(|_| wait_end) {
                     running.waiting = Some((id, now + MAX_SOUND_WAIT));

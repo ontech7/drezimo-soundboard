@@ -6,6 +6,12 @@ export type Language = "system" | "english" | "italian";
 
 export type Anchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right" | "bottomLeft" | "bottom" | "bottomRight";
 
+/** What a pad does when pressed again while its sound plays (src-tauri/src/press_again.rs) */
+export type PressAgain = "voicemod" | "restart" | "overlap" | "stop" | "pause" | "hold";
+
+/** The choice for each of Voicemod's playback modes */
+export type PressAgainByMode = Record<"playRestart" | "playOverlap" | "playPause" | "playStop" | "playLoopOnPress", PressAgain>;
+
 /** The screen the mouse is on when the overlay appears, the main one, or one by its system name */
 export type OverlayScreen = "mouse" | "main" | { named: string };
 
@@ -25,6 +31,8 @@ export interface Settings {
   language: Language;
   /** In percent */
   ledBrightness: number;
+  /** By the sound's mode, unless picked for a pad in the Pages editor */
+  pressAgainByMode: PressAgainByMode;
   overlay: OverlaySettings;
   /** Shows the Diagnostics page */
   diagnostics: boolean;
@@ -32,6 +40,38 @@ export interface Settings {
   tourSeen: boolean;
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
+  knob: KnobSettings;
+}
+
+/** What turning the knob does, plain or held down (src-tauri/src/knob.rs) */
+export interface TurnAction {
+  action: "page" | "rows" | "soundboardForOthers" | "soundboardForMe" | "playingSound" | "microphone" | "voice" | "nothing";
+}
+
+/** What a tap, a double tap or a long press does */
+export type PressAction =
+  | {
+      action:
+        | "menu"
+        | "stopSounds"
+        | "muteMic"
+        | "muteForMe"
+        | "voiceChanger"
+        | "hearMyself"
+        | "background"
+        | "randomVoice"
+        | "resetVolumes"
+        | "nothing";
+    }
+  | { action: "macro"; macroId: string }
+  | { action: "page"; page: string };
+
+export interface KnobSettings {
+  turn: TurnAction;
+  holdTurn: TurnAction;
+  tap: PressAction;
+  doubleTap: PressAction;
+  longPress: PressAction;
 }
 
 export interface SettingsView extends Settings {
@@ -72,8 +112,9 @@ export function useSettings(): SettingsView | null {
   return settings;
 }
 
-export function saveSettings({ language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen }: Settings): void {
-  const settings = { language, ledBrightness, overlay, diagnostics, tourSeen, muteForMeNoticeSeen };
+export function saveSettings(view: Settings): void {
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob } = view;
+  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

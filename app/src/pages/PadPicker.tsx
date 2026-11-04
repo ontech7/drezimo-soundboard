@@ -46,7 +46,14 @@ interface Choice {
 }
 
 /** A modal dialog: Escape and a click beside it close it. */
-export function Dialog(props: { label: string; title: string; subtitle?: string; onClose: () => void; children: ReactNode }) {
+export function Dialog(props: {
+  label: string;
+  title: string;
+  subtitle?: string;
+  className?: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
   const texts = useTexts();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -59,7 +66,7 @@ export function Dialog(props: { label: string; title: string; subtitle?: string;
   return (
     <dialog
       ref={dialog}
-      className="dialog"
+      className={props.className ? `dialog ${props.className}` : "dialog"}
       aria-label={props.label}
       onClose={props.onClose}
       onClick={(event) => {

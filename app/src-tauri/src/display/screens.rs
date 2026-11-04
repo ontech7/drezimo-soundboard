@@ -62,11 +62,19 @@ pub enum Screen {
         /// Which of the 36 pads
         pad: usize,
     },
-    /// The six pads of a row, picked by turning the held knob
+    /// The six pads of a row, picked by turning the knob
     Row {
         heading: String,
         counter: String,
         names: Vec<Option<String>>,
+    },
+    /// A volume the knob changes: what, and how far along its slider
+    Level {
+        heading: String,
+        counter: String,
+        label: String,
+        percent: u16,
+        max: u16,
     },
 }
 
@@ -75,6 +83,7 @@ impl Screen {
     pub fn name(&self) -> Option<&str> {
         match self {
             Self::Home { name, .. } | Self::Peek { name, .. } => Some(name),
+            Self::Level { label, .. } => Some(label),
             _ => None,
         }
     }
@@ -217,6 +226,31 @@ pub fn draw(screen: &Screen, motion: Motion) -> (Canvas, Option<Duration>) {
                 canvas.text(&fit(name, 114, Size::Small), 11, y, Size::Small, true);
             }
             None
+        }
+        Screen::Level {
+            heading,
+            counter,
+            label,
+            percent,
+            max,
+        } => {
+            inverted_header(&mut canvas, heading, counter);
+            let scrolling = if text_width(label, Size::Big) > LINE {
+                scroll(&mut canvas, label, 19, Size::Small, motion.name_for)
+            } else {
+                scroll(&mut canvas, label, 15, Size::Big, motion.name_for)
+            };
+            let value = format!("{percent}%");
+            canvas.text_right(&value, WIDTH - 1, 39, Size::Small, true);
+            let right = LINE - text_width(&value, Size::Small) - 3;
+            bar(
+                &mut canvas,
+                1,
+                right,
+                40,
+                f32::from(*percent) / f32::from((*max).max(1)),
+            );
+            scrolling
         }
     };
     (canvas, changes)
@@ -524,6 +558,8 @@ mod tests {
                 message: "CONNESSIONE".into(),
                 waiting: true,
             },
+            level("Applausi dello stadio è così", 100, 100),
+            level("MICROFONO", 200, 200),
         ];
         for screen in &screens {
             for millis in [0, 600, 1300, 2000, 9000] {
@@ -531,6 +567,30 @@ mod tests {
                 assert!(margin_is_dark(&canvas), "{screen:?} at {millis} ms");
             }
         }
+    }
+
+    fn level(label: &str, percent: u16, max: u16) -> Screen {
+        Screen::Level {
+            heading: "VOLUME".into(),
+            counter: "1/5".into(),
+            label: label.into(),
+            percent,
+            max,
+        }
+    }
+
+    #[test]
+    fn a_level_shows_how_far_along_its_slider() {
+        let empty = draw(&level("MICROFONO", 0, 200), at(0, 0)).0;
+        let half = draw(&level("MICROFONO", 100, 200), at(0, 0)).0;
+        let full = draw(&level("MICROFONO", 200, 200), at(0, 0)).0;
+        assert_ne!(empty, half);
+        assert_ne!(half, full);
+        assert_ne!(
+            draw(&level("SOUNDBOARD ALTRI", 50, 100), at(0, 0)).0,
+            half,
+            "its own name"
+        );
     }
 
     #[test]

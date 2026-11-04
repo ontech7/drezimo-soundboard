@@ -82,6 +82,8 @@ pub struct Status {
     pub running_macro: Option<MacroProgress>,
     /// A sound played while Voicemod's Mute for me was on, which is still on
     pub muted_play: bool,
+    /// Voicemod's bridge was found: a pad can stop a single sound
+    pub single_sound_stop: bool,
 }
 
 #[tauri::command]
@@ -164,6 +166,8 @@ fn run(
 ) {
     let mut settings = app.state::<SettingsState>().get();
     let mut controller = Controller::new(settings.language.texts());
+    controller.set_press_again(settings.press_again_by_mode);
+    controller.set_knob(settings.knob.clone(), Instant::now());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
     let mut kept_page = last_page::load(app);
@@ -260,6 +264,7 @@ fn run(
                     }
                     VoicemodEvent::License(license) => status.license = Some(*license),
                     VoicemodEvent::Version(version) => status.voicemod_version = Some(version.clone()),
+                    VoicemodEvent::SingleSoundStop(there) => status.single_sound_stop = *there,
                     VoicemodEvent::Soundboards(soundboards) => {
                         update_library(app, |library| library.set_soundboards(soundboards));
                     }
@@ -277,6 +282,8 @@ fn run(
             }
             Some(Input::Settings(new)) => {
                 controller.set_texts(new.language.texts());
+                controller.set_press_again(new.press_again_by_mode);
+                controller.set_knob(new.knob.clone(), Instant::now());
                 controller.set_overlay_time(overlay_time(&new.overlay));
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
                 if new.led_brightness != settings.led_brightness {
@@ -359,6 +366,9 @@ fn run(
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
                 Output::Log(message) => crate::errors::log(message),
+                Output::Gesture(gesture) => {
+                    let _ = app.emit("knob-gesture", gesture);
+                }
             }
         }
         match &mut tester {
@@ -483,16 +493,25 @@ pub fn stop_macro(app: &AppHandle) {
     send(app, Input::StopMacro);
 }
 
-/// Within what the firmware takes: minutes up to a day
 #[tauri::command]
 pub fn set_display_settings(app: AppHandle, settings: DisplaySettings) {
+    apply_display_settings(&app, settings);
+}
+
+/// Within what the firmware takes: minutes up to a day
+pub fn apply_display_settings(app: &AppHandle, settings: DisplaySettings) {
     let settings = DisplaySettings {
         brightness: settings.brightness.min(100),
         dim_after: settings.dim_after.min(1440),
         off_after: settings.off_after.min(1440),
         shift_every: settings.shift_every.min(1440),
     };
-    send(&app, Input::DisplaySettings(settings));
+    send(app, Input::DisplaySettings(settings));
+}
+
+/// The connected board's, or none without a board
+pub fn display_settings(app: &AppHandle) -> Option<DisplaySettings> {
+    app.try_state::<Mutex<Status>>()?.lock().unwrap().display_settings
 }
 
 /// The LEDs at `percent` while the slider moves, before it is saved

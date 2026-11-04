@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 // Inline markup rather than an <img>: nothing left to load once the page is built
 import logo from "./assets/drezimo-logo.svg?raw";
 import { type Texts, useTexts } from "./i18n";
-import { BoardIcon, DiagnosticsIcon, GeneralIcon, MacroIcon, OverlayIcon, PagesIcon, SoundboardIcon } from "./icons";
+import { BoardIcon, DiagnosticsIcon, MacroIcon, OverlayIcon, PagesIcon, SettingsIcon, SoundboardIcon } from "./icons";
 import type { Status } from "./status";
 
-export type PageId = "soundboard" | "pages" | "macros" | "board" | "overlay" | "general" | "diagnostics";
+export type PageId = "soundboard" | "pages" | "macros" | "board" | "overlay" | "diagnostics" | "settings";
 
 const ICONS: Record<PageId, ReactNode> = {
   soundboard: <SoundboardIcon />,
@@ -13,8 +13,8 @@ const ICONS: Record<PageId, ReactNode> = {
   macros: <MacroIcon />,
   board: <BoardIcon />,
   overlay: <OverlayIcon />,
-  general: <GeneralIcon />,
   diagnostics: <DiagnosticsIcon />,
+  settings: <SettingsIcon />,
 };
 
 /** Drezimo's or Voicemod's state, in a few words: what to do about it shows on the Soundboard page */
@@ -51,26 +51,26 @@ interface Props {
   onSelect: (page: PageId) => void;
 }
 
+/** The pages in `pages` at the top; the settings at the foot, under the connections */
 export function Sidebar({ pages, page, connections, onSelect }: Props) {
   const texts = useTexts();
+  const item = (id: PageId) => (
+    <li key={id}>
+      <button
+        type="button"
+        className={id === page ? "selected" : undefined}
+        aria-current={id === page ? "page" : undefined}
+        onClick={() => onSelect(id)}
+      >
+        {ICONS[id]}
+        {texts.nav[id]}
+      </button>
+    </li>
+  );
   return (
     <nav className="sidebar">
       <div className="logo" role="img" aria-label="Drezimo Soundboard" dangerouslySetInnerHTML={{ __html: logo }} />
-      <ul>
-        {pages.map((id) => (
-          <li key={id}>
-            <button
-              type="button"
-              className={id === page ? "selected" : undefined}
-              aria-current={id === page ? "page" : undefined}
-              onClick={() => onSelect(id)}
-            >
-              {ICONS[id]}
-              {texts.nav[id]}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <ul>{pages.map(item)}</ul>
       <div className="connections" role="status">
         {connections.map((connection, i) => (
           <p key={i} title={connection.detail}>
@@ -79,6 +79,7 @@ export function Sidebar({ pages, page, connections, onSelect }: Props) {
           </p>
         ))}
       </div>
+      <ul className="sidebar-foot">{item("settings")}</ul>
     </nav>
   );
 }

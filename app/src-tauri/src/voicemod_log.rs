@@ -5,7 +5,7 @@
 use crate::playback::State;
 use crate::soundboard::PlaybackMode;
 use chrono::{Local, NaiveDateTime, TimeZone};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -52,6 +52,11 @@ pub enum LineKind {
         playing: String,
     },
     StopAll,
+    /// One sound stopped through Voicemod's bridge (src/voicemod_bridge.rs). Its end line follows, unless it is pressed
+    /// again at once: Voicemod then starts it again with a line of its own and no end line.
+    Stop {
+        id: String,
+    },
 }
 
 pub enum LogInput {
@@ -88,7 +93,7 @@ pub fn follow(on_input: impl Fn(LogInput) + Send + 'static) {
                     }
                     Err(error) => {
                         if missing_since.get_or_insert_with(Instant::now).elapsed() >= LOST_AFTER {
-                            crate::errors::log(format!("lost Voicemod's log: {error}"));
+                            crate::errors::log(format!("lost Voicemod's log: {}", crate::errors::in_english(&error)));
                             on_input(LogInput::Lost);
                             log = None;
                             missing_since = None;
@@ -268,12 +273,26 @@ fn parse_line(line: &str, file_length: impl FnOnce(&Path) -> Option<Duration>) -
             paused: value(settings, "soundStatus=") == Some("kPaused"),
             length: file.and_then(|file| file_length(Path::new(file))),
         }
+    } else if let Some(rest) = after(line, "] Play sound=`") {
+        // A sound pressed right after the bridge stopped it: from the start, without its mode's rules
+        let id = rest.strip_suffix("` without reproduction mode logic")?;
+        LineKind::Play {
+            id: id.to_string(),
+            mode: PlaybackMode::Unknown,
+            repeat: false,
+            paused: false,
+            length: None,
+        }
     } else if let Some(rest) = after(line, "Removes a sound=`") {
         let id = rest.split('`').next()?;
         if id.starts_with(OWN_SOUND_ID) {
             return None;
         }
         LineKind::End { id: id.to_string() }
+    } else if let Some(rest) = after(line, "Requested stop sound with id=") {
+        // Voicemod logs a stop it could not do with no id
+        let id = Some(rest.trim()).filter(|id| !id.is_empty())?;
+        LineKind::Stop { id: id.to_string() }
     } else if let Some(rest) = after(line, "Requested to stop other sounds before playing a sound=") {
         LineKind::StopOthers {
             playing: rest.trim().to_string(),
@@ -365,6 +384,8 @@ struct Tracked {
 #[derive(Default)]
 pub struct LogTracker {
     active: HashMap<String, Tracked>,
+    /// Ended by a stop through the bridge: the end line that may follow tells nothing new
+    stopped: HashSet<String>,
     as_of: Option<SystemTime>,
 }
 
@@ -375,6 +396,7 @@ impl LogTracker {
         match &line.kind {
             LineKind::Run => {
                 self.active.clear();
+                self.stopped.clear();
                 Some(LogEvent::Restarted)
             }
             LineKind::Play {
@@ -384,6 +406,7 @@ impl LogTracker {
                 paused,
                 length,
             } => {
+                self.stopped.remove(id);
                 // A repeat press is logged with the state the sound had before it
                 let mut from_start = false;
                 match self.active.get_mut(id).filter(|_| *repeat) {
@@ -433,6 +456,10 @@ impl LogTracker {
                 })
             }
             LineKind::End { id } => {
+                // Or it would undo a press made since
+                if self.stopped.remove(id) && !self.active.contains_key(id) {
+                    return None;
+                }
                 let (left, length) = match self.active.get_mut(id) {
                     None => (None, None),
                     Some(sound) if sound.count > 1 => {
@@ -461,6 +488,16 @@ impl LogTracker {
             LineKind::StopAll => {
                 self.active.clear();
                 Some(LogEvent::StoppedAll)
+            }
+            // Over at once, its play cut short: the end line, if any, finds nothing left
+            LineKind::Stop { id } => {
+                self.active.remove(id)?;
+                self.stopped.insert(id.clone());
+                Some(LogEvent::Ended {
+                    id: id.clone(),
+                    left: None,
+                    length: None,
+                })
             }
         }
     }
@@ -720,6 +757,57 @@ mod tests {
         let run = parse("[2026-11-01 10:00:05.000] [voicemod-desktop] [info] ------ RUN ------").unwrap();
         assert_eq!(tracker.feed(&run), Some(LogEvent::Restarted));
         assert_eq!(tracker.active().count(), 0, "a restarted Voicemod plays nothing");
+    }
+
+    #[test]
+    fn a_sound_stopped_alone_teaches_no_length() {
+        let mut tracker = LogTracker::default();
+        tracker.feed(&play("10:00:00.000", "alert", "PlayRestart", false, "N/A"));
+        let stop = line("10:00:00.300", "Requested stop sound with id=alert");
+        assert_eq!(stop.kind, LineKind::Stop { id: "alert".into() });
+        let ended = tracker.feed(&stop);
+        assert!(matches!(ended, Some(LogEvent::Ended { length: None, .. })), "{ended:?}");
+        assert_eq!(tracker.active().count(), 0);
+        assert_eq!(
+            tracker.feed(&end("10:00:00.310", "alert")),
+            None,
+            "its end line is no news"
+        );
+        tracker.feed(&play("10:00:00.400", "alert", "PlayRestart", false, "N/A"));
+        let natural_end = tracker.feed(&end("10:00:03.400", "alert"));
+        assert!(
+            matches!(natural_end, Some(LogEvent::Ended { length: Some(_), .. })),
+            "{natural_end:?}"
+        );
+
+        // Pressed again at once: started again, with no end line
+        tracker.feed(&play("10:00:01.000", "music", "PlayPause", false, "N/A"));
+        tracker.feed(&line("10:00:02.000", "Requested stop sound with id=music"));
+        let again = line("10:00:02.006", "Play sound=`music` without reproduction mode logic");
+        let played = tracker.feed(&again);
+        assert!(
+            matches!(
+                played,
+                Some(LogEvent::Played {
+                    repeat: false,
+                    from_start: true,
+                    state: State::Playing,
+                    ..
+                })
+            ),
+            "{played:?}"
+        );
+        assert_eq!(tracker.active().count(), 1);
+        let later = tracker.feed(&end("10:00:30.000", "music"));
+        assert!(
+            matches!(later, Some(LogEvent::Ended { .. })),
+            "its own end, later: {later:?}"
+        );
+        // Voicemod logs a stop it could not do with no id
+        assert!(
+            parse("[2026-11-04 01:01:42.071] [AudioAgent] [info] [SoundboardController] Requested stop sound with id=")
+                .is_none()
+        );
     }
 
     #[test]

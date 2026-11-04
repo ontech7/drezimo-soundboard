@@ -5,7 +5,6 @@ import {
   type CustomPad,
   type CustomPage,
   emptyPage,
-  FAVOURITES_ID,
   type Library,
   type LibraryItem,
   MACRO_COLOUR,
@@ -13,6 +12,7 @@ import {
   newId,
   PAD_COUNT,
   padsFrom,
+  pageTargets,
   type Rgb,
   rgb,
   shortened,
@@ -20,16 +20,18 @@ import {
   useCustomPages,
   useLibrary,
   VOICE_COLOUR,
-  VOICES_ID,
 } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
-import { DotsIcon, PlusIcon, TrashIcon } from "../icons";
+import { DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
 import { useDismiss } from "../dismiss";
 import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
 import { MiniBoard } from "../MiniBoard";
 import { PadPicture } from "../PadPicture";
+import { type Outcomes, type PlaybackMode, typeChoice, usePressOutcomes } from "../pressAgain";
+import { PressAgainField } from "../PressAgainControls";
 import { SearchSelect } from "../SearchSelect";
+import type { PressAgainByMode } from "../settings";
 import { Dialog, Picker, type PickerStart } from "./PadPicker";
 
 const MAX_PAGE_NAME = 24;
@@ -68,13 +70,7 @@ function useLookup(library: Library | null, pages: CustomPage[], macros: Macro[]
       }
     }
     const voices = new Map((library?.voices ?? []).map((voice) => [voice.id, voice]));
-    const targets = [
-      ...pages.map((page) => ({ id: page.id, name: page.name })),
-      // As the board has them
-      ...(library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
-      ...(library?.voices.some((voice) => voice.enabled) ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
-      ...(library?.soundboards ?? []).map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
-    ];
+    const targets = pageTargets(pages, library, texts);
     return {
       loaded: (library?.soundboards.length ?? 0) > 0,
       macro: (id) => macros.find((item) => item.id === id),
@@ -152,10 +148,19 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
   }
 }
 
-export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
+interface PagesProps {
+  /** As set on the Drezimo page */
+  pressAgainByMode: PressAgainByMode;
+  /** Voicemod's bridge was found: a pad can stop a single sound */
+  singleStop: boolean;
+  onOpenMacros: () => void;
+}
+
+export function PagesPage({ pressAgainByMode, singleStop, onOpenMacros }: PagesProps) {
   const texts = useTexts();
   const [pages, save, saveError] = useCustomPages();
   const library = useLibrary();
+  const outcomes = usePressOutcomes(singleStop);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [picking, setPicking] = useState<PickerStart | null>(null);
@@ -203,8 +208,10 @@ export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
     contents.forEach((content, k) => {
       const at = slots[k];
       if (at === undefined) return;
-      // A replaced pad keeps the colour picked for it
-      pads[at] = { ...content, colour: content.colour ?? pads[at]?.colour ?? null };
+      // A replaced pad keeps the colour picked for it, and a sound what it does when pressed again
+      const before = pads[at];
+      const pressAgain = content.kind === "sound" && before?.kind === "sound" ? before.pressAgain : null;
+      pads[at] = { ...content, colour: content.colour ?? before?.colour ?? null, pressAgain };
     });
     savePage({ ...page, pads });
     setSelected(start);
@@ -271,6 +278,9 @@ export function PagesPage({ onOpenMacros }: { onOpenMacros: () => void }) {
         <Inspector
           pad={selectedPad}
           look={look(selectedPad, lookup, texts)}
+          pressAgainByMode={pressAgainByMode}
+          mode={selectedPad.kind === "sound" ? (lookup.sound(selectedPad.id)?.item.mode ?? null) : null}
+          outcomes={outcomes}
           targets={lookup.targets.filter((target) => target.id !== page.id)}
           onChange={(pad) => setPad(selected, pad)}
           onReplace={() => setPicking(pickerStart(selected, selectedPad))}
@@ -481,6 +491,14 @@ function PageTabs(props: TabsProps) {
   );
 }
 
+/** With what it does when pressed again, where the pad has its own */
+function padLabel(texts: Texts, number: number, name: string, pad: CustomPad | null): string {
+  const label = texts.padLabel(number, name);
+  return pad?.kind === "sound" && pad.pressAgain
+    ? `${label}, ${texts.ownPressAgain(texts.pressAgainNames[pad.pressAgain])}`
+    : label;
+}
+
 interface GridProps {
   page: CustomPage;
   lookup: Lookup;
@@ -513,7 +531,7 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
             type="button"
             className={classes.join(" ")}
             style={shown ? ({ "--led": rgb(shown.colour) } as CSSProperties) : undefined}
-            aria-label={shown ? texts.padLabel(i + 1, shown.name) : texts.emptyPadLabel(i + 1)}
+            aria-label={shown ? padLabel(texts, i + 1, shown.name, pad) : texts.emptyPadLabel(i + 1)}
             aria-pressed={shown ? i === selected : undefined}
             title={shown ? `${shown.name} · ${texts.dragHint}` : undefined}
             draggable={!!shown}
@@ -552,6 +570,11 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
                   tint={shown.colour}
                 />
                 <span className="name">{shown.name}</span>
+                {pad.kind === "sound" && pad.pressAgain && (
+                  <span className="own-press" title={texts.ownPressAgain(texts.pressAgainNames[pad.pressAgain])}>
+                    <PressAgainIcon choice={pad.pressAgain} />
+                  </span>
+                )}
               </>
             ) : (
               <PlusIcon />
@@ -566,13 +589,27 @@ function PadGrid({ page, lookup, selected, onSelect, onOpen, onMove, onClear }: 
 interface InspectorProps {
   pad: CustomPad;
   look: Look;
+  /** As set on the Drezimo page */
+  pressAgainByMode: PressAgainByMode;
+  mode: PlaybackMode | null;
+  outcomes: Outcomes | null;
   targets: { id: string; name: string }[];
   onChange: (pad: CustomPad) => void;
   onReplace: () => void;
   onClear: () => void;
 }
 
-function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: InspectorProps) {
+function Inspector({
+  pad,
+  look: shown,
+  pressAgainByMode,
+  mode,
+  outcomes,
+  targets,
+  onChange,
+  onReplace,
+  onClear,
+}: InspectorProps) {
   const texts = useTexts();
 
   return (
@@ -613,6 +650,15 @@ function Inspector({ pad, look: shown, targets, onChange, onReplace, onClear }: 
             empty={texts.noPage}
           />
         </div>
+      )}
+      {pad.kind === "sound" && (
+        <PressAgainField
+          own={pad.pressAgain ?? null}
+          typeChoice={typeChoice(pressAgainByMode, mode)}
+          mode={mode}
+          outcomes={outcomes}
+          onChange={(pressAgain) => onChange({ ...pad, pressAgain })}
+        />
       )}
       <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
       <button type="button" className="button secondary" onClick={onReplace}>

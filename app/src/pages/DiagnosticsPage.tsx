@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { type Activity, describe } from "../board";
 import { Row, Section } from "../controls";
-import { DisplayPreview } from "../DisplayPreview";
 import { useTexts } from "../i18n";
 import type { Status } from "../status";
 import { BoardTestCard } from "./BoardTestCard";
@@ -27,14 +26,12 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
         <Row label={texts.voicemodLog} text={connected && !status.voicemodLog ? texts.logUnreadable : undefined}>
           <span className="value">{connected ? (status.voicemodLog ? texts.logRead : texts.logNotRead) : "—"}</span>
         </Row>
+        <Row label={texts.singleSoundStop} text={connected && !status.singleSoundStop ? texts.noSingleSoundStop : undefined}>
+          <span className="value">{connected ? (status.singleSoundStop ? texts.available : texts.unavailable) : "—"}</span>
+        </Row>
       </Section>
 
       <BoardTestCard status={status} />
-
-      <section className="card">
-        <h2>{texts.display}</h2>
-        <DisplayPreview />
-      </section>
 
       <section className="card activity">
         <h2>{texts.activity}</h2>

@@ -87,14 +87,18 @@ fn build(app: AppHandle, label: String) {
         #[cfg(target_os = "macos")]
         let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
 
-        if let Err(error) = builder.build() {
-            crate::errors::log(format!("cannot open the window: {error}"));
-            let mut state = window_state(&app);
-            if state.label() == label {
-                state.phase = Phase::Absent;
+        let window = match builder.build() {
+            Ok(window) => window,
+            Err(error) => {
+                crate::errors::log(format!("cannot open the window: {error}"));
+                let mut state = window_state(&app);
+                if state.label() == label {
+                    state.phase = Phase::Absent;
+                }
+                return;
             }
-            return;
-        }
+        };
+        keep_only_editing_items(&window);
         // In case the page never reports its first frame
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(SHOW_FALLBACK).await;
@@ -171,3 +175,52 @@ fn show(window: &WebviewWindow) {
     let _ = window.show();
     let _ = window.set_focus();
 }
+
+/// WebView2 fills a text field's menu with Edge's own items (emoji, passwords, voice typing…): only cut, copy and paste
+/// stay. Everywhere else the page shows no menu at all (src/guard.ts).
+#[cfg(windows)]
+fn keep_only_editing_items(window: &WebviewWindow) {
+    use webview2_com::ContextMenuRequestedEventHandler;
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_11;
+    use windows_core::{Interface, PWSTR};
+
+    const KEPT: [&str; 3] = ["cut", "copy", "paste"];
+
+    let registered = window.with_webview(|webview| {
+        let handler = ContextMenuRequestedEventHandler::create(Box::new(|_, args| {
+            let Some(args) = args else {
+                return Ok(());
+            };
+            unsafe {
+                let items = args.MenuItems()?;
+                let mut count = 0;
+                items.Count(&mut count)?;
+                for index in (0..count).rev() {
+                    let mut name = PWSTR::null();
+                    items.GetValueAtIndex(index)?.Name(&mut name)?;
+                    if !KEPT.contains(&webview2_com::take_pwstr(name).as_str()) {
+                        items.RemoveValueAtIndex(index)?;
+                    }
+                }
+            }
+            Ok(())
+        }));
+        let mut token = 0;
+        let added = unsafe {
+            webview
+                .controller()
+                .CoreWebView2()
+                .and_then(|core| core.cast::<ICoreWebView2_11>())
+                .and_then(|core| core.add_ContextMenuRequested(&handler, &mut token))
+        };
+        if let Err(error) = added {
+            crate::errors::log(format!("cannot trim the text fields' menu: {error}"));
+        }
+    });
+    if let Err(error) = registered {
+        crate::errors::log(format!("cannot trim the text fields' menu: {error}"));
+    }
+}
+
+#[cfg(not(windows))]
+fn keep_only_editing_items(_window: &WebviewWindow) {}

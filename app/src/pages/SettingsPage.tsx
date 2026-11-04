@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { BackupCard } from "../BackupCard";
 import { Row, Section, Segmented, Toggle } from "../controls";
 import { type Texts, useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
@@ -58,7 +59,7 @@ interface Props {
   onTour: () => void;
 }
 
-export function GeneralPage({ settings, status, onTour }: Props) {
+export function SettingsPage({ settings, status, onTour }: Props) {
   const texts = useTexts();
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
@@ -123,6 +124,8 @@ export function GeneralPage({ settings, status, onTour }: Props) {
           {update && <Row label={texts.updates} text={updateText(texts, update)} />}
         </Section>
       )}
+
+      <BackupCard />
 
       <Section>
         <Row label={texts.showDiagnostics} text={texts.diagnosticsText}>

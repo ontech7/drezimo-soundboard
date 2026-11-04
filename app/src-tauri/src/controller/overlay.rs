@@ -11,7 +11,7 @@ pub(super) const OVERLAY_TIME: Duration = Duration::from_secs(4);
 impl Controller {
     /// The overlay for `now`, or None while it is hidden.
     pub(super) fn overlay(&self, now: Instant) -> Option<Overlay> {
-        let asked = self.overlay_until.is_some_and(|until| until > now) || self.knob.pressed || self.menu.is_some();
+        let asked = self.overlay_until.is_some_and(|until| until > now) || self.knob.is_down() || self.menu.is_some();
         let wanted = asked && self.overlay_time.is_some();
         let usable = self.board_connected && self.voicemod == VoicemodStatus::Connected;
         let page = self.pages.get(self.page).filter(|_| wanted && usable)?;

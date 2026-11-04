@@ -7,6 +7,7 @@ use crate::device::Status;
 use crate::errors::Error;
 use crate::firmware::FirmwareUpdate;
 use crate::macros::MacrosState;
+use crate::press_again::{ByMode, PressAgain};
 use crate::settings::{OverlayScreen, Settings, SettingsState};
 use crate::updates::{UpdateState, UpdateStateHolder};
 use crate::voicemod::{License, VoicemodStatus};
@@ -24,6 +25,8 @@ pub struct Facts {
     pub settings: Settings,
     pub status: Status,
     pub update: UpdateState,
+    /// None where the app cannot change it: a build not installed, or macOS
+    pub start_at_login: Option<bool>,
     pub own_pages: usize,
     pub macros: usize,
     pub errors: Vec<Error>,
@@ -41,6 +44,7 @@ pub fn report(app: AppHandle) -> String {
         settings: app.state::<SettingsState>().get(),
         status,
         update: app.state::<UpdateStateHolder>().get(),
+        start_at_login: crate::settings::start_at_login(),
         own_pages: app.state::<CustomPagesState>().get().len(),
         macros: app.state::<MacrosState>().get().len(),
         errors: crate::errors::recent(),
@@ -85,6 +89,12 @@ fn write(facts: &Facts) -> String {
         facts.own_pages, facts.macros
     ));
     line(format!("Updates: {}", update_text(&facts.update)));
+    let start_at_login = match facts.start_at_login {
+        Some(true) => "on",
+        Some(false) => "off",
+        None => "not available",
+    };
+    line(format!("Start at login: {start_at_login}"));
     line(format!("Settings: {}", settings_text(settings, status)));
     if facts.errors.is_empty() {
         line("Recent errors: none".to_string());
@@ -165,14 +175,36 @@ fn voicemod(status: &Status) -> String {
             } else {
                 ", log not read"
             });
+            text.push_str(if status.single_sound_stop {
+                ", single sound stop"
+            } else {
+                ", no single sound stop"
+            });
             text
         }
     }
 }
 
+fn press_again_text(by_mode: &ByMode) -> String {
+    let own: Vec<String> = ByMode::MODES
+        .into_iter()
+        .filter(|&mode| by_mode.get(mode) != PressAgain::Voicemod)
+        .map(|mode| format!("{mode:?} {:?}", by_mode.get(mode)))
+        .collect();
+    if own.is_empty() {
+        "Voicemod".to_string()
+    } else {
+        format!("{}, else Voicemod", own.join(", "))
+    }
+}
+
 fn settings_text(settings: &Settings, status: &Status) -> String {
     let overlay = &settings.overlay;
-    let mut text = format!("LEDs {} %", settings.led_brightness);
+    let mut text = format!(
+        "LEDs {} %, pads pressed again: {}",
+        settings.led_brightness,
+        press_again_text(&settings.press_again_by_mode)
+    );
     if overlay.enabled {
         let _ = write!(
             text,
@@ -281,6 +313,7 @@ mod tests {
     use super::*;
     use crate::board::BoardStatus;
     use crate::controller::PageSummary;
+    use crate::press_again::PressAgain;
     use crate::settings::OverlayScreen;
     use crate::voicemod::{License, VoicemodStatus};
     use chrono::TimeZone;
@@ -315,6 +348,7 @@ mod tests {
             update: UpdateState::UpToDate {
                 checked_at: at(12, 40, 0).timestamp_millis(),
             },
+            start_at_login: Some(false),
             own_pages: 2,
             macros: 1,
             errors: vec![
@@ -351,9 +385,11 @@ mod tests {
             "App: 0.1.0 (local build)",
             "System: macOS 26.0 (aarch64)",
             "Board: connected on COM3, firmware 0.2.1",
-            "Voicemod: connected, 3.17.43, free licence, log read",
+            "Voicemod: connected, 3.17.43, free licence, log read, no single sound stop",
             "Pages: 44 (2 of your own), 1 macro",
             "Updates: up to date, checked 2026-11-03 12:40",
+            "Start at login: off",
+            "LEDs 50 %, pads pressed again: Voicemod",
             "overlay BottomRight on the screen with the mouse",
             "12:50:21 lost the connection to Voicemod: closed (×3, last 12:55:21)",
             "12:51:02 unreadable pages: pages.json\n",
@@ -371,6 +407,18 @@ mod tests {
         let report = write(&facts);
         assert!(
             report.contains(r"overlay BottomRight on screen \\.\DISPLAY2"),
+            "{report}"
+        );
+    }
+
+    #[test]
+    fn names_only_the_modes_with_their_own_choice() {
+        let mut facts = facts();
+        facts.settings.press_again_by_mode.play_pause = PressAgain::Stop;
+        facts.settings.press_again_by_mode.play_loop_on_press = PressAgain::Restart;
+        let report = write(&facts);
+        assert!(
+            report.contains("pads pressed again: PlayPause Stop, PlayLoopOnPress Restart, else Voicemod"),
             "{report}"
         );
     }

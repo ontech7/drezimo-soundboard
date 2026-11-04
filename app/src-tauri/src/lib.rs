@@ -1,3 +1,4 @@
+mod backup;
 mod board;
 mod board_test;
 mod controller;
@@ -6,12 +7,15 @@ mod device;
 mod display;
 mod errors;
 mod firmware;
+mod knob;
 mod last_page;
 mod macros;
+mod mixer;
 mod news;
 mod overlay;
 mod pictures;
 mod playback;
+mod press_again;
 mod protocol;
 mod report;
 mod settings;
@@ -20,6 +24,7 @@ mod tour;
 mod tray;
 mod updates;
 mod voicemod;
+mod voicemod_bridge;
 mod voicemod_log;
 mod window;
 
@@ -38,6 +43,7 @@ pub(crate) const AUTOSTART_ARG: &str = "--autostart";
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| window::open(app)))
+        .plugin(tauri_plugin_dialog::init())
         .manage(window::WindowState::default())
         .manage(Mutex::new(device::Status::default()))
         .manage(device::DisplayFrame::default())
@@ -46,6 +52,7 @@ pub fn run() {
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .manage(updates::UpdateStateHolder::default())
+        .manage(backup::ImportState::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
             device::display_frame,
@@ -68,9 +75,16 @@ pub fn run() {
             settings::about,
             settings::start_at_login,
             settings::set_start_at_login,
+            backup::export_configuration,
+            backup::check_import,
+            backup::cancel_import,
+            backup::apply_import,
+            backup::has_before_import,
+            backup::restore_before_import,
             custom_pages::custom_pages,
             custom_pages::set_custom_pages,
             custom_pages::library,
+            press_again::press_outcomes,
             macros::macros,
             macros::set_macros,
             macros::try_macro,

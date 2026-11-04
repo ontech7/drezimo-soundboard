@@ -31,11 +31,21 @@ impl Controller {
         }
 
         let counter = self.counter();
-        if let Some(row) = self.knob.row.filter(|_| self.knob.pressed) {
-            return (self.row_screen(row, counter), None);
+        if let Some(row) = &self.row {
+            return (self.row_screen(row.row, counter), None);
         }
         if let Some(peek) = &self.peek {
             return (self.peek_screen(peek.pad, counter), None);
+        }
+        if let Some(level) = &self.level {
+            let screen = Screen::Level {
+                heading: texts.volume.to_string(),
+                counter,
+                label: level.label.clone(),
+                percent: level.percent,
+                max: level.max,
+            };
+            return (screen, None);
         }
         if let Some(menu) = &self.menu {
             let screen = Screen::Menu {
@@ -74,7 +84,7 @@ impl Controller {
     }
 
     /// A sound's name, or the Community's for one outside the soundboards
-    fn sound_name(&self, id: &str) -> &str {
+    pub(super) fn sound_name(&self, id: &str) -> &str {
         self.sounds.get(id).map_or(self.texts.community, |sound| &sound.name)
     }
 
@@ -193,6 +203,7 @@ impl Controller {
                 (Some(voice), _) => (voice.name.as_str(), About::locked(texts.locked)),
                 (None, Some(sound)) if !sound.enabled => (sound.name.as_str(), About::locked(texts.locked)),
                 (None, Some(sound)) => {
+                    let outcome = self.outcome_at(pad, sound);
                     let detail = if sound.looped && sound.playback_mode != PlaybackMode::PlayLoopOnPress {
                         texts.looped.to_string()
                     } else {
@@ -201,14 +212,17 @@ impl Controller {
                             .map(|length| texts.seconds(length))
                             .unwrap_or_default()
                     };
+                    let note = if outcome.stops_all {
+                        texts.stops_all
+                    } else if sound.stop_other_sounds {
+                        texts.stops_others
+                    } else {
+                        ""
+                    };
                     let about = About {
-                        info: texts.mode(sound.playback_mode),
+                        info: texts.press_again(outcome.does, sound.playback_mode),
                         detail,
-                        note: if sound.stop_other_sounds {
-                            texts.stops_others
-                        } else {
-                            ""
-                        },
+                        note,
                         locked: false,
                     };
                     (sound.name.as_str(), about)

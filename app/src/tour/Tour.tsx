@@ -9,7 +9,7 @@ import { AllSet, Colours, Macro, OVERLAY_WIDTH, Pages, Parts, Screens } from "./
 const STAGE_WIDTH = 708;
 const STAGE_HEIGHT = 318;
 
-/** What the board and the app can do, slide by slide: shown at the first start, then from General */
+/** What the board and the app can do, slide by slide: shown at the first start, then from Settings */
 export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
   const texts = useTexts();
   const slides = texts.tour.slides;

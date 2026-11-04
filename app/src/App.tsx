@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { useBoardActivity } from "./board";
 import { useBoardView } from "./boardView";
 import { TEXTS, TextsContext } from "./i18n";
-import { BoardPage } from "./pages/BoardPage";
+import { BoardPage, type BoardTab } from "./pages/BoardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
-import { GeneralPage } from "./pages/GeneralPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { MacrosPage } from "./pages/MacrosPage";
 import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
@@ -26,6 +26,7 @@ export default function App() {
   const activity = useBoardActivity(12);
   const view = useBoardView();
   const [page, setPage] = useState<PageId>("soundboard");
+  const [boardTab, setBoardTab] = useState<BoardTab>("pad");
   // Until opened or closed here, the tour shows while not seen yet: at the first start, in the first frame
   const [tour, setTour] = useState<boolean | null>(null);
   // Where to find the tour again, once it is skipped
@@ -64,10 +65,10 @@ export default function App() {
 
   if (!status || !settings) return null;
   const texts = TEXTS[language];
-  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
+  const pages: PageId[] = ["soundboard", "pages", "macros", "board", "overlay"];
   if (settings.diagnostics) pages.push("diagnostics");
   // Diagnostics turned off while shown
-  const shown = pages.includes(page) ? page : "soundboard";
+  const shown = page === "settings" || pages.includes(page) ? page : "soundboard";
 
   return (
     <TextsContext.Provider value={texts}>
@@ -81,12 +82,26 @@ export default function App() {
           {shown === "soundboard" && (
             <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
           )}
-          {shown === "pages" && <PagesPage onOpenMacros={() => setPage("macros")} />}
+          {shown === "pages" && (
+            <PagesPage
+              pressAgainByMode={settings.pressAgainByMode}
+              singleStop={status.singleSoundStop}
+              onOpenMacros={() => setPage("macros")}
+            />
+          )}
           {shown === "macros" && <MacrosPage status={status} />}
-          {shown === "board" && <BoardPage settings={settings} status={status} />}
+          {shown === "board" && (
+            <BoardPage
+              settings={settings}
+              status={status}
+              tab={boardTab}
+              onTab={setBoardTab}
+              onOpenPages={() => setPage("pages")}
+            />
+          )}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
-          {shown === "general" && <GeneralPage settings={settings} status={status} onTour={() => setTour(true)} />}
           {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}
+          {shown === "settings" && <SettingsPage settings={settings} status={status} onTour={() => setTour(true)} />}
         </main>
       </div>
       {tourShown && (

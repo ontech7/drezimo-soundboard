@@ -2,6 +2,9 @@
 .env
 private/
 
+# Workspaces of the coding agent's plans and mockups
+.superpowers/
+
 # OS / Python
 .DS_Store
 __pycache__/

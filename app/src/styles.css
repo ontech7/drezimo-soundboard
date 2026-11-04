@@ -763,6 +763,17 @@ select:hover:not(:disabled),
   left: auto;
 }
 
+/* A short list without a search field, as wide as its longest option */
+.search-menu.plain {
+  width: max-content;
+  min-width: 100%;
+  max-width: min(420px, calc(100vw - 48px));
+}
+
+.search-menu ul:focus {
+  outline: none;
+}
+
 .search-menu .search {
   position: relative;
   display: flex;
@@ -829,6 +840,253 @@ button:disabled,
 select:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* The Drezimo page's tabs, under its title */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  margin-bottom: -1px;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.on {
+  border-color: var(--amber);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* What each of the knob's gestures does, on the Drezimo page: an action, and a macro or a page for some */
+.knob-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 290px;
+}
+
+.knob-select.unavailable > .search-select:first-child .select-button {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
+.knob-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.knob-notes p {
+  margin: 0;
+}
+
+.knob-notes .warning {
+  color: var(--amber);
+}
+
+/* The Backup card on the Settings page, and its confirmation */
+
+.backup-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.backup-message p {
+  margin: 0;
+}
+
+.backup-message.failed {
+  color: var(--error);
+}
+
+/* A modal dialog stretches between its insets unless it fits its content */
+.dialog.compact {
+  width: min(500px, calc(100vw - 48px));
+  height: fit-content;
+}
+
+.dialog.compact .dialog-body {
+  flex: 0 1 auto;
+}
+
+.backup-dropped {
+  margin: 14px 0 0;
+  color: var(--amber);
+  font-size: 12.5px;
+}
+
+/* What a pad does when pressed again: a choice per kind of sound on the Drezimo page, a sound pad's own in the Pages editor */
+
+.press-select {
+  width: 290px;
+}
+
+.press-select.own .select-button {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
+.press-own {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--amber);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.press-item .outcome.chosen {
+  color: var(--ok);
+}
+
+.press-item .outcome.stopsAll {
+  color: var(--amber);
+}
+
+.press-item .outcome.instead {
+  color: var(--muted);
+}
+
+.press-field {
+  flex: 1.3;
+}
+
+.press-field .select-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.press-field .select-button .icon {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+.press-field .select-button span {
+  flex: 1;
+  min-width: 0;
+}
+
+.press-field .select-button .stops-all {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+/* The inspector is at the foot of the page: the menu opens upwards, from the field's right edge to stay in the window */
+.menu.press-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: auto;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+}
+
+.menu .press-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: start;
+  gap: 2px 10px;
+  white-space: normal;
+}
+
+.press-item .icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--muted);
+}
+
+.press-item > .icon:nth-of-type(2) {
+  visibility: hidden;
+  color: var(--amber);
+}
+
+.press-item[aria-checked="true"] > .icon:nth-of-type(2) {
+  visibility: visible;
+}
+
+.press-item .name {
+  font-weight: 550;
+}
+
+.press-item .outcome {
+  grid-column: 2 / 4;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.press-menu hr {
+  margin: 4px 6px;
+  border: none;
+  border-top: 1px solid #2f2f37;
+}
+
+.press-menu [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.press-menu .heading {
+  padding: 4px 10px 2px;
+  font-size: 11.5px;
+}
+
+/* A pad of the editor that does its own thing when pressed again */
+.pad .own-press {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--amber);
+  color: #111;
+}
+
+.pad .own-press .icon {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.6;
 }
 
 /* The overlay's place: a screen with its taskbar, and nine spots */
@@ -974,6 +1232,36 @@ select:disabled {
 .pad .picture {
   width: 30px;
   height: 30px;
+}
+
+/* On the Soundboard page the rows give way, down to 48 px, to a notice above them; in a window lower still the page
+   scrolls. The card's floor: its padding and border, the page bar and its margin, six rows of 48 px and their gaps */
+.soundboard {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(2 * 17px + 36px + 12px + 6 * 48px + 5 * 6px);
+}
+
+.soundboard .pads {
+  grid-template-rows: repeat(6, minmax(48px, 62px));
+  min-height: 0;
+}
+
+.soundboard .pad {
+  height: auto;
+}
+
+/* Only the picture gives way: the name keeps its line */
+.soundboard .pad .picture {
+  flex: 0 1 30px;
+  width: auto;
+  height: auto;
+  min-height: 18px;
+  aspect-ratio: 1;
+}
+
+.soundboard .pad .name {
+  flex: none;
 }
 
 /* The LED: border and tint, animated as the board animates it */
@@ -2848,7 +3136,7 @@ input.seconds {
   font-size: 12px;
 }
 
-/* The General page, a little smaller */
+/* The Settings page, a little smaller */
 .tour-window {
   position: absolute;
   top: 14px;
@@ -2865,6 +3153,12 @@ input.seconds {
   height: 380px;
   scale: 0.76;
   transform-origin: top left;
+}
+
+/* Tighter, so that the settings at its foot fit the window's height */
+.tour-window .sidebar {
+  gap: 12px;
+  padding-block: 14px;
 }
 
 .tour-window .calling {

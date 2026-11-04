@@ -18,16 +18,17 @@ interface Props<T> {
   options: Option<T>[];
   value: T;
   onChange: (value: T) => void;
-  searchLabel: string;
+  /** Without it the menu has no search field, for a short list */
+  searchLabel?: string;
   /** When nothing matches the search */
-  empty: string;
+  empty?: string;
   /** On the button, while the value is none of the options */
   placeholder?: string;
   /** The menu's side, for a list at the right edge of a dialog */
   align?: "left" | "right";
 }
 
-/** A select for long lists: its menu has a search field, the same on Windows and macOS. */
+/** The app's select, the same on Windows and macOS: for a long list its menu has a search field. */
 export function SearchSelect<T extends string | number>(props: Props<T>) {
   const { options, value, onChange } = props;
   const [open, setOpen] = useState(false);
@@ -39,13 +40,15 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
   const follow = useRef(true);
   const id = useId();
   const root = useDismiss<HTMLDivElement>(open, () => setOpen(false));
+  const searchable = props.searchLabel !== undefined;
 
   const shown = options.filter((option) => matches(query, option.label));
   const current = options.find((option) => option.value === value);
 
+  const startingWith = (typed: string) => options.findIndex((option) => matches(typed, option.label.slice(0, typed.length)));
   const show = (typed: string) => {
-    const start = typed ? 0 : options.findIndex((option) => option.value === value);
-    setQuery(typed);
+    const start = !typed ? options.findIndex((option) => option.value === value) : searchable ? 0 : startingWith(typed);
+    setQuery(searchable ? typed : "");
     setActive(Math.max(0, start));
     follow.current = true;
     setOpen(true);
@@ -72,7 +75,8 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
 
   useEffect(() => {
     if (!open) setQuery("");
-  }, [open]);
+    else if (!searchable) list.current?.focus();
+  }, [open, searchable]);
 
   // In a dialog, Escape closes the menu only: WebKit may cancel the dialog despite the key being handled
   useEffect(() => {
@@ -117,6 +121,9 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
       event.preventDefault();
       event.stopPropagation();
       close();
+    } else if (!searchable && event.key.length === 1 && event.key !== " ") {
+      const found = startingWith(event.key);
+      if (found >= 0) move(found);
     }
   };
 
@@ -137,26 +144,36 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
         <span>{current?.label ?? props.placeholder ?? ""}</span>
       </button>
       {open && (
-        <div className={props.align === "right" ? "search-menu right" : "search-menu"}>
-          <label className="search">
-            <SearchIcon />
-            <input
-              type="search"
-              aria-label={props.searchLabel}
-              placeholder={props.searchLabel}
-              aria-controls={id}
-              aria-activedescendant={shown[active] ? `${id}-${active}` : undefined}
-              value={query}
-              autoFocus
-              onChange={(event) => {
-                setQuery(event.target.value);
-                follow.current = true;
-                setActive(0);
-              }}
-              onKeyDown={onSearchKey}
-            />
-          </label>
-          <ul ref={list} id={id} role="listbox" aria-label={props.label}>
+        <div className={["search-menu", props.align === "right" && "right", !searchable && "plain"].filter(Boolean).join(" ")}>
+          {searchable && (
+            <label className="search">
+              <SearchIcon />
+              <input
+                type="search"
+                aria-label={props.searchLabel}
+                placeholder={props.searchLabel}
+                aria-controls={id}
+                aria-activedescendant={shown[active] ? `${id}-${active}` : undefined}
+                value={query}
+                autoFocus
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  follow.current = true;
+                  setActive(0);
+                }}
+                onKeyDown={onSearchKey}
+              />
+            </label>
+          )}
+          <ul
+            ref={list}
+            id={id}
+            role="listbox"
+            aria-label={props.label}
+            tabIndex={searchable ? undefined : -1}
+            aria-activedescendant={!searchable && shown[active] ? `${id}-${active}` : undefined}
+            onKeyDown={searchable ? undefined : onSearchKey}
+          >
             {shown.map((option, index) => (
               <li
                 key={option.value}

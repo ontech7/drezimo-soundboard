@@ -253,7 +253,7 @@ function Pads({ view }: { view: BoardView }) {
   const texts = useTexts();
   const count = view.pages.length;
   return (
-    <section className="card">
+    <section className="card soundboard">
       <div className="pages">
         <button
           type="button"

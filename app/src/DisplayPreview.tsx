@@ -4,10 +4,6 @@ import { useTexts } from "./i18n";
 
 const LIT = [235, 240, 255];
 
-export function DisplayPreview() {
-  return <DisplayCanvas frame={useDisplayFrame()} />;
-}
-
 /**
  * The CSS size at which each of the display's pixels takes a whole number of the screen's pixels, `scale` or a little
  * more of them, so the picture stays sharp at any display scaling.

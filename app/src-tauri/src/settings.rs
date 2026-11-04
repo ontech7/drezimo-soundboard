@@ -2,13 +2,16 @@
 //! they follow it to another computer (docs/project.md, section 4).
 
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
-use serde::{Deserialize, Serialize};
+use crate::knob::KnobSettings;
+use crate::press_again::{ByMode, PressAgain};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-const FILE_NAME: &str = "settings.json";
+pub const FILE_NAME: &str = "settings.json";
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +57,9 @@ pub enum Anchor {
     BottomRight,
 }
 
+/// Longer than any screen's name the system gives
+const MAX_SCREEN_NAME: usize = 100;
+
 /// The screen the overlay shows on. A named one that is not connected gives way to the main screen.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +94,10 @@ impl OverlaySettings {
             seconds: self.seconds.clamp(1, 30),
             // Smaller, the names get too small to read on a screen at 100 %
             size: self.size.clamp(70, 100),
+            screen: match self.screen {
+                OverlayScreen::Named(name) if name.chars().count() > MAX_SCREEN_NAME => OverlayScreen::Mouse,
+                screen => screen,
+            },
             ..self
         }
     }
@@ -113,6 +123,9 @@ pub struct Settings {
     pub language: Language,
     /// The LEDs' brightness, in percent: the board does not keep it
     pub led_brightness: u8,
+    /// What a pad does when pressed again, by its sound's mode, unless the user picked it for that pad
+    #[serde(deserialize_with = "by_mode_or_default")]
+    pub press_again_by_mode: ByMode,
     pub overlay: OverlaySettings,
     /// Shows the window's page of technical details
     pub diagnostics: bool,
@@ -120,6 +133,7 @@ pub struct Settings {
     pub tour_seen: bool,
     /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
     pub mute_for_me_notice_seen: bool,
+    pub knob: KnobSettings,
 }
 
 impl Default for Settings {
@@ -127,19 +141,22 @@ impl Default for Settings {
         Self {
             language: Language::default(),
             led_brightness: 50,
+            press_again_by_mode: ByMode::default(),
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
             mute_for_me_notice_seen: false,
+            knob: KnobSettings::default(),
         }
     }
 }
 
 impl Settings {
     /// Within the ranges the window offers
-    fn checked(mut self) -> Self {
+    pub fn checked(mut self) -> Self {
         self.led_brightness = self.led_brightness.clamp(10, 100);
         self.overlay = self.overlay.checked();
+        self.knob = self.knob.checked();
         self
     }
 }
@@ -174,7 +191,7 @@ impl SettingsState {
 /// The saved settings, or the defaults.
 pub fn load(app: &AppHandle) -> SettingsState {
     let saved = path(app).and_then(|path| fs::read_to_string(path).ok());
-    let settings = match saved.map(|text| serde_json::from_str::<Settings>(&text)) {
+    let settings = match saved.map(|text| read(&text)) {
         Some(Ok(settings)) => settings.checked(),
         Some(Err(error)) => {
             crate::errors::log(format!("unreadable settings, using the defaults: {error}"));
@@ -185,6 +202,27 @@ pub fn load(app: &AppHandle) -> SettingsState {
     SettingsState(Mutex::new(settings))
 }
 
+/// A settings file, the single choice for every pad of the apps before the choice by mode included.
+pub fn read(text: &str) -> Result<Settings, serde_json::Error> {
+    let mut value: Value = serde_json::from_str(text)?;
+    if let Some(fields) = value.as_object_mut()
+        && !fields.contains_key("pressAgainByMode")
+        && let Some(one) = fields.get("pressAgain").cloned()
+        && let Ok(one) = PressAgain::deserialize(one)
+    {
+        let by_mode = serde_json::to_value(ByMode::from_one(one))?;
+        fields.insert("pressAgainByMode".into(), by_mode);
+    }
+    let mut settings = Settings::deserialize(value)?;
+    settings.press_again_by_mode = settings.press_again_by_mode.normalized();
+    Ok(settings)
+}
+
+/// A broken choice by mode reads as the default, rather than losing every other setting.
+fn by_mode_or_default<'de, D: Deserializer<'de>>(deserializer: D) -> Result<ByMode, D::Error> {
+    Ok(ByMode::deserialize(Value::deserialize(deserializer)?).unwrap_or_default())
+}
+
 fn path(app: &AppHandle) -> Option<PathBuf> {
     Some(app.path().app_config_dir().ok()?.join(FILE_NAME))
 }
@@ -192,12 +230,12 @@ fn path(app: &AppHandle) -> Option<PathBuf> {
 fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = path(app).ok_or("no config folder")?;
     let folder = path.parent().ok_or("no config folder")?;
-    fs::create_dir_all(folder).map_err(|error| error.to_string())?;
+    fs::create_dir_all(folder).map_err(|error| crate::errors::in_english(&error))?;
     let text = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
     // Written aside first, so a crash never leaves half a file
     let written = path.with_extension("json.new");
-    fs::write(&written, text).map_err(|error| error.to_string())?;
-    fs::rename(&written, &path).map_err(|error| error.to_string())
+    fs::write(&written, text).map_err(|error| crate::errors::in_english(&error))?;
+    fs::rename(&written, &path).map_err(|error| crate::errors::in_english(&error))
 }
 
 #[tauri::command]
@@ -207,13 +245,18 @@ pub fn settings(state: State<SettingsState>) -> SettingsView {
 
 #[tauri::command]
 pub fn set_settings(app: AppHandle, settings: Settings) -> Result<SettingsView, String> {
+    apply(&app, settings)
+}
+
+/// The settings in use at once, everywhere, then saved
+pub fn apply(app: &AppHandle, settings: Settings) -> Result<SettingsView, String> {
     let settings = settings.checked();
     *app.state::<SettingsState>().0.lock().unwrap() = settings.clone();
-    crate::device::apply_settings(&app, settings.clone());
-    crate::tray::set_language(&app, settings.language);
+    crate::device::apply_settings(app, settings.clone());
+    crate::tray::set_language(app, settings.language);
     let view = SettingsView::from(settings.clone());
     let _ = app.emit("settings", view.clone());
-    save(&app, &settings).inspect_err(|error| crate::errors::log(format!("cannot save the settings: {error}")))?;
+    save(app, &settings).inspect_err(|error| crate::errors::log(format!("cannot save the settings: {error}")))?;
     Ok(view)
 }
 
@@ -368,13 +411,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_screen_name_longer_than_any_screens_is_the_mouses() {
+        let named = |length: usize| OverlaySettings {
+            screen: OverlayScreen::Named("s".repeat(length)),
+            ..OverlaySettings::default()
+        };
+        assert_eq!(named(100).checked().screen, named(100).screen);
+        assert_eq!(named(101).checked().screen, OverlayScreen::Mouse);
+    }
+
+    #[test]
     fn an_older_file_loads_with_the_new_fields() {
         let older = r#"{
             "language": "italian",
             "ledBrightness": 70,
             "overlay": { "enabled": true, "anchor": "top", "opacity": 90, "seconds": 5, "size": 80 },
             "diagnostics": true,
-            "tourSeen": true
+            "tourSeen": true,
+            "pressAgain": "bounce"
         }"#;
         let settings: Settings = serde_json::from_str(older).unwrap();
         assert_eq!(settings.language, Language::Italian);
@@ -382,7 +436,9 @@ mod tests {
         assert_eq!(settings.overlay.anchor, Anchor::Top);
         assert!(settings.tour_seen);
         assert!(!settings.mute_for_me_notice_seen);
+        assert_eq!(settings.press_again_by_mode, ByMode::default());
         assert_eq!(settings.overlay.screen, OverlayScreen::Mouse);
+        assert_eq!(settings.knob, KnobSettings::default());
     }
 
     #[test]
@@ -394,6 +450,34 @@ mod tests {
         ] {
             assert_eq!(serde_json::to_string(&screen).unwrap(), json);
             assert_eq!(serde_json::from_str::<OverlayScreen>(json).unwrap(), screen);
+        }
+    }
+
+    #[test]
+    fn an_old_single_choice_migrates_and_is_not_written_again() {
+        let settings = read(r#"{"pressAgain": "stop"}"#).unwrap();
+        assert_eq!(settings.press_again_by_mode, ByMode::from_one(PressAgain::Stop));
+        let written = serde_json::to_value(&settings).unwrap();
+        assert!(written.get("pressAgain").is_none());
+        assert!(written.get("pressAgainByMode").is_some());
+        // Both present: the new one wins
+        let both = read(r#"{"pressAgain": "stop", "pressAgainByMode": {}}"#).unwrap();
+        assert_eq!(both.press_again_by_mode, ByMode::default());
+    }
+
+    #[test]
+    fn a_choice_by_mode_reads_as_the_window_offers_it() {
+        let settings = read(r#"{"pressAgainByMode": {"playRestart": "restart", "playPause": "stop"}}"#).unwrap();
+        assert_eq!(settings.press_again_by_mode.play_restart, PressAgain::Voicemod);
+        assert_eq!(settings.press_again_by_mode.play_pause, PressAgain::Stop);
+    }
+
+    #[test]
+    fn a_broken_choice_by_mode_keeps_the_other_settings() {
+        for broken in ["null", r#""stop""#, "[1, 2]"] {
+            let settings = read(&format!(r#"{{"ledBrightness": 30, "pressAgainByMode": {broken}}}"#)).unwrap();
+            assert_eq!(settings.led_brightness, 30, "{broken}");
+            assert_eq!(settings.press_again_by_mode, ByMode::default(), "{broken}");
         }
     }
 }

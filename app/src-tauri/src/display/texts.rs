@@ -1,5 +1,6 @@
 //! The words on the display, in the simulator's languages: English and Italian, as picked in the settings.
 
+use crate::press_again::PressAgain;
 use crate::soundboard::{Action, PlaybackMode};
 use std::time::Duration;
 
@@ -28,12 +29,24 @@ pub struct Texts {
     /// In place of the name, when a pad outside the licence is pressed
     pub pro_only: &'static str,
     pub stops_others: &'static str,
+    /// A pad that stops every sound when pressed again, when peeked
+    pub stops_all: &'static str,
     /// What an action pad does, when peeked
     pub action: &'static str,
     /// Before a page's name, on a pad that opens it
     pub go_to: &'static str,
     /// What a macro pad does, when peeked
     pub macro_info: &'static str,
+    /// Above a volume the knob changes
+    pub volume: &'static str,
+    pub soundboard_others: &'static str,
+    pub soundboard_you: &'static str,
+    pub microphone: &'static str,
+    /// The knob would change the volume of the sound playing, and none plays
+    pub nothing_playing: &'static str,
+    /// What the knob would do needs Voicemod's bridge, or a value it has not told yet
+    pub not_available: &'static str,
+    pub volumes_reset: &'static str,
     decimal_separator: char,
     modes: Modes,
     actions: Actions,
@@ -42,6 +55,8 @@ pub struct Texts {
 /// The playback modes' names
 struct Modes {
     restart: &'static str,
+    /// A pad that starts its sound from the start when pressed again
+    start_over: &'static str,
     overlap: &'static str,
     stop: &'static str,
     pause: &'static str,
@@ -95,6 +110,18 @@ impl Texts {
             PlaybackMode::Unknown => "",
         }
     }
+
+    /// What a pad pressed again does: the sound's own mode, or what the user picked.
+    pub fn press_again(&self, does: PressAgain, mode: PlaybackMode) -> &'static str {
+        match does {
+            PressAgain::Voicemod => self.mode(mode),
+            PressAgain::Restart => self.modes.start_over,
+            PressAgain::Overlap => self.modes.overlap,
+            PressAgain::Stop => self.modes.stop,
+            PressAgain::Pause => self.modes.pause,
+            PressAgain::Hold => self.modes.hold,
+        }
+    }
 }
 
 pub const ENGLISH: Texts = Texts {
@@ -116,12 +143,21 @@ pub const ENGLISH: Texts = Texts {
     locked: "NOT IN LICENCE",
     pro_only: "PRO ONLY",
     stops_others: "STOPS OTHERS",
+    stops_all: "STOPS ALL",
     action: "ACTION",
     go_to: "Go to",
     macro_info: "MACRO",
+    volume: "VOLUME",
+    soundboard_others: "SOUNDBOARD OTHERS",
+    soundboard_you: "SOUNDBOARD YOU",
+    microphone: "MICROPHONE",
+    nothing_playing: "NO SOUND",
+    not_available: "NOT AVAILABLE",
+    volumes_reset: "VOLUMES RESET",
     decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
+        start_over: "RESTART",
         overlap: "OVERLAP",
         stop: "PLAY/STOP",
         pause: "PLAY/PAUSE",
@@ -158,12 +194,21 @@ pub const ITALIAN: Texts = Texts {
     locked: "NON IN LICENZA",
     pro_only: "SOLO PRO",
     stops_others: "FERMA GLI ALTRI",
+    stops_all: "FERMA TUTTI",
     action: "AZIONE",
     go_to: "Vai a",
     macro_info: "MACRO",
+    volume: "VOLUME",
+    soundboard_others: "SOUNDBOARD ALTRI",
+    soundboard_you: "SOUNDBOARD TU",
+    microphone: "MICROFONO",
+    nothing_playing: "NESSUN SUONO",
+    not_available: "NON DISPONIBILE",
+    volumes_reset: "VOLUMI RIPRISTINATI",
     decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",
+        start_over: "DA CAPO",
         overlap: "SOVRAPPOSTO",
         stop: "PLAY/STOP",
         pause: "PLAY/PAUSA",

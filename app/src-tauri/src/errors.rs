@@ -49,6 +49,14 @@ pub fn recent() -> Vec<Error> {
     RECENT.lock().unwrap().0.iter().cloned().collect()
 }
 
+/// A system error in English, whatever the system's language: its kind and the system's own number.
+pub fn in_english(error: &std::io::Error) -> String {
+    match error.raw_os_error() {
+        Some(code) => format!("{} (os error {code})", error.kind()),
+        None => error.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,5 +87,16 @@ mod tests {
             .map(|error| (error.message.as_str(), error.count, error.first, error.last))
             .collect();
         assert_eq!(lines, [("a", 1, at(1), at(1)), ("b", 3, at(2), at(4))]);
+    }
+
+    #[test]
+    fn writes_a_system_error_in_english() {
+        let reset = std::io::Error::from(std::io::ErrorKind::ConnectionReset);
+        assert_eq!(in_english(&reset), "connection reset");
+        #[cfg(windows)]
+        assert_eq!(
+            in_english(&std::io::Error::from_raw_os_error(10054)),
+            "connection reset (os error 10054)"
+        );
     }
 }

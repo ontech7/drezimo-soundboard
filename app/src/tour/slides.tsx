@@ -16,7 +16,7 @@ import { Cap } from "../Drezimo";
 import { Swatches } from "../editing";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
-import { languages, WINDOWS } from "../pages/GeneralPage";
+import { languages, WINDOWS } from "../pages/SettingsPage";
 import { describe, Timeline, Tinted } from "../pages/MacrosPage";
 import { type PageId, Sidebar } from "../Sidebar";
 import {
@@ -309,9 +309,9 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
   );
 }
 
-const SIDEBAR: PageId[] = ["soundboard", "pages", "macros", "board", "overlay", "general"];
+const SIDEBAR: PageId[] = ["soundboard", "pages", "macros", "board", "overlay"];
 
-/** The General page, where the tour stays */
+/** The Settings page, where the tour stays */
 export function AllSet() {
   const texts = useTexts();
   const nothing = () => {};
@@ -320,7 +320,7 @@ export function AllSet() {
       <div className="app">
         <Sidebar
           pages={SIDEBAR}
-          page="general"
+          page="settings"
           connections={[
             { state: "ok", label: texts.boardConnected },
             { state: "ok", label: texts.voicemodConnected },
@@ -328,7 +328,7 @@ export function AllSet() {
           onSelect={nothing}
         />
         <main>
-          <h1>{texts.nav.general}</h1>
+          <h1>{texts.nav.settings}</h1>
           <Section>
             <Row label={texts.language}>
               <Segmented label={texts.language} options={languages(texts)} value="system" onChange={nothing} />

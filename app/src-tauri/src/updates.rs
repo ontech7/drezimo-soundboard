@@ -21,7 +21,7 @@ const RETRY_AFTER: Duration = Duration::from_secs(10 * 60);
 const IDLE_BEFORE_INSTALL: Duration = Duration::from_secs(10 * 60);
 const IDLE_CHECK: Duration = Duration::from_secs(30);
 
-/// For the window's General page. Times are Unix milliseconds.
+/// For the window's Settings page. Times are Unix milliseconds.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "state", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum UpdateState {

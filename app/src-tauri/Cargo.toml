@@ -19,6 +19,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 # Published builds update themselves
 tauri-plugin-updater = "2"
+# The system's own save and open dialogs, for the configuration file
+tauri-plugin-dialog = "2"
 # Voicemod's log has local times
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
@@ -44,10 +46,15 @@ objc2-core-foundation = { version = "0.3", default-features = false, features = 
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGColorSpace", "CGDataProvider", "CGImage"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer"] }
+# Voicemod's processes, to find its bridge
+libc = "0.2"
 
-# The overlay's window, the drives where the board's firmware is written, and the login item
+# The overlay's window, the drives where the board's firmware is written, the login item and Voicemod's ports
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+# The text fields' menu in the window, as wry's own WebView2 (src/window.rs)
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [profile.release]
 opt-level = "z"

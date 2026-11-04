@@ -1,11 +1,15 @@
 //! The link to Voicemod's Control API (docs/project.md, section 8): a WebSocket on this computer, opened by the
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
+use crate::mixer::Channel;
 use crate::soundboard::{Soundboard, Voice};
+use crate::voicemod_bridge::{Bridge, BridgeEvent};
 use base64::prelude::{BASE64_STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -44,6 +48,8 @@ pub enum Request {
         key_down: bool,
     },
     StopAllSounds,
+    /// One sound only, through Voicemod's bridge (src/voicemod_bridge.rs); every sound while it is not found
+    StopSound(String),
     LoadVoice(String),
     ToggleMuteForMe,
     ToggleVoiceChanger,
@@ -52,6 +58,18 @@ pub enum Request {
     ToggleBackground,
     /// Answered only for a sound or voice Voicemod knows
     GetPicture(Picture),
+    /// The bridge's only, dropped while it is not found
+    SetGain {
+        channel: Channel,
+        gain: f32,
+    },
+    /// For the play under way, through the bridge only
+    SetSoundVolume {
+        id: String,
+        volume: f32,
+    },
+    /// The sounds' saved volumes, through the bridge only: Voicemod asks its servers for them
+    ReadSoundVolumes,
 }
 
 /// The picture of a sound or a voice, by its id
@@ -62,19 +80,21 @@ pub enum Picture {
 }
 
 impl Request {
-    fn action(&self) -> (&'static str, Value) {
-        match self {
+    /// The Control API's action, none for what only the bridge does
+    fn action(&self) -> Option<(&'static str, Value)> {
+        Some(match self {
             Self::PlaySound { id, key_down } => ("playMeme", json!({ "FileName": id, "IsKeyDown": key_down })),
             Self::LoadVoice(id) => ("loadVoice", json!({ "voiceID": id })),
             Self::GetPicture(Picture::Sound(id)) => ("getBitmap", json!({ "memeId": id })),
             Self::GetPicture(Picture::Voice(id)) => ("getBitmap", json!({ "voiceID": id })),
-            Self::StopAllSounds => ("stopAllMemeSounds", json!({})),
+            Self::StopAllSounds | Self::StopSound(_) => ("stopAllMemeSounds", json!({})),
             Self::ToggleMuteForMe => ("toggleMuteMemeForMe", json!({})),
             Self::ToggleVoiceChanger => ("toggleVoiceChanger", json!({})),
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
             Self::ToggleMuteMic => ("toggleMuteMic", json!({})),
             Self::ToggleBackground => ("toggleBackground", json!({})),
-        }
+            Self::SetGain { .. } | Self::SetSoundVolume { .. } | Self::ReadSoundVolumes => return None,
+        })
     }
 }
 
@@ -104,6 +124,16 @@ pub enum VoicemodEvent {
     },
     /// Voicemod's own version, once per connection
     Version(String),
+    /// Whether a single sound can be stopped: Voicemod's bridge was found
+    SingleSoundStop(bool),
+    /// A mixer channel's gain, from the bridge. `ours`: the app's own change coming back
+    MixerGain {
+        channel: Channel,
+        gain: f32,
+        ours: bool,
+    },
+    /// Each sound's volume saved in Voicemod, 0 to 1, from the bridge
+    SoundVolumes(HashMap<String, f32>),
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -123,7 +153,16 @@ impl Voicemod {
     /// Connects to Voicemod in the background, again whenever it goes away; `on_event` runs on the async runtime.
     pub fn start(on_event: impl Fn(VoicemodEvent) + Send + Sync + 'static) -> Self {
         let (requests, outgoing) = mpsc::unbounded_channel();
-        tauri::async_runtime::spawn(keep_connected(outgoing, on_event));
+        let on_event = Arc::new(on_event);
+        let found = on_event.clone();
+        let bridge = Bridge::start(move |event| {
+            found(match event {
+                BridgeEvent::Found(there) => VoicemodEvent::SingleSoundStop(there),
+                BridgeEvent::Gain { channel, gain, ours } => VoicemodEvent::MixerGain { channel, gain, ours },
+                BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
+            })
+        });
+        tauri::async_runtime::spawn(keep_connected(outgoing, move |event| on_event(event), bridge));
         Self { requests }
     }
 
@@ -141,7 +180,7 @@ impl Voicemod {
     }
 }
 
-async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl Fn(VoicemodEvent)) {
+async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl Fn(VoicemodEvent), bridge: Bridge) {
     let Some(key) = CLIENT_KEY.filter(|key| !key.is_empty()) else {
         on_event(VoicemodEvent::Status(VoicemodStatus::MissingKey));
         return;
@@ -153,8 +192,8 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
                 // Requests made while Voicemod was away are stale
                 while requests.try_recv().is_ok() {}
                 report(&mut status, VoicemodStatus::Connected, &on_event);
-                if let Err(error) = exchange(socket, &mut requests, &on_event).await {
-                    crate::errors::log(format!("lost the connection to Voicemod: {error}"));
+                if let Err(error) = exchange(socket, &mut requests, &on_event, &bridge).await {
+                    crate::errors::log(format!("lost the connection to Voicemod: {}", socket_error(&error)));
                 }
                 report(&mut status, VoicemodStatus::Unreachable, &on_event);
                 RETRY_AFTER
@@ -171,6 +210,14 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
             }
         };
         tokio::time::sleep(retry_after).await;
+    }
+}
+
+/// A system error is worded in the system's language: in English instead
+fn socket_error(error: &tungstenite::Error) -> String {
+    match error {
+        tungstenite::Error::Io(error) => crate::errors::in_english(error),
+        other => other.to_string(),
     }
 }
 
@@ -216,6 +263,7 @@ async fn exchange(
     mut socket: Socket,
     requests: &mut UnboundedReceiver<Request>,
     on_event: &impl Fn(VoicemodEvent),
+    bridge: &Bridge,
 ) -> Result<(), tungstenite::Error> {
     // The voices before the soundboards: the board starts on the first page whatever comes first
     for action in [
@@ -259,8 +307,29 @@ async fn exchange(
                 None => return Ok(()),
             },
             Some(request) = requests.recv() => {
-                let (action, payload) = request.action();
-                socket.send(frame(action, payload)).await?;
+                if let Request::PlaySound { id, key_down: true } = &request {
+                    bridge.pressed(id);
+                }
+                // Waits for Voicemod to stop it, so that a press asked next comes after it
+                let stopped_alone = match &request {
+                    Request::StopSound(id) => bridge.stop_sound(id).await,
+                    Request::SetGain { channel, gain } => {
+                        bridge.set_gain(*channel, *gain);
+                        true
+                    }
+                    Request::SetSoundVolume { id, volume } => {
+                        bridge.set_sound_volume(id, *volume);
+                        true
+                    }
+                    Request::ReadSoundVolumes => {
+                        bridge.read_sounds();
+                        true
+                    }
+                    _ => false,
+                };
+                if !stopped_alone && let Some((action, payload)) = request.action() {
+                    socket.send(frame(action, payload)).await?;
+                }
             }
         }
     }
@@ -437,7 +506,7 @@ mod tests {
         );
         assert_eq!(
             Request::LoadVoice("v1".into()).action(),
-            ("loadVoice", json!({ "voiceID": "v1" }))
+            Some(("loadVoice", json!({ "voiceID": "v1" })))
         );
     }
 
@@ -475,9 +544,20 @@ mod tests {
         };
         assert_eq!(
             play.action(),
-            ("playMeme", json!({ "FileName": "s1", "IsKeyDown": true }))
+            Some(("playMeme", json!({ "FileName": "s1", "IsKeyDown": true })))
         );
-        assert_eq!(Request::ToggleHearMyself.action().0, "toggleHearMyVoice");
+        assert_eq!(Request::ToggleHearMyself.action().unwrap().0, "toggleHearMyVoice");
+        let gain = Request::SetGain {
+            channel: Channel::Microphone,
+            gain: 1.0,
+        };
+        let volume = Request::SetSoundVolume {
+            id: "s1".into(),
+            volume: 0.5,
+        };
+        assert_eq!(gain.action(), None, "the bridge's only");
+        assert_eq!(volume.action(), None, "the bridge's only");
+        assert_eq!(Request::ReadSoundVolumes.action(), None, "the bridge's only");
 
         let Message::Text(text) = frame("stopAllMemeSounds", json!({})) else {
             panic!("a text message")
@@ -491,11 +571,11 @@ mod tests {
     fn asks_for_the_pictures_and_reads_them() {
         assert_eq!(
             Request::GetPicture(Picture::Voice("v1".into())).action(),
-            ("getBitmap", json!({ "voiceID": "v1" }))
+            Some(("getBitmap", json!({ "voiceID": "v1" })))
         );
         assert_eq!(
             Request::GetPicture(Picture::Sound("s1".into())).action(),
-            ("getBitmap", json!({ "memeId": "s1" }))
+            Some(("getBitmap", json!({ "memeId": "s1" })))
         );
 
         // "iVBORw==" is the start of a PNG file
