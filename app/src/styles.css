@@ -53,9 +53,10 @@ input:focus-visible {
 }
 
 .sidebar {
+  --sidebar-gap: 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--sidebar-gap);
   padding: 24px 12px;
   border-right: 1px solid var(--line);
   background: var(--card);
@@ -248,6 +249,11 @@ p {
 
 .connections .dot.ok {
   box-shadow: 0 0 6px var(--ok);
+}
+
+/* Settings close under the connections, as one group at the foot */
+.sidebar .sidebar-foot {
+  margin-top: calc(8px - var(--sidebar-gap));
 }
 
 /* A notice on the Soundboard page: what is new, the sounds muted for this PC */
@@ -3199,7 +3205,7 @@ input.seconds {
 
 /* Tighter, so that the settings at its foot fit the window's height */
 .tour-window .sidebar {
-  gap: 12px;
+  --sidebar-gap: 12px;
   padding-block: 14px;
 }
 
