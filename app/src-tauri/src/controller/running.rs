@@ -99,10 +99,11 @@ impl Controller {
                 }
             }
             None => {
-                self.finish_macro();
+                // One deleted since does nothing, the one running goes on
                 let Some(item) = self.macros.iter().find(|item| item.id == id).cloned() else {
                     return;
                 };
+                self.finish_macro();
                 self.running = Some(Running {
                     item,
                     step: 0,

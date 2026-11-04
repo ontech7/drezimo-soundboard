@@ -2123,3 +2123,131 @@ fn every_gesture_is_reported_for_diagnostics() {
     assert_eq!(gestures(&tap(&mut controller, now)), [Gesture::Tap]);
     assert_eq!(gestures(&turn(&mut controller, -1, now)), [Gesture::Turn(-1)]);
 }
+
+fn level(controller: &Controller, now: Instant) -> Option<u16> {
+    match controller.screen(now).0 {
+        Screen::Level { percent, .. } => Some(percent),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_quick_turn_keeps_every_step_when_voicemod_answers() {
+    let (mut controller, now) = ready(three_soundboards());
+    let knob = KnobSettings {
+        turn: TurnAction::SoundboardForOthers,
+        ..KnobSettings::default()
+    };
+    with_knob(&mut controller, knob);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let at = |millis: u64| now + Duration::from_millis(millis);
+    turn(&mut controller, -1, at(0));
+    turn(&mut controller, -1, at(10));
+    // Voicemod tells every client of the first change while the second waits
+    let echo = VoicemodEvent::MixerGain {
+        channel: Channel::SoundboardForOthers,
+        gain: gain(95),
+        ours: true,
+    };
+    controller.voicemod_event(echo, at(15));
+    turn(&mut controller, -1, at(20));
+    assert_eq!(level(&controller, at(20)), Some(85));
+    assert_eq!(
+        requests_at(&mut controller, at(100)),
+        [set_gain(Channel::SoundboardForOthers, gain(85))]
+    );
+}
+
+#[test]
+fn the_menu_shows_over_a_level_or_the_rows() {
+    let sounds = (0..12).map(|i| sound(&format!("s{i}"))).collect();
+    let soundboards = vec![soundboard("b", sounds), soundboard("c", vec![sound("c1")])];
+    for turn_action in [TurnAction::SoundboardForOthers, TurnAction::Rows] {
+        let (mut controller, now) = ready(soundboards.clone());
+        let knob = KnobSettings {
+            turn: turn_action,
+            ..KnobSettings::default()
+        };
+        with_knob(&mut controller, knob);
+        bridge(&mut controller, [1.0, 1.0, 1.0], now);
+        turn(&mut controller, 1, now);
+        let later = now + Duration::from_millis(500);
+        tap(&mut controller, later);
+        assert!(
+            matches!(
+                controller.screen(later + Duration::from_millis(60)).0,
+                Screen::Menu { .. }
+            ),
+            "{turn_action:?}"
+        );
+    }
+}
+
+#[test]
+fn a_peek_shows_over_the_rows() {
+    let sounds = (0..12).map(|i| sound(&format!("s{i}"))).collect();
+    let (mut controller, now) = ready(vec![soundboard("b", sounds)]);
+    let knob_settings = KnobSettings {
+        turn: TurnAction::Rows,
+        ..KnobSettings::default()
+    };
+    with_knob(&mut controller, knob_settings);
+    turn(&mut controller, 1, now);
+    let later = now + Duration::from_millis(500);
+    knob(&mut controller, true, later);
+    press(&mut controller, 3, true, later);
+    assert!(matches!(controller.screen(later).0, Screen::Peek { .. }));
+}
+
+#[test]
+fn a_knob_gesture_to_a_deleted_macro_does_nothing() {
+    let (mut controller, now) = ready(three_soundboards());
+    let steps = vec![Step::StopSounds, Step::Wait { millis: 5000 }, Step::StopSounds];
+    controller.set_macros(vec![macro_item("m", steps)]);
+    let knob = KnobSettings {
+        tap: PressAction::Macro {
+            macro_id: "gone".into(),
+        },
+        ..KnobSettings::default()
+    };
+    with_knob(&mut controller, knob);
+    controller.try_macro("m", now);
+    controller.update(now);
+    assert!(controller.running.is_some());
+    tap(&mut controller, now + Duration::from_millis(100));
+    assert!(controller.running.is_some(), "the macro running goes on");
+}
+
+#[test]
+fn the_volume_of_the_sound_playing_skips_a_paused_one() {
+    let effect = Sound {
+        playback_mode: PlaybackMode::PlayStop,
+        ..sound("loop")
+    };
+    let song = Sound {
+        playback_mode: PlaybackMode::PlayPause,
+        ..sound("song")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![effect, song])]);
+    let knob = KnobSettings {
+        turn: TurnAction::PlayingSound,
+        ..KnobSettings::default()
+    };
+    with_knob(&mut controller, knob);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let volumes = HashMap::from([("song".to_string(), 0.5), ("loop".to_string(), 0.5)]);
+    controller.voicemod_event(VoicemodEvent::SoundVolumes(volumes), now);
+    let at = |millis: u64| now + Duration::from_millis(millis);
+    for (pad, millis) in [(0, 0), (1, 100), (1, 1000)] {
+        press(&mut controller, pad, true, at(millis));
+        press(&mut controller, pad, false, at(millis + 50));
+    }
+    assert_eq!(controller.playback.state("song"), Some(State::Paused));
+    let outputs = turn(&mut controller, 1, at(1200));
+    let expected = Request::SetSoundVolume {
+        id: "loop".into(),
+        volume: 0.55,
+    };
+    assert_eq!(requests(&outputs), [&expected]);
+    assert_eq!(level(&controller, at(1200)), Some(55));
+}

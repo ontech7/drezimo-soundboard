@@ -884,6 +884,10 @@ select:disabled {
   width: 290px;
 }
 
+.knob-select.unavailable > .search-select:first-child .select-button {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
 .knob-notes {
   display: flex;
   flex-direction: column;

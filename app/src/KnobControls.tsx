@@ -49,17 +49,23 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
 
   const save = <G extends keyof KnobSettings>(gesture: G, choice: KnobSettings[G]) =>
     saveSettings({ ...settings, knob: { ...knob, [gesture]: choice } });
-  const label = (action: string, name: string) =>
-    !bridge && BRIDGE_ACTIONS.has(action) ? `${name} · ${knobTexts.notNow}` : name;
+  const unavailable = (action: string) => !bridge && BRIDGE_ACTIONS.has(action);
+  // The chosen one is marked by its border, so that its name fits on the button
+  const label = (action: string, name: string, chosen: string) =>
+    unavailable(action) && action !== chosen ? `${name} · ${knobTexts.notNow}` : name;
+  const selectClass = (action: string) => (unavailable(action) ? "knob-select unavailable" : "knob-select");
   const chosen = [knob.turn, knob.holdTurn, knob.tap, knob.doubleTap, knob.longPress].map((choice) => choice.action);
   const usesVolumes = chosen.some((action) => BRIDGE_ACTIONS.has(action));
 
   const turnRow = (gesture: TurnGesture) => (
     <Row key={gesture} label={knobTexts.gestures[gesture]}>
-      <div className="knob-select">
+      <div className={selectClass(knob[gesture].action)}>
         <SearchSelect
           label={knobTexts.gestures[gesture]}
-          options={TURN_ACTIONS.map((action) => ({ value: action, label: label(action, knobTexts.turnActions[action]) }))}
+          options={TURN_ACTIONS.map((action) => ({
+            value: action,
+            label: label(action, knobTexts.turnActions[action], knob[gesture].action),
+          }))}
           value={knob[gesture].action}
           onChange={(action) => save(gesture, { action })}
           align="right"
@@ -94,7 +100,9 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
         />
       );
     } else if (choice.action === "page") {
-      const missing = library !== null && choice.page !== "" && !targets.some((page) => page.id === choice.page);
+      // Before Voicemod sends its soundboards, no page is known to be gone
+      const loaded = (library?.soundboards.length ?? 0) > 0;
+      const missing = loaded && choice.page !== "" && !targets.some((page) => page.id === choice.page);
       if (missing) gone = knobTexts.pageGone;
       target = (
         <SearchSelect
@@ -111,10 +119,13 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
     }
     return (
       <Row key={gesture} label={knobTexts.gestures[gesture]} text={gone ?? hint}>
-        <div className="knob-select">
+        <div className={selectClass(choice.action)}>
           <SearchSelect
             label={knobTexts.gestures[gesture]}
-            options={PRESS_ACTIONS.map((action) => ({ value: action, label: label(action, knobTexts.pressActions[action]) }))}
+            options={PRESS_ACTIONS.map((action) => ({
+              value: action,
+              label: label(action, knobTexts.pressActions[action], choice.action),
+            }))}
             value={choice.action}
             onChange={pick}
             align="right"

@@ -3,7 +3,6 @@
 use super::{Controller, Level, MENU_TIME, Menu, Output, PEEK_TIME, ROWS, RowShown, VolumeTarget};
 use crate::knob::{Gesture, KnobSettings, PressAction, TurnAction};
 use crate::mixer::{self, Channel};
-use crate::playback::State;
 use crate::soundboard::{Action, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
 use std::time::{Duration, Instant};
@@ -55,6 +54,7 @@ impl Controller {
     /// A pad pressed while the knob is held: a peek, so the press is no tap.
     pub(super) fn knob_peeked(&mut self, now: Instant) {
         self.knob_used = true;
+        self.row = None;
         let gestures = self.knob.pad_pressed();
         self.gestures(gestures, now);
     }
@@ -130,6 +130,8 @@ impl Controller {
     fn press_action(&mut self, action: PressAction, now: Instant) {
         match action {
             PressAction::Menu => {
+                self.row = None;
+                self.level = None;
                 self.menu = Some(Menu {
                     selected: self.page,
                     until: now + MENU_TIME,
@@ -189,16 +191,12 @@ impl Controller {
         self.show_level(label.to_string(), percent, channel.max_percent(), now);
     }
 
-    /// The latest sound started that still plays
+    /// The latest sound started or resumed that still plays
     fn step_playing_sound(&mut self, step: i8, now: Instant) {
         if !self.can_change_volumes(now) {
             return;
         }
-        let playing = self
-            .playback
-            .latest(now)
-            .filter(|latest| latest.state == State::Playing);
-        let Some(id) = playing.map(|latest| latest.id.to_string()) else {
+        let Some(id) = self.playback.latest_playing().map(str::to_string) else {
             return self.tell(self.texts.nothing_playing, now);
         };
         // Its saved volume not known yet: better nothing than a guess

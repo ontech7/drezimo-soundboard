@@ -78,11 +78,12 @@ impl Mixer {
         *self = Self::default();
     }
 
-    /// A channel's gain, as Voicemod tells it. `ours`: the knob's own change coming back, which is not Voicemod's own value.
+    /// A channel's gain, as Voicemod tells it. `ours`: the knob's own change coming back, older than its latest step.
     pub fn voicemod_gain(&mut self, channel: Channel, gain: f32, ours: bool) {
-        if !ours {
-            self.voicemods.insert(channel, gain);
+        if ours {
+            return;
         }
+        self.voicemods.insert(channel, gain);
         self.current.insert(channel, gain);
     }
 

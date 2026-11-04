@@ -357,6 +357,14 @@ impl Playback {
         })
     }
 
+    /// The playing sound that changed last
+    pub fn latest_playing(&self) -> Option<&str> {
+        let playing = self.sounds.iter().filter(|(_, active)| active.state == State::Playing);
+        playing
+            .max_by_key(|(id, _)| self.changed.get(*id))
+            .map(|(id, _)| id.as_str())
+    }
+
     pub fn length(&self, id: &str) -> Option<Duration> {
         self.lengths.get(id).copied()
     }
