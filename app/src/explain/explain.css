@@ -786,6 +786,21 @@
   }
 }
 
+/* A short window: the halves shrink, so that the dialog's foot stays in sight */
+@media (max-height: 600px) {
+  .dialog.explainer .dialog-body {
+    gap: 10px;
+  }
+
+  .explain-scene {
+    height: 140px;
+  }
+
+  .explain-scene > * {
+    scale: 0.75;
+  }
+}
+
 /* The states still change, without moving: a paused pad is dim rather than breathing */
 @media (prefers-reduced-motion: reduce) {
   .explainer *,

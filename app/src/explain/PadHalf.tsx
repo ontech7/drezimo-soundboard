@@ -89,6 +89,7 @@ export async function playPad(story: PadStory, run: Run, stage: PadStage, words:
     stage.sound("playing");
     await run.wait(1900);
     stage.pose({ down: false, led: "rest" }, "letGo");
+    stage.fire();
     change(OWN, (lane, now) => held(lane, now, "stopped"));
     stopOthers();
     stage.sound(story.stopsAll ? "allStop" : "stopsOnRelease");

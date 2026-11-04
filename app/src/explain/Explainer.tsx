@@ -66,29 +66,35 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
   const [beats, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
   const [loop, setLoop] = useState(0);
   const [fired, setFired] = useState(0);
+  const key = `${gesture} ${JSON.stringify(story)}`;
+  // Another action starts from rest at once, never shown for a frame with the last one's beats
+  const [shownKey, setShownKey] = useState(key);
+  if (shownKey !== key) {
+    setShownKey(key);
+    setPose(KNOB_AT_REST);
+    setCaption("still");
+    setBeats({ count: 0, sum: 0, total: 0 });
+  }
 
-  useLoop(
-    async (run, round) => {
-      setLoop((count) => count + 1);
-      setPose(KNOB_AT_REST);
-      // A switch goes back and forth between loops, from where it starts for this action
-      setBeats((beats) => ({ count: 0, sum: 0, total: round === 0 ? 0 : beats.total }));
-      await playGesture(
-        gesture,
-        story,
-        run,
-        (changed, next) => {
-          setPose((current) => ({ ...current, ...changed }));
-          if (next) setCaption(next);
-        },
-        (dir) => {
-          setFired((count) => count + 1);
-          setBeats((beats) => ({ count: beats.count + 1, sum: beats.sum + dir, total: beats.total + 1 }));
-        }
-      );
-    },
-    `${gesture} ${JSON.stringify(story)}`
-  );
+  useLoop(async (run, round) => {
+    setLoop((count) => count + 1);
+    setPose(KNOB_AT_REST);
+    // A switch goes back and forth between loops, from where it starts for this action
+    setBeats((beats) => ({ count: 0, sum: 0, total: round === 0 ? 0 : beats.total }));
+    await playGesture(
+      gesture,
+      story,
+      run,
+      (changed, next) => {
+        setPose((current) => ({ ...current, ...changed }));
+        if (next) setCaption(next);
+      },
+      (dir) => {
+        setFired((count) => count + 1);
+        setBeats((beats) => ({ count: beats.count + 1, sum: beats.sum + dir, total: beats.total + 1 }));
+      }
+    );
+  }, key);
 
   return (
     <Stage
@@ -142,6 +148,16 @@ export function PadExplainer({ mode, choice, outcome, language, children, onClos
   const [sound, setSound] = useState<SoundCaption | null>(null);
   const [lanes, setLanes] = useState<Lane[]>([]);
   const [fired, setFired] = useState(0);
+  const key = `${mode} ${JSON.stringify(story)}`;
+  // Another choice starts from rest at once, never shown for a frame with the last one's sounds
+  const [shownKey, setShownKey] = useState(key);
+  if (shownKey !== key) {
+    setShownKey(key);
+    setPose(PAD_AT_REST);
+    setCaption("pad");
+    setSound(null);
+    setLanes([]);
+  }
 
   useLoop(
     (run) =>
@@ -160,7 +176,7 @@ export function PadExplainer({ mode, choice, outcome, language, children, onClos
         words.pad,
         [words.pad.sounds[mode], words.sample.sounds[1]]
       ),
-    `${mode} ${JSON.stringify(story)}`
+    key
   );
 
   const sentence = [

@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, memo, useEffect, useState } from "react";
 
 /** A sound as a bar that fills while it plays */
 export interface Lane {
@@ -32,9 +32,10 @@ function heights(name: string): number[] {
   return Array.from({ length: BARS }, (_, i) => 30 + 60 * Math.abs(Math.sin(i * 1.7 + name.length) * Math.cos(i * 0.45)));
 }
 
-function Bars({ name }: { name: string }) {
+/** The same for a name at every frame, so drawn once */
+const Bars = memo(function Bars({ name }: { name: string }) {
   return heights(name).map((height, i) => <i key={i} style={{ height: `${height}%` }} />);
-}
+});
 
 export function SoundLanes({ lanes }: { lanes: Lane[] }) {
   const [, setFrame] = useState(0);

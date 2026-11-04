@@ -35,7 +35,11 @@ export function Row(props: RowProps) {
               className="explain-button"
               aria-label={texts.explainButton(props.label)}
               title={texts.explainHint}
-              onClick={props.onExplain}
+              onClick={(event) => {
+                // WebKit leaves a clicked button unfocused: the dialog gives the focus back to the one focused
+                event.currentTarget.focus();
+                props.onExplain?.();
+              }}
             >
               <PlayIcon />
             </button>

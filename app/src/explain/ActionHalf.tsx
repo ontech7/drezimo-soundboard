@@ -294,7 +294,11 @@ function RandomVoice({ name, beats, words }: Props) {
 }
 
 function MacroSteps({ name, beats, words, macro }: Props) {
-  const shown = macro && macro.steps.length > 0 ? macro : words.sample.macro;
+  // A macro with no steps yet keeps its name, with the sample's steps
+  const shown = {
+    name: macro?.name ?? words.sample.macro.name,
+    steps: macro?.steps.length ? macro.steps : words.sample.macro.steps,
+  };
   const steps = shown.steps.length;
   // Pressed again while it runs, a macro stops or starts over, as it is set
   const stopped = beats.count > 1 && (macro?.again ?? "stop") === "stop";
