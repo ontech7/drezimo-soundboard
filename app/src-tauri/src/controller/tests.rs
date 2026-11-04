@@ -2064,9 +2064,10 @@ fn turning_through_voices_walks_the_favourites() {
             ..KnobSettings::default()
         },
     );
+    let at = |step: u64| now + Duration::from_millis(300 * step);
     let loaded: Vec<_> = (0..3)
-        .flat_map(|_| {
-            requests(&turn(&mut controller, 1, now))
+        .flat_map(|step| {
+            requests(&turn(&mut controller, 1, at(step)))
                 .into_iter()
                 .cloned()
                 .collect::<Vec<_>>()
@@ -2074,7 +2075,30 @@ fn turning_through_voices_walks_the_favourites() {
         .collect();
     let load = |id: &str| Request::LoadVoice(id.into());
     assert_eq!(loaded, [load("v2"), load("v5"), load("v2")]);
-    assert_eq!(requests(&turn(&mut controller, -1, now)), [&load("v5")]);
+    assert_eq!(requests(&turn(&mut controller, -1, at(3))), [&load("v5")]);
+}
+
+#[test]
+fn a_fast_turn_on_the_voices_loads_only_the_last_one_in_a_while() {
+    let now = Instant::now();
+    let mut controller = Controller::default();
+    let voices = vec![voice("v1"), voice("v2"), voice("v3"), voice("v4")];
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    let current = Some("v1".to_string());
+    controller.voicemod_event(VoicemodEvent::Voices { voices, current }, now);
+    controller.voicemod_event(VoicemodEvent::Soundboards(three_soundboards()), now);
+    let knob = KnobSettings {
+        turn: TurnAction::Voice,
+        ..KnobSettings::default()
+    };
+    with_knob(&mut controller, knob);
+    let at = |millis: u64| now + Duration::from_millis(millis);
+    let load = |id: &str| Request::LoadVoice(id.into());
+    assert_eq!(requests(&turn(&mut controller, 1, at(0))), [&load("v2")]);
+    assert!(requests(&turn(&mut controller, 1, at(40))).is_empty());
+    assert!(requests(&turn(&mut controller, 1, at(80))).is_empty());
+    assert!(requests_at(&mut controller, at(200)).is_empty());
+    assert_eq!(requests_at(&mut controller, at(250)), [load("v4")]);
 }
 
 #[test]

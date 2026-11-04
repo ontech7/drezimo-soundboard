@@ -138,22 +138,25 @@ impl Gestures {
         if self.used {
             return Vec::new();
         }
-        if self.long_press && now.duration_since(since) >= LONG_PRESS {
-            let mut out = self.let_tap_go();
+        let long = now.duration_since(since) >= LONG_PRESS;
+        // A second press held long is no double tap: the first tap goes, and this press counts on its own
+        let mut out = if long { self.let_tap_go() } else { Vec::new() };
+        if self.long_press && long {
             out.push(Gesture::LongPress);
             out
-        } else if second {
+        } else if second && !long {
             self.waiting = None;
             vec![Gesture::DoubleTap]
         } else if self.double_tap {
             self.waiting = Some(now + DOUBLE_TAP);
-            Vec::new()
+            out
         } else {
-            vec![Gesture::Tap]
+            out.push(Gesture::Tap);
+            out
         }
     }
 
-    pub fn turned(&mut self, step: i8, _now: Instant) -> Vec<Gesture> {
+    pub fn turned(&mut self, step: i8) -> Vec<Gesture> {
         let mut out = self.let_tap_go();
         if self.down.is_some() {
             self.used = true;
@@ -300,7 +303,7 @@ mod tests {
         let start = Instant::now();
         let mut gestures = Gestures::default();
         gestures.pressed(start);
-        assert_eq!(gestures.turned(1, at(start, 100)), [HoldTurn(1)]);
+        assert_eq!(gestures.turned(1), [HoldTurn(1)]);
         assert_eq!(gestures.released(at(start, 200)), []);
     }
 
@@ -310,7 +313,7 @@ mod tests {
         let mut gestures = Gestures::default();
         gestures.set_waits(true, true);
         gestures.pressed(start);
-        gestures.turned(-1, at(start, 100));
+        gestures.turned(-1);
         assert_eq!(gestures.released(at(start, 2000)), []);
         assert_eq!(gestures.next_update(), None);
     }
@@ -331,7 +334,7 @@ mod tests {
         gestures.set_waits(true, false);
         tap(&mut gestures, start, 0);
         assert_eq!(gestures.pressed(at(start, 100)), []);
-        assert_eq!(gestures.turned(1, at(start, 150)), [Tap, HoldTurn(1)]);
+        assert_eq!(gestures.turned(1), [Tap, HoldTurn(1)]);
         assert_eq!(gestures.released(at(start, 200)), []);
         assert_eq!(gestures.update(at(start, 1000)), []);
     }
@@ -358,20 +361,31 @@ mod tests {
     }
 
     #[test]
+    fn a_long_second_press_is_no_double_tap() {
+        let start = Instant::now();
+        let mut gestures = Gestures::default();
+        gestures.set_waits(true, false);
+        tap(&mut gestures, start, 0);
+        gestures.pressed(at(start, 100));
+        // Held long and let go: the first tap goes, the second is a press of its own
+        assert_eq!(gestures.released(at(start, 2400)), [Tap]);
+        assert_eq!(gestures.update(at(start, 2700)), [Tap]);
+    }
+
+    #[test]
     fn a_turn_right_after_a_tap_comes_after_it() {
         let start = Instant::now();
         let mut gestures = Gestures::default();
         gestures.set_waits(true, false);
         tap(&mut gestures, start, 0);
-        assert_eq!(gestures.turned(1, at(start, 120)), [Tap, Turn(1)]);
+        assert_eq!(gestures.turned(1), [Tap, Turn(1)]);
         assert_eq!(gestures.next_update(), None);
     }
 
     #[test]
     fn turning_up_is_a_turn() {
-        let start = Instant::now();
         let mut gestures = Gestures::default();
-        assert_eq!(gestures.turned(-1, start), [Turn(-1)]);
+        assert_eq!(gestures.turned(-1), [Turn(-1)]);
     }
 
     #[test]

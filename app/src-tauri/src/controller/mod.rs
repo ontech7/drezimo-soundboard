@@ -110,11 +110,12 @@ struct Level {
     until: Instant,
 }
 
-/// What a volume the knob sends is for
+/// What the knob sends to Voicemod at most once in a while, the last value always
 #[derive(Clone, PartialEq, Eq, Hash)]
-enum VolumeTarget {
+enum KnobSend {
     Channel(Channel),
     Sound(String),
+    Voice,
 }
 
 struct Menu {
@@ -185,8 +186,8 @@ pub struct Controller {
     /// Voicemod's volumes, as the knob changes them through its bridge
     mixer: Mixer,
     /// When a volume last went to Voicemod, and the latest one waiting to go
-    volumes_sent: HashMap<VolumeTarget, Instant>,
-    volumes_waiting: HashMap<VolumeTarget, Request>,
+    knob_sent: HashMap<KnobSend, Instant>,
+    knob_waiting: HashMap<KnobSend, Request>,
     menu: Option<Menu>,
     peek: Option<Peek>,
     /// The name of the last sound played, or of the last stop, and when
@@ -242,8 +243,8 @@ impl Default for Controller {
             row: None,
             level: None,
             mixer: Mixer::default(),
-            volumes_sent: HashMap::new(),
-            volumes_waiting: HashMap::new(),
+            knob_sent: HashMap::new(),
+            knob_waiting: HashMap::new(),
             menu: None,
             peek: None,
             last: None,

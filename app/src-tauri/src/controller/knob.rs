@@ -1,6 +1,6 @@
 //! What the knob does: its gestures, recognised in `crate::knob`, then the action the user picked for each.
 
-use super::{Controller, Level, MENU_TIME, Menu, Output, PEEK_TIME, ROWS, RowShown, VolumeTarget};
+use super::{Controller, KnobSend, Level, MENU_TIME, Menu, Output, PEEK_TIME, ROWS, RowShown};
 use crate::knob::{Gesture, KnobSettings, PressAction, TurnAction};
 use crate::mixer::{self, Channel};
 use crate::soundboard::{Action, Voice};
@@ -9,8 +9,18 @@ use std::time::{Duration, Instant};
 
 /// How long the row overview stays after a plain turn
 const ROW_TIME: Duration = Duration::from_secs(4);
-/// Voicemod gets at most one volume for each channel or sound in that time, the last one always
+/// Voicemod gets at most one volume for each channel or sound in that time, and one voice to load
 const VOLUME_EVERY: Duration = Duration::from_millis(100);
+const VOICE_EVERY: Duration = Duration::from_millis(250);
+
+impl KnobSend {
+    fn every(&self) -> Duration {
+        match self {
+            KnobSend::Voice => VOICE_EVERY,
+            KnobSend::Channel(_) | KnobSend::Sound(_) => VOLUME_EVERY,
+        }
+    }
+}
 
 impl Controller {
     pub fn set_knob(&mut self, knob: KnobSettings) {
@@ -27,7 +37,7 @@ impl Controller {
     }
 
     pub(super) fn knob_turned(&mut self, step: i8, now: Instant) {
-        let gestures = self.knob.turned(step, now);
+        let gestures = self.knob.turned(step);
         self.gestures(gestures, now);
     }
 
@@ -66,19 +76,18 @@ impl Controller {
         self.row = self.row.take().filter(|row| row.until.is_none_or(|until| until > now));
         self.level = self.level.take().filter(|level| level.until > now);
         self.mixer.keep_playing(|sound| self.playback.state(sound).is_some());
-        self.send_waiting_volumes(now);
+        self.send_waiting(now);
     }
 
     /// When the knob has something to do without any input.
     pub(super) fn knob_wake(&self) -> impl Iterator<Item = Instant> {
-        let volumes = self
-            .volumes_waiting
+        let waiting = self
+            .knob_waiting
             .keys()
-            .filter_map(|target| self.volumes_sent.get(target))
-            .map(|sent| *sent + VOLUME_EVERY);
+            .filter_map(|target| Some(*self.knob_sent.get(target)? + target.every()));
         let row = self.row.as_ref().and_then(|row| row.until);
         let level = self.level.as_ref().map(|level| level.until);
-        volumes.chain(row).chain(level).chain(self.knob.next_update())
+        waiting.chain(row).chain(level).chain(self.knob.next_update())
     }
 
     fn gestures(&mut self, gestures: Vec<Gesture>, now: Instant) {
@@ -187,7 +196,7 @@ impl Controller {
             return self.tell(self.texts.not_available, now);
         };
         let gain = mixer::gain(percent);
-        self.send_volume(VolumeTarget::Channel(channel), Request::SetGain { channel, gain }, now);
+        self.send_limited(KnobSend::Channel(channel), Request::SetGain { channel, gain }, now);
         self.show_level(label.to_string(), percent, channel.max_percent(), now);
     }
 
@@ -206,7 +215,7 @@ impl Controller {
         let volume = f32::from(percent) / 100.0;
         let label = self.sound_name(&id).to_string();
         let request = Request::SetSoundVolume { id: id.clone(), volume };
-        self.send_volume(VolumeTarget::Sound(id), request, now);
+        self.send_limited(KnobSend::Sound(id), request, now);
         self.show_level(label, percent, 100, now);
     }
 
@@ -230,8 +239,11 @@ impl Controller {
             None if step > 0 => 0,
             None => count - 1,
         };
+        // Shown at once, loaded once the knob slows down
         let voice = voices[next as usize].clone();
-        self.load_voice(voice, now);
+        self.voice_asked = Some(voice.id.clone());
+        self.last = Some((voice.name, now));
+        self.send_limited(KnobSend::Voice, Request::LoadVoice(voice.id), now);
     }
 
     fn reset_volumes(&mut self, now: Instant) {
@@ -240,11 +252,11 @@ impl Controller {
         }
         let reset = self.mixer.reset();
         for (channel, gain) in reset.channels {
-            self.send_volume(VolumeTarget::Channel(channel), Request::SetGain { channel, gain }, now);
+            self.send_limited(KnobSend::Channel(channel), Request::SetGain { channel, gain }, now);
         }
         for (id, volume) in reset.sounds {
             let request = Request::SetSoundVolume { id: id.clone(), volume };
-            self.send_volume(VolumeTarget::Sound(id), request, now);
+            self.send_limited(KnobSend::Sound(id), request, now);
         }
         self.level = None;
         self.tell(self.texts.volumes_reset, now);
@@ -276,43 +288,43 @@ impl Controller {
         });
     }
 
-    fn send_volume(&mut self, target: VolumeTarget, request: Request, now: Instant) {
+    fn send_limited(&mut self, target: KnobSend, request: Request, now: Instant) {
         let ready = self
-            .volumes_sent
+            .knob_sent
             .get(&target)
-            .is_none_or(|sent| now >= *sent + VOLUME_EVERY);
+            .is_none_or(|sent| now >= *sent + target.every());
         if ready {
-            self.volumes_waiting.remove(&target);
-            self.volumes_sent.insert(target, now);
+            self.knob_waiting.remove(&target);
+            self.knob_sent.insert(target, now);
             self.request(request);
         } else {
-            self.volumes_waiting.insert(target, request);
+            self.knob_waiting.insert(target, request);
         }
     }
 
-    fn send_waiting_volumes(&mut self, now: Instant) {
-        let due: Vec<VolumeTarget> = self
-            .volumes_waiting
+    fn send_waiting(&mut self, now: Instant) {
+        let due: Vec<KnobSend> = self
+            .knob_waiting
             .keys()
             .filter(|target| {
-                self.volumes_sent
+                self.knob_sent
                     .get(*target)
-                    .is_none_or(|sent| now >= *sent + VOLUME_EVERY)
+                    .is_none_or(|sent| now >= *sent + target.every())
             })
             .cloned()
             .collect();
         for target in due {
-            if let Some(request) = self.volumes_waiting.remove(&target) {
-                self.volumes_sent.insert(target, now);
+            if let Some(request) = self.knob_waiting.remove(&target) {
+                self.knob_sent.insert(target, now);
                 self.request(request);
             }
         }
     }
 
-    /// The bridge came or went: the volumes are read again, nothing waits to be sent
+    /// The bridge came or went: the volumes are read again, none waits to be sent; a voice goes through the Control API
     pub(super) fn volumes_forgotten(&mut self) {
         self.mixer.connected();
-        self.volumes_sent.clear();
-        self.volumes_waiting.clear();
+        self.knob_sent.retain(|target, _| *target == KnobSend::Voice);
+        self.knob_waiting.retain(|target, _| *target == KnobSend::Voice);
     }
 }
