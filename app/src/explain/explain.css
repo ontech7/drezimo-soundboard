@@ -822,13 +822,17 @@
 @media (prefers-reduced-motion: reduce) {
   .explainer *,
   .explainer *::before,
-  .explainer *::after {
+  .explainer *::after,
+  .explain-demo *,
+  .explain-demo *::before,
+  .explain-demo *::after {
     transition-duration: 0s !important;
     transition-delay: 0s !important;
     animation-duration: 0s !important;
   }
 
-  .explainer .cap.breathe {
+  .explainer .cap.breathe,
+  .explain-demo .cap.breathe {
     animation: none;
     filter: brightness(0.45);
   }

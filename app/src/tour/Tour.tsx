@@ -3,7 +3,7 @@ import { useTexts } from "../i18n";
 import { ChevronLeft, ChevronRight } from "../icons";
 import { Board } from "./Board";
 import { type Legend, usePictures } from "./sample";
-import { AllSet, Colours, DrezimoPage, Macro, OVERLAY_WIDTH, Pages, Parts, Screens } from "./slides";
+import { AllSet, Colours, DrezimoPage, loadExplainer, Macro, OVERLAY_WIDTH, Pages, Parts, Screens } from "./slides";
 
 // The slides are drawn at this size, then scaled down to fit a smaller window
 const STAGE_WIDTH = 708;
@@ -33,8 +33,11 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
 
   // The Drezimo slide's explanations load with the tour, not once it is reached
   useEffect(() => {
-    import("../explain/Explainer").catch(() => {});
+    loadExplainer().catch(() => {});
   }, []);
+
+  // Escape in a menu closes the menu alone, though WebKit cancels the dialog anyway once the menu is gone
+  const escapeInMenu = useRef(false);
 
   // A control that went with the last slide, as Back with the first one, leaves its focus to Next: the arrows keep working
   useEffect(() => {
@@ -43,8 +46,8 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
 
   const go = (to: number) => setSlide(Math.max(0, Math.min(slides.length - 1, to)));
   const onKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
-    // A group of choices and a menu keep their arrows
-    if (event.target instanceof Element && event.target.closest("[role=radiogroup], .search-select")) return;
+    // A group of choices and an open menu keep their arrows
+    if (event.target instanceof Element && event.target.closest("[role=radiogroup], .search-menu")) return;
     if (event.key === "ArrowRight") go(slide + 1);
     else if (event.key === "ArrowLeft") go(slide - 1);
     else return;
@@ -66,9 +69,13 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
       className="tour"
       aria-labelledby="tour-title"
       onKeyDown={onKeyDown}
+      onKeyDownCapture={(event) => {
+        escapeInMenu.current =
+          event.key === "Escape" && event.target instanceof Element && event.target.closest(".search-menu") !== null;
+      }}
       onCancel={(event) => {
         event.preventDefault();
-        onClose(false);
+        if (!escapeInMenu.current) onClose(false);
       }}
     >
       <header>

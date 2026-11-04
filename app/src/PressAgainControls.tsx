@@ -6,6 +6,7 @@ import { useTexts } from "./i18n";
 import { BoardIcon, CheckIcon, PressAgainIcon } from "./icons";
 import {
   CHOICES,
+  choiceLabel,
   choicesFor,
   type KindMode,
   MODE_ROWS,
@@ -41,18 +42,13 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
 
   const choose = (key: keyof PressAgainByMode, choice: PressAgain) =>
     saveSettings({ ...props.settings, pressAgainByMode: { ...byMode, [key]: choice } });
-  const label = (mode: KindMode, choice: PressAgain) => {
-    if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[mode]}`;
-    const name = texts.pressAgainNames[choice];
-    return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
-  };
 
   // The same select in a row and in its explanation, whose foot leaves room for its menu only above
   const control = (mode: KindMode, key: keyof PressAgainByMode, inDialog: boolean) => {
     const choice = byMode[key];
     const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({
       value,
-      label: label(mode, value),
+      label: choiceLabel(texts, mode, value, outcomes),
     }));
     return (
       <div className={choice === "voicemod" ? "press-select" : "press-select own"}>

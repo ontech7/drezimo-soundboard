@@ -1,4 +1,4 @@
-import { type CSSProperties, lazy, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Row, Section, Segmented } from "../controls";
 import {
   ACTION_COLOURS,
@@ -17,11 +17,11 @@ import { Swatches } from "../editing";
 import type { KnobGesture } from "../explain/story";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
-import { PRESS_ACTIONS, TURN_ACTIONS } from "../knob";
+import { actionName, PRESS_ACTIONS, TURN_ACTIONS } from "../knob";
 import { describe, Timeline, Tinted } from "../pages/MacrosPage";
-import { CHOICES, type KindMode, MODE_ROWS, voicemodsOwn } from "../pressAgain";
+import { choiceLabel, choicesFor, MODE_ROWS, usePressOutcomes } from "../pressAgain";
 import { SearchSelect } from "../SearchSelect";
-import type { KnobSettings, PressAction, PressAgain, PressAgainByMode } from "../settings";
+import type { KnobSettings, PressAction, PressAgainByMode } from "../settings";
 import { type PageId, Sidebar } from "../Sidebar";
 import {
   FIRST_TARGET,
@@ -313,8 +313,14 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
   );
 }
 
-const KnobDemo = lazy(() => import("../explain/Explainer").then((module) => ({ default: module.KnobDemo })));
-const PadDemo = lazy(() => import("../explain/Explainer").then((module) => ({ default: module.PadDemo })));
+type Explainer = typeof import("../explain/Explainer");
+
+let explainer: Explainer | null = null;
+
+/** The explanations' code, loaded with the tour so that the Drezimo slide shows them from its first frame */
+export function loadExplainer(): Promise<Explainer> {
+  return import("../explain/Explainer").then((module) => (explainer = module));
+}
 
 const GESTURES: KnobGesture[] = ["turn", "holdTurn", "tap", "doubleTap", "longPress"];
 
@@ -327,7 +333,7 @@ const SAMPLE_KNOB: KnobSettings = {
   longPress: { action: "stopSounds" },
 };
 
-const AS_IN_VOICEMOD = Object.fromEntries(MODE_ROWS.map(([, key]) => [key, "voicemod"])) as PressAgainByMode;
+const AS_IN_VOICEMOD = Object.fromEntries(MODE_ROWS.map(([, saved]) => [saved, "voicemod"])) as PressAgainByMode;
 
 function pressChoice(action: PressAction["action"]): PressAction {
   if (action === "macro") return { action, macroId: "" };
@@ -335,23 +341,24 @@ function pressChoice(action: PressAction["action"]): PressAction {
   return { action };
 }
 
-/** The Drezimo page's rows, each tried in its explanation: nothing is saved */
+/** The Drezimo page's tabs and rows, each tried in its explanation: nothing is saved */
 export function DrezimoPage() {
   const texts = useTexts();
-  const [tab, setTab] = useState<"knob" | "pad">("knob");
+  const [demos, setDemos] = useState(explainer);
+  const [tab, setTab] = useState<"pad" | "knob">("knob");
   const [knob, setKnob] = useState(SAMPLE_KNOB);
   const [gesture, setGesture] = useState<KnobGesture>("turn");
   const [pads, setPads] = useState(AS_IN_VOICEMOD);
   const [row, setRow] = useState(0);
-  const [mode, key] = MODE_ROWS[row];
+  // As with Voicemod's bridge, which stops a single sound on Windows and macOS alike
+  const outcomes = usePressOutcomes(true);
+  const [mode, saved] = MODE_ROWS[row];
 
-  const actionName = (of: KnobGesture) =>
-    of === "turn" || of === "holdTurn"
-      ? texts.knobTab.turnActions[knob[of].action]
-      : texts.knobTab.pressActions[knob[of].action];
-  const padChoiceName = (kind: KindMode, choice: PressAgain) =>
-    choice === "voicemod" ? `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[kind]}` : texts.pressAgainNames[choice];
-  const choice = (on: boolean, name: string, value: string, onPick: () => void) => (
+  useEffect(() => {
+    if (!demos) loadExplainer().then(setDemos, () => {});
+  }, [demos]);
+
+  const rowButton = (on: boolean, name: string, value: string, onPick: () => void) => (
     <button key={name} type="button" className={on ? "choice on" : "choice"} aria-pressed={on} onClick={onPick}>
       <span className="text">
         <span className="name">{name}</span>
@@ -361,42 +368,44 @@ export function DrezimoPage() {
   );
 
   let select: ReactNode;
+  let demo: ReactNode = null;
   if (tab === "pad") {
     select = (
       <SearchSelect
         label={texts.kindNames[mode]}
-        options={CHOICES.filter((value) => value !== voicemodsOwn(mode)).map((value) => ({
+        options={(outcomes ? choicesFor(mode, outcomes) : [pads[saved]]).map((value) => ({
           value,
-          label: padChoiceName(mode, value),
+          label: choiceLabel(texts, mode, value, outcomes),
         }))}
-        value={pads[key]}
-        onChange={(picked) => setPads({ ...pads, [key]: picked })}
+        value={pads[saved]}
+        onChange={(picked) => setPads({ ...pads, [saved]: picked })}
         align="left"
         above
       />
     );
-  } else if (gesture === "turn" || gesture === "holdTurn") {
-    select = (
-      <SearchSelect
-        label={texts.knobTab.gestures[gesture]}
-        options={TURN_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.turnActions[action] }))}
-        value={knob[gesture].action}
-        onChange={(action) => setKnob({ ...knob, [gesture]: { action } })}
-        align="left"
-        above
-      />
-    );
+    if (demos) demo = <demos.PadDemo mode={mode} choice={pads[saved]} outcome={outcomes?.[mode][pads[saved]] ?? null} />;
   } else {
-    select = (
-      <SearchSelect
-        label={texts.knobTab.gestures[gesture]}
-        options={PRESS_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.pressActions[action] }))}
-        value={knob[gesture].action}
-        onChange={(action) => setKnob({ ...knob, [gesture]: pressChoice(action) })}
-        align="left"
-        above
-      />
-    );
+    select =
+      gesture === "turn" || gesture === "holdTurn" ? (
+        <SearchSelect
+          label={texts.knobTab.gestures[gesture]}
+          options={TURN_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.turnActions[action] }))}
+          value={knob[gesture].action}
+          onChange={(action) => setKnob({ ...knob, [gesture]: { action } })}
+          align="left"
+          above
+        />
+      ) : (
+        <SearchSelect
+          label={texts.knobTab.gestures[gesture]}
+          options={PRESS_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.pressActions[action] }))}
+          value={knob[gesture].action}
+          onChange={(action) => setKnob({ ...knob, [gesture]: pressChoice(action) })}
+          align="left"
+          above
+        />
+      );
+    if (demos) demo = <demos.KnobDemo gesture={gesture} knob={knob} />;
   }
 
   return (
@@ -405,24 +414,22 @@ export function DrezimoPage() {
         <Segmented
           label={texts.nav.board}
           options={[
-            { value: "knob" as const, label: texts.boardTabs.knob },
             { value: "pad" as const, label: texts.boardTabs.pad },
+            { value: "knob" as const, label: texts.boardTabs.knob },
           ]}
           value={tab}
           onChange={setTab}
         />
-        {tab === "knob"
-          ? GESTURES.map((item) =>
-              choice(item === gesture, texts.knobTab.gestures[item], actionName(item), () => setGesture(item))
+        {tab === "pad"
+          ? MODE_ROWS.map(([kind, kindSaved], i) =>
+              rowButton(i === row, texts.kindNames[kind], choiceLabel(texts, kind, pads[kindSaved], outcomes), () => setRow(i))
             )
-          : MODE_ROWS.map(([kind, saved], i) =>
-              choice(i === row, texts.kindNames[kind], padChoiceName(kind, pads[saved]), () => setRow(i))
+          : GESTURES.map((item) =>
+              rowButton(item === gesture, texts.knobTab.gestures[item], actionName(texts, item, knob), () => setGesture(item))
             )}
       </div>
       <div className="tour-drezimo-stage">
-        <Suspense fallback={null}>
-          {tab === "knob" ? <KnobDemo gesture={gesture} knob={knob} /> : <PadDemo mode={mode} choice={pads[key]} />}
-        </Suspense>
+        {demo}
         {select}
       </div>
     </>

@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
-import { type Texts, useTexts } from "../i18n";
-import { BRIDGE_ACTIONS, goneTarget } from "../knob";
+import { useTexts } from "../i18n";
+import { actionName, BRIDGE_ACTIONS, goneTarget } from "../knob";
 import { type Macro, stepLength } from "../macros";
 import { describe } from "../pages/MacrosPage";
 import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
@@ -29,10 +29,6 @@ import { type ExplainTexts, type GestureCaption, useExplainTexts } from "./texts
 const STILL: GestureCaption[] = ["still", "released"];
 
 type MacroShown = { name: string; steps: string[]; again: "stop" | "restart" } | null;
-
-function actionName(shown: Shown, texts: Texts): string {
-  return shown.kind === "turn" ? texts.knobTab.turnActions[shown.action] : texts.knobTab.pressActions[shown.action];
-}
 
 /** What a knob gesture's explanation says under the stage */
 function knobSentence(
@@ -89,25 +85,28 @@ function KnobScene({ gesture, story, shown, name, words, macro, pageName }: Knob
   const [loop, setLoop] = useState(0);
   const [fired, setFired] = useState(0);
 
-  useLoop(async (run, round) => {
-    setLoop((count) => count + 1);
-    setPose(KNOB_AT_REST);
-    // A switch goes back and forth between loops, from where it starts for this action
-    setBeats((beats) => ({ count: 0, sum: 0, total: round === 0 ? 0 : beats.total }));
-    await playGesture(
-      gesture,
-      story,
-      run,
-      (changed, next) => {
-        setPose((current) => ({ ...current, ...changed }));
-        if (next) setCaption(next);
-      },
-      (dir) => {
-        setFired((count) => count + 1);
-        setBeats((beats) => ({ count: beats.count + 1, sum: beats.sum + dir, total: beats.total + 1 }));
-      }
-    );
-  }, gesture);
+  useLoop(
+    async (run, round) => {
+      setLoop((count) => count + 1);
+      setPose(KNOB_AT_REST);
+      // A switch goes back and forth between loops, from where it starts for this action
+      setBeats((beats) => ({ count: 0, sum: 0, total: round === 0 ? 0 : beats.total }));
+      await playGesture(
+        gesture,
+        story,
+        run,
+        (changed, next) => {
+          setPose((current) => ({ ...current, ...changed }));
+          if (next) setCaption(next);
+        },
+        (dir) => {
+          setFired((count) => count + 1);
+          setBeats((beats) => ({ count: beats.count + 1, sum: beats.sum + dir, total: beats.total + 1 }));
+        }
+      );
+    },
+    JSON.stringify([gesture, story])
+  );
 
   return (
     <>
@@ -152,7 +151,7 @@ function PadScene({ mode, story, words }: { mode: KindMode; story: PadStory; wor
         words.pad,
         [words.pad.sounds[mode], words.sample.sounds[1]]
       ),
-    mode
+    JSON.stringify([mode, story])
   );
 
   return (
@@ -184,7 +183,7 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
   const words = useExplainTexts();
   const story = knobStory(gesture, settings.knob);
   const { press, borrowed } = story;
-  const name = actionName(story.shown, texts);
+  const name = actionName(texts, borrowed ? "tap" : gesture, settings.knob);
   const chosenMacro = press?.action === "macro" ? macros?.find((macro) => macro.id === press.macroId) : undefined;
   // A target the board cannot find or run: the gesture does nothing, and the note says why
   const idle = press
@@ -288,7 +287,7 @@ export function KnobDemo({ gesture, knob }: { gesture: KnobGesture; knob: KnobSe
   const texts = useTexts();
   const words = useExplainTexts();
   const story = knobStory(gesture, knob);
-  const name = actionName(story.shown, texts);
+  const name = actionName(texts, story.borrowed ? "tap" : gesture, knob);
   return (
     <Demo
       scene={
@@ -308,10 +307,10 @@ export function KnobDemo({ gesture, knob }: { gesture: KnobGesture; knob: KnobSe
   );
 }
 
-/** A pad pressed again in the welcome tour, as the choice would make it behave */
-export function PadDemo({ mode, choice }: { mode: KindMode; choice: PressAgain }) {
+/** A pad pressed again in the welcome tour, as the app makes the choice behave */
+export function PadDemo({ mode, choice, outcome }: { mode: KindMode; choice: PressAgain; outcome: Outcome | null }) {
   const words = useExplainTexts();
-  const story = padStory(choice, voicemodsOwn(mode) as Behaviour, null);
+  const story = padStory(choice, voicemodsOwn(mode) as Behaviour, outcome);
   return (
     <Demo
       scene={<PadScene key={`${mode} ${JSON.stringify(story)}`} mode={mode} story={story} words={words} />}

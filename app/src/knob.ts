@@ -1,7 +1,7 @@
 import type { Library, PageTarget } from "./customPages";
 import type { Texts } from "./i18n";
 import type { Macro } from "./macros";
-import type { PressAction, TurnAction } from "./settings";
+import type { KnobSettings, PressAction, TurnAction } from "./settings";
 
 /** In the order the selects list them */
 export const TURN_ACTIONS: TurnAction["action"][] = [
@@ -28,6 +28,13 @@ export const PRESS_ACTIONS: PressAction["action"][] = [
   "resetVolumes",
   "nothing",
 ];
+
+/** What a gesture does, as its select names it */
+export function actionName(texts: Texts, gesture: keyof KnobSettings, knob: KnobSettings): string {
+  return gesture === "turn" || gesture === "holdTurn"
+    ? texts.knobTab.turnActions[knob[gesture].action]
+    : texts.knobTab.pressActions[knob[gesture].action];
+}
 
 /** What goes through Voicemod's bridge (src-tauri/src/voicemod_bridge.rs) */
 export const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe", "playingSound", "microphone", "resetVolumes"]);

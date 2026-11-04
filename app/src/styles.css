@@ -3246,12 +3246,12 @@ input.seconds {
   transform-origin: top left;
 }
 
-/* Tighter, so that the settings at its foot fit the window's height */
 /* A picture: nothing in it scrolls */
 .tour-window main {
   overflow: hidden;
 }
 
+/* Tighter, so that the settings at its foot fit the window's height */
 .tour-window .sidebar {
   --sidebar-gap: 12px;
   padding-block: 14px;
