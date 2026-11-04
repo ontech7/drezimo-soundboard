@@ -2,6 +2,7 @@
 //! the knob drive Voicemod and the pages, and the LEDs and the display show what Voicemod is doing. Plain logic: it
 //! gets each input with the time it happened and queues the messages for the board and the requests for Voicemod.
 
+mod knob;
 mod overlay;
 mod running;
 mod screen;
@@ -14,7 +15,9 @@ use crate::custom_pages::CustomPage;
 use crate::display::Animator;
 use crate::display::Frame;
 use crate::display::texts::{ENGLISH, Texts};
+use crate::knob::{Gesture, Gestures, KnobSettings};
 use crate::macros::Macro;
+use crate::mixer::{Channel, Mixer};
 use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
@@ -71,6 +74,8 @@ pub enum Output {
     Overlay(Option<Overlay>),
     /// For the error list of the support report
     Log(String),
+    /// What the knob just did, for the window's list of key presses
+    Gesture(Gesture),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -91,13 +96,25 @@ struct HeldSound {
     release: Command,
 }
 
-#[derive(Default)]
-struct Knob {
-    pressed: bool,
-    /// Turned, or held for a peek, since it was pressed: its release is not a tap
-    used: bool,
-    /// The row the overview shows, while the knob is held and turned
-    row: Option<usize>,
+/// The row the overview shows, and until when: None while the knob is held, the row then going with it
+struct RowShown {
+    row: usize,
+    until: Option<Instant>,
+}
+
+/// A volume the knob changed, on the display for a while
+struct Level {
+    label: String,
+    percent: u16,
+    max: u16,
+    until: Instant,
+}
+
+/// What a volume the knob sends is for
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum VolumeTarget {
+    Channel(Channel),
+    Sound(String),
 }
 
 struct Menu {
@@ -159,7 +176,17 @@ pub struct Controller {
     refused: HashMap<u8, Instant>,
     /// Key-ups waiting for the minimum hold, and when they are due
     releases: Vec<(Instant, HeldSound)>,
-    knob: Knob,
+    knob: Gestures,
+    knob_settings: KnobSettings,
+    /// Turned, or held for a peek, since it went down: the overlay stays a little after it is let go
+    knob_used: bool,
+    row: Option<RowShown>,
+    level: Option<Level>,
+    /// Voicemod's volumes, as the knob changes them through its bridge
+    mixer: Mixer,
+    /// When a volume last went to Voicemod, and the latest one waiting to go
+    volumes_sent: HashMap<VolumeTarget, Instant>,
+    volumes_waiting: HashMap<VolumeTarget, Request>,
     menu: Option<Menu>,
     peek: Option<Peek>,
     /// The name of the last sound played, or of the last stop, and when
@@ -209,7 +236,14 @@ impl Default for Controller {
             flashes: HashMap::new(),
             refused: HashMap::new(),
             releases: Vec::new(),
-            knob: Knob::default(),
+            knob: Gestures::default(),
+            knob_settings: KnobSettings::default(),
+            knob_used: false,
+            row: None,
+            level: None,
+            mixer: Mixer::default(),
+            volumes_sent: HashMap::new(),
+            volumes_waiting: HashMap::new(),
             menu: None,
             peek: None,
             last: None,
@@ -273,7 +307,8 @@ impl Controller {
         // A board that connects waits for every LED and a picture; one that went away cannot report its keys' release
         self.leds = [None; LED_COUNT];
         self.display.forget();
-        self.knob = Knob::default();
+        self.knob.reset();
+        self.row = None;
         if connected {
             self.show_overlay(now);
         } else {
@@ -297,7 +332,7 @@ impl Controller {
                 self.pad_released(index, now)
             }
             BoardMessage::Button { index, pressed: true } => self.button_pressed(index, now),
-            BoardMessage::Encoder { step } => self.knob_turned(step.into(), now),
+            BoardMessage::Encoder { step } => self.knob_turned(step, now),
             BoardMessage::EncoderButton { pressed } => self.knob_pressed(pressed, now),
             _ => {}
         }
@@ -376,17 +411,20 @@ impl Controller {
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
             VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
             VoicemodEvent::Background(on) => self.switches.background = on,
-            VoicemodEvent::SingleSoundStop(there) => self.single_stop = there,
+            VoicemodEvent::SingleSoundStop(there) => {
+                self.single_stop = there;
+                self.volumes_forgotten();
+            }
+            VoicemodEvent::MixerGain { channel, gain, ours } => self.mixer.voicemod_gain(channel, gain, ours),
+            VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
             // Only for the window (src/pictures.rs) and the status
-            VoicemodEvent::Picture { .. }
-            | VoicemodEvent::Version(_)
-            | VoicemodEvent::MixerGain { .. }
-            | VoicemodEvent::SoundVolumes(_) => {}
+            VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
     }
 
     /// Applies what is due by `now` and queues the changes for the LEDs and the display.
     pub fn update(&mut self, now: Instant) {
+        self.update_knob(now);
         let (due, waiting): (Vec<_>, Vec<_>) = mem::take(&mut self.releases)
             .into_iter()
             .partition(|(at, _)| *at <= now);
@@ -405,7 +443,7 @@ impl Controller {
         self.advance_macro(now);
         self.menu = self.menu.take().filter(|menu| menu.until > now);
         // A peek lasts while the knob is held, its blink only its time
-        self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.pressed);
+        self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.is_down());
         self.last = self.last.take().filter(|(_, at)| now < *at + screen::LAST_SOUND_TIME);
         if self.board_connected {
             self.refresh_leds(now);
@@ -436,6 +474,7 @@ impl Controller {
             .chain(self.display.next_frame())
             .chain(self.overlay_until)
             .chain(self.macro_wake())
+            .chain(self.knob_wake())
             .min();
     }
 
@@ -510,9 +549,9 @@ impl Controller {
         if self.held.contains_key(&pad) {
             return;
         }
-        if self.knob.pressed {
+        if self.knob.is_down() {
             // A peek: the name shows, nothing plays
-            self.knob.used = true;
+            self.knob_peeked(now);
             self.held.insert(pad, None);
             self.peek = Some(Peek {
                 pad,
@@ -727,52 +766,6 @@ impl Controller {
         }
     }
 
-    fn knob_turned(&mut self, step: isize, now: Instant) {
-        if self.knob.pressed {
-            self.knob.used = true;
-            self.knob.row = Some(match self.knob.row {
-                None if step > 0 => 0,
-                None => ROWS - 1,
-                Some(row) => (row as isize + step).rem_euclid(ROWS as isize) as usize,
-            });
-            self.peek = None;
-        } else if let Some(menu) = &mut self.menu {
-            let last = self.pages.len().saturating_sub(1) as isize;
-            menu.selected = (menu.selected as isize + step).clamp(0, last) as usize;
-            menu.until = now + MENU_TIME;
-        } else {
-            self.turn_page(step, now);
-        }
-    }
-
-    /// A tap opens the soundboard menu, and another picks the page selected.
-    fn knob_pressed(&mut self, pressed: bool, now: Instant) {
-        if pressed == self.knob.pressed {
-            return;
-        }
-        let tapped = !pressed && !self.knob.used;
-        if !pressed && self.knob.used {
-            // The names stay a little after a peek or a row overview
-            self.show_overlay(now);
-        }
-        self.knob = Knob {
-            pressed,
-            ..Knob::default()
-        };
-        if !tapped {
-            return;
-        }
-        match self.menu.take() {
-            Some(menu) => self.set_page(menu.selected.min(self.pages.len().saturating_sub(1)), now),
-            None => {
-                self.menu = Some(Menu {
-                    selected: self.page,
-                    until: now + MENU_TIME,
-                })
-            }
-        }
-    }
-
     fn turn_page(&mut self, step: isize, now: Instant) {
         let count = self.pages.len() as isize;
         if count > 0 {
@@ -981,7 +974,7 @@ impl Controller {
     }
 
     fn pad_led(&self, pad: u8, now: Instant) -> Led {
-        if let Some(row) = self.knob.row.filter(|_| self.knob.pressed) {
+        if let Some(row) = self.row.as_ref().map(|row| row.row) {
             if usize::from(pad) / COLUMNS == row {
                 return Led::solid(HIGHLIGHT);
             }

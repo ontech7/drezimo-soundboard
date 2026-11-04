@@ -31,11 +31,21 @@ impl Controller {
         }
 
         let counter = self.counter();
-        if let Some(row) = self.knob.row.filter(|_| self.knob.pressed) {
-            return (self.row_screen(row, counter), None);
+        if let Some(row) = &self.row {
+            return (self.row_screen(row.row, counter), None);
         }
         if let Some(peek) = &self.peek {
             return (self.peek_screen(peek.pad, counter), None);
+        }
+        if let Some(level) = &self.level {
+            let screen = Screen::Level {
+                heading: texts.volume.to_string(),
+                counter,
+                label: level.label.clone(),
+                percent: level.percent,
+                max: level.max,
+            };
+            return (screen, None);
         }
         if let Some(menu) = &self.menu {
             let screen = Screen::Menu {
@@ -74,7 +84,7 @@ impl Controller {
     }
 
     /// A sound's name, or the Community's for one outside the soundboards
-    fn sound_name(&self, id: &str) -> &str {
+    pub(super) fn sound_name(&self, id: &str) -> &str {
         self.sounds.get(id).map_or(self.texts.community, |sound| &sound.name)
     }
 

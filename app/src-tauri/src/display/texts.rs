@@ -37,6 +37,16 @@ pub struct Texts {
     pub go_to: &'static str,
     /// What a macro pad does, when peeked
     pub macro_info: &'static str,
+    /// Above a volume the knob changes
+    pub volume: &'static str,
+    pub soundboard_others: &'static str,
+    pub soundboard_you: &'static str,
+    pub microphone: &'static str,
+    /// The knob would change the volume of the sound playing, and none plays
+    pub nothing_playing: &'static str,
+    /// What the knob would do needs Voicemod's bridge, or a value it has not told yet
+    pub not_available: &'static str,
+    pub volumes_reset: &'static str,
     decimal_separator: char,
     modes: Modes,
     actions: Actions,
@@ -137,6 +147,13 @@ pub const ENGLISH: Texts = Texts {
     action: "ACTION",
     go_to: "Go to",
     macro_info: "MACRO",
+    volume: "VOLUME",
+    soundboard_others: "SOUNDBOARD OTHERS",
+    soundboard_you: "SOUNDBOARD YOU",
+    microphone: "MICROPHONE",
+    nothing_playing: "NO SOUND",
+    not_available: "NOT AVAILABLE",
+    volumes_reset: "VOLUMES RESET",
     decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
@@ -181,6 +198,13 @@ pub const ITALIAN: Texts = Texts {
     action: "AZIONE",
     go_to: "Vai a",
     macro_info: "MACRO",
+    volume: "VOLUME",
+    soundboard_others: "SOUNDBOARD ALTRI",
+    soundboard_you: "SOUNDBOARD TU",
+    microphone: "MICROFONO",
+    nothing_playing: "NESSUN SUONO",
+    not_available: "NON DISPONIBILE",
+    volumes_reset: "VOLUMI RIPRISTINATI",
     decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",

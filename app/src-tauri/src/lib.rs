@@ -6,11 +6,9 @@ mod device;
 mod display;
 mod errors;
 mod firmware;
-#[allow(dead_code)] // Until the controller drives the knob through it
 mod knob;
 mod last_page;
 mod macros;
-#[allow(dead_code)] // Until the controller drives the knob through it
 mod mixer;
 mod news;
 mod overlay;

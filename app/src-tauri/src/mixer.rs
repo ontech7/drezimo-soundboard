@@ -106,8 +106,9 @@ impl Mixer {
         Some(next)
     }
 
-    pub fn sound_ended(&mut self, sound: &str) {
-        self.playing.remove(sound);
+    /// The sounds that ended start from their saved volume at their next play
+    pub fn keep_playing(&mut self, playing: impl Fn(&str) -> bool) {
+        self.playing.retain(|sound, _| playing(sound));
     }
 
     /// Each channel away from Voicemod's own value, and each sound still playing at another volume than its saved one
@@ -223,9 +224,18 @@ mod tests {
         let mut mixer = mixer();
         assert_eq!(mixer.step_sound("song", 1), Some(35));
         assert_eq!(mixer.step_sound("song", 1), Some(40));
-        mixer.sound_ended("song");
-        assert_eq!(mixer.step_sound("song", 1), Some(35));
-        assert_eq!(mixer.reset().sounds, [("song".to_string(), 0.3)]);
+        assert_eq!(mixer.step_sound("honk", -1), Some(95));
+        mixer.keep_playing(|sound| sound == "honk");
+        assert_eq!(
+            mixer.step_sound("song", 1),
+            Some(35),
+            "ended: from its saved volume again"
+        );
+        assert_eq!(mixer.step_sound("honk", -1), Some(90), "still playing");
+        assert_eq!(
+            mixer.reset().sounds,
+            [("honk".to_string(), 1.0), ("song".to_string(), 0.3)]
+        );
         assert_eq!(mixer.step_sound("song", -1), Some(25));
     }
 

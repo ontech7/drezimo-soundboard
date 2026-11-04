@@ -59,13 +59,11 @@ pub enum Request {
     /// Answered only for a sound or voice Voicemod knows
     GetPicture(Picture),
     /// The bridge's only, dropped while it is not found
-    #[allow(dead_code)] // Until the knob sends it (controller)
     SetGain {
         channel: Channel,
         gain: f32,
     },
     /// For the play under way, through the bridge only
-    #[allow(dead_code)] // Until the knob sends it (controller)
     SetSoundVolume {
         id: String,
         volume: f32,
