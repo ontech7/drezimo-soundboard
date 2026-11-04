@@ -3,7 +3,7 @@
 
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
 use crate::press_again::{ByMode, PressAgain};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -116,6 +116,7 @@ pub struct Settings {
     /// The LEDs' brightness, in percent: the board does not keep it
     pub led_brightness: u8,
     /// What a pad does when pressed again, by its sound's mode, unless the user picked it for that pad
+    #[serde(deserialize_with = "by_mode_or_default")]
     pub press_again_by_mode: ByMode,
     pub overlay: OverlaySettings,
     /// Shows the window's page of technical details
@@ -201,7 +202,14 @@ pub fn read(text: &str) -> Result<Settings, serde_json::Error> {
         let by_mode = serde_json::to_value(ByMode::from_one(one))?;
         fields.insert("pressAgainByMode".into(), by_mode);
     }
-    Settings::deserialize(value)
+    let mut settings = Settings::deserialize(value)?;
+    settings.press_again_by_mode = settings.press_again_by_mode.normalized();
+    Ok(settings)
+}
+
+/// A broken choice by mode reads as the default, rather than losing every other setting.
+fn by_mode_or_default<'de, D: Deserializer<'de>>(deserializer: D) -> Result<ByMode, D::Error> {
+    Ok(ByMode::deserialize(Value::deserialize(deserializer)?).unwrap_or_default())
 }
 
 fn path(app: &AppHandle) -> Option<PathBuf> {
@@ -428,5 +436,21 @@ mod tests {
         // Both present: the new one wins
         let both = read(r#"{"pressAgain": "stop", "pressAgainByMode": {}}"#).unwrap();
         assert_eq!(both.press_again_by_mode, ByMode::default());
+    }
+
+    #[test]
+    fn a_choice_by_mode_reads_as_the_window_offers_it() {
+        let settings = read(r#"{"pressAgainByMode": {"playRestart": "restart", "playPause": "stop"}}"#).unwrap();
+        assert_eq!(settings.press_again_by_mode.play_restart, PressAgain::Voicemod);
+        assert_eq!(settings.press_again_by_mode.play_pause, PressAgain::Stop);
+    }
+
+    #[test]
+    fn a_broken_choice_by_mode_keeps_the_other_settings() {
+        for broken in ["null", r#""stop""#, "[1, 2]"] {
+            let settings = read(&format!(r#"{{"ledBrightness": 30, "pressAgainByMode": {broken}}}"#)).unwrap();
+            assert_eq!(settings.led_brightness, 30, "{broken}");
+            assert_eq!(settings.press_again_by_mode, ByMode::default(), "{broken}");
+        }
     }
 }

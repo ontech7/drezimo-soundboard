@@ -19,18 +19,22 @@ export type Outcomes = Record<PlaybackMode, Record<PressAgain, Outcome>>;
 
 export const CHOICES: PressAgain[] = ["voicemod", "restart", "overlap", "stop", "pause", "hold"];
 
-/** The modes with a choice of their own, in the order the Drezimo page lists them */
-export const MODE_ROWS: PlaybackMode[] = ["PlayRestart", "PlayPause", "PlayStop", "PlayLoopOnPress", "PlayOverlap"];
+/** A mode with a choice of its own */
+export type KindMode = Exclude<PlaybackMode, "Unknown">;
 
-export function modeKey(mode: PlaybackMode): keyof PressAgainByMode | null {
-  if (mode === "Unknown") return null;
-  return `p${mode.slice(1)}` as keyof PressAgainByMode;
-}
+/** The modes with a choice of their own and where it is saved, in the order the Drezimo page lists them */
+export const MODE_ROWS: [KindMode, keyof PressAgainByMode][] = [
+  ["PlayRestart", "playRestart"],
+  ["PlayPause", "playPause"],
+  ["PlayStop", "playStop"],
+  ["PlayLoopOnPress", "playLoopOnPress"],
+  ["PlayOverlap", "playOverlap"],
+];
 
 /** The choice for a sound of that mode, as set on the Drezimo page */
 export function typeChoice(byMode: PressAgainByMode, mode: PlaybackMode | null): PressAgain {
-  const key = mode && modeKey(mode);
-  return key ? byMode[key] : "voicemod";
+  const row = MODE_ROWS.find(([kind]) => kind === mode);
+  return row ? byMode[row[1]] : "voicemod";
 }
 
 /** The choice that does exactly what Voicemod does with a sound of that mode (src-tauri/src/press_again.rs) */

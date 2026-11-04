@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useBoardActivity } from "./board";
 import { useBoardView } from "./boardView";
 import { TEXTS, TextsContext } from "./i18n";
-import { BoardPage } from "./pages/BoardPage";
+import { BoardPage, type BoardTab } from "./pages/BoardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { GeneralPage } from "./pages/GeneralPage";
 import { MacrosPage } from "./pages/MacrosPage";
@@ -26,6 +26,7 @@ export default function App() {
   const activity = useBoardActivity(12);
   const view = useBoardView();
   const [page, setPage] = useState<PageId>("soundboard");
+  const [boardTab, setBoardTab] = useState<BoardTab>("pad");
   // Until opened or closed here, the tour shows while not seen yet: at the first start, in the first frame
   const [tour, setTour] = useState<boolean | null>(null);
   // Where to find the tour again, once it is skipped
@@ -89,7 +90,15 @@ export default function App() {
             />
           )}
           {shown === "macros" && <MacrosPage status={status} />}
-          {shown === "board" && <BoardPage settings={settings} status={status} onOpenPages={() => setPage("pages")} />}
+          {shown === "board" && (
+            <BoardPage
+              settings={settings}
+              status={status}
+              tab={boardTab}
+              onTab={setBoardTab}
+              onOpenPages={() => setPage("pages")}
+            />
+          )}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
           {shown === "general" && <GeneralPage settings={settings} status={status} onTour={() => setTour(true)} />}
           {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}

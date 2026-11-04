@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type KeyboardEvent, useId, useRef, useState } from "react";
+import { type KeyboardEvent, useId, useRef } from "react";
 import { Choice, Row, Section, Slider } from "../controls";
 import { useTexts } from "../i18n";
 import { PadTab } from "../PressAgainControls";
@@ -10,19 +10,22 @@ const DIM_AFTER = [0, 1, 2, 5, 10, 30];
 const OFF_AFTER = [0, 5, 10, 15, 30, 60];
 const SHIFT_EVERY = [0, 1, 3, 5, 10];
 
-type Tab = "pad" | "leds";
-const TABS: Tab[] = ["pad", "leds"];
+export type BoardTab = "pad" | "leds";
+const TABS: BoardTab[] = ["pad", "leds"];
 
 interface Props {
   settings: SettingsView;
   status: Status;
+  /** Kept by the window, so the page opens again on it */
+  tab: BoardTab;
+  onTab: (tab: BoardTab) => void;
   onOpenPages: () => void;
 }
 
 export function BoardPage(props: Props) {
   const texts = useTexts();
   const id = useId();
-  const [tab, setTab] = useState<Tab>("pad");
+  const { tab, onTab: setTab } = props;
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   const keys = (event: KeyboardEvent) => {
@@ -48,7 +51,7 @@ export function BoardPage(props: Props) {
             role="tab"
             id={`${id}-${name}`}
             aria-selected={tab === name}
-            aria-controls={`${id}-${name}-panel`}
+            aria-controls={tab === name ? `${id}-${name}-panel` : undefined}
             tabIndex={tab === name ? 0 : -1}
             className={tab === name ? "tab on" : "tab"}
             onClick={() => setTab(name)}

@@ -7,8 +7,8 @@ import { BoardIcon, CheckIcon, PressAgainIcon } from "./icons";
 import {
   CHOICES,
   choicesFor,
+  type KindMode,
   MODE_ROWS,
-  modeKey,
   type Outcome,
   type Outcomes,
   outcomeText,
@@ -38,7 +38,7 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
 
   const choose = (key: keyof PressAgainByMode, choice: PressAgain) =>
     saveSettings({ ...props.settings, pressAgainByMode: { ...byMode, [key]: choice } });
-  const label = (mode: PlaybackMode, choice: PressAgain) => {
+  const label = (mode: KindMode, choice: PressAgain) => {
     if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[mode]}`;
     const name = texts.pressAgainNames[choice];
     return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
@@ -46,9 +46,7 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
 
   return (
     <Section title={texts.padPressedAgain} text={texts.pressAgainText}>
-      {MODE_ROWS.map((mode) => {
-        const key = modeKey(mode);
-        if (!key) return null;
+      {MODE_ROWS.map(([mode, key]) => {
         const names = sounds?.get(mode) ?? [];
         const choice = byMode[key];
         const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({

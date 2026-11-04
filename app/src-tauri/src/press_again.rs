@@ -127,7 +127,7 @@ pub fn press_outcomes(single_stop: bool) -> HashMap<PlaybackMode, HashMap<PressA
     MODES.map(|mode| (mode, outcomes(mode))).into()
 }
 
-/// A pad's choice. One this app does not know, from a newer one, reads as none: the pad follows the one for every pad.
+/// A pad's choice. One this app does not know, from a newer one, reads as none: the pad follows its sound's mode.
 pub fn known<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<PressAgain>, D::Error> {
     let value = Option::<Value>::deserialize(deserializer)?;
     Ok(value.and_then(|value| PressAgain::deserialize(value).ok()))
@@ -175,24 +175,35 @@ impl ByMode {
         }
     }
 
+    /// Each mode's choice as the window offers it: one that comes to Voicemod's own behaviour, or to another choice's,
+    /// reads as that, so a hand-edited or imported file never shows a choice the menu does not have.
+    pub fn normalized(self) -> Self {
+        Self::from_fn(|mode| as_offered(self.get(mode), mode))
+    }
+
     /// One choice for every pad, from an older app, as the same behaviour for each mode.
     pub fn from_one(choice: PressAgain) -> Self {
-        // What the choice came to for that mode, which is not always the choice itself
-        let for_mode = |mode| {
-            let does = outcome(choice, mode, true).does;
-            if voicemods_own(mode) == Some(does) {
-                PressAgain::Voicemod
-            } else {
-                does
-            }
-        };
+        Self::from_fn(|mode| as_offered(choice, mode))
+    }
+
+    fn from_fn(choice: impl Fn(PlaybackMode) -> PressAgain) -> Self {
         Self {
-            play_restart: for_mode(PlaybackMode::PlayRestart),
-            play_overlap: for_mode(PlaybackMode::PlayOverlap),
-            play_pause: for_mode(PlaybackMode::PlayPause),
-            play_stop: for_mode(PlaybackMode::PlayStop),
-            play_loop_on_press: for_mode(PlaybackMode::PlayLoopOnPress),
+            play_restart: choice(PlaybackMode::PlayRestart),
+            play_overlap: choice(PlaybackMode::PlayOverlap),
+            play_pause: choice(PlaybackMode::PlayPause),
+            play_stop: choice(PlaybackMode::PlayStop),
+            play_loop_on_press: choice(PlaybackMode::PlayLoopOnPress),
         }
+    }
+}
+
+/// What a choice comes to for a mode, which is not always the choice itself.
+fn as_offered(choice: PressAgain, mode: PlaybackMode) -> PressAgain {
+    let does = outcome(choice, mode, true).does;
+    if voicemods_own(mode) == Some(does) {
+        PressAgain::Voicemod
+    } else {
+        does
     }
 }
 
@@ -403,6 +414,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_choice_a_mode_does_not_offer_reads_as_what_it_comes_to() {
+        let stored = ByMode {
+            play_restart: PressAgain::Restart,
+            play_loop_on_press: PressAgain::Restart,
+            play_stop: PressAgain::Pause,
+            play_pause: PressAgain::Overlap,
+            play_overlap: PressAgain::Stop,
+        };
+        let expected = ByMode {
+            play_pause: PressAgain::Restart,
+            play_overlap: PressAgain::Stop,
+            ..ByMode::default()
+        };
+        assert_eq!(stored.normalized(), expected);
+        assert_eq!(expected.normalized(), expected);
     }
 
     #[test]

@@ -1544,7 +1544,7 @@ fn stop_leaves_a_held_sound_playing_until_pressed_again() {
 }
 
 #[test]
-fn a_pads_own_choice_comes_before_the_one_for_every_pad() {
+fn a_pads_own_choice_comes_before_its_kinds() {
     let pausing = with_mode("music", PlaybackMode::PlayPause);
     let (mut controller, start) = ready(vec![soundboard("b", vec![pausing.clone()])]);
     controller.set_press_again(ByMode::from_one(PressAgain::Stop));

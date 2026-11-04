@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { PlaybackMode } from "./pressAgain";
+import type { KindMode, PlaybackMode } from "./pressAgain";
 
 const ENGLISH = {
   nav: {
@@ -78,8 +78,7 @@ const ENGLISH = {
     PlayStop: "Songs that stop",
     PlayLoopOnPress: "While held",
     PlayOverlap: "Overlapping copies",
-    Unknown: "Other sounds",
-  } as Record<PlaybackMode, string>,
+  } as Record<KindMode, string>,
   soundsOfKind: (count: number, names: string[]): string =>
     count === 0
       ? "None of your sounds"
@@ -90,8 +89,7 @@ const ENGLISH = {
     PlayStop: "stops",
     PlayLoopOnPress: "while held",
     PlayOverlap: "stacks",
-    Unknown: "",
-  } as Record<PlaybackMode, string>,
+  } as Record<KindMode, string>,
   alsoStopsOthers: "also stops the other sounds",
   ownChoices: (count: number) => `Pads with a choice of their own: ${count}`,
   seeInPages: "See in Pages",
@@ -591,7 +589,6 @@ const ITALIAN: Texts = {
     PlayStop: "Canzoni che si fermano",
     PlayLoopOnPress: "Finché tieni premuto",
     PlayOverlap: "Copie sovrapposte",
-    Unknown: "Altri suoni",
   },
   soundsOfKind: (count, names) =>
     count === 0
@@ -603,7 +600,6 @@ const ITALIAN: Texts = {
     PlayStop: "si ferma",
     PlayLoopOnPress: "finché premuto",
     PlayOverlap: "sovrappone",
-    Unknown: "",
   },
   alsoStopsOthers: "ferma anche gli altri suoni",
   ownChoices: (count) => `Pad con una scelta loro: ${count}`,
