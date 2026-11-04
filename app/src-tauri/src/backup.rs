@@ -2,12 +2,12 @@
 //! the same checks as the app's own files (docs/project.md, section 8).
 
 use crate::custom_pages::{self, Content, CustomPage, CustomPagesState};
-use crate::device;
 use crate::knob::{KnobSettings, PressAction};
 use crate::macros::{self, Macro, MacrosState, Step};
 use crate::press_again::ByMode;
 use crate::protocol::DisplaySettings;
 use crate::settings::{self, Language, OverlaySettings, Settings, SettingsState};
+use crate::{device, errors};
 use chrono::{DateTime, Local, SecondsFormat};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -377,16 +377,16 @@ pub struct Before {
 const BEFORE_IMPORT: &str = "before-import";
 const DISPLAY_FILE: &str = "display.json";
 
-/// The copy is written aside, then put in place of the older one, so that it is never half one and half the other.
-pub fn keep_before_import(
+/// The copy of what the app has now, written aside: it takes the older one's place only once the import is done, so a
+/// failed import keeps the copy before it, and a copy is never half one and half the other.
+pub fn write_copy(
     folder: &Path,
     settings: &Settings,
     pages: &[CustomPage],
     macros: &[Macro],
     display: Option<DisplaySettings>,
 ) -> io::Result<()> {
-    let copy = folder.join(BEFORE_IMPORT);
-    let written = folder.join(format!("{BEFORE_IMPORT}.new"));
+    let written = written_copy(folder);
     if written.exists() {
         fs::remove_dir_all(&written)?;
     }
@@ -403,10 +403,11 @@ pub fn keep_before_import(
     if let Some(display) = display {
         fs::write(written.join(DISPLAY_FILE), serde_json::to_string_pretty(&display)?)?;
     }
-    if copy.exists() {
-        fs::remove_dir_all(&copy)?;
-    }
-    fs::rename(&written, &copy)
+    Ok(())
+}
+
+fn written_copy(folder: &Path) -> PathBuf {
+    folder.join(format!("{BEFORE_IMPORT}.new"))
 }
 
 /// The copy, read with the app's own rules; none if a file of it cannot be read, rather than putting back less
@@ -426,6 +427,19 @@ pub fn before_import(folder: &Path) -> Option<Before> {
         macros: macros::from_values(macros).0,
         display: display.as_ref().map(display_settings),
     })
+}
+
+/// The copy written aside in place of the older one
+pub fn keep_copy(folder: &Path) -> io::Result<()> {
+    let copy = folder.join(BEFORE_IMPORT);
+    if copy.exists() {
+        fs::remove_dir_all(&copy)?;
+    }
+    fs::rename(written_copy(folder), copy)
+}
+
+pub fn drop_copy(folder: &Path) {
+    let _ = fs::remove_dir_all(written_copy(folder));
 }
 
 pub fn has_before_import_in(folder: &Path) -> bool {
@@ -504,7 +518,7 @@ fn config_folder(app: &AppHandle) -> Result<PathBuf, String> {
 /// The file's name only, for the error list: its folder may hold the user's name
 fn logged(action: &str, path: &Path, error: impl Display) {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    crate::errors::log(format!("cannot {action} the configuration {name}: {error}"));
+    errors::log(format!("cannot {action} the configuration {name}: {error}"));
 }
 
 // The file work runs off the main thread, so that a big file never holds up the window or the tray
@@ -520,7 +534,7 @@ pub fn export_configuration(app: AppHandle, path: String) -> Result<(), String> 
         Local::now(),
     );
     write_atomically(&path, &text).map_err(|error| {
-        logged("export", &path, error);
+        logged("export", &path, errors::in_english(&error));
         "cannotWrite".to_string()
     })
 }
@@ -559,8 +573,8 @@ pub fn apply_import(app: AppHandle, parts: Parts) -> Result<ImportResult, String
     let pages = app.state::<CustomPagesState>().get();
     let macros = app.state::<MacrosState>().get();
     let display = device::display_settings(&app);
-    keep_before_import(&folder, &settings, &pages, &macros, display).map_err(|error| {
-        logged("keep a copy before importing", &folder, error);
+    write_copy(&folder, &settings, &pages, &macros, display).map_err(|error| {
+        logged("keep a copy before importing", &folder, errors::in_english(&error));
         "cannotWrite".to_string()
     })?;
     let merged = merge(&checked, parts, (&settings, &pages, &macros));
@@ -569,15 +583,20 @@ pub fn apply_import(app: AppHandle, parts: Parts) -> Result<ImportResult, String
         pages: merged.pages,
         macros: merged.macros,
     };
-    put(
-        &app,
-        new,
-        Whole {
-            settings,
-            pages,
-            macros,
-        },
-    )?;
+    let old = Whole {
+        settings,
+        pages,
+        macros,
+    };
+    if let Err(error) = put(&app, new, old) {
+        drop_copy(&folder);
+        return Err(error);
+    }
+    // Imported: an older copy left in its place would put back what came before the import before
+    if let Err(error) = keep_copy(&folder) {
+        logged("keep a copy before importing", &folder, errors::in_english(&error));
+        let _ = fs::remove_dir_all(folder.join(BEFORE_IMPORT));
+    }
     Ok(ImportResult {
         cut: merged.cut,
         display_skipped: !put_display(&app, merged.display),
@@ -940,7 +959,7 @@ mod tests {
     #[test]
     fn an_unreadable_display_in_the_copy_refuses_the_restore() {
         let folder = folder("display");
-        keep_before_import(&folder, &settings(), &[], &[], Some(DISPLAY)).unwrap();
+        keep(&folder, &settings(), &[], &[], Some(DISPLAY));
         fs::write(folder.join(BEFORE_IMPORT).join(DISPLAY_FILE), "{").unwrap();
         assert_eq!(before_import(&folder), None);
         fs::remove_dir_all(&folder).unwrap();
@@ -982,13 +1001,36 @@ mod tests {
         folder
     }
 
+    fn keep(
+        folder: &Path,
+        settings: &Settings,
+        pages: &[CustomPage],
+        macros: &[Macro],
+        display: Option<DisplaySettings>,
+    ) {
+        write_copy(folder, settings, pages, macros, display).unwrap();
+        keep_copy(folder).unwrap();
+    }
+
+    #[test]
+    fn a_failed_import_keeps_the_earlier_copy() {
+        let folder = folder("earlier");
+        keep(&folder, &settings(), &[], &[], None);
+        write_copy(&folder, &Settings::default(), &[], &[], Some(DISPLAY)).unwrap();
+        drop_copy(&folder);
+        let before = before_import(&folder).unwrap();
+        assert_eq!((before.settings, before.display), (settings(), None));
+        assert_eq!(fs::read_dir(&folder).unwrap().count(), 1, "nothing left aside");
+        fs::remove_dir_all(&folder).unwrap();
+    }
+
     #[test]
     fn the_before_import_copy_restores_every_file() {
         let folder = folder("copy");
         assert!(!has_before_import_in(&folder));
         let pages = vec![page("page-1", Vec::new())];
         let macros = vec![item("macro-1", vec![Step::StopSounds])];
-        keep_before_import(&folder, &settings(), &pages, &macros, Some(DISPLAY)).unwrap();
+        keep(&folder, &settings(), &pages, &macros, Some(DISPLAY));
         assert!(has_before_import_in(&folder));
         let before = before_import(&folder).unwrap();
         assert_eq!(
@@ -1002,7 +1044,7 @@ mod tests {
         );
 
         // The next import keeps what was there then, without Drezimo connected
-        keep_before_import(&folder, &Settings::default(), &[], &[], None).unwrap();
+        keep(&folder, &Settings::default(), &[], &[], None);
         let before = before_import(&folder).unwrap();
         assert_eq!((before.pages.len(), before.display), (0, None));
         fs::remove_dir_all(&folder).unwrap();

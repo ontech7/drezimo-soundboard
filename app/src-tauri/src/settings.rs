@@ -230,12 +230,12 @@ fn path(app: &AppHandle) -> Option<PathBuf> {
 fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = path(app).ok_or("no config folder")?;
     let folder = path.parent().ok_or("no config folder")?;
-    fs::create_dir_all(folder).map_err(|error| error.to_string())?;
+    fs::create_dir_all(folder).map_err(|error| crate::errors::in_english(&error))?;
     let text = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
     // Written aside first, so a crash never leaves half a file
     let written = path.with_extension("json.new");
-    fs::write(&written, text).map_err(|error| error.to_string())?;
-    fs::rename(&written, &path).map_err(|error| error.to_string())
+    fs::write(&written, text).map_err(|error| crate::errors::in_english(&error))?;
+    fs::rename(&written, &path).map_err(|error| crate::errors::in_english(&error))
 }
 
 #[tauri::command]

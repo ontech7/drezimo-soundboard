@@ -171,8 +171,7 @@ impl Controller {
         let voice = running.voice_before.filter(|_| running.voice_changed);
         if let Some(voice) = voice.filter(|voice| self.voice_loaded() != Some(voice)) {
             // Put back quietly: the display keeps what it shows
-            self.request(Request::LoadVoice(voice.clone()));
-            self.voice_asked = Some(voice);
+            self.ask_voice(voice);
         }
         for (switch, before) in running.switches_before {
             self.set_switch(switch, before);

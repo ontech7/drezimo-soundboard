@@ -384,8 +384,11 @@ impl Controller {
                 self.rebuild_pages(false);
             }
             VoicemodEvent::CurrentVoice(id) => {
-                // A voice picked on the computer shows by name, as a sound started there; the board's already did
-                let asked_here = self.voice_asked.take().is_some_and(|asked| asked == id);
+                // A voice picked on the computer shows by name, as a sound started there; the board's already did.
+                // One the knob went past, confirmed while it walks on, leaves the voice asked as it is.
+                let walked_past =
+                    self.voice_asked.as_ref().is_some_and(|asked| *asked != id) && self.knob_walking_voices(now);
+                let asked_here = walked_past || self.voice_asked.take().is_some_and(|asked| asked == id);
                 let changed = self.current_voice.as_ref().is_some_and(|current| *current != id);
                 let name = self
                     .voices
@@ -727,9 +730,15 @@ impl Controller {
     }
 
     fn load_voice(&mut self, voice: Voice, now: Instant) {
-        self.request(Request::LoadVoice(voice.id.clone()));
-        self.voice_asked = Some(voice.id);
+        self.ask_voice(voice.id);
         self.last = Some((voice.name, now));
+    }
+
+    /// A voice loaded now: one the knob still has waiting would follow and take its place
+    fn ask_voice(&mut self, id: String) {
+        self.knob_waiting.remove(&KnobSend::Voice);
+        self.request(Request::LoadVoice(id.clone()));
+        self.voice_asked = Some(id);
     }
 
     fn random_voice(&mut self, now: Instant) {

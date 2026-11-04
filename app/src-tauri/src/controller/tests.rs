@@ -2340,3 +2340,53 @@ fn the_sounds_volumes_are_read_at_most_once_a_minute() {
     controller.update(at(500));
     assert_eq!(volume_reads(&controller.take_outputs()), 0, "nothing asks again");
 }
+
+fn walking_voices(knob: KnobSettings) -> (Controller, Instant) {
+    let now = Instant::now();
+    let mut controller = Controller::default();
+    let voices = ["v1", "v2", "v3", "v4", "v5"].map(voice).to_vec();
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Connected), now);
+    let current = Some("v1".to_string());
+    controller.voicemod_event(VoicemodEvent::Voices { voices, current }, now);
+    controller.voicemod_event(VoicemodEvent::Soundboards(three_soundboards()), now);
+    controller.set_knob(knob, now);
+    (controller, now)
+}
+
+#[test]
+fn a_voice_loaded_right_after_a_fast_turn_stays() {
+    let knob = KnobSettings {
+        turn: TurnAction::Voice,
+        tap: PressAction::RandomVoice,
+        ..KnobSettings::default()
+    };
+    let (mut controller, now) = walking_voices(knob);
+    let at = |millis: u64| now + Duration::from_millis(millis);
+    turn(&mut controller, 1, at(0));
+    turn(&mut controller, 1, at(40));
+    let random = requests(&tap(&mut controller, at(100))).len();
+    assert_eq!(random, 1, "a random voice loads");
+    assert!(
+        requests_at(&mut controller, at(300)).is_empty(),
+        "the turn's waiting voice does not follow"
+    );
+}
+
+#[test]
+fn voicemod_confirming_an_earlier_voice_keeps_the_knobs_walk() {
+    let knob = KnobSettings {
+        turn: TurnAction::Voice,
+        ..KnobSettings::default()
+    };
+    let (mut controller, now) = walking_voices(knob);
+    let at = |millis: u64| now + Duration::from_millis(millis);
+    turn(&mut controller, 1, at(0));
+    turn(&mut controller, 1, at(40));
+    controller.voicemod_event(VoicemodEvent::CurrentVoice("v2".into()), at(60));
+    turn(&mut controller, 1, at(80));
+    assert_eq!(requests_at(&mut controller, at(250)), [Request::LoadVoice("v4".into())]);
+    // Sent, then the older confirmation comes late: the next step still goes on from v4
+    controller.voicemod_event(VoicemodEvent::CurrentVoice("v3".into()), at(300));
+    let outputs = turn(&mut controller, 1, at(600));
+    assert_eq!(requests(&outputs), [&Request::LoadVoice("v5".into())]);
+}

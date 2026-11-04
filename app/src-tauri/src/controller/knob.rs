@@ -14,6 +14,8 @@ const VOLUME_EVERY: Duration = Duration::from_millis(100);
 const VOICE_EVERY: Duration = Duration::from_millis(250);
 /// Voicemod asks its servers for the sounds' saved volumes, and they turn away requests too close together
 const READ_EVERY: Duration = Duration::from_secs(60);
+/// How long Voicemod may take to confirm a voice the knob loaded
+const CONFIRM_TIME: Duration = Duration::from_secs(1);
 
 impl KnobSend {
     fn every(&self) -> Duration {
@@ -334,6 +336,15 @@ impl Controller {
                 self.request(request);
             }
         }
+    }
+
+    /// The knob turning through the voices: one waits to be loaded, or was loaded a moment ago
+    pub(super) fn knob_walking_voices(&self, now: Instant) -> bool {
+        self.knob_waiting.contains_key(&KnobSend::Voice)
+            || self
+                .knob_sent
+                .get(&KnobSend::Voice)
+                .is_some_and(|sent| now < *sent + CONFIRM_TIME)
     }
 
     /// Only a gesture on the volume of the sound playing needs the sounds' saved volumes
