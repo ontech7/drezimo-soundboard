@@ -10,6 +10,8 @@ mod firmware;
 mod knob;
 mod last_page;
 mod macros;
+#[allow(dead_code)] // Until the controller drives the knob through it
+mod mixer;
 mod news;
 mod overlay;
 mod pictures;
