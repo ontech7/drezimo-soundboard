@@ -195,7 +195,7 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
     let mut ids = HashSet::new();
     pages
         .into_iter()
-        .filter(|page| page.id.starts_with(ID_PREFIX) && page.id.len() <= 64 && ids.insert(page.id.clone()))
+        .filter(|page| id_kept(&page.id, &mut ids))
         .take(MAX_PAGES)
         .enumerate()
         .map(|(index, mut page)| {
@@ -224,24 +224,58 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
 }
 
 /// Page by page and pad by pad, so that what cannot be read is left out alone: the pages kept, and how many pages and
-/// pads were left out.
+/// pads were left out. Pads past the board's are cut before they are read, and numbers brought into range.
 pub fn from_values(values: Vec<Value>) -> (Vec<CustomPage>, usize, usize) {
     let count = values.len();
+    let mut ids = HashSet::new();
     let mut dropped_pads = 0;
     let mut read = Vec::new();
-    for value in values {
-        let pads = value["pads"].as_array().into_iter().flatten();
-        let unusable = pads
-            .filter(|pad| !pad.is_null() && CustomPad::deserialize(*pad).map_or(true, |pad| !pad_kept(&pad)))
-            .count();
-        if let Ok(page) = CustomPage::deserialize(value) {
-            dropped_pads += unusable;
+    for mut value in values {
+        if read.len() == MAX_PAGES {
+            break;
+        }
+        let mut dropped = 0;
+        if let Some(pads) = value.get_mut("pads").and_then(Value::as_array_mut) {
+            dropped += pads.iter().skip(PADS).filter(|pad| !pad.is_null()).count();
+            pads.truncate(PADS);
+            pads.iter_mut().for_each(colour_into_range);
+            dropped += pads
+                .iter()
+                .filter(|pad| !pad.is_null() && CustomPad::deserialize(*pad).map_or(true, |pad| !pad_kept(&pad)))
+                .count();
+        }
+        let Ok(page) = CustomPage::deserialize(value) else {
+            continue;
+        };
+        if id_kept(&page.id, &mut ids) {
+            dropped_pads += dropped;
             read.push(page);
         }
     }
     let pages = checked(read);
     let dropped_pages = count - pages.len();
     (pages, dropped_pages, dropped_pads)
+}
+
+/// One of the editor's ids, not seen before
+fn id_kept(id: &str, ids: &mut HashSet<String>) -> bool {
+    id.starts_with(ID_PREFIX) && id.len() <= MAX_ID && ids.insert(id.to_string())
+}
+
+/// A number in a hand-made file at the nearest whole one in range, rather than losing what holds it
+pub fn into_range(value: &mut Value, min: f64, max: f64) {
+    if let Some(number) = value.as_f64() {
+        *value = Value::from(number.clamp(min, max).round() as u64);
+    }
+}
+
+/// A pad's or a macro's LED colour, each part 0 to 255
+pub fn colour_into_range(item: &mut Value) {
+    if let Some(colour) = item.get_mut("colour").and_then(Value::as_array_mut) {
+        for part in colour {
+            into_range(part, 0.0, 255.0);
+        }
+    }
 }
 
 /// Ids no longer than any the app makes or Voicemod uses
@@ -422,5 +456,22 @@ mod tests {
         let names: Vec<_> = pages.iter().map(|page| page.name.as_str()).collect();
         assert_eq!(names, ["Mine"]);
         assert_eq!((dropped_pages, dropped_pads), (4, 2));
+    }
+
+    #[test]
+    fn counts_what_it_leaves_out_once_and_past_the_last_pad() {
+        let sound = serde_json::json!({"kind": "sound", "id": "s1"});
+        let mut pads = vec![sound.clone(); PADS];
+        pads.extend([sound.clone(), serde_json::Value::Null, sound.clone()]);
+        let values = serde_json::json!([
+            {"id": "page-1", "name": "Long", "pads": pads},
+            // Left out as a page: its pads are not counted again
+            {"id": "bad", "name": "x", "pads": [{"kind": "flying"}, {"kind": "flying"}]},
+            {"id": "page-2", "name": "Bright", "pads": [{"kind": "sound", "id": "s1", "colour": [300, -5, 12.6]}]}
+        ]);
+        let (pages, dropped_pages, dropped_pads) = from_values(serde_json::from_value(values).unwrap());
+        assert_eq!((pages.len(), dropped_pages, dropped_pads), (2, 1, 2));
+        assert_eq!(pages[0].pads.len(), PADS);
+        assert_eq!(pages[1].pads[0].as_ref().unwrap().colour, Some([255, 0, 13]));
     }
 }

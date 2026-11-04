@@ -67,6 +67,27 @@ pub struct KnobSettings {
     pub long_press: PressAction,
 }
 
+/// The longest page or macro id a gesture keeps, as a pad (`custom_pages.rs`)
+const MAX_TARGET: usize = 64;
+
+impl KnobSettings {
+    /// A page or macro id longer than any the app makes or Voicemod uses does nothing
+    pub fn checked(self) -> Self {
+        let kept = |action: PressAction| match &action {
+            PressAction::Macro { macro_id: id } | PressAction::Page { page: id } if id.len() > MAX_TARGET => {
+                PressAction::Nothing
+            }
+            _ => action,
+        };
+        Self {
+            tap: kept(self.tap),
+            double_tap: kept(self.double_tap),
+            long_press: kept(self.long_press),
+            ..self
+        }
+    }
+}
+
 impl Default for KnobSettings {
     fn default() -> Self {
         Self {
@@ -358,6 +379,24 @@ mod tests {
         tap(&mut gestures, start, 0);
         gestures.pressed(at(start, 100));
         assert_eq!(gestures.released(at(start, 700)), [Tap, LongPress]);
+    }
+
+    #[test]
+    fn a_target_longer_than_any_id_does_nothing() {
+        let knob = KnobSettings {
+            tap: PressAction::Page { page: "p".repeat(64) },
+            double_tap: PressAction::Page { page: "p".repeat(65) },
+            long_press: PressAction::Macro {
+                macro_id: "m".repeat(1000),
+            },
+            ..KnobSettings::default()
+        };
+        let checked = knob.clone().checked();
+        assert_eq!(checked.tap, knob.tap);
+        assert_eq!(
+            (checked.double_tap, checked.long_press),
+            (PressAction::Nothing, PressAction::Nothing)
+        );
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! The user's macros, made in the window's Macro section and kept in a JSON file in the app's config folder: sequences
 //! of steps a pad of their own pages runs (docs/project.md, section 8). `controller/macros.rs` runs them.
 
+use crate::custom_pages::{colour_into_range, into_range};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -134,7 +135,7 @@ pub fn checked(macros: Vec<Macro>) -> Vec<Macro> {
     let mut ids = HashSet::new();
     macros
         .into_iter()
-        .filter(|item| item.id.starts_with(ID_PREFIX) && item.id.len() <= 64 && ids.insert(item.id.clone()))
+        .filter(|item| id_kept(&item.id, &mut ids))
         .take(MAX_MACROS)
         .enumerate()
         .map(|(index, mut item)| {
@@ -160,24 +161,49 @@ pub fn checked(macros: Vec<Macro>) -> Vec<Macro> {
 }
 
 /// Macro by macro and step by step, so that what cannot be read is left out alone: the macros kept, and how many
-/// macros and steps were left out.
+/// macros and steps were left out. Numbers are brought into range first, and the steps past the last cut before the
+/// macro is read.
 pub fn from_values(values: Vec<Value>) -> (Vec<Macro>, usize, usize) {
     let count = values.len();
+    let mut ids = HashSet::new();
     let mut dropped_steps = 0;
     let mut read = Vec::new();
-    for value in values {
-        let steps = value["steps"].as_array().into_iter().flatten();
-        let unusable = steps
-            .filter(|step| Step::deserialize(*step).map_or(true, |step| !step_kept(&step)))
-            .count();
-        if let Ok(item) = Macro::deserialize(value) {
-            dropped_steps += unusable;
+    for mut value in values {
+        if read.len() == MAX_MACROS {
+            break;
+        }
+        if let Some(repeat) = value.get_mut("repeat") {
+            into_range(repeat, 0.0, MAX_REPEAT.into());
+        }
+        colour_into_range(&mut value);
+        let mut dropped = 0;
+        if let Some(steps) = value.get_mut("steps").and_then(Value::as_array_mut) {
+            for step in steps.iter_mut().filter(|step| step["type"] == "wait") {
+                if let Some(millis) = step.get_mut("millis") {
+                    into_range(millis, MIN_WAIT.into(), MAX_WAIT.into());
+                }
+            }
+            let before = steps.len();
+            steps.retain(|step| Step::deserialize(step).is_ok_and(|step| step_kept(&step)));
+            dropped += before - steps.len() + steps.len().saturating_sub(MAX_STEPS);
+            steps.truncate(MAX_STEPS);
+        }
+        let Ok(item) = Macro::deserialize(value) else {
+            continue;
+        };
+        if id_kept(&item.id, &mut ids) {
+            dropped_steps += dropped;
             read.push(item);
         }
     }
     let macros = checked(read);
     let dropped_macros = count - macros.len();
     (macros, dropped_macros, dropped_steps)
+}
+
+/// One of the editor's ids, not seen before
+fn id_kept(id: &str, ids: &mut HashSet<String>) -> bool {
+    id.starts_with(ID_PREFIX) && id.len() <= MAX_ID && ids.insert(id.to_string())
 }
 
 /// Ids no longer than any the app makes or Voicemod uses
@@ -352,5 +378,24 @@ mod tests {
         let names: Vec<_> = macros.iter().map(|item| item.name.as_str()).collect();
         assert_eq!(names, ["Entrance"]);
         assert_eq!((dropped_macros, dropped_steps), (3, 2));
+    }
+
+    #[test]
+    fn brings_numbers_into_range_and_counts_the_steps_past_the_last() {
+        let mut steps = vec![serde_json::json!({"type": "stopSounds"}); MAX_STEPS + 10];
+        steps[0] = serde_json::json!({"type": "wait", "millis": 99_999_999_999u64});
+        steps[1] = serde_json::json!({"type": "wait", "millis": -4});
+        let values = serde_json::json!([
+            {"id": "macro-1", "name": "Long", "repeat": 1000, "colour": [256, 0, 0], "steps": steps}
+        ]);
+        let (macros, dropped_macros, dropped_steps) = from_values(serde_json::from_value(values).unwrap());
+        assert_eq!((macros.len(), dropped_macros, dropped_steps), (1, 0, 10));
+        let item = &macros[0];
+        assert_eq!(
+            (item.repeat, item.colour, item.steps.len()),
+            (MAX_REPEAT, Some([255, 0, 0]), MAX_STEPS)
+        );
+        assert_eq!(item.steps[0], Step::Wait { millis: MAX_WAIT });
+        assert_eq!(item.steps[1], Step::Wait { millis: MIN_WAIT });
     }
 }

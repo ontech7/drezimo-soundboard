@@ -263,62 +263,103 @@ fn nearest(value: Option<f64>, allowed: &[u16], default: u16) -> u16 {
 /// The configuration as it will be, from the parts chosen and the ones kept.
 pub fn merge(checked: &Checked, parts: Parts, current: (&Settings, &[CustomPage], &[Macro])) -> Merged {
     let (settings, pages, macros) = current;
-    let mut settings = match &checked.settings {
-        Some(shared) if parts.settings => shared.clone().onto(settings.clone()),
+    // The parts that come from the file
+    let imported = Parts {
+        settings: parts.settings && checked.settings.is_some(),
+        pages: parts.pages && checked.pages.is_some(),
+        macros: parts.macros && checked.macros.is_some(),
+        display: parts.display && checked.display.is_some(),
+    };
+    let mut new_settings = match &checked.settings {
+        Some(shared) if imported.settings => shared.clone().onto(settings.clone()),
         _ => settings.clone(),
     };
-    let mut pages = match &checked.pages {
-        Some(imported) if parts.pages => imported.clone(),
+    let mut new_pages = match &checked.pages {
+        Some(file) if imported.pages => file.clone(),
         _ => pages.to_vec(),
     };
-    let mut macros = match &checked.macros {
-        Some(imported) if parts.macros => imported.clone(),
+    let mut new_macros = match &checked.macros {
+        Some(file) if imported.macros => file.clone(),
         _ => macros.to_vec(),
     };
-    let cut = cut_missing(&mut settings.knob, &mut pages, &mut macros);
+    let before = Ids::of(pages, macros);
+    let cut = cut_missing(
+        &mut new_settings.knob,
+        &mut new_pages,
+        &mut new_macros,
+        &before,
+        imported,
+    );
     Merged {
-        settings,
-        pages,
-        macros,
-        display: checked.display.filter(|_| parts.display),
+        settings: new_settings,
+        pages: new_pages,
+        macros: new_macros,
+        display: checked.display.filter(|_| imported.display),
         cut,
     }
 }
 
-/// Cuts what points to one of the user's pages or macros that will not be there. A soundboard of Voicemod's is on the
-/// PC or not, as for any page, so it stays.
-fn cut_missing(knob: &mut KnobSettings, pages: &mut [CustomPage], macros: &mut [Macro]) -> usize {
-    let page_ids: HashSet<String> = pages.iter().map(|page| page.id.clone()).collect();
-    let macro_ids: HashSet<String> = macros.iter().map(|item| item.id.clone()).collect();
-    let page_missing = |id: &str| id.starts_with(custom_pages::ID_PREFIX) && !page_ids.contains(id);
+/// The user's pages and macros, by id
+struct Ids {
+    pages: HashSet<String>,
+    macros: HashSet<String>,
+}
+
+impl Ids {
+    fn of(pages: &[CustomPage], macros: &[Macro]) -> Self {
+        Self {
+            pages: pages.iter().map(|page| page.id.clone()).collect(),
+            macros: macros.iter().map(|item| item.id.clone()).collect(),
+        }
+    }
+}
+
+/// Cuts what the import breaks: a reference to one of the user's pages or macros that will not be there, when it came
+/// with the file or what it points to was there before. One broken already stays, shown missing in the window as
+/// before; a soundboard of Voicemod's is on the PC or not, as for any page, so it stays.
+fn cut_missing(
+    knob: &mut KnobSettings,
+    pages: &mut [CustomPage],
+    macros: &mut [Macro],
+    before: &Ids,
+    imported: Parts,
+) -> usize {
+    let after = Ids::of(pages, macros);
+    let breaks = |id: &str, after: &HashSet<String>, before: &HashSet<String>, from_file: bool| {
+        !id.is_empty() && !after.contains(id) && (from_file || before.contains(id))
+    };
+    let page_breaks = |id: &str, from_file| {
+        id.starts_with(custom_pages::ID_PREFIX) && breaks(id, &after.pages, &before.pages, from_file)
+    };
+    let macro_breaks = |id: &str, from_file| breaks(id, &after.macros, &before.macros, from_file);
     let mut cut = 0;
     for gesture in [&mut knob.tap, &mut knob.double_tap, &mut knob.long_press] {
-        let missing = match gesture {
-            PressAction::Page { page } => page_missing(page),
-            PressAction::Macro { macro_id } => !macro_ids.contains(macro_id),
+        let broken = match gesture {
+            PressAction::Page { page } => page_breaks(page, imported.settings),
+            PressAction::Macro { macro_id } => macro_breaks(macro_id, imported.settings),
             _ => false,
         };
-        if missing {
+        if broken {
             *gesture = PressAction::Nothing;
             cut += 1;
         }
     }
     for pad in pages.iter_mut().flat_map(|page| page.pads.iter_mut()) {
-        let missing = match pad.as_ref().map(|pad| &pad.content) {
-            Some(Content::Macro { id }) => !macro_ids.contains(id),
-            Some(Content::Action { page: Some(page), .. }) => page_missing(page),
+        let broken = match pad.as_ref().map(|pad| &pad.content) {
+            Some(Content::Macro { id }) => macro_breaks(id, imported.pages),
+            Some(Content::Action { page: Some(page), .. }) => page_breaks(page, imported.pages),
             _ => false,
         };
-        if missing {
+        if broken {
             *pad = None;
             cut += 1;
         }
     }
     for item in macros.iter_mut() {
-        let before = item.steps.len();
+        let steps = item.steps.len();
         item.steps
-            .retain(|step| !matches!(step, Step::GoToPage { page } if page_missing(page)));
-        cut += before - item.steps.len();
+            .retain(|step| !matches!(step, Step::GoToPage { page } if page_breaks(page, imported.macros)));
+        cut += steps - item.steps.len();
     }
     cut
 }
@@ -375,7 +416,10 @@ pub fn before_import(folder: &Path) -> Option<Before> {
     let settings = settings::read(&read(settings::FILE_NAME)?).ok()?.checked();
     let pages = serde_json::from_str(&read(custom_pages::FILE_NAME)?).ok()?;
     let macros = serde_json::from_str(&read(macros::FILE_NAME)?).ok()?;
-    let display = read(DISPLAY_FILE).and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    let display = match copy.join(DISPLAY_FILE).exists() {
+        true => Some(serde_json::from_str::<Value>(&read(DISPLAY_FILE)?).ok()?),
+        false => None,
+    };
     Some(Before {
         settings,
         pages: custom_pages::from_values(pages).0,
@@ -463,7 +507,8 @@ fn logged(action: &str, path: &Path, error: impl Display) {
     crate::errors::log(format!("cannot {action} the configuration {name}: {error}"));
 }
 
-#[tauri::command]
+// The file work runs off the main thread, so that a big file never holds up the window or the tray
+#[tauri::command(async)]
 pub fn export_configuration(app: AppHandle, path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     let text = export(
@@ -480,8 +525,9 @@ pub fn export_configuration(app: AppHandle, path: String) -> Result<(), String> 
     })
 }
 
-#[tauri::command]
-pub fn check_import(state: State<ImportState>, path: String) -> Result<ImportPreview, String> {
+#[tauri::command(async)]
+pub fn check_import(app: AppHandle, path: String) -> Result<ImportPreview, String> {
+    let state = app.state::<ImportState>();
     let path = PathBuf::from(path);
     // A file that fails leaves no older one to import
     let _ = state.take();
@@ -505,9 +551,9 @@ pub fn cancel_import(state: State<ImportState>) {
 }
 
 /// The parts chosen, after a copy of what the app has now; the error is the key of the window's sentence
-#[tauri::command]
-pub fn apply_import(app: AppHandle, state: State<ImportState>, parts: Parts) -> Result<ImportResult, String> {
-    let checked = state.take()?;
+#[tauri::command(async)]
+pub fn apply_import(app: AppHandle, parts: Parts) -> Result<ImportResult, String> {
+    let checked = app.state::<ImportState>().take()?;
     let folder = config_folder(&app)?;
     let settings = app.state::<SettingsState>().get();
     let pages = app.state::<CustomPagesState>().get();
@@ -544,7 +590,7 @@ pub fn has_before_import(app: AppHandle) -> bool {
 }
 
 /// The copy made before the last import, in place of what the import brought; the PC's own settings stay
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restore_before_import(app: AppHandle) -> Result<ImportResult, String> {
     let folder = config_folder(&app)?;
     let before = before_import(&folder).ok_or_else(|| {
@@ -633,6 +679,7 @@ mod tests {
     use crate::macros::Again;
     use crate::press_again::PressAgain;
     use crate::settings::Anchor;
+    use crate::soundboard::tests::custom_pad;
     use serde_json::json;
 
     fn settings() -> Settings {
@@ -835,19 +882,20 @@ mod tests {
     }
 
     #[test]
-    fn importing_only_macros_cuts_the_knobs_missing_page() {
+    fn importing_pages_cuts_the_knobs_page_that_goes() {
         let mut current = settings();
         current.knob.double_tap = PressAction::Page { page: "page-9".into() };
         current.knob.long_press = PressAction::Page {
             page: "favourites".into(),
         };
+        let pages = [page("page-9", Vec::new())];
         let content = json!({"drezimo": "configuration", "format": 1, "macros": [], "pages": []});
         let checked = check(&file(content)).unwrap();
         let parts = Parts {
-            macros: true,
+            pages: true,
             ..Parts::default()
         };
-        let merged = merge(&checked, parts, (&current, &[], &[]));
+        let merged = merge(&checked, parts, (&current, &pages, &[]));
         assert_eq!(merged.settings.knob.double_tap, PressAction::Nothing);
         assert_eq!(
             merged.settings.knob.long_press, current.knob.long_press,
@@ -855,6 +903,47 @@ mod tests {
         );
         assert_eq!(merged.cut, 1);
         assert_eq!(merged.settings.language, current.language, "settings not imported");
+    }
+
+    #[test]
+    fn an_import_cuts_only_what_it_breaks() {
+        let mut current = settings();
+        // Never given a macro, and one deleted since: neither is the import's doing
+        current.knob.double_tap = PressAction::Macro { macro_id: "".into() };
+        current.knob.long_press = PressAction::Macro {
+            macro_id: "macro-old".into(),
+        };
+        current.knob.tap = PressAction::Page { page: "page-1".into() };
+        let dangling = custom_pad(Content::Macro { id: "macro-old".into() });
+        let pages = vec![page("page-1", vec![dangling])];
+        let content = json!({"drezimo": "configuration", "format": 1, "pages": [],
+            "display": {"brightness": 20, "dimAfter": 1, "offAfter": 10, "shiftEvery": 3}});
+        let checked = check(&file(content)).unwrap();
+        let display_only = Parts {
+            display: true,
+            ..Parts::default()
+        };
+        let merged = merge(&checked, display_only, (&current, &pages, &[]));
+        assert_eq!((merged.cut, &merged.settings.knob), (0, &current.knob));
+        assert_eq!(merged.pages, pages);
+
+        let with_pages = Parts {
+            pages: true,
+            ..Parts::default()
+        };
+        let merged = merge(&checked, with_pages, (&current, &pages, &[]));
+        assert_eq!(merged.cut, 1, "the tap's page goes");
+        assert_eq!(merged.settings.knob.tap, PressAction::Nothing);
+        assert_eq!(merged.settings.knob.long_press, current.knob.long_press);
+    }
+
+    #[test]
+    fn an_unreadable_display_in_the_copy_refuses_the_restore() {
+        let folder = folder("display");
+        keep_before_import(&folder, &settings(), &[], &[], Some(DISPLAY)).unwrap();
+        fs::write(folder.join(BEFORE_IMPORT).join(DISPLAY_FILE), "{").unwrap();
+        assert_eq!(before_import(&folder), None);
+        fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]
@@ -872,7 +961,8 @@ mod tests {
             pages: true,
             ..Parts::default()
         };
-        let merged = merge(&checked, parts, (&settings(), &[], &kept));
+        let current = [page("page-2", Vec::new())];
+        let merged = merge(&checked, parts, (&settings(), &current, &kept));
         assert_eq!(merged.pages[0].pads[0..2], [None, None]);
         assert!(merged.macros[0].steps.is_empty(), "its page is gone");
         assert_eq!(merged.cut, 3);

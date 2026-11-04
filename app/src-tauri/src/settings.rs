@@ -57,6 +57,9 @@ pub enum Anchor {
     BottomRight,
 }
 
+/// Longer than any screen's name the system gives
+const MAX_SCREEN_NAME: usize = 100;
+
 /// The screen the overlay shows on. A named one that is not connected gives way to the main screen.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,6 +94,10 @@ impl OverlaySettings {
             seconds: self.seconds.clamp(1, 30),
             // Smaller, the names get too small to read on a screen at 100 %
             size: self.size.clamp(70, 100),
+            screen: match self.screen {
+                OverlayScreen::Named(name) if name.chars().count() > MAX_SCREEN_NAME => OverlayScreen::Mouse,
+                screen => screen,
+            },
             ..self
         }
     }
@@ -149,6 +156,7 @@ impl Settings {
     pub fn checked(mut self) -> Self {
         self.led_brightness = self.led_brightness.clamp(10, 100);
         self.overlay = self.overlay.checked();
+        self.knob = self.knob.checked();
         self
     }
 }
@@ -401,6 +409,16 @@ mod login {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_screen_name_longer_than_any_screens_is_the_mouses() {
+        let named = |length: usize| OverlaySettings {
+            screen: OverlayScreen::Named("s".repeat(length)),
+            ..OverlaySettings::default()
+        };
+        assert_eq!(named(100).checked().screen, named(100).screen);
+        assert_eq!(named(101).checked().screen, OverlayScreen::Mouse);
+    }
 
     #[test]
     fn an_older_file_loads_with_the_new_fields() {
