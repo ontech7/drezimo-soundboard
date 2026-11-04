@@ -518,7 +518,20 @@ pub fn apply_import(app: AppHandle, state: State<ImportState>, parts: Parts) -> 
         "cannotWrite".to_string()
     })?;
     let merged = merge(&checked, parts, (&settings, &pages, &macros));
-    put(&app, merged.settings, merged.pages, merged.macros)?;
+    let new = Whole {
+        settings: merged.settings,
+        pages: merged.pages,
+        macros: merged.macros,
+    };
+    put(
+        &app,
+        new,
+        Whole {
+            settings,
+            pages,
+            macros,
+        },
+    )?;
     Ok(ImportResult {
         cut: merged.cut,
         display_skipped: !put_display(&app, merged.display),
@@ -538,21 +551,68 @@ pub fn restore_before_import(app: AppHandle) -> Result<ImportResult, String> {
         logged("restore", &folder, "the copy cannot be read");
         "cannotRestore".to_string()
     })?;
-    let settings = SharedSettings::of(&before.settings).onto(app.state::<SettingsState>().get());
-    put(&app, settings, before.pages, before.macros)?;
+    let now = Whole {
+        settings: app.state::<SettingsState>().get(),
+        pages: app.state::<CustomPagesState>().get(),
+        macros: app.state::<MacrosState>().get(),
+    };
+    let new = Whole {
+        settings: SharedSettings::of(&before.settings).onto(now.settings.clone()),
+        pages: before.pages,
+        macros: before.macros,
+    };
+    put(&app, new, now)?;
     Ok(ImportResult {
         cut: 0,
         display_skipped: !put_display(&app, before.display),
     })
 }
 
-/// Macros first, so that the pages and the knob never point to one not there yet
-fn put(app: &AppHandle, settings: Settings, pages: Vec<CustomPage>, macros: Vec<Macro>) -> Result<(), String> {
-    let cannot_write = |_| "cannotWrite".to_string();
-    macros::apply(app, macros).map_err(cannot_write)?;
-    custom_pages::apply(app, pages).map_err(cannot_write)?;
-    settings::apply(app, settings).map_err(cannot_write)?;
+/// The three files of a configuration, as the app holds them
+struct Whole {
+    settings: Settings,
+    pages: Vec<CustomPage>,
+    macros: Vec<Macro>,
+}
+
+enum Part {
+    Macros(Vec<Macro>),
+    Pages(Vec<CustomPage>),
+    Settings(Settings),
+}
+
+impl Whole {
+    /// Macros first, so that the pages and the knob never point to one not there yet
+    fn parts(self) -> [Part; 3] {
+        [
+            Part::Macros(self.macros),
+            Part::Pages(self.pages),
+            Part::Settings(self.settings),
+        ]
+    }
+}
+
+/// Each part in turn; when one cannot be saved, every part goes back to `old`, so that the app is never half one
+/// configuration and half the other
+fn put_all(new: Whole, old: Whole, mut put: impl FnMut(Part) -> Result<(), String>) -> Result<(), String> {
+    for part in new.parts() {
+        if let Err(error) = put(part) {
+            for part in old.parts() {
+                let _ = put(part);
+            }
+            return Err(error);
+        }
+    }
     Ok(())
+}
+
+fn put(app: &AppHandle, new: Whole, old: Whole) -> Result<(), String> {
+    let applied = put_all(new, old, |part| match part {
+        Part::Macros(macros) => macros::apply(app, macros).map(drop),
+        Part::Pages(pages) => custom_pages::apply(app, pages).map(drop),
+        Part::Settings(settings) => settings::apply(app, settings).map(drop),
+    });
+    applied.map_err(|_| "cannotWrite".to_string())
 }
 
 /// False when there are display settings for a Drezimo that is not connected
@@ -891,5 +951,45 @@ mod tests {
         assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
         assert_eq!(fs::read_dir(&folder).unwrap().count(), 1, "nothing left beside it");
         fs::remove_dir_all(&folder).unwrap();
+    }
+
+    #[test]
+    fn a_part_that_cannot_be_saved_puts_every_part_back() {
+        let old = Whole {
+            settings: Settings::default(),
+            pages: Vec::new(),
+            macros: Vec::new(),
+        };
+        let new = Whole {
+            settings: settings(),
+            pages: vec![page("page-1", Vec::new())],
+            macros: vec![item("macro-1", vec![Step::StopSounds])],
+        };
+        let mut applied = Vec::new();
+        let result = put_all(new, old, |part| {
+            let (name, imported) = match &part {
+                Part::Macros(macros) => ("macros", !macros.is_empty()),
+                Part::Pages(pages) => ("pages", !pages.is_empty()),
+                Part::Settings(settings) => ("settings", *settings != Settings::default()),
+            };
+            applied.push((name, imported));
+            // Another program holds pages.json a moment
+            if name == "pages" && imported {
+                Err("held".to_string())
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            applied,
+            [
+                ("macros", true),
+                ("pages", true),
+                ("macros", false),
+                ("pages", false),
+                ("settings", false)
+            ]
+        );
     }
 }
