@@ -27,6 +27,11 @@ export function held(lane: Lane, now: number, state: Lane["state"]): Lane {
 }
 
 const BARS = 40;
+/**
+ * About 30 frames a second, where a bar moves a pixel or two a frame: at a 165 Hz screen's own rate it took a third of
+ * a CPU core. A little under 1000 / 30, so that a 60 Hz screen draws every other frame despite their jitter.
+ */
+const FRAME_MS = 30;
 
 function heights(name: string): number[] {
   return Array.from({ length: BARS }, (_, i) => 30 + 60 * Math.abs(Math.sin(i * 1.7 + name.length) * Math.cos(i * 0.45)));
@@ -48,8 +53,12 @@ export function SoundLanes({ lanes }: { lanes: Lane[] }) {
       const timer = window.setInterval(() => setFrame((count) => count + 1), 1000);
       return () => clearInterval(timer);
     }
-    let frame = requestAnimationFrame(function draw() {
-      setFrame((count) => count + 1);
+    let drawn = 0;
+    let frame = requestAnimationFrame(function draw(time) {
+      if (time - drawn >= FRAME_MS) {
+        drawn = time;
+        setFrame((count) => count + 1);
+      }
       frame = requestAnimationFrame(draw);
     });
     return () => cancelAnimationFrame(frame);
