@@ -16,12 +16,16 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 const FILE_NAME: &str = "pages.json";
 /// Before every id the editor makes, so a page never takes a soundboard's id, nor the Favourites' or the Voices'
-const ID_PREFIX: &str = "page-";
+pub const ID_PREFIX: &str = "page-";
 const PADS: usize = PAD_COUNT as usize;
 const MAX_PAGES: usize = 50;
 /// In characters, as the editor allows
 const MAX_NAME: usize = 24;
 const MAX_LABEL: usize = 20;
+/// Voicemod's ids are 36 characters, the editor's about 40
+const MAX_ID: usize = 64;
+/// A sound's or a voice's name, kept for when Voicemod is away
+const MAX_ITEM_NAME: usize = 100;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -200,8 +204,15 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
                 page.name = format!("#{}", index + 1);
             }
             page.pads.resize(PADS, None);
-            for pad in page.pads.iter_mut().flatten() {
+            for slot in &mut page.pads {
+                if slot.as_ref().is_some_and(|pad| !pad_kept(pad)) {
+                    *slot = None;
+                }
+                let Some(pad) = slot else { continue };
                 pad.label = shortened(&pad.label, MAX_LABEL);
+                if let Content::Sound { name, .. } | Content::Voice { name, .. } = &mut pad.content {
+                    *name = shortened(name, MAX_ITEM_NAME);
+                }
                 // Only a sound plays again
                 if !matches!(pad.content, Content::Sound { .. }) {
                     pad.press_again = None;
@@ -212,6 +223,35 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
         .collect()
 }
 
+/// Page by page and pad by pad, so that what cannot be read is left out alone: the pages kept, and how many pages and
+/// pads were left out.
+pub fn from_values(values: Vec<Value>) -> (Vec<CustomPage>, usize, usize) {
+    let count = values.len();
+    let mut dropped_pads = 0;
+    let mut read = Vec::new();
+    for value in values {
+        let pads = value["pads"].as_array().into_iter().flatten();
+        let unusable = pads
+            .filter(|pad| !pad.is_null() && CustomPad::deserialize(*pad).map_or(true, |pad| !pad_kept(&pad)))
+            .count();
+        if let Ok(page) = CustomPage::deserialize(value) {
+            dropped_pads += unusable;
+            read.push(page);
+        }
+    }
+    let pages = checked(read);
+    let dropped_pages = count - pages.len();
+    (pages, dropped_pages, dropped_pads)
+}
+
+/// Ids no longer than any the app makes or Voicemod uses
+fn pad_kept(pad: &CustomPad) -> bool {
+    match &pad.content {
+        Content::Sound { id, .. } | Content::Voice { id, .. } | Content::Macro { id } => id.len() <= MAX_ID,
+        Content::Action { page, .. } => page.as_ref().is_none_or(|page| page.len() <= MAX_ID),
+    }
+}
+
 fn shortened(text: &str, max: usize) -> String {
     text.trim().chars().take(max).collect()
 }
@@ -219,8 +259,8 @@ fn shortened(text: &str, max: usize) -> String {
 /// The saved pages, or none.
 pub fn load(app: &AppHandle) -> CustomPagesState {
     let saved = path(app).and_then(|path| fs::read_to_string(path).ok());
-    let pages = match saved.map(|text| serde_json::from_str::<Vec<CustomPage>>(&text)) {
-        Some(Ok(pages)) => checked(pages),
+    let pages = match saved.map(|text| serde_json::from_str::<Vec<Value>>(&text)) {
+        Some(Ok(pages)) => from_values(pages).0,
         Some(Err(error)) => {
             // Kept aside rather than written over at the next save
             crate::errors::log(format!("unreadable pages, starting without: {error}"));
@@ -340,5 +380,42 @@ mod tests {
         let pad = pages[0].pads[0].as_ref().unwrap();
         assert_eq!(pad.label, "a label far too long");
         assert_eq!(pad.press_again, None, "an action is not played again");
+    }
+
+    #[test]
+    fn long_ids_and_names_on_pads_are_cut_or_left_out() {
+        let long = "x".repeat(65);
+        let pads: Vec<Value> = vec![
+            serde_json::json!({"kind": "sound", "id": long, "name": "Honk"}),
+            serde_json::json!({"kind": "sound", "id": "s1", "name": "n".repeat(500)}),
+            serde_json::json!({"kind": "action", "action": "goToPage", "page": long}),
+            serde_json::json!({"kind": "macro", "id": long}),
+            serde_json::json!({"kind": "voice", "id": "v1", "name": "Dark"}),
+        ];
+        let value = serde_json::json!([{"id": "page-1", "name": "Mine", "pads": pads}]);
+        let (pages, dropped_pages, dropped_pads) = from_values(serde_json::from_value(value).unwrap());
+        assert_eq!((dropped_pages, dropped_pads), (0, 3));
+        let pads = &pages[0].pads;
+        assert_eq!(pads[0], None);
+        assert!(
+            matches!(&pads[1], Some(CustomPad { content: Content::Sound { name, .. }, .. }) if name.chars().count() == MAX_ITEM_NAME)
+        );
+        assert_eq!(pads[2..4], [None, None]);
+        assert!(pads[4].is_some());
+    }
+
+    #[test]
+    fn reads_page_by_page_and_counts_what_it_leaves_out() {
+        let values = serde_json::json!([
+            {"id": "page-1", "name": "Mine", "pads": [{"kind": "sound", "id": "s1"}, {"kind": "flying"}, null, 7]},
+            {"id": "page-2", "name": "Broken", "pads": 7},
+            {"id": "favourites", "name": "Not its own id", "pads": []},
+            "not a page",
+            {"id": "page-1", "name": "Twice", "pads": []}
+        ]);
+        let (pages, dropped_pages, dropped_pads) = from_values(serde_json::from_value(values).unwrap());
+        let names: Vec<_> = pages.iter().map(|page| page.name.as_str()).collect();
+        assert_eq!(names, ["Mine"]);
+        assert_eq!((dropped_pages, dropped_pads), (4, 2));
     }
 }

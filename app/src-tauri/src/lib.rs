@@ -1,3 +1,5 @@
+#[allow(dead_code)] // Until the window exports and imports through it
+mod backup;
 mod board;
 mod board_test;
 mod controller;

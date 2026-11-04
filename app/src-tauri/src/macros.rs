@@ -19,6 +19,10 @@ const MAX_NAME: usize = 24;
 const MIN_WAIT: u32 = 100;
 const MAX_WAIT: u32 = 60_000;
 const MAX_REPEAT: u8 = 3;
+/// Voicemod's ids are 36 characters, the editor's about 40
+const MAX_ID: usize = 64;
+/// A sound's or a voice's name, kept for when Voicemod is away
+const MAX_ITEM_NAME: usize = 100;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,10 +143,15 @@ pub fn checked(macros: Vec<Macro>) -> Vec<Macro> {
                 item.name = format!("#{}", index + 1);
             }
             item.repeat = item.repeat.min(MAX_REPEAT);
+            item.steps.retain(step_kept);
             item.steps.truncate(MAX_STEPS);
             for step in &mut item.steps {
-                if let Step::Wait { millis } = step {
-                    *millis = (*millis).clamp(MIN_WAIT, MAX_WAIT);
+                match step {
+                    Step::Wait { millis } => *millis = (*millis).clamp(MIN_WAIT, MAX_WAIT),
+                    Step::Sound { name, .. } | Step::Voice { name, .. } => {
+                        *name = name.trim().chars().take(MAX_ITEM_NAME).collect();
+                    }
+                    _ => {}
                 }
             }
             item
@@ -150,16 +159,40 @@ pub fn checked(macros: Vec<Macro>) -> Vec<Macro> {
         .collect()
 }
 
+/// Macro by macro and step by step, so that what cannot be read is left out alone: the macros kept, and how many
+/// macros and steps were left out.
+pub fn from_values(values: Vec<Value>) -> (Vec<Macro>, usize, usize) {
+    let count = values.len();
+    let mut dropped_steps = 0;
+    let mut read = Vec::new();
+    for value in values {
+        let steps = value["steps"].as_array().into_iter().flatten();
+        let unusable = steps
+            .filter(|step| Step::deserialize(*step).map_or(true, |step| !step_kept(&step)))
+            .count();
+        if let Ok(item) = Macro::deserialize(value) {
+            dropped_steps += unusable;
+            read.push(item);
+        }
+    }
+    let macros = checked(read);
+    let dropped_macros = count - macros.len();
+    (macros, dropped_macros, dropped_steps)
+}
+
+/// Ids no longer than any the app makes or Voicemod uses
+fn step_kept(step: &Step) -> bool {
+    match step {
+        Step::Sound { id, .. } | Step::Voice { id, .. } | Step::GoToPage { page: id } => id.len() <= MAX_ID,
+        _ => true,
+    }
+}
+
 /// The saved macros, or none. A macro this app cannot read, from another version, is left out alone.
 pub fn load(app: &AppHandle) -> MacrosState {
     let saved = path(app).and_then(|path| fs::read_to_string(path).ok());
     let macros = match saved.map(|text| serde_json::from_str::<Vec<Value>>(&text)) {
-        Some(Ok(macros)) => checked(
-            macros
-                .into_iter()
-                .filter_map(|item| Macro::deserialize(item).ok())
-                .collect(),
-        ),
+        Some(Ok(macros)) => from_values(macros).0,
         Some(Err(error)) => {
             // Kept aside rather than written over at the next save
             crate::errors::log(format!("unreadable macros, starting without: {error}"));
@@ -282,5 +315,37 @@ mod tests {
         assert_eq!(macros[0].repeat, MAX_REPEAT);
         assert_eq!(macros[0].steps, [Step::Wait { millis: MIN_WAIT }]);
         assert_eq!(macros[1].steps, [Step::Wait { millis: MAX_WAIT }]);
+    }
+
+    #[test]
+    fn long_ids_and_names_in_steps_are_cut_or_left_out() {
+        let long = "x".repeat(65);
+        let steps = serde_json::json!([
+            {"type": "sound", "id": long},
+            {"type": "sound", "id": "s1", "name": "n".repeat(500)},
+            {"type": "voice", "id": long},
+            {"type": "goToPage", "page": long},
+            {"type": "stopSounds"}
+        ]);
+        let value = serde_json::json!([{"id": "macro-1", "name": "Entrance", "steps": steps}]);
+        let (macros, dropped_macros, dropped_steps) = from_values(serde_json::from_value(value).unwrap());
+        assert_eq!((dropped_macros, dropped_steps), (0, 3));
+        let steps = &macros[0].steps;
+        assert_eq!(steps.len(), 2);
+        assert!(matches!(&steps[0], Step::Sound { name, .. } if name.chars().count() == MAX_ITEM_NAME));
+    }
+
+    #[test]
+    fn reads_macro_by_macro_and_counts_what_it_leaves_out() {
+        let values = serde_json::json!([
+            {"id": "macro-1", "name": "Entrance", "steps": [{"type": "stopSounds"}, {"type": "flying"}, 3]},
+            {"id": "macro-2", "name": "Broken", "steps": "none"},
+            {"id": "page-1", "name": "Not a macro id", "steps": []},
+            {"id": "macro-1", "name": "Twice", "steps": []}
+        ]);
+        let (macros, dropped_macros, dropped_steps) = from_values(serde_json::from_value(values).unwrap());
+        let names: Vec<_> = macros.iter().map(|item| item.name.as_str()).collect();
+        assert_eq!(names, ["Entrance"]);
+        assert_eq!((dropped_macros, dropped_steps), (3, 2));
     }
 }

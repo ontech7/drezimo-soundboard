@@ -146,7 +146,7 @@ impl Default for Settings {
 
 impl Settings {
     /// Within the ranges the window offers
-    fn checked(mut self) -> Self {
+    pub fn checked(mut self) -> Self {
         self.led_brightness = self.led_brightness.clamp(10, 100);
         self.overlay = self.overlay.checked();
         self
