@@ -44,6 +44,8 @@ enum Input {
     Key(u8),
     /// The notice's Hear them again
     HearAgain,
+    /// The notice of the volume at zero closed
+    CloseVolumeNotice,
     /// The knob turned in the window: +1 to the right
     KnobTurn(i8),
     KnobPress(bool),
@@ -362,6 +364,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 window_touch(display, Touch::Press(Control::Key(index), false));
             }
             Some(Input::HearAgain) => controller.hear_sounds_again(),
+            Some(Input::CloseVolumeNotice) => controller.close_volume_notice(),
             Some(Input::KnobTurn(step)) => {
                 controller.window_knob_turned(step, now);
                 window_touch(display, Touch::Turn(step));
@@ -620,6 +623,12 @@ pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
 #[tauri::command]
 pub fn hear_sounds_again(app: AppHandle) {
     send(&app, Input::HearAgain);
+}
+
+/// "Fine as it is" on the notice of the soundboard's volume at zero for the user, until the app starts again
+#[tauri::command]
+pub fn close_volume_notice(app: AppHandle) {
+    send(&app, Input::CloseVolumeNotice);
 }
 
 /// The knob turned in the window, a step at a time

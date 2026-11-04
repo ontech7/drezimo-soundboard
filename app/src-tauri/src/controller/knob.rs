@@ -341,7 +341,11 @@ impl Controller {
             .cloned()
             .collect();
         for target in due {
-            if let Some(request) = self.knob_waiting.remove(&target) {
+            if let Some(mut request) = self.knob_waiting.remove(&target) {
+                // Whether the channel is on as of now: a toggle may have come meanwhile
+                if let Request::SetGain { channel, enabled, .. } = &mut request {
+                    *enabled = self.mixer.is_on(*channel);
+                }
                 self.knob_sent.insert(target, now);
                 self.request(request);
             }

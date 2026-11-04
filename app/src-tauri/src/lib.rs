@@ -61,6 +61,7 @@ pub fn run() {
             device::press_pad,
             device::press_key,
             device::hear_sounds_again,
+            device::close_volume_notice,
             device::turn_knob,
             device::press_knob,
             device::display_look,

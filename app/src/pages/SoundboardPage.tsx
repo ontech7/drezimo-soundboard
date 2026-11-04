@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
 import { ChevronLeft, ChevronRight, CloseIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
@@ -76,22 +76,18 @@ function WhatIsNew() {
 const STOP = 2;
 const MUTE_ME = 3;
 
-/** The notice of a volume at zero, closed until the app starts again: no choice of the user's to remember */
-let volumeNoticeClosed = false;
-
 /**
  * Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight, and its mixer's volume
  * for the user too
  */
 function MutedForMe({ settings, cause }: { settings: Settings; cause: "switch" | "volume" }) {
   const texts = useTexts();
-  const [, setClosed] = useState(false);
-  const seen = () => {
-    if (cause === "switch") return saveSettings({ ...settings, muteForMeNoticeSeen: true });
-    volumeNoticeClosed = true;
-    setClosed(true);
-  };
-  if (cause === "switch" ? settings.muteForMeNoticeSeen : volumeNoticeClosed) return null;
+  // A volume at zero is no choice of the user's to remember: closed until the app starts again
+  const seen = () =>
+    cause === "switch"
+      ? saveSettings({ ...settings, muteForMeNoticeSeen: true })
+      : invoke("close_volume_notice").catch((error) => console.error("cannot close the notice", error));
+  if (cause === "switch" && settings.muteForMeNoticeSeen) return null;
   return (
     <div className="notice warning">
       <span className="dot warning" />
@@ -107,7 +103,7 @@ function MutedForMe({ settings, cause }: { settings: Settings; cause: "switch" |
           type="button"
           className="button"
           onClick={() => {
-            invoke("hear_sounds_again");
+            invoke("hear_sounds_again").catch((error) => console.error("cannot bring the sounds back", error));
             seen();
           }}
         >

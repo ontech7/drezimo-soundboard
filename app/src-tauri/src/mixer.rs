@@ -72,6 +72,8 @@ pub struct Mixer {
     playing: HashMap<String, f32>,
     /// The channels muted in Voicemod's mixer, as it last told: a read gives 0 for them
     off: HashSet<Channel>,
+    /// The channels whose value is only a read of 0: unknown while they are off
+    read_zero: HashSet<Channel>,
 }
 
 impl Mixer {
@@ -88,6 +90,12 @@ impl Mixer {
         }
         if let Some(on) = enabled {
             self.set_on(channel, on);
+        }
+        // A change tells the slider's value even for a channel off; a read of one off gives 0
+        if enabled.is_none() && gain <= 0.0 {
+            self.read_zero.insert(channel);
+        } else {
+            self.read_zero.remove(&channel);
         }
         self.voicemods.insert(channel, gain);
         self.current.insert(channel, gain);
@@ -106,9 +114,16 @@ impl Mixer {
         !self.off.contains(&channel)
     }
 
-    /// The channel's gain now, when known
+    /// The channel's gain now, when known: not while it is off and was only read as 0
     pub fn gain_of(&self, channel: Channel) -> Option<f32> {
+        if self.unknown_while_off(channel) {
+            return None;
+        }
         self.current.get(&channel).copied()
+    }
+
+    fn unknown_while_off(&self, channel: Channel) -> bool {
+        !self.is_on(channel) && self.read_zero.contains(&channel)
     }
 
     pub fn sound_volumes(&mut self, volumes: HashMap<String, f32>) {
@@ -117,7 +132,7 @@ impl Mixer {
 
     /// The channel's percent after `steps` clicks, or None while its value is not known yet
     pub fn step_gain(&mut self, channel: Channel, steps: i8) -> Option<u16> {
-        let now = percent(*self.current.get(&channel)?);
+        let now = percent(self.gain_of(channel)?);
         let next = stepped(now, steps, channel.max_percent());
         self.current.insert(channel, gain(next));
         Some(next)
@@ -139,7 +154,12 @@ impl Mixer {
     /// Each channel away from Voicemod's own value, and each sound still playing at another volume than its saved one
     pub fn reset(&mut self) -> Reset {
         let mut channels = Vec::new();
-        for channel in Channel::ALL {
+        // Not to a value never known: a channel off read as 0 may be anything
+        let known: Vec<Channel> = Channel::ALL
+            .into_iter()
+            .filter(|channel| !self.unknown_while_off(*channel))
+            .collect();
+        for channel in known {
             if let (Some(&own), Some(&now)) = (self.voicemods.get(&channel), self.current.get(&channel))
                 && own != now
             {

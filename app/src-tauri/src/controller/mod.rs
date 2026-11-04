@@ -207,6 +207,8 @@ pub struct Controller {
     last: Option<(String, Instant)>,
     /// A sound started while the user could not hear it: only the others did
     muted_play: Option<MutedBy>,
+    /// The notice of the volume at zero closed: not shown again until the app starts again
+    volume_notice_closed: bool,
     board_connected: bool,
     /// What the board's LEDs show, when known
     leds: [Option<Led>; LED_COUNT],
@@ -264,6 +266,7 @@ impl Default for Controller {
             peek: None,
             last: None,
             muted_play: None,
+            volume_notice_closed: false,
             board_connected: false,
             leds: [None; LED_COUNT],
             display: Animator::default(),
@@ -435,6 +438,7 @@ impl Controller {
                 self.single_stop = there;
                 self.volumes_forgotten();
                 self.read_sound_volumes(now);
+                self.follow_muted_play();
             }
             VoicemodEvent::MixerGain {
                 channel,
@@ -443,6 +447,13 @@ impl Controller {
                 ours,
             } => {
                 self.mixer.voicemod_gain(channel, gain, enabled, ours);
+                // Mute for me switched in Voicemod's own window, which the Control API may not tell
+                if channel == Channel::SoundboardForMe
+                    && !ours
+                    && let Some(on) = enabled
+                {
+                    self.switches.mute_for_me = !on;
+                }
                 self.follow_muted_play();
             }
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
@@ -554,24 +565,31 @@ impl Controller {
         self.muted_play
     }
 
-    /// Brings the sounds back to the user: Mute for me off, and the soundboard's volume for them up if at zero. Through
-    /// the bridge, which does both at once as Voicemod's mixer does; else Mute for me alone.
+    /// Brings the sounds back to the user. The soundboard's volume for them at zero: up to 100 % and on, through the
+    /// bridge, Mute for me included. Else Mute for me off, which brings the channel back at the user's own volume.
     pub fn hear_sounds_again(&mut self) {
         let channel = Channel::SoundboardForMe;
-        if self.single_stop {
-            let gain = self.mixer.gain_of(channel).filter(|gain| *gain > 0.0).unwrap_or(1.0);
+        let at_zero = self.mixer.gain_of(channel).is_some_and(|gain| gain <= 0.0);
+        if self.single_stop && at_zero {
+            self.knob_waiting.remove(&KnobSend::Channel(channel));
             self.request(Request::SetGain {
                 channel,
-                gain,
+                gain: 1.0,
                 enabled: true,
             });
             // As Voicemod will tell: the app's own change does not come back
-            self.mixer.voicemod_gain(channel, gain, Some(true), false);
+            self.mixer.voicemod_gain(channel, 1.0, Some(true), false);
             self.switches.mute_for_me = false;
         } else if self.switches.mute_for_me {
             self.request(Request::ToggleMuteForMe);
         }
         self.muted_play = None;
+    }
+
+    /// "Fine as it is" on the notice of the volume at zero: until the app starts again
+    pub fn close_volume_notice(&mut self) {
+        self.volume_notice_closed = true;
+        self.follow_muted_play();
     }
 
     /// Why the user would not hear a sound played now
@@ -586,8 +604,14 @@ impl Controller {
     /// The notice of a sound not heard stays while the reason does, and follows it
     fn follow_muted_play(&mut self) {
         if self.muted_play.is_some() {
-            self.muted_play = self.silent_for_me();
+            self.muted_play = self.to_notice();
         }
+    }
+
+    /// Why the user would not hear a sound, unless the notice for it was closed
+    fn to_notice(&self) -> Option<MutedBy> {
+        let closed = |cause: &MutedBy| *cause == MutedBy::Volume && self.volume_notice_closed;
+        self.silent_for_me().filter(|cause| !closed(cause))
     }
 
     /// Whether the playback shown comes from Voicemod's log, rather than from guesses.
@@ -940,7 +964,7 @@ impl Controller {
     }
 
     fn sound_started(&mut self) {
-        self.muted_play = self.muted_play.or(self.silent_for_me());
+        self.muted_play = self.muted_play.or(self.to_notice());
     }
 
     /// A whole play measures a sound's length; until then, its file may tell it.
