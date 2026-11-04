@@ -1634,3 +1634,91 @@ fn a_pad_that_stops_every_sound_ends_the_macro_too() {
         "b never plays"
     );
 }
+
+#[test]
+fn with_voicemods_bridge_a_pad_stops_its_sound_alone() {
+    let music = with_mode("music", PlaybackMode::PlayPause);
+    let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a"), music])]);
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
+    controller.set_press_again(PressAgain::Stop);
+    press(&mut controller, 1, true, start);
+    press(&mut controller, 1, false, start);
+    press(&mut controller, 0, true, start);
+    press(&mut controller, 0, false, start);
+
+    let again = start + Duration::from_millis(500);
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, again)),
+        [&Request::StopSound("a".into())]
+    );
+    assert_eq!(controller.playback.state("a"), None);
+    assert_eq!(
+        controller.playback.state("music"),
+        Some(State::Playing),
+        "the others play on"
+    );
+
+    controller.set_press_again(PressAgain::Restart);
+    press(&mut controller, 0, false, again);
+    let restarted = again + Duration::from_millis(500);
+    assert_eq!(
+        requests(&press(&mut controller, 1, true, restarted)),
+        [&Request::StopSound("music".into()), &play("music", true)]
+    );
+    assert_eq!(controller.playback.state("music"), Some(State::Playing));
+}
+
+#[test]
+fn without_the_bridge_any_more_a_pad_stops_every_sound_again() {
+    let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.set_press_again(PressAgain::Stop);
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(false), start);
+    press(&mut controller, 0, true, start);
+    press(&mut controller, 0, false, start);
+    let again = start + Duration::from_millis(500);
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, again)),
+        [&Request::StopAllSounds]
+    );
+}
+
+#[test]
+fn the_end_line_after_a_single_stop_does_not_undo_a_new_press() {
+    let (mut controller, start) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.voicemod_event(VoicemodEvent::SingleSoundStop(true), start);
+    controller.set_press_again(PressAgain::Stop);
+    controller.log_input(LogInput::Opened(Vec::new()), start);
+    let wall = SystemTime::now();
+    let at = |millis| wall + Duration::from_millis(millis);
+    let after = |millis| start + Duration::from_millis(millis);
+
+    press(&mut controller, 0, true, start);
+    press(&mut controller, 0, false, start);
+    controller.log_input(LogInput::Lines(vec![played_in_log("a", wall)]), start);
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, after(500))),
+        [&Request::StopSound("a".into())]
+    );
+    press(&mut controller, 0, false, after(500));
+    assert_eq!(
+        requests(&press(&mut controller, 0, true, after(600))),
+        [&play("a", true)]
+    );
+
+    // Voicemod logs the stop, then the sound's removal, then the new play
+    let lines = vec![
+        LogLine {
+            at: at(505),
+            kind: LineKind::Stop { id: "a".into() },
+        },
+        LogLine {
+            at: at(515),
+            kind: LineKind::End { id: "a".into() },
+        },
+        played_in_log("a", at(605)),
+    ];
+    // Read a moment later; their times are on the clock of `start`
+    controller.log_input(LogInput::Lines(lines), start);
+    assert_eq!(controller.playback.state("a"), Some(State::Playing));
+}

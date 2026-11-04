@@ -20,7 +20,7 @@ export function BoardPage({ settings, status }: { settings: SettingsView; status
 
   return (
     <>
-      <PressAgainSection settings={settings} />
+      <PressAgainSection settings={settings} singleStop={status.singleSoundStop} />
 
       <Section title={texts.leds}>
         <Row label={texts.brightness} text={texts.ledBrightnessText}>

@@ -2,10 +2,12 @@
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
 use crate::soundboard::{Soundboard, Voice};
+use crate::voicemod_bridge::Bridge;
 use base64::prelude::{BASE64_STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -44,6 +46,8 @@ pub enum Request {
         key_down: bool,
     },
     StopAllSounds,
+    /// One sound only, through Voicemod's bridge (src/voicemod_bridge.rs); every sound while it is not found
+    StopSound(String),
     LoadVoice(String),
     ToggleMuteForMe,
     ToggleVoiceChanger,
@@ -68,7 +72,7 @@ impl Request {
             Self::LoadVoice(id) => ("loadVoice", json!({ "voiceID": id })),
             Self::GetPicture(Picture::Sound(id)) => ("getBitmap", json!({ "memeId": id })),
             Self::GetPicture(Picture::Voice(id)) => ("getBitmap", json!({ "voiceID": id })),
-            Self::StopAllSounds => ("stopAllMemeSounds", json!({})),
+            Self::StopAllSounds | Self::StopSound(_) => ("stopAllMemeSounds", json!({})),
             Self::ToggleMuteForMe => ("toggleMuteMemeForMe", json!({})),
             Self::ToggleVoiceChanger => ("toggleVoiceChanger", json!({})),
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
@@ -104,6 +108,8 @@ pub enum VoicemodEvent {
     },
     /// Voicemod's own version, once per connection
     Version(String),
+    /// Whether a single sound can be stopped: Voicemod's bridge was found
+    SingleSoundStop(bool),
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -123,7 +129,10 @@ impl Voicemod {
     /// Connects to Voicemod in the background, again whenever it goes away; `on_event` runs on the async runtime.
     pub fn start(on_event: impl Fn(VoicemodEvent) + Send + Sync + 'static) -> Self {
         let (requests, outgoing) = mpsc::unbounded_channel();
-        tauri::async_runtime::spawn(keep_connected(outgoing, on_event));
+        let on_event = Arc::new(on_event);
+        let found = on_event.clone();
+        let bridge = Bridge::start(move |there| found(VoicemodEvent::SingleSoundStop(there)));
+        tauri::async_runtime::spawn(keep_connected(outgoing, move |event| on_event(event), bridge));
         Self { requests }
     }
 
@@ -141,7 +150,7 @@ impl Voicemod {
     }
 }
 
-async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl Fn(VoicemodEvent)) {
+async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl Fn(VoicemodEvent), bridge: Bridge) {
     let Some(key) = CLIENT_KEY.filter(|key| !key.is_empty()) else {
         on_event(VoicemodEvent::Status(VoicemodStatus::MissingKey));
         return;
@@ -153,7 +162,7 @@ async fn keep_connected(mut requests: UnboundedReceiver<Request>, on_event: impl
                 // Requests made while Voicemod was away are stale
                 while requests.try_recv().is_ok() {}
                 report(&mut status, VoicemodStatus::Connected, &on_event);
-                if let Err(error) = exchange(socket, &mut requests, &on_event).await {
+                if let Err(error) = exchange(socket, &mut requests, &on_event, &bridge).await {
                     crate::errors::log(format!("lost the connection to Voicemod: {}", socket_error(&error)));
                 }
                 report(&mut status, VoicemodStatus::Unreachable, &on_event);
@@ -224,6 +233,7 @@ async fn exchange(
     mut socket: Socket,
     requests: &mut UnboundedReceiver<Request>,
     on_event: &impl Fn(VoicemodEvent),
+    bridge: &Bridge,
 ) -> Result<(), tungstenite::Error> {
     // The voices before the soundboards: the board starts on the first page whatever comes first
     for action in [
@@ -267,8 +277,18 @@ async fn exchange(
                 None => return Ok(()),
             },
             Some(request) = requests.recv() => {
-                let (action, payload) = request.action();
-                socket.send(frame(action, payload)).await?;
+                if let Request::PlaySound { id, key_down: true } = &request {
+                    bridge.pressed(id);
+                }
+                // Waits for Voicemod to stop it, so that a press asked next comes after it
+                let stopped_alone = match &request {
+                    Request::StopSound(id) => bridge.stop_sound(id).await,
+                    _ => false,
+                };
+                if !stopped_alone {
+                    let (action, payload) = request.action();
+                    socket.send(frame(action, payload)).await?;
+                }
             }
         }
     }

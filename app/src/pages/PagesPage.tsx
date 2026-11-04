@@ -155,11 +155,19 @@ function look(pad: CustomPad, lookup: Lookup, texts: Texts): Look {
   }
 }
 
-export function PagesPage({ pressAgain, onOpenMacros }: { pressAgain: PressAgain; onOpenMacros: () => void }) {
+interface PagesProps {
+  /** As set on the Drezimo page */
+  pressAgain: PressAgain;
+  /** Voicemod's bridge was found: a pad can stop a single sound */
+  singleStop: boolean;
+  onOpenMacros: () => void;
+}
+
+export function PagesPage({ pressAgain, singleStop, onOpenMacros }: PagesProps) {
   const texts = useTexts();
   const [pages, save, saveError] = useCustomPages();
   const library = useLibrary();
-  const outcomes = usePressOutcomes();
+  const outcomes = usePressOutcomes(singleStop);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [picking, setPicking] = useState<PickerStart | null>(null);

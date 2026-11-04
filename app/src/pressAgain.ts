@@ -63,13 +63,13 @@ export function soundsByMode(library: Library | null): [PlaybackMode, number][] 
     .sort((a, b) => b[1] - a[1]);
 }
 
-/** The outcomes never change: asked once per page shown */
-export function usePressOutcomes(): Outcomes | null {
+/** They change only with `singleStop`: whether Voicemod's bridge, which stops a single sound, was found */
+export function usePressOutcomes(singleStop: boolean): Outcomes | null {
   const [outcomes, setOutcomes] = useState<Outcomes | null>(null);
   useEffect(() => {
-    invoke<Outcomes>("press_outcomes")
+    invoke<Outcomes>("press_outcomes", { singleStop })
       .then(setOutcomes)
       .catch((error) => console.error("cannot read what a press again does", error));
-  }, []);
+  }, [singleStop]);
   return outcomes;
 }

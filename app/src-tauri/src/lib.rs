@@ -21,6 +21,7 @@ mod tour;
 mod tray;
 mod updates;
 mod voicemod;
+mod voicemod_bridge;
 mod voicemod_log;
 mod window;
 

@@ -82,6 +82,8 @@ pub struct Status {
     pub running_macro: Option<MacroProgress>,
     /// A sound played while Voicemod's Mute for me was on, which is still on
     pub muted_play: bool,
+    /// Voicemod's bridge was found: a pad can stop a single sound
+    pub single_sound_stop: bool,
 }
 
 #[tauri::command]
@@ -261,6 +263,7 @@ fn run(
                     }
                     VoicemodEvent::License(license) => status.license = Some(*license),
                     VoicemodEvent::Version(version) => status.voicemod_version = Some(version.clone()),
+                    VoicemodEvent::SingleSoundStop(there) => status.single_sound_stop = *there,
                     VoicemodEvent::Soundboards(soundboards) => {
                         update_library(app, |library| library.set_soundboards(soundboards));
                     }

@@ -174,6 +174,11 @@ fn voicemod(status: &Status) -> String {
             } else {
                 ", log not read"
             });
+            text.push_str(if status.single_sound_stop {
+                ", single sound stop"
+            } else {
+                ", no single sound stop"
+            });
             text
         }
     }
@@ -364,7 +369,7 @@ mod tests {
             "App: 0.1.0 (local build)",
             "System: macOS 26.0 (aarch64)",
             "Board: connected on COM3, firmware 0.2.1",
-            "Voicemod: connected, 3.17.43, free licence, log read",
+            "Voicemod: connected, 3.17.43, free licence, log read, no single sound stop",
             "Pages: 44 (2 of your own), 1 macro",
             "Updates: up to date, checked 2026-11-03 12:40",
             "Start at login: off",

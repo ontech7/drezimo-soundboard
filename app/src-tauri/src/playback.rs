@@ -414,7 +414,8 @@ impl Playback {
         }
     }
 
-    fn stop(&mut self, id: &str, at: Instant) {
+    /// Stops one sound, as Voicemod's bridge does.
+    pub fn stop(&mut self, id: &str, at: Instant) {
         if self.forget(id, at) {
             self.expect(Line::End { id: id.to_string() }, at);
         }
@@ -668,6 +669,27 @@ mod tests {
         playback.apply(&others, now + 500 * MS, None);
         assert_eq!(playback.state("a"), None);
         assert_eq!(playback.state("b"), Some(State::Playing));
+    }
+
+    #[test]
+    fn a_sound_stopped_alone_and_pressed_again_is_confirmed_by_the_log() {
+        let mut playback = following();
+        let music = with_mode("music", PlaybackMode::PlayPause);
+        let start = Instant::now();
+        playback.press(&music, start);
+        playback.apply(&played("music", false, State::Playing), start + 100 * MS, None);
+
+        // Voicemod logs the stop as its end, then a play from the start
+        let again = start + Duration::from_secs(5);
+        playback.stop("music", again);
+        playback.press(&music, again);
+        assert!(!playback.apply(&ended("music"), again + 5 * MS, None), "expected");
+        assert!(
+            !playback.apply(&played("music", false, State::Playing), again + 10 * MS, None),
+            "expected"
+        );
+        assert!(!playback.update(again + CONFIRM_TIMEOUT), "nothing left unconfirmed");
+        assert_eq!(playback.state("music"), Some(State::Playing));
     }
 
     #[test]

@@ -130,6 +130,8 @@ pub struct Controller {
     playback: Playback,
     /// What a pad does when pressed again, unless the user picked it for that pad
     press_again: PressAgain,
+    /// Voicemod's bridge was found: a single sound can be stopped
+    single_stop: bool,
     /// Voicemod's sounds as its log tells them
     log: LogTracker,
     /// As Voicemod last sent them, for the pages
@@ -191,6 +193,7 @@ impl Default for Controller {
             resume: None,
             playback: Playback::default(),
             press_again: PressAgain::default(),
+            single_stop: false,
             log: LogTracker::default(),
             soundboards: Vec::new(),
             voices: Vec::new(),
@@ -373,6 +376,7 @@ impl Controller {
             VoicemodEvent::HearMyself(on) => self.switches.hear_myself = on,
             VoicemodEvent::MuteMic(on) => self.switches.mic_muted = on,
             VoicemodEvent::Background(on) => self.switches.background = on,
+            VoicemodEvent::SingleSoundStop(there) => self.single_stop = there,
             // Only for the window (src/pictures.rs) and the status
             VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
@@ -570,12 +574,13 @@ impl Controller {
 
         let outcome = self.outcome_at(pad, &sound);
         let active = self.playback.state(&sound.id).is_some();
-        for &command in press_again::on_press(outcome.does, sound.playback_mode, active) {
+        for &command in press_again::on_press(outcome.does, sound.playback_mode, active, self.single_stop) {
             self.command(command, &sound, now);
         }
         self.sound_started();
         self.last = Some((sound.name.clone(), now));
-        let held_sound = press_again::on_release(outcome.does, sound.playback_mode).map(|release| HeldSound {
+        let release = press_again::on_release(outcome.does, sound.playback_mode, self.single_stop);
+        let held_sound = release.map(|release| HeldSound {
             sound,
             since: now,
             release,
@@ -586,7 +591,11 @@ impl Controller {
     /// What pressing a pad's sound again does: as picked for that pad, else as for every pad.
     fn outcome_at(&self, pad: u8, sound: &Sound) -> Outcome {
         let picked = self.pages.get(self.page).and_then(|page| page.press_again(pad));
-        press_again::outcome(picked.unwrap_or(self.press_again), sound.playback_mode)
+        press_again::outcome(
+            picked.unwrap_or(self.press_again),
+            sound.playback_mode,
+            self.single_stop,
+        )
     }
 
     fn command(&mut self, command: Command, sound: &Sound, now: Instant) {
@@ -604,6 +613,10 @@ impl Controller {
                     key_down: false,
                 });
                 self.playback.release(sound, now);
+            }
+            Command::StopSound => {
+                self.request(Request::StopSound(sound.id.clone()));
+                self.playback.stop(&sound.id, now);
             }
             Command::StopAll => {
                 // As the STOP key: a macro would play on

@@ -20,10 +20,10 @@ import { type PressAgain, type SettingsView, saveSettings } from "./settings";
 const MARKS: Record<Reach, string> = { chosen: "✓", stopsAll: "!", instead: "→" };
 
 /** The Drezimo page's choice for every pad, and what it does to the user's sounds */
-export function PressAgainSection({ settings }: { settings: SettingsView }) {
+export function PressAgainSection({ settings, singleStop }: { settings: SettingsView; singleStop: boolean }) {
   const texts = useTexts();
   const library = useLibrary();
-  const outcomes = usePressOutcomes();
+  const outcomes = usePressOutcomes(singleStop);
   const choice = settings.pressAgain;
   const groups = soundsByMode(library);
 

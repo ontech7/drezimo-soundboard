@@ -1,6 +1,6 @@
 //! What a pad does when it is pressed again while its sound plays: the sound's own rule in Voicemod, or one the user
-//! picks. Voicemod's API can only press a sound and stop every sound, so each choice is made of those two, and what it
-//! can do depends on the sound's own mode (docs/project.md, section 8).
+//! picks. Voicemod's API can only press a sound and stop every sound; its bridge, when found, also stops a single one.
+//! Each choice is made of those, and what it can do depends on the sound's own mode (docs/project.md, section 8).
 
 use crate::soundboard::PlaybackMode;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -53,7 +53,8 @@ pub struct Outcome {
     pub stops_all: bool,
 }
 
-pub fn outcome(choice: PressAgain, mode: PlaybackMode) -> Outcome {
+/// With `single_stop` when Voicemod's bridge can stop a single sound.
+pub fn outcome(choice: PressAgain, mode: PlaybackMode, single_stop: bool) -> Outcome {
     use PlaybackMode::*;
     use PressAgain::*;
     let (does, stops_all) = match (choice, mode) {
@@ -67,7 +68,10 @@ pub fn outcome(choice: PressAgain, mode: PlaybackMode) -> Outcome {
         (Stop | Hold, PlayStop | PlayLoopOnPress) => (choice, false),
         (Stop | Hold, PlayRestart | PlayOverlap | PlayPause) => (choice, true),
     };
-    Outcome { does, stops_all }
+    Outcome {
+        does,
+        stops_all: stops_all && !single_stop,
+    }
 }
 
 /// What goes to Voicemod for a pad
@@ -77,11 +81,13 @@ pub enum Command {
     KeyDown,
     /// Ends a sound that plays while held
     KeyUp,
+    /// Through Voicemod's bridge
+    StopSound,
     StopAll,
 }
 
 /// For a press of the pad, by what it does and the sound's mode; `active` when the sound plays or is paused.
-pub fn on_press(does: PressAgain, mode: PlaybackMode, active: bool) -> &'static [Command] {
+pub fn on_press(does: PressAgain, mode: PlaybackMode, active: bool, single_stop: bool) -> &'static [Command] {
     use Command::*;
     use PlaybackMode::*;
     use PressAgain::*;
@@ -89,6 +95,8 @@ pub fn on_press(does: PressAgain, mode: PlaybackMode, active: bool) -> &'static 
         return &[KeyDown];
     }
     match (does, mode) {
+        (Restart | Hold, PlayStop | PlayPause | PlayOverlap) if single_stop => &[StopSound, KeyDown],
+        (Stop, PlayRestart | PlayOverlap | PlayPause) if single_stop => &[StopSound],
         // The first click stops it, the second starts it from the start
         (Restart | Hold, PlayStop) => &[KeyDown, KeyDown],
         (Restart | Hold, PlayPause | PlayOverlap) => &[StopAll, KeyDown],
@@ -98,9 +106,10 @@ pub fn on_press(does: PressAgain, mode: PlaybackMode, active: bool) -> &'static 
 }
 
 /// For the release of the pad, sent only if the sound still plays.
-pub fn on_release(does: PressAgain, mode: PlaybackMode) -> Option<Command> {
+pub fn on_release(does: PressAgain, mode: PlaybackMode, single_stop: bool) -> Option<Command> {
     match (does, mode) {
         (PressAgain::Voicemod | PressAgain::Hold, PlaybackMode::PlayLoopOnPress) => Some(Command::KeyUp),
+        (PressAgain::Hold, _) if single_stop => Some(Command::StopSound),
         (PressAgain::Hold, PlaybackMode::PlayStop) => Some(Command::KeyDown),
         (PressAgain::Hold, _) => Some(Command::StopAll),
         _ => None,
@@ -109,8 +118,12 @@ pub fn on_release(does: PressAgain, mode: PlaybackMode) -> Option<Command> {
 
 /// Every choice's outcome for each of Voicemod's modes, for the window to tell what a choice does to a sound.
 #[tauri::command]
-pub fn press_outcomes() -> HashMap<PlaybackMode, HashMap<PressAgain, Outcome>> {
-    let outcomes = |mode| CHOICES.map(|choice| (choice, outcome(choice, mode))).into();
+pub fn press_outcomes(single_stop: bool) -> HashMap<PlaybackMode, HashMap<PressAgain, Outcome>> {
+    let outcomes = |mode| {
+        CHOICES
+            .map(|choice| (choice, outcome(choice, mode, single_stop)))
+            .into()
+    };
     MODES.map(|mode| (mode, outcomes(mode))).into()
 }
 
@@ -131,22 +144,33 @@ mod tests {
     use Command::*;
     use PlaybackMode::*;
 
+    /// Without Voicemod's bridge
+    const ALL: bool = false;
+    /// With it
+    const SINGLE: bool = true;
+
     #[test]
     fn as_in_voicemod_changes_nothing() {
-        for mode in MODES {
-            let does = outcome(PressAgain::Voicemod, mode).does;
-            assert_eq!(does, PressAgain::Voicemod);
-            assert_eq!(on_press(does, mode, true), [KeyDown], "{mode:?}");
+        for single_stop in [ALL, SINGLE] {
+            for mode in MODES {
+                let does = outcome(PressAgain::Voicemod, mode, single_stop).does;
+                assert_eq!(does, PressAgain::Voicemod);
+                assert_eq!(on_press(does, mode, true, single_stop), [KeyDown], "{mode:?}");
+            }
+            assert_eq!(
+                on_release(PressAgain::Voicemod, PlayLoopOnPress, single_stop),
+                Some(KeyUp)
+            );
+            assert_eq!(on_release(PressAgain::Voicemod, PlayRestart, single_stop), None);
         }
-        assert_eq!(on_release(PressAgain::Voicemod, PlayLoopOnPress), Some(KeyUp));
-        assert_eq!(on_release(PressAgain::Voicemod, PlayRestart), None);
     }
 
     #[test]
     fn a_sound_not_playing_starts_with_one_click() {
         for choice in CHOICES {
             for mode in [PlayRestart, PlayStop, PlayPause] {
-                assert_eq!(on_press(outcome(choice, mode).does, mode, false), [KeyDown]);
+                let does = outcome(choice, mode, SINGLE).does;
+                assert_eq!(on_press(does, mode, false, SINGLE), [KeyDown]);
             }
         }
     }
@@ -154,42 +178,49 @@ mod tests {
     #[test]
     fn restart_clicks_twice_where_a_click_stops_it_and_stops_all_where_it_pauses() {
         let restart = |mode| {
-            let outcome = outcome(PressAgain::Restart, mode);
-            (outcome.stops_all, on_press(outcome.does, mode, true))
+            let outcome = outcome(PressAgain::Restart, mode, ALL);
+            (outcome.stops_all, on_press(outcome.does, mode, true, ALL))
         };
         assert_eq!(restart(PlayRestart), (false, &[KeyDown][..]));
         assert_eq!(restart(PlayStop), (false, &[KeyDown, KeyDown][..]));
         assert_eq!(restart(PlayPause), (true, &[StopAll, KeyDown][..]));
         assert_eq!(restart(PlayOverlap), (true, &[StopAll, KeyDown][..]));
         // A sound that plays while held starts from the start at each press already
-        assert_eq!(outcome(PressAgain::Restart, PlayLoopOnPress).does, PressAgain::Voicemod);
+        assert_eq!(
+            outcome(PressAgain::Restart, PlayLoopOnPress, ALL).does,
+            PressAgain::Voicemod
+        );
     }
 
     #[test]
     fn overlap_and_pause_only_where_voicemod_does_them() {
-        assert_eq!(outcome(PressAgain::Overlap, PlayOverlap).does, PressAgain::Overlap);
-        assert_eq!(outcome(PressAgain::Overlap, PlayRestart).does, PressAgain::Restart);
+        assert_eq!(outcome(PressAgain::Overlap, PlayOverlap, ALL).does, PressAgain::Overlap);
+        assert_eq!(outcome(PressAgain::Overlap, PlayRestart, ALL).does, PressAgain::Restart);
         assert_eq!(
-            outcome(PressAgain::Overlap, PlayPause),
+            outcome(PressAgain::Overlap, PlayPause, ALL),
             Outcome {
                 does: PressAgain::Restart,
                 stops_all: true
             }
         );
-        assert_eq!(outcome(PressAgain::Pause, PlayPause).does, PressAgain::Pause);
+        assert_eq!(outcome(PressAgain::Pause, PlayPause, ALL).does, PressAgain::Pause);
         for mode in [PlayRestart, PlayStop, PlayOverlap, PlayLoopOnPress] {
-            assert_eq!(outcome(PressAgain::Pause, mode).does, PressAgain::Voicemod, "{mode:?}");
+            assert_eq!(
+                outcome(PressAgain::Pause, mode, SINGLE).does,
+                PressAgain::Voicemod,
+                "{mode:?}"
+            );
         }
     }
 
     #[test]
     fn stop_stops_only_that_sound_where_a_click_does() {
         let stop = |mode| {
-            let outcome = outcome(PressAgain::Stop, mode);
+            let outcome = outcome(PressAgain::Stop, mode, ALL);
             (
                 outcome.stops_all,
-                on_press(outcome.does, mode, true),
-                on_release(outcome.does, mode),
+                on_press(outcome.does, mode, true, ALL),
+                on_release(outcome.does, mode, ALL),
             )
         };
         assert_eq!(stop(PlayStop), (false, &[KeyDown][..], None));
@@ -202,14 +233,37 @@ mod tests {
     #[test]
     fn hold_ends_the_sound_on_release() {
         let hold = |mode| {
-            let outcome = outcome(PressAgain::Hold, mode);
-            (outcome.stops_all, on_release(outcome.does, mode))
+            let outcome = outcome(PressAgain::Hold, mode, ALL);
+            (outcome.stops_all, on_release(outcome.does, mode, ALL))
         };
         assert_eq!(hold(PlayLoopOnPress), (false, Some(KeyUp)));
         assert_eq!(hold(PlayStop), (false, Some(KeyDown)));
         assert_eq!(hold(PlayRestart), (true, Some(StopAll)));
         assert_eq!(hold(PlayPause), (true, Some(StopAll)));
-        assert_eq!(on_press(PressAgain::Hold, PlayStop, true), [KeyDown, KeyDown]);
+        assert_eq!(on_press(PressAgain::Hold, PlayStop, true, ALL), [KeyDown, KeyDown]);
+    }
+
+    #[test]
+    fn the_bridge_stops_that_sound_alone() {
+        for mode in [PlayRestart, PlayOverlap, PlayStop, PlayPause] {
+            for choice in [PressAgain::Restart, PressAgain::Stop, PressAgain::Hold] {
+                assert!(!outcome(choice, mode, SINGLE).stops_all, "{choice:?} {mode:?}");
+            }
+            assert_eq!(on_release(PressAgain::Hold, mode, SINGLE), Some(StopSound), "{mode:?}");
+        }
+        for mode in [PlayRestart, PlayOverlap, PlayPause] {
+            assert_eq!(on_press(PressAgain::Stop, mode, true, SINGLE), [StopSound], "{mode:?}");
+        }
+        // Its own click stops it, and starts it if it just ended unseen
+        assert_eq!(on_press(PressAgain::Stop, PlayStop, true, SINGLE), [KeyDown]);
+        // From the start: stopped first, then pressed
+        for mode in [PlayStop, PlayPause, PlayOverlap] {
+            assert_eq!(on_press(PressAgain::Restart, mode, true, SINGLE), [StopSound, KeyDown]);
+        }
+        assert_eq!(on_press(PressAgain::Restart, PlayRestart, true, SINGLE), [KeyDown]);
+        // A held sound keeps its own key-down and key-up
+        assert_eq!(on_press(PressAgain::Stop, PlayLoopOnPress, true, SINGLE), [KeyDown]);
+        assert_eq!(on_release(PressAgain::Hold, PlayLoopOnPress, SINGLE), Some(KeyUp));
     }
 
     #[test]
@@ -222,11 +276,13 @@ mod tests {
 
     #[test]
     fn the_windows_table_names_modes_and_choices_as_the_json_does() {
-        let table = serde_json::to_value(press_outcomes()).unwrap();
+        let table = serde_json::to_value(press_outcomes(ALL)).unwrap();
         assert_eq!(
             table["PlayPause"]["stop"],
             serde_json::json!({ "does": "stop", "stopsAll": true })
         );
         assert_eq!(table["Unknown"]["hold"]["does"], "voicemod");
+        let single = serde_json::to_value(press_outcomes(SINGLE)).unwrap();
+        assert_eq!(single["PlayPause"]["stop"]["stopsAll"], false);
     }
 }

@@ -27,6 +27,9 @@ export function DiagnosticsPage({ status, activity }: { status: Status; activity
         <Row label={texts.voicemodLog} text={connected && !status.voicemodLog ? texts.logUnreadable : undefined}>
           <span className="value">{connected ? (status.voicemodLog ? texts.logRead : texts.logNotRead) : "—"}</span>
         </Row>
+        <Row label={texts.singleSoundStop} text={connected && !status.singleSoundStop ? texts.noSingleSoundStop : undefined}>
+          <span className="value">{connected ? (status.singleSoundStop ? texts.available : texts.unavailable) : "—"}</span>
+        </Row>
       </Section>
 
       <BoardTestCard status={status} />

@@ -219,6 +219,11 @@ const ENGLISH = {
   voicemodLog: "Voicemod's log",
   logRead: "Read",
   logNotRead: "Not read",
+  singleSoundStop: "Single sound stop",
+  noSingleSoundStop:
+    "Voicemod's internal bridge is not in use: where a pad pressed again cannot stop its sound alone, it stops every sound.",
+  available: "Available",
+  unavailable: "Unavailable",
 
   test: {
     title: "Hardware test",
@@ -729,6 +734,11 @@ const ITALIAN: Texts = {
   voicemodLog: "Log di Voicemod",
   logRead: "Letto",
   logNotRead: "Non letto",
+  singleSoundStop: "Stop di un solo suono",
+  noSingleSoundStop:
+    "Il canale interno di Voicemod non è in uso: dove un pad ripremuto non può fermare solo il suo suono, li ferma tutti.",
+  available: "Disponibile",
+  unavailable: "Non disponibile",
 
   test: {
     title: "Collaudo",
