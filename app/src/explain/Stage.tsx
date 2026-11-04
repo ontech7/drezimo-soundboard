@@ -5,10 +5,8 @@ import { Dialog } from "../pages/PadPicker";
 interface Props {
   title: string;
   subtitle: string;
-  left: ReactNode;
-  right: ReactNode;
-  /** Changes each time the gesture acts: the arrow between the halves flashes */
-  fired: number;
+  /** The two halves and the arrow between them */
+  scene: ReactNode;
   sentence: string;
   note?: string;
   choiceLabel: string;
@@ -32,14 +30,6 @@ export function Stage(props: Props) {
       unlisten.then((stop) => stop()).catch(() => {});
     };
   }, []);
-  // The arrow lights at each beat and fades, or only lights while the system asks for less motion
-  const [lit, setLit] = useState(false);
-  useEffect(() => {
-    if (!props.fired) return;
-    setLit(true);
-    const timer = window.setTimeout(() => setLit(false), 120);
-    return () => clearTimeout(timer);
-  }, [props.fired]);
   const sentence = useId();
   const note = useId();
 
@@ -54,13 +44,7 @@ export function Stage(props: Props) {
     >
       <div className="dialog-body">
         <div className="explain-stage" aria-hidden="true">
-          {props.left}
-          <span className={lit ? "explain-arrow lit" : "explain-arrow"}>
-            <svg viewBox="0 0 16 16">
-              <path d="M2 8h11M9 4l4 4-4 4" />
-            </svg>
-          </span>
-          {props.right}
+          {props.scene}
         </div>
         <p id={sentence} className="explain-sentence">
           {props.sentence}
@@ -82,6 +66,24 @@ export function Stage(props: Props) {
         </button>
       </footer>
     </Dialog>
+  );
+}
+
+/** Between the halves: it lights at each beat and fades, or only lights while the system asks for less motion */
+export function Arrow({ fired }: { fired: number }) {
+  const [lit, setLit] = useState(false);
+  useEffect(() => {
+    if (!fired) return;
+    setLit(true);
+    const timer = window.setTimeout(() => setLit(false), 120);
+    return () => clearTimeout(timer);
+  }, [fired]);
+  return (
+    <span className={lit ? "explain-arrow lit" : "explain-arrow"}>
+      <svg viewBox="0 0 16 16">
+        <path d="M2 8h11M9 4l4 4-4 4" />
+      </svg>
+    </span>
   );
 }
 

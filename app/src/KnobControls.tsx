@@ -2,37 +2,12 @@ import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Row, Section } from "./controls";
 import { pageTargets, useCustomPages, useLibrary } from "./customPages";
 import { useTexts } from "./i18n";
-import { BRIDGE_ACTIONS, goneTarget } from "./knob";
+import { BRIDGE_ACTIONS, goneTarget, PRESS_ACTIONS, TURN_ACTIONS } from "./knob";
 import { useMacros } from "./macros";
 import { SearchSelect } from "./SearchSelect";
-import { type KnobSettings, type PressAction, type SettingsView, saveSettings, type TurnAction } from "./settings";
+import { type KnobSettings, type PressAction, type SettingsView, saveSettings } from "./settings";
 import type { Status } from "./status";
 import type { KnobGesture } from "./explain/story";
-
-const TURN_ACTIONS: TurnAction["action"][] = [
-  "page",
-  "rows",
-  "soundboardForOthers",
-  "soundboardForMe",
-  "playingSound",
-  "microphone",
-  "voice",
-  "nothing",
-];
-const PRESS_ACTIONS: PressAction["action"][] = [
-  "menu",
-  "stopSounds",
-  "muteMic",
-  "muteForMe",
-  "voiceChanger",
-  "hearMyself",
-  "background",
-  "randomVoice",
-  "macro",
-  "page",
-  "resetVolumes",
-  "nothing",
-];
 
 type TurnGesture = "turn" | "holdTurn";
 type PressGesture = "tap" | "doubleTap" | "longPress";

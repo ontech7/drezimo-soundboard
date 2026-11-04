@@ -567,8 +567,12 @@ const ENGLISH = {
         text: "A sequence on a single pad: sounds, waits, voices, the microphone and more. At the end it can put everything back. Press Try.",
       },
       {
+        title: "Drezimo, your way",
+        text: "Choose what each knob gesture does, Voicemod's volumes included, and what a pad does when pressed again. On the Drezimo page, ▶ shows how each row works.",
+      },
+      {
         title: "All set",
-        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In this window you manage pages, macros and the rest; the tour stays in Settings.",
+        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In Settings you find the tour again and a backup of the whole configuration.",
       },
     ],
     parts: [
@@ -1187,8 +1191,12 @@ const ITALIAN: Texts = {
         text: "Una sequenza su un solo tasto: suoni, pause, voci, microfono e altro. Alla fine può rimettere tutto com'era. Premi Prova.",
       },
       {
+        title: "Drezimo, a modo tuo",
+        text: "Scegli cosa fa ogni gesto della manopola, volumi di Voicemod compresi, e cosa fa un pad ripremuto. Nella pagina Drezimo, ▶ mostra come funziona ogni riga.",
+      },
+      {
         title: "Tutto pronto",
-        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. Da questa finestra gestisci pagine, macro e il resto; il tour resta in Impostazioni.",
+        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. In Impostazioni ritrovi il tour e il backup di tutta la configurazione.",
       },
     ],
     parts: [

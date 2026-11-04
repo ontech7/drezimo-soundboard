@@ -1,7 +1,33 @@
 import type { Library, PageTarget } from "./customPages";
 import type { Texts } from "./i18n";
 import type { Macro } from "./macros";
-import type { PressAction } from "./settings";
+import type { PressAction, TurnAction } from "./settings";
+
+/** In the order the selects list them */
+export const TURN_ACTIONS: TurnAction["action"][] = [
+  "page",
+  "rows",
+  "soundboardForOthers",
+  "soundboardForMe",
+  "playingSound",
+  "microphone",
+  "voice",
+  "nothing",
+];
+export const PRESS_ACTIONS: PressAction["action"][] = [
+  "menu",
+  "stopSounds",
+  "muteMic",
+  "muteForMe",
+  "voiceChanger",
+  "hearMyself",
+  "background",
+  "randomVoice",
+  "macro",
+  "page",
+  "resetVolumes",
+  "nothing",
+];
 
 /** What goes through Voicemod's bridge (src-tauri/src/voicemod_bridge.rs) */
 export const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe", "playingSound", "microphone", "resetVolumes"]);

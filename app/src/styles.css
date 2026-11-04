@@ -3184,6 +3184,49 @@ input.seconds {
   font-size: 12px;
 }
 
+/* The Drezimo page: its tabs and rows on the left, a row's explanation on the right */
+.tour-drezimo-rows {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  width: 226px;
+}
+
+.tour-drezimo-rows .segmented {
+  margin-bottom: 4px;
+}
+
+.tour-drezimo-rows .segmented button {
+  flex: 1;
+}
+
+.tour-drezimo-rows .choice {
+  min-height: 0;
+  padding: 6px 12px;
+}
+
+.tour-drezimo-stage {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 266px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  width: 422px;
+}
+
+/* The longest list scrolls inside the stage, above the select */
+.tour-drezimo-stage .search-menu ul {
+  max-height: 216px;
+}
+
 /* The Settings page, a little smaller */
 .tour-window {
   position: absolute;
@@ -3204,6 +3247,11 @@ input.seconds {
 }
 
 /* Tighter, so that the settings at its foot fit the window's height */
+/* A picture: nothing in it scrolls */
+.tour-window main {
+  overflow: hidden;
+}
+
 .tour-window .sidebar {
   --sidebar-gap: 12px;
   padding-block: 14px;

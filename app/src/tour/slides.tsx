@@ -1,5 +1,5 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Row, Section, Segmented, Toggle } from "../controls";
+import { type CSSProperties, lazy, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Row, Section, Segmented } from "../controls";
 import {
   ACTION_COLOURS,
   LOCKED_COLOUR,
@@ -14,10 +14,14 @@ import {
 import { DisplayCanvas } from "../DisplayPreview";
 import { Cap } from "../Drezimo";
 import { Swatches } from "../editing";
+import type { KnobGesture } from "../explain/story";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
-import { languages, WINDOWS } from "../pages/SettingsPage";
+import { PRESS_ACTIONS, TURN_ACTIONS } from "../knob";
 import { describe, Timeline, Tinted } from "../pages/MacrosPage";
+import { CHOICES, type KindMode, MODE_ROWS, voicemodsOwn } from "../pressAgain";
+import { SearchSelect } from "../SearchSelect";
+import type { KnobSettings, PressAction, PressAgain, PressAgainByMode } from "../settings";
 import { type PageId, Sidebar } from "../Sidebar";
 import {
   FIRST_TARGET,
@@ -309,9 +313,125 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
   );
 }
 
+const KnobDemo = lazy(() => import("../explain/Explainer").then((module) => ({ default: module.KnobDemo })));
+const PadDemo = lazy(() => import("../explain/Explainer").then((module) => ({ default: module.PadDemo })));
+
+const GESTURES: KnobGesture[] = ["turn", "holdTurn", "tap", "doubleTap", "longPress"];
+
+/** The knob as the slide starts: the gestures that do nothing at first get something to show */
+const SAMPLE_KNOB: KnobSettings = {
+  turn: { action: "page" },
+  holdTurn: { action: "rows" },
+  tap: { action: "menu" },
+  doubleTap: { action: "muteMic" },
+  longPress: { action: "stopSounds" },
+};
+
+const AS_IN_VOICEMOD = Object.fromEntries(MODE_ROWS.map(([, key]) => [key, "voicemod"])) as PressAgainByMode;
+
+function pressChoice(action: PressAction["action"]): PressAction {
+  if (action === "macro") return { action, macroId: "" };
+  if (action === "page") return { action, page: "" };
+  return { action };
+}
+
+/** The Drezimo page's rows, each tried in its explanation: nothing is saved */
+export function DrezimoPage() {
+  const texts = useTexts();
+  const [tab, setTab] = useState<"knob" | "pad">("knob");
+  const [knob, setKnob] = useState(SAMPLE_KNOB);
+  const [gesture, setGesture] = useState<KnobGesture>("turn");
+  const [pads, setPads] = useState(AS_IN_VOICEMOD);
+  const [row, setRow] = useState(0);
+  const [mode, key] = MODE_ROWS[row];
+
+  const actionName = (of: KnobGesture) =>
+    of === "turn" || of === "holdTurn"
+      ? texts.knobTab.turnActions[knob[of].action]
+      : texts.knobTab.pressActions[knob[of].action];
+  const padChoiceName = (kind: KindMode, choice: PressAgain) =>
+    choice === "voicemod" ? `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[kind]}` : texts.pressAgainNames[choice];
+  const choice = (on: boolean, name: string, value: string, onPick: () => void) => (
+    <button key={name} type="button" className={on ? "choice on" : "choice"} aria-pressed={on} onClick={onPick}>
+      <span className="text">
+        <span className="name">{name}</span>
+        <span className="muted">{value}</span>
+      </span>
+    </button>
+  );
+
+  let select: ReactNode;
+  if (tab === "pad") {
+    select = (
+      <SearchSelect
+        label={texts.kindNames[mode]}
+        options={CHOICES.filter((value) => value !== voicemodsOwn(mode)).map((value) => ({
+          value,
+          label: padChoiceName(mode, value),
+        }))}
+        value={pads[key]}
+        onChange={(picked) => setPads({ ...pads, [key]: picked })}
+        align="left"
+        above
+      />
+    );
+  } else if (gesture === "turn" || gesture === "holdTurn") {
+    select = (
+      <SearchSelect
+        label={texts.knobTab.gestures[gesture]}
+        options={TURN_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.turnActions[action] }))}
+        value={knob[gesture].action}
+        onChange={(action) => setKnob({ ...knob, [gesture]: { action } })}
+        align="left"
+        above
+      />
+    );
+  } else {
+    select = (
+      <SearchSelect
+        label={texts.knobTab.gestures[gesture]}
+        options={PRESS_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.pressActions[action] }))}
+        value={knob[gesture].action}
+        onChange={(action) => setKnob({ ...knob, [gesture]: pressChoice(action) })}
+        align="left"
+        above
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="tour-drezimo-rows">
+        <Segmented
+          label={texts.nav.board}
+          options={[
+            { value: "knob" as const, label: texts.boardTabs.knob },
+            { value: "pad" as const, label: texts.boardTabs.pad },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+        {tab === "knob"
+          ? GESTURES.map((item) =>
+              choice(item === gesture, texts.knobTab.gestures[item], actionName(item), () => setGesture(item))
+            )
+          : MODE_ROWS.map(([kind, saved], i) =>
+              choice(i === row, texts.kindNames[kind], padChoiceName(kind, pads[saved]), () => setRow(i))
+            )}
+      </div>
+      <div className="tour-drezimo-stage">
+        <Suspense fallback={null}>
+          {tab === "knob" ? <KnobDemo gesture={gesture} knob={knob} /> : <PadDemo mode={mode} choice={pads[key]} />}
+        </Suspense>
+        {select}
+      </div>
+    </>
+  );
+}
+
 const SIDEBAR: PageId[] = ["soundboard", "pages", "macros", "board", "overlay"];
 
-/** The Settings page, where the tour stays */
+/** The Settings page, where the tour stays and the backup is */
 export function AllSet() {
   const texts = useTexts();
   const nothing = () => {};
@@ -330,17 +450,21 @@ export function AllSet() {
         <main>
           <h1>{texts.nav.settings}</h1>
           <Section>
-            <Row label={texts.language}>
-              <Segmented label={texts.language} options={languages(texts)} value="system" onChange={nothing} />
-            </Row>
-            {WINDOWS && (
-              <Row label={texts.startWithWindows} text={texts.startWithWindowsText}>
-                <Toggle label={texts.startWithWindows} checked onChange={nothing} />
-              </Row>
-            )}
             <Row label={texts.tour.label} text={texts.tour.settingText}>
               <button type="button" className="button secondary calling">
                 {texts.tour.watch}
+              </button>
+            </Row>
+          </Section>
+          <Section title={texts.backup.title}>
+            <Row label={texts.backup.exportLabel} text={texts.backup.exportText}>
+              <button type="button" className="button secondary">
+                {texts.backup.exportButton}
+              </button>
+            </Row>
+            <Row label={texts.backup.importLabel} text={texts.backup.importText}>
+              <button type="button" className="button secondary">
+                {texts.backup.importButton}
               </button>
             </Row>
           </Section>
