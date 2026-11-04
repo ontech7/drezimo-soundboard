@@ -646,6 +646,32 @@
   background: var(--ok);
 }
 
+/* The pad pressed again, big */
+
+.cap.explain-pad {
+  width: 96px;
+  height: 96px;
+  border-radius: 14px;
+}
+
+.explain-count {
+  position: absolute;
+  top: 22px;
+  right: 34px;
+  padding: 3px 8px;
+  border: 1px solid #34343c;
+  border-radius: 20px;
+  background: var(--raised);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.explain-count.on {
+  opacity: 1;
+}
+
 /* Sounds as bars that fill while they play */
 
 .explain-lanes {

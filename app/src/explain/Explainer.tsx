@@ -4,13 +4,16 @@ import { useTexts } from "../i18n";
 import { BRIDGE_ACTIONS } from "../KnobControls";
 import type { Macro } from "../macros";
 import { describe } from "../pages/MacrosPage";
-import type { PressAction, SettingsView, TurnAction } from "../settings";
+import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
+import type { PressAction, PressAgain, SettingsView, TurnAction } from "../settings";
 import { ActionHalf, type Shown } from "./ActionHalf";
 import "./explain.css";
 import { type Beats, KNOB_AT_REST, KnobHalf, type KnobPose, playGesture } from "./KnobHalf";
 import { useLoop } from "./loop";
-import { Stage } from "./Stage";
-import { type KnobGesture, knobStory } from "./story";
+import { PAD_AT_REST, type PadCaption, PadHalf, type PadPose, playPad, type SoundCaption } from "./PadHalf";
+import { type Lane, SoundLanes } from "./SoundLanes";
+import { Half, Stage } from "./Stage";
+import { type Behaviour, type KnobGesture, knobStory, padStory } from "./story";
 import { explainTexts, type GestureCaption } from "./texts";
 
 /** The captions of a knob at rest, muted */
@@ -100,6 +103,80 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
       sentence={sentence}
       note={!bridge && BRIDGE_ACTIONS.has(story.action) ? texts.knobTab.bridgeMissing : undefined}
       choiceLabel={words.does}
+      repeats={words.repeats}
+      closeLabel={texts.close}
+      onClose={onClose}
+    >
+      {children}
+    </Stage>
+  );
+}
+
+interface PadProps {
+  mode: KindMode;
+  choice: PressAgain;
+  /** What the app makes of the choice for this type of sound, once known */
+  outcome: Outcome | null;
+  language: "english" | "italian";
+  /** The row's control */
+  children: ReactNode;
+  onClose: () => void;
+}
+
+/** How a pad pressed again works for a type of sound: the pad, and what happens to its sound */
+export function PadExplainer({ mode, choice, outcome, language, children, onClose }: PadProps) {
+  const texts = useTexts();
+  const words = explainTexts(language);
+  // A type of sound always has a behaviour of its own in Voicemod
+  const story = padStory(choice, voicemodsOwn(mode) as Behaviour, outcome);
+  const [pose, setPose] = useState<PadPose>(PAD_AT_REST);
+  const [caption, setCaption] = useState<PadCaption>("pad");
+  const [sound, setSound] = useState<SoundCaption | null>(null);
+  const [lanes, setLanes] = useState<Lane[]>([]);
+  const [fired, setFired] = useState(0);
+
+  useLoop(
+    (run) =>
+      playPad(
+        story,
+        run,
+        {
+          pose: (changed, next) => {
+            setPose((current) => ({ ...current, ...changed }));
+            if (next) setCaption(next);
+          },
+          sound: setSound,
+          lanes: (update) => setLanes((current) => update(current, performance.now())),
+          fire: () => setFired((count) => count + 1),
+        },
+        words.pad,
+        [words.pad.sounds[mode], words.sample.sounds[1]]
+      ),
+    `${mode} ${JSON.stringify(story)}`
+  );
+
+  const sentence = [
+    story.asInVoicemod && words.pad.asInVoicemod,
+    words.pad.sentences[story.behaviour],
+    story.stopsAll && words.pad.stopsAll,
+    story.instead && words.pad.instead,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <Stage
+      title={texts.kindNames[mode]}
+      subtitle={texts.padPressedAgain}
+      left={<PadHalf pose={pose} caption={words.pad.captions[caption]} live={caption !== "pad"} />}
+      right={
+        <Half caption={sound ? words.pad.sound[sound] : words.pad.sounds[mode]} live={sound !== null}>
+          <SoundLanes lanes={lanes} />
+        </Half>
+      }
+      fired={fired}
+      sentence={sentence}
+      choiceLabel={texts.pressAgainField}
       repeats={words.repeats}
       closeLabel={texts.close}
       onClose={onClose}

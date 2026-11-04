@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type KeyboardEvent, lazy, type ReactNode, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Row, Section } from "./controls";
 import { useCustomPages, useLibrary } from "./customPages";
 import { useDismiss } from "./dismiss";
@@ -22,6 +22,8 @@ import { SearchSelect } from "./SearchSelect";
 import { type PressAgain, type PressAgainByMode, type SettingsView, saveSettings } from "./settings";
 
 const MARKS: Record<Reach, string> = { chosen: "✓", stopsAll: "!", instead: "→" };
+
+const PadExplainer = lazy(() => import("./explain/Explainer").then((module) => ({ default: module.PadExplainer })));
 /** How many of a kind's sound names show under it */
 const NAMES_SHOWN = 3;
 
@@ -35,6 +37,7 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
   // Before Voicemod first sends its soundboards there is nothing to count
   const sounds = library?.soundboards.length ? soundNamesByMode(library) : null;
   const ownChoices = (pages ?? []).flatMap((page) => page.pads).filter((pad) => pad?.kind === "sound" && pad.pressAgain).length;
+  const [explained, setExplained] = useState<[KindMode, keyof PressAgainByMode] | null>(null);
 
   const choose = (key: keyof PressAgainByMode, choice: PressAgain) =>
     saveSettings({ ...props.settings, pressAgainByMode: { ...byMode, [key]: choice } });
@@ -44,41 +47,65 @@ export function PadTab(props: { settings: SettingsView; singleStop: boolean; onO
     return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
   };
 
+  // The same select in a row and in its explanation, whose foot leaves room for its menu only above
+  const control = (mode: KindMode, key: keyof PressAgainByMode, inDialog: boolean) => {
+    const choice = byMode[key];
+    const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({
+      value,
+      label: label(mode, value),
+    }));
+    return (
+      <div className={choice === "voicemod" ? "press-select" : "press-select own"}>
+        <SearchSelect
+          label={texts.kindNames[mode]}
+          options={options}
+          value={choice}
+          onChange={(picked) => choose(key, picked)}
+          align={inDialog ? "left" : "right"}
+          above={inDialog}
+        />
+      </div>
+    );
+  };
+
   return (
-    <Section title={texts.padPressedAgain} text={texts.pressAgainText}>
-      {MODE_ROWS.map(([mode, key]) => {
-        const names = sounds?.get(mode) ?? [];
-        const choice = byMode[key];
-        const options = (outcomes ? choicesFor(mode, outcomes) : [choice]).map((value) => ({
-          value,
-          label: label(mode, value),
-        }));
-        return (
-          <Row
-            key={mode}
-            label={texts.kindNames[mode]}
-            text={sounds ? texts.soundsOfKind(names.length, names.slice(0, NAMES_SHOWN)) : undefined}
-            disabled={sounds !== null && names.length === 0}
+    <>
+      <Section title={texts.padPressedAgain} text={texts.pressAgainText}>
+        {MODE_ROWS.map(([mode, key]) => {
+          const names = sounds?.get(mode) ?? [];
+          return (
+            <Row
+              key={mode}
+              label={texts.kindNames[mode]}
+              text={sounds ? texts.soundsOfKind(names.length, names.slice(0, NAMES_SHOWN)) : undefined}
+              disabled={sounds !== null && names.length === 0}
+              onExplain={() => setExplained([mode, key])}
+            >
+              {control(mode, key, false)}
+            </Row>
+          );
+        })}
+        <p className="muted press-own">
+          {texts.ownChoices(ownChoices)} ·{" "}
+          <button type="button" className="link" onClick={props.onOpenPages}>
+            {texts.seeInPages}
+          </button>
+        </p>
+      </Section>
+      {explained && (
+        <Suspense fallback={null}>
+          <PadExplainer
+            mode={explained[0]}
+            choice={byMode[explained[1]]}
+            outcome={outcomes?.[explained[0]][byMode[explained[1]]] ?? null}
+            language={props.settings.shownLanguage}
+            onClose={() => setExplained(null)}
           >
-            <div className={choice === "voicemod" ? "press-select" : "press-select own"}>
-              <SearchSelect
-                label={texts.kindNames[mode]}
-                options={options}
-                value={choice}
-                onChange={(picked) => choose(key, picked)}
-                align="right"
-              />
-            </div>
-          </Row>
-        );
-      })}
-      <p className="muted press-own">
-        {texts.ownChoices(ownChoices)} ·{" "}
-        <button type="button" className="link" onClick={props.onOpenPages}>
-          {texts.seeInPages}
-        </button>
-      </p>
-    </Section>
+            {control(explained[0], explained[1], true)}
+          </PadExplainer>
+        </Suspense>
+      )}
+    </>
   );
 }
 

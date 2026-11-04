@@ -1,3 +1,4 @@
+import type { KindMode } from "../pressAgain";
 import type { PressAction, TurnAction } from "../settings";
 
 /** The explanations' words: here rather than in i18n.ts, so that they load with them */
@@ -45,6 +46,25 @@ export interface ExplainTexts {
     voices: string[];
     sounds: [string, string, string];
     macro: { name: string; steps: string[] };
+  };
+  pad: {
+    captions: Record<"pad" | "press" | "again" | "againShort" | "againMore" | "hold" | "letGo", string>;
+    sound: Record<
+      "otherPlaying" | "playing" | "restarts" | "copies" | "stops" | "allStop" | "paused" | "resumes" | "stopsOnRelease",
+      string
+    >;
+    sentences: Record<"restart" | "overlap" | "stop" | "pause" | "hold", string>;
+    asInVoicemod: string;
+    stopsAll: string;
+    instead: string;
+    restartBadge: string;
+    pauseBadge: string;
+    copyNote: string;
+    otherNote: string;
+    /** Which press it is */
+    counts: [string, string, string];
+    /** A sample sound of each type */
+    sounds: Record<KindMode, string>;
   };
 }
 
@@ -125,6 +145,44 @@ const ENGLISH: ExplainTexts = {
     sounds: ["Drumroll", "Applause", "Song"],
     macro: { name: "Grand entrance", steps: ["Voice Robot", "Sound Drumroll", "Wait 1 s", "Sound Applause"] },
   },
+  pad: {
+    captions: {
+      pad: "Pad",
+      press: "Press",
+      again: "Press again while it plays",
+      againShort: "Press again",
+      againMore: "Press once more",
+      hold: "Hold it down…",
+      letGo: "…and let go",
+    },
+    sound: {
+      otherPlaying: "Another sound is playing",
+      playing: "Playing",
+      restarts: "Starts over",
+      copies: "Two copies together",
+      stops: "Stops",
+      allStop: "They all stop",
+      paused: "Paused",
+      resumes: "Goes on from there",
+      stopsOnRelease: "Stops when you let go",
+    },
+    sentences: {
+      restart: "Press it again while it plays: it starts over.",
+      overlap: "Press it again while it plays: another copy starts, over the one already playing.",
+      stop: "Press it again while it plays: it stops.",
+      pause: "Press it again: it pauses, and the pad breathes. Press it once more: it goes on from where it was.",
+      hold: "It plays while you hold the pad down; when you let go it stops.",
+    },
+    asInVoicemod: "As in Voicemod.",
+    stopsAll: "Every other sound stops with it: Voicemod cannot stop just one.",
+    instead: "Voicemod cannot do your choice with this kind of sound, so the pad does this.",
+    restartBadge: "↺ from the start",
+    pauseBadge: "❙❙ paused",
+    copyNote: "copy 2",
+    otherNote: "another pad",
+    counts: ["1st", "2nd", "3rd"],
+    sounds: { PlayRestart: "Drumroll", PlayPause: "Song", PlayStop: "Theme", PlayLoopOnPress: "Siren", PlayOverlap: "Laugh" },
+  },
 };
 
 const ITALIAN: ExplainTexts = {
@@ -200,6 +258,50 @@ const ITALIAN: ExplainTexts = {
     voices: ["Normale", "Robot", "Eco", "Bambino", "Demone", "Radio", "Gigante"],
     sounds: ["Rullo di tamburi", "Applausi", "Canzone"],
     macro: { name: "Entrata in scena", steps: ["Voce Robot", "Suono Rullo di tamburi", "Attendi 1 s", "Suono Applausi"] },
+  },
+  pad: {
+    captions: {
+      pad: "Pad",
+      press: "Premi",
+      again: "Ripremi mentre suona",
+      againShort: "Ripremi",
+      againMore: "Ripremi ancora",
+      hold: "Tieni premuto…",
+      letGo: "…e lascia",
+    },
+    sound: {
+      otherPlaying: "Un altro suono sta suonando",
+      playing: "Suona",
+      restarts: "Riparte da capo",
+      copies: "Due copie insieme",
+      stops: "Si ferma",
+      allStop: "Si fermano tutti",
+      paused: "In pausa",
+      resumes: "Riprende da dove era",
+      stopsOnRelease: "Si ferma quando lo lasci",
+    },
+    sentences: {
+      restart: "Lo ripremi mentre suona: riparte da capo.",
+      overlap: "Lo ripremi mentre suona: parte un'altra copia, sopra quella che suona già.",
+      stop: "Lo ripremi mentre suona: si ferma.",
+      pause: "Lo ripremi: va in pausa, e il pad respira. Lo ripremi ancora: riprende da dove era.",
+      hold: "Suona finché tieni premuto il pad; quando lo lasci si ferma.",
+    },
+    asInVoicemod: "Come in Voicemod.",
+    stopsAll: "Con lui si fermano anche tutti gli altri suoni: Voicemod non sa fermarne uno solo.",
+    instead: "Voicemod non sa fare la tua scelta con questo tipo di suono, quindi il pad fa così.",
+    restartBadge: "↺ da capo",
+    pauseBadge: "❙❙ pausa",
+    copyNote: "copia 2",
+    otherNote: "un altro pad",
+    counts: ["1°", "2°", "3°"],
+    sounds: {
+      PlayRestart: "Rullo di tamburi",
+      PlayPause: "Canzone",
+      PlayStop: "Sigla",
+      PlayLoopOnPress: "Sirena",
+      PlayOverlap: "Risata",
+    },
   },
 };
 
