@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
 import type { KindMode, PlaybackMode } from "./pressAgain";
 
+const MAC = navigator.userAgent.includes("Mac");
+
 const ENGLISH = {
   nav: {
     soundboard: "Soundboard",
@@ -245,8 +247,8 @@ const ENGLISH = {
 
   language: "Language",
   system: "System",
-  startWithWindows: "Start with Windows",
-  startWithWindowsText: "In the notification area, without the window.",
+  startAtLogin: MAC ? "Start with macOS" : "Start with Windows",
+  startAtLoginText: MAC ? "In the menu bar, without the window." : "In the notification area, without the window.",
   onlyInstalled: "Only in the installed app.",
   about: "About",
   version: "Version",
@@ -883,8 +885,10 @@ const ITALIAN: Texts = {
 
   language: "Lingua",
   system: "Sistema",
-  startWithWindows: "Avvia con Windows",
-  startWithWindowsText: "Nell'area di notifica, senza aprire la finestra.",
+  startAtLogin: MAC ? "Avvia con macOS" : "Avvia con Windows",
+  startAtLoginText: MAC
+    ? "Nella barra dei menu, senza aprire la finestra."
+    : "Nell'area di notifica, senza aprire la finestra.",
   onlyInstalled: "Solo nell'app installata.",
   about: "Informazioni",
   version: "Versione",

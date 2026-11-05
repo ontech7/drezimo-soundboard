@@ -12,9 +12,6 @@ interface About {
   firmware: string;
 }
 
-// macOS has no login item yet (docs/project.md, phase 5)
-const WINDOWS = navigator.userAgent.includes("Windows");
-
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 const dayFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
@@ -89,14 +86,14 @@ export function SettingsPage({ settings, status, onTour }: Props) {
             onChange={(language) => saveSettings({ ...settings, language })}
           />
         </Row>
-        {WINDOWS && startAtLogin !== undefined && (
+        {startAtLogin !== undefined && (
           <Row
-            label={texts.startWithWindows}
-            text={startAtLogin === null ? texts.onlyInstalled : texts.startWithWindowsText}
+            label={texts.startAtLogin}
+            text={startAtLogin === null ? texts.onlyInstalled : texts.startAtLoginText}
             disabled={startAtLogin === null}
           >
             <Toggle
-              label={texts.startWithWindows}
+              label={texts.startAtLogin}
               checked={startAtLogin === true}
               disabled={startAtLogin === null}
               onChange={changeStartAtLogin}
