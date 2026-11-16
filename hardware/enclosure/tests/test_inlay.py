@@ -1,0 +1,59 @@
+import pytest
+from build123d import Axis, CenterOf, offset
+
+from drezimo_case.board import PITCH
+from drezimo_case.inlay import LABEL_POSITIONS, LABEL_Y, LABELS, build_labels, label_outline
+
+
+def test_widest_label_stays_inside_its_key_cell():
+    box = label_outline("ASCOLTO").bounding_box()
+    assert box.size.X <= PITCH - 0.4
+    assert box.size.Y == pytest.approx(2.6, abs=0.3)
+
+
+def test_no_stroke_under_the_hard_limit():
+    # Shrinking by 0.22 per side erases any stroke thinner than 0.44 mm, the closest the offset gets to 0.45.
+    for text in LABELS:
+        for glyph in label_outline(text).faces():
+            assert len(offset(glyph, amount=-0.22).faces()) == 1
+
+
+def test_letters_are_far_enough_apart_to_print():
+    for text in LABELS:
+        boxes = [glyph.bounding_box() for glyph in label_outline(text).faces().sort_by(Axis.X)]
+        for left, right in zip(boxes, boxes[1:]):
+            assert right.min.X - left.max.X >= 0.45 - 1e-6
+
+
+def test_the_brief_puts_the_labels_above_the_function_row():
+    assert LABEL_Y == LABEL_POSITIONS["above"] == 45.2
+    assert LABEL_POSITIONS["bar"] == 71.55
+
+
+@pytest.mark.parametrize("y", LABEL_POSITIONS.values())
+def test_labels_line_up_with_the_function_keys(board, p, y):
+    boxes = [label.bounding_box() for label in build_labels(board, p, y)]
+    assert len(boxes) == len(LABELS)
+    for c, box in enumerate(boxes):
+        assert box.center().X == pytest.approx(board.key_centre(37 + c)[0], abs=0.05)
+        assert box.center().Y == pytest.approx(y, abs=0.2)
+        assert (box.min.Z, box.max.Z) == pytest.approx((p.deck_top - p.inlay_depth, p.deck_top))
+        assert box.max.Y <= p.fn_well.y0 - 0.6 or box.min.Y >= p.fn_well.y1 + 0.6
+        assert box.max.Y <= p.pad_well.y0 - 0.6
+    for left, right in zip(boxes, boxes[1:]):
+        assert right.min.X - left.max.X >= 2.0
+
+
+def test_letters_read_upright_in_the_top_view():
+    # In the case's top view y grows towards the user, so the top of a letter is at the smaller y.
+    bowl = label_outline("P").face()
+    assert bowl.center(CenterOf.MASS).Y < bowl.bounding_box().center().Y
+    foot = label_outline("L").face()
+    assert foot.center(CenterOf.MASS).X < foot.bounding_box().center().X
+
+
+def test_arrows_point_away_from_the_word():
+    left_arrow = label_outline("◀ PAG").faces().sort_by(Axis.X)[0]
+    assert left_arrow.center(CenterOf.MASS).X > left_arrow.bounding_box().center().X
+    right_arrow = label_outline("PAG ▶").faces().sort_by(Axis.X)[-1]
+    assert right_arrow.center(CenterOf.MASS).X < right_arrow.bounding_box().center().X
