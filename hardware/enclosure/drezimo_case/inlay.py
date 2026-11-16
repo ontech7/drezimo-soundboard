@@ -23,9 +23,12 @@ LEFT_ARROW, RIGHT_ARROW = "◀", "▶"
 FIRST_FN_KEY = 37
 
 
-def label_outline(text):
-    """The label as it reads in the case's top view, centred on the origin."""
-    return _outline(text, _cap_height())
+def label_outline(text, cap_height=None):
+    """The label as it reads in the case's top view, centred on the origin.
+
+    Its capitals are as tall as the deck's labels, unless another height is given.
+    """
+    return _outline(text, cap_height or _cap_height())
 
 
 def build_labels(board, p):

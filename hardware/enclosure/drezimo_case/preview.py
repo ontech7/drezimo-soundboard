@@ -1,4 +1,4 @@
-"""A picture to approve a part before printing: its top view and a section along a key column."""
+"""A picture to approve a part before printing: its top view and, for a part on the board, a section."""
 
 from dataclasses import dataclass
 
@@ -35,21 +35,25 @@ class Keys:
     skirt_pressed: float
 
 
-def render_preview(path, body, inlay, section_x=None, keys=None, title=""):
+def render_preview(path, body, inlay, section_x=None, keys=None, title="", captions=()):
+    """Draws the part from above, with its captions, and cut along section_x when one is given."""
     box = body.bounding_box()
-    section_x = box.center().X if section_x is None else section_x
-
-    figure, (above, cut) = plt.subplots(
-        1, 2, figsize=SIZE_INCHES, dpi=DPI, facecolor=PAPER, gridspec_kw={"width_ratios": (2, 3)}
-    )
+    figure = plt.figure(figsize=SIZE_INCHES, dpi=DPI, facecolor=PAPER)
     figure.suptitle(title, color=INK, fontsize=20)
 
-    _top_view(above, body, inlay, box)
-    above.axvline(section_x, color=PRESSED, linewidth=1, linestyle=(0, (6, 4)))
-    above.set_title("From above (dashed: where the section is cut)", color=INK, fontsize=13)
+    if section_x is None:
+        above = figure.subplots()
+        above.set_title("From above", color=INK, fontsize=13)
+    else:
+        above, cut = figure.subplots(1, 2, gridspec_kw={"width_ratios": (2, 3)})
+        above.axvline(section_x, color=PRESSED, linewidth=1, linestyle=(0, (6, 4)))
+        above.set_title("From above (dashed: where the section is cut)", color=INK, fontsize=13)
+        _section_view(cut, body, inlay, section_x, box, keys)
+        cut.set_title("Section, back to the left — dashed keycap: fully pressed", color=INK, fontsize=13)
 
-    _section_view(cut, body, inlay, section_x, box, keys)
-    cut.set_title("Section, back to the left — dashed keycap: fully pressed", color=INK, fontsize=13)
+    _top_view(above, body, inlay, box)
+    for x, y, text in captions:
+        above.text(x, y, text, color=PRESSED, ha="center", va="center", fontsize=12)
 
     figure.savefig(path, facecolor=PAPER)
     plt.close(figure)

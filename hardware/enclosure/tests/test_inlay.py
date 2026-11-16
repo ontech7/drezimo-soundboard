@@ -64,3 +64,8 @@ def test_tracing_keeps_the_shape_of_the_letters():
     assert len(outline.faces().sort_by(Axis.X)[0].inner_wires()) == 1
     assert all(face.normal_at().Z > 0 for face in outline.faces())
     assert outline.area == pytest.approx(21.9, abs=0.3)
+
+
+def test_a_label_can_be_drawn_at_another_capital_height():
+    box = label_outline("PAG", cap_height=5.0).bounding_box()
+    assert 5.0 <= box.size.Y <= 5.25

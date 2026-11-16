@@ -1,6 +1,7 @@
 """Generates the print files.
 
     uv run python -m drezimo_case coupon-a
+    uv run python -m drezimo_case label-gauge
 """
 
 import sys
@@ -11,6 +12,7 @@ from pathlib import Path
 from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
+from .gauge import build_label_gauge, captions
 from .measurements import MEASUREMENTS
 from .params import Params
 from .preview import Keys
@@ -25,9 +27,15 @@ class PrintedPart:
     title: str
     # A draft exists to check the estimates, so it may be built on them. Anything else may not.
     draft: bool = False
+    # A test piece that does not sit on the board: no measurement shapes it.
+    off_the_board: bool = False
+    captions: tuple = ()
 
 
-PARTS = {"coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True)}
+PARTS = {
+    "coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True),
+    "label-gauge": PrintedPart(build_label_gauge, "Label gauge", off_the_board=True, captions=captions()),
+}
 
 
 def main(argv):
@@ -37,9 +45,20 @@ def main(argv):
 
     board = load_board()
     p = Params.derive(board, MEASUREMENTS)
-    if not part.draft:
+    if not (part.draft or part.off_the_board):
         p.require_measured()
 
+    preview = {"captions": part.captions} if part.off_the_board else _section_along_the_keys(board)
+    body, inlay = part.build(board, p)
+    written = export_part(name, body, inlay, PRINT_DIR, title=part.title, **preview)
+
+    for path in written:
+        print(path)
+    if p.estimated and not part.off_the_board:
+        print(f"Built on estimates, not for the final print: {', '.join(p.estimated)}")
+
+
+def _section_along_the_keys(board):
     keys = Keys(
         centres=tuple(board.key_centre(n)[1] for n in SECTION_KEYS),
         switch_width=MEASUREMENTS["M3a"].value,
@@ -47,15 +66,7 @@ def main(argv):
         skirt_at_rest=MEASUREMENTS["M2a"].value,
         skirt_pressed=MEASUREMENTS["M2b"].value,
     )
-    body, inlay = part.build(board, p)
-    written = export_part(
-        name, body, inlay, PRINT_DIR, section_x=board.key_centre(SECTION_KEYS[0])[0], keys=keys, title=part.title
-    )
-
-    for path in written:
-        print(path)
-    if p.estimated:
-        print(f"Built on estimates, not for the final print: {', '.join(p.estimated)}")
+    return {"section_x": board.key_centre(SECTION_KEYS[0])[0], "keys": keys}
 
 
 if __name__ == "__main__":
