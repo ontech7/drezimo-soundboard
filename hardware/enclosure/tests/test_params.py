@@ -1,26 +1,13 @@
 import pytest
+from helpers import nominal
 
 from drezimo_case.board import load_board
 from drezimo_case.measurements import Measurement, estimates
 from drezimo_case.params import EstimateError, Params
 
-NOMINAL = {
-    "M1w": 124.3,
-    "M1h": 190.35,
-    "M2a": 10.5,
-    "M2b": 6.5,
-    "M2c": 18.1,
-    "M3a": 15.6,
-    "M4a": 5.5,
-    "M5a": 6.45,
-    "M6a": 4.5,
-}
 
-
-def derive_with(**overrides):
-    m = {code: Measurement(value) for code, value in NOMINAL.items()}
-    m.update({code: Measurement(value, measured=True) for code, value in overrides.items()})
-    return Params.derive(load_board(), m)
+def derive_with(**measured):
+    return Params.derive(load_board(), nominal(**measured))
 
 
 def test_nominal():
