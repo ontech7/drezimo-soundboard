@@ -7,7 +7,7 @@ two labels, plus four feet that seat it on the PCB at the height the shell will 
 from build123d import Align, Box, Part, Pos
 
 from .deck import LEAD_IN, SKIRT_BOTTOM, box, build_deck
-from .inlay import LABEL_Y, build_labels
+from .inlay import build_labels
 from .params import Rect
 
 COUPON_A = Rect(0.0, 40.0, 46.1, 93.1)
@@ -16,9 +16,9 @@ RIM_FEET = (((4.9, 47.0), (3.0, 3.0)), ((4.9, 86.0), (3.0, 3.0)))
 GRID_FEET = (((44.6, 71.55), (3.0, 3.0)), ((45.35, 83.575), (1.5, 4.0)))
 
 
-def build_coupon_a(board, p, label_y=LABEL_Y):
+def build_coupon_a(board, p):
     clip = box(COUPON_A, SKIRT_BOTTOM, p.deck_top)
-    inlay = (Part() + build_labels(board, p, label_y)) & clip
+    inlay = (Part() + build_labels(board, p)) & clip
     body = (build_deck(board, p) & clip) + _feet(p) - inlay
     return body, inlay
 

@@ -4,27 +4,42 @@
 """
 
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
-from .inlay import LABEL_POSITIONS, LABEL_Y
-from .measurements import MEASUREMENTS, estimates
+from .measurements import MEASUREMENTS
 from .params import Params
-from .preview import Keys, render_preview
+from .preview import Keys
 
 PRINT_DIR = Path(__file__).resolve().parents[1] / "print"
 SECTION_KEYS = (37, 1)
 
 
+@dataclass(frozen=True)
+class PrintedPart:
+    build: Callable
+    title: str
+    # A draft exists to check the estimates, so it may be built on them. Anything else may not.
+    draft: bool = False
+
+
+PARTS = {"coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True)}
+
+
 def main(argv):
-    if argv != ["coupon-a"]:
-        sys.exit("usage: python -m drezimo_case coupon-a")
+    if len(argv) != 1 or argv[0] not in PARTS:
+        sys.exit(f"usage: python -m drezimo_case {{{','.join(PARTS)}}}")
+    name, part = argv[0], PARTS[argv[0]]
 
     board = load_board()
-    p = Params.derive(board)
-    section_x = board.key_centre(SECTION_KEYS[0])[0]
+    p = Params.derive(board, MEASUREMENTS)
+    if not part.draft:
+        p.require_measured()
+
     keys = Keys(
         centres=tuple(board.key_centre(n)[1] for n in SECTION_KEYS),
         switch_width=MEASUREMENTS["M3a"].value,
@@ -32,25 +47,15 @@ def main(argv):
         skirt_at_rest=MEASUREMENTS["M2a"].value,
         skirt_pressed=MEASUREMENTS["M2b"].value,
     )
-
-    body, inlay = build_coupon_a(board, p)
+    body, inlay = part.build(board, p)
     written = export_part(
-        "coupon-a", body, inlay, PRINT_DIR, section_x=section_x, keys=keys, title="Coupon (a): labels above the function row"
+        name, body, inlay, PRINT_DIR, section_x=board.key_centre(SECTION_KEYS[0])[0], keys=keys, title=part.title
     )
-
-    # The label position is still the owner's to confirm: a second picture shows the other one.
-    for name, y in LABEL_POSITIONS.items():
-        if y != LABEL_Y:
-            picture = PRINT_DIR / f"coupon-a-labels-on-the-{name}.png"
-            render_preview(
-                picture, *build_coupon_a(board, p, y), section_x=section_x, keys=keys, title=f"Coupon (a): labels on the {name}"
-            )
-            written.append(picture)
 
     for path in written:
         print(path)
     if p.estimated:
-        print(f"Built on estimates, not for the final print: {', '.join(estimates())}")
+        print(f"Built on estimates, not for the final print: {', '.join(p.estimated)}")
 
 
 if __name__ == "__main__":

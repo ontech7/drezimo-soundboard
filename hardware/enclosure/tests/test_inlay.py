@@ -2,7 +2,7 @@ import pytest
 from build123d import Axis, CenterOf, GeomType, offset
 
 from drezimo_case.board import PITCH
-from drezimo_case.inlay import LABEL_POSITIONS, LABEL_Y, LABELS, build_labels, label_outline
+from drezimo_case.inlay import LABELS, build_labels, label_outline
 
 
 def test_widest_label_stays_inside_its_key_cell():
@@ -25,21 +25,14 @@ def test_letters_are_far_enough_apart_to_print():
             assert right.min.X - left.max.X >= 0.45 - 1e-6
 
 
-def test_the_brief_puts_the_labels_above_the_function_row():
-    assert LABEL_Y == LABEL_POSITIONS["above"] == 45.2
-    assert LABEL_POSITIONS["bar"] == 71.55
-
-
-@pytest.mark.parametrize("y", LABEL_POSITIONS.values())
-def test_labels_line_up_with_the_function_keys(board, p, y):
-    boxes = [label.bounding_box() for label in build_labels(board, p, y)]
+def test_labels_sit_above_the_function_keys(board, p):
+    boxes = [label.bounding_box() for label in build_labels(board, p)]
     assert len(boxes) == len(LABELS)
     for c, box in enumerate(boxes):
         assert box.center().X == pytest.approx(board.key_centre(37 + c)[0], abs=0.05)
-        assert box.center().Y == pytest.approx(y, abs=0.2)
+        assert box.center().Y == pytest.approx(45.2, abs=0.2)
         assert (box.min.Z, box.max.Z) == pytest.approx((p.deck_top - p.inlay_depth, p.deck_top))
-        assert box.max.Y <= p.fn_well.y0 - 0.6 or box.min.Y >= p.fn_well.y1 + 0.6
-        assert box.max.Y <= p.pad_well.y0 - 0.6
+        assert box.max.Y <= p.fn_well.y0 - 0.6
     for left, right in zip(boxes, boxes[1:]):
         assert right.min.X - left.max.X >= 2.0
 

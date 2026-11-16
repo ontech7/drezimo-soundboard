@@ -1,5 +1,5 @@
 import pytest
-from helpers import nominal
+from helpers import NOMINAL, nominal
 
 from drezimo_case.board import load_board
 from drezimo_case.measurements import Measurement, estimates
@@ -54,3 +54,34 @@ def test_final_parts_refuse_estimates():
 def test_estimates_lists_what_is_not_measured():
     m = {"M2a": Measurement(10.5), "M2b": Measurement(6.4, measured=True)}
     assert estimates(m) == ["M2a"]
+
+
+def test_unknown_codes_are_an_error():
+    with pytest.raises(KeyError, match="M7a"):
+        derive_with().require_measured("M7a")
+
+
+def test_without_codes_every_estimate_blocks():
+    with pytest.raises(EstimateError, match="M2a"):
+        derive_with(M5a=6.45).require_measured()
+    derive_with(**NOMINAL).require_measured()
+
+
+@pytest.mark.parametrize(
+    "typo",
+    [{"M1w": 24.3}, {"M1h": 19.035}, {"M2a": 105.0}, {"M2b": 65.0}, {"M2c": 24.0}, {"M3a": 0.0}, {"M4a": 55.0}, {"M5a": 64.5}, {"M6a": 45.0}],
+)
+def test_implausible_values_are_an_error(typo):
+    with pytest.raises(ValueError, match=next(iter(typo))):
+        derive_with(**typo)
+
+
+def test_a_pressed_skirt_above_the_resting_one_is_an_error():
+    with pytest.raises(ValueError, match="M2a"):
+        derive_with(M2a=8.5, M2b=9.0)
+
+
+def test_the_length_may_grow_by_1mm_too():
+    assert derive_with(M1h=190.95).case_size[1] == pytest.approx(196.95)
+    with pytest.raises(ValueError, match="M1h"):
+        derive_with(M1h=191.65)

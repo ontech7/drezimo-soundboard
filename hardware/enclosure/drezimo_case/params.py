@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 
 from .board import INSET, PITCH
-from .measurements import MEASUREMENTS
+from .measurements import MEASUREMENTS, PLAUSIBLE
 
 LAYER = 0.2
 DECK_THICKNESS = 2.0
@@ -28,7 +28,7 @@ CHIP_GAP = 0.5
 
 MIN_RIB_HEIGHT = 1.0
 MIN_RIB_WIDTH = 1.2
-MAX_OUTLINE_GROWTH = 1.0
+MAX_OUTLINE_ERROR = 1.0
 
 FIRST_FN_KEY, LAST_FN_KEY = 37, 42
 FIRST_PAD, LAST_PAD = 1, 36
@@ -76,11 +76,13 @@ class Params:
     pad_well: Rect
     bar: Rect
     case_size: tuple[float, float]
+    codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
     @classmethod
     def derive(cls, board, m=MEASUREMENTS):
         value = {code: x.value for code, x in m.items()}
+        _check_plausible(value, board)
 
         deck_top = _round_up_to_layer(max(
             value["M5a"] + ENCODER_GAP + ENCODER_SKIN,
@@ -104,13 +106,6 @@ class Params:
                 f"the switch outline (M3a = {value['M3a']}) leaves no room between the keys"
             )
 
-        growth = max(value["M1w"] - board.outline[0], value["M1h"] - board.outline[1])
-        if growth > MAX_OUTLINE_GROWTH:
-            raise ValueError(
-                f"the measured outline is {growth:.2f} mm larger than the drawing "
-                f"(the case may grow by {MAX_OUTLINE_GROWTH} mm at most)"
-            )
-
         reach = value["M2c"] / 2 + WELL_MARGIN
         fn_well = _well(board, FIRST_FN_KEY, LAST_FN_KEY, reach)
         pad_well = _well(board, FIRST_PAD, LAST_PAD, reach)
@@ -132,13 +127,33 @@ class Params:
             pad_well=pad_well,
             bar=Rect(fn_well.x0, fn_well.y1, fn_well.x1, pad_well.y0),
             case_size=(value["M1w"] + 2 * INSET, value["M1h"] + 2 * INSET),
+            codes=tuple(sorted(m)),
             estimated=tuple(sorted(code for code, x in m.items() if not x.measured)),
         )
 
     def require_measured(self, *codes):
-        missing = [code for code in codes if code in self.estimated]
+        """Raises if any of these codes, or any code at all when none is given, is still an estimate."""
+        unknown = [code for code in codes if code not in self.codes]
+        if unknown:
+            raise KeyError(f"unknown measurement codes: {', '.join(unknown)}")
+        missing = [code for code in codes or self.codes if code in self.estimated]
         if missing:
             raise EstimateError(f"still estimates, measure them first: {', '.join(missing)}")
+
+
+def _check_plausible(value, board):
+    for code, (low, high) in PLAUSIBLE.items():
+        if not low <= value[code] <= high:
+            raise ValueError(f"{code} = {value[code]} mm is not plausible (expected {low} to {high}): check the reading")
+    if value["M2b"] >= value["M2a"]:
+        raise ValueError(f"M2a = {value['M2a']} (at rest) must be above M2b = {value['M2b']} (pressed): check the readings")
+    for code, drawn in (("M1w", board.outline[0]), ("M1h", board.outline[1])):
+        error = value[code] - drawn
+        if abs(error) > MAX_OUTLINE_ERROR:
+            raise ValueError(
+                f"{code} = {value[code]} mm: the measured outline is {error:+.2f} mm off the drawing ({drawn}), "
+                f"more than the {MAX_OUTLINE_ERROR} mm the case can follow"
+            )
 
 
 def _round_up_to_layer(height):

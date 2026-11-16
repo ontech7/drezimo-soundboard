@@ -1,7 +1,9 @@
 import pytest
-from helpers import inside
+from helpers import inside, nominal
 
 from drezimo_case.board import PITCH
+from drezimo_case.deck import build_deck
+from drezimo_case.params import Params
 
 
 def test_rim_and_chamfer(deck, p):
@@ -49,3 +51,21 @@ def test_nothing_proud_of_the_deck(deck, p):
 
 def test_deck_is_one_piece(deck):
     assert len(deck.solids()) == 1
+
+
+def test_geometry_follows_the_measurements(board):
+    p = Params.derive(board, nominal(M2b=5.6, M3a=15.9, M1w=124.9))
+    deck = build_deck(board, p)
+    x, y = board.key_centre(1)
+    rib = x + PITCH / 2
+    assert inside(deck, rib, y, 4.5)
+    assert not inside(deck, rib, y, 4.7)
+    assert not inside(deck, x + 8.1, y, 3.0)
+    assert inside(deck, x + 8.25, y, 3.0)
+    assert deck.bounding_box().max.X == pytest.approx(130.9)
+
+
+def test_openings_clear_a_switch_with_square_corners(deck, p, board):
+    x, y = board.key_centre(1)
+    corner = p.opening / 2 - 0.1
+    assert not inside(deck, x + corner, y + corner, p.well_floor - 1.5)

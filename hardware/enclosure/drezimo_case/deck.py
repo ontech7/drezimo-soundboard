@@ -11,7 +11,7 @@ from .params import Rect
 
 SKIRT_BOTTOM = -1.0
 CURB = 1.6
-OPENING_RADIUS = 0.5
+OPENING_RADIUS = 0.2
 LEAD_IN = 0.5
 
 

@@ -9,8 +9,7 @@ from .board import PITCH, REPO
 
 FONT = REPO / "app" / "src-tauri" / "src" / "overlay" / "Inter-SemiBold.ttf"
 LABELS = ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"]
-LABEL_POSITIONS = {"above": 45.2, "bar": 71.55}
-LABEL_Y = LABEL_POSITIONS["above"]
+LABEL_Y = 45.2
 
 CAP_HEIGHTS = (2.6, 2.5, 2.4)
 MAX_WIDTH = PITCH - 0.4
@@ -29,11 +28,11 @@ def label_outline(text):
     return _outline(text, _cap_height())
 
 
-def build_labels(board, p, y=LABEL_Y):
+def build_labels(board, p):
     floor = p.deck_top - p.inlay_depth
     return [
         extrude(
-            Pos(board.key_centre(FIRST_FN_KEY + column)[0], y, floor) * label_outline(text),
+            Pos(board.key_centre(FIRST_FN_KEY + column)[0], LABEL_Y, floor) * label_outline(text),
             amount=p.inlay_depth,
             dir=(0, 0, 1),
         )
