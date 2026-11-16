@@ -20,3 +20,20 @@ def deck(board, p):
     from drezimo_case.deck import build_deck
 
     return build_deck(board, p)
+
+
+@pytest.fixture(scope="session")
+def coupon(board, p):
+    from drezimo_case.coupon import build_coupon_a
+
+    return build_coupon_a(board, p)
+
+
+@pytest.fixture(scope="session")
+def body(coupon):
+    return coupon[0]
+
+
+@pytest.fixture(scope="session")
+def inlay(coupon):
+    return coupon[1]
