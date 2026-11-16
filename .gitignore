@@ -29,3 +29,6 @@ hardware/fab/
 
 # Firmware build output
 firmware/build/
+
+# Python test cache
+.pytest_cache/
