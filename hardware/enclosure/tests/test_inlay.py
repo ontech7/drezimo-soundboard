@@ -1,5 +1,5 @@
 import pytest
-from build123d import Axis, CenterOf, offset
+from build123d import Axis, CenterOf, GeomType, offset
 
 from drezimo_case.board import PITCH
 from drezimo_case.inlay import LABEL_POSITIONS, LABEL_Y, LABELS, build_labels, label_outline
@@ -57,3 +57,17 @@ def test_arrows_point_away_from_the_word():
     assert left_arrow.center(CenterOf.MASS).X > left_arrow.bounding_box().center().X
     right_arrow = label_outline("PAG ▶").faces().sort_by(Axis.X)[-1]
     assert right_arrow.center(CenterOf.MASS).X < right_arrow.bounding_box().center().X
+
+
+def test_outlines_are_plain_polygons():
+    # Offset curves do not survive a STEP export; straight segments do.
+    for text in LABELS:
+        assert {edge.geom_type for edge in label_outline(text).edges()} == {GeomType.LINE}
+
+
+def test_tracing_keeps_the_shape_of_the_letters():
+    outline = label_outline("ASCOLTO")
+    assert len(outline.faces()) == 7
+    assert len(outline.faces().sort_by(Axis.X)[0].inner_wires()) == 1
+    assert all(face.normal_at().Z > 0 for face in outline.faces())
+    assert outline.area == pytest.approx(21.9, abs=0.3)

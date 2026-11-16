@@ -317,6 +317,8 @@ A single LED at full white draws in the order of tens of mA (check the SK6812 MI
 - USB-C of the RP2040-Zero exits from the top (back) edge, with strain relief for the cable. The receptacle face is 2.27 mm inside the case's outer edge, centred at x = 30 mm and about 5 mm below the PCB's underside (2.5 mm strip spacer + 1.04 mm module + half the 3.03 mm receptacle): the back wall needs an opening for the plug's overmould, and the bottom must leave at least 7.5 mm under the PCB there (the module hangs 6.6 mm).
 - Ergonomics and finish follow the quality bar in section 1: rounded edges, typing angle, support-free printing.
 - Do not finalise the 3D model before measuring the finished PCB: the OLED pixel-area position and its bottom pair of holes are still photo estimates.
+- The enclosure is generated from the PCB's own numbers by `hardware/enclosure/` (build123d, in a `uv` environment). `cd hardware/enclosure && uv run python -m drezimo_case coupon-a` writes the print files (STEP and 3MF, deck face-down, black body and white inlay as two parts) and a preview picture to `hardware/enclosure/print/`.
+- Heights come from the caliper values in `hardware/enclosure/drezimo_case/measurements.py`; the command lists the ones that are still estimates, and final parts refuse to build on them. `uv run pytest` checks the geometry.
 
 ## 8. Desktop software
 

@@ -1,8 +1,9 @@
 """White inlays in the deck: the function-key labels."""
 
+import math
 from functools import cache
 
-from build123d import Align, Axis, Plane, Polygon, Pos, Rectangle, Sketch, Text, extrude, mirror, offset
+from build123d import Align, Axis, Face, GeomType, Polygon, Pos, Rectangle, Sketch, Text, Wire, extrude, offset
 
 from .board import PITCH, REPO
 
@@ -15,6 +16,8 @@ CAP_HEIGHTS = (2.6, 2.5, 2.4)
 MAX_WIDTH = PITCH - 0.4
 STROKE = 0.5
 MIN_GAP = 0.45
+TRACE_STEP = 0.1
+JOIN_TOLERANCE = 1e-4
 ARROW_WIDTH = 2.2
 ARROW_GAP = 1.0
 LEFT_ARROW, RIGHT_ARROW = "◀", "▶"
@@ -46,6 +49,7 @@ def _cap_height():
     raise ValueError(f"the labels do not fit in {MAX_WIDTH} mm, even with capitals {CAP_HEIGHTS[-1]} mm tall")
 
 
+@cache
 def _outline(text, cap_height):
     label = _letters(text.strip(LEFT_ARROW + RIGHT_ARROW + " "), cap_height / _glyph_size("H").Y)
 
@@ -55,9 +59,36 @@ def _outline(text, cap_height):
     if text.endswith(RIGHT_ARROW):
         label += _arrow(box.max.X + ARROW_GAP, ARROW_WIDTH, cap_height)
 
+    return _traced(label)
+
+
+def _traced(label):
+    """The label as plain polygons, centred, and flipped to read in the case's top view.
+
+    Letters are drawn with y up, while in the case frame the top of the deck's text is at the
+    smaller y. Polygons also replace the offset curves, which a STEP file cannot carry.
+    """
     centre = label.bounding_box().center()
-    # Letters are drawn with y up; in the case frame the top of the deck's text is at the smaller y.
-    return mirror(Pos(-centre.X, -centre.Y) * label, Plane.XZ)
+
+    def polygon(wire):
+        path = []
+        for edge in wire.order_edges():
+            steps = 1 if edge.geom_type == GeomType.LINE else max(2, math.ceil(edge.length / TRACE_STEP))
+            piece = [edge @ (i / steps) for i in range(steps + 1)]
+            if path:
+                if min((piece[0] - path[-1]).length, (piece[-1] - path[-1]).length) > JOIN_TOLERANCE:
+                    path.reverse()
+                if (piece[0] - path[-1]).length > JOIN_TOLERANCE:
+                    piece.reverse()
+                piece = piece[1:]
+            path += piece
+        return Wire.make_polygon([(pt.X - centre.X, centre.Y - pt.Y) for pt in path[:-1]], close=True)
+
+    traced = Sketch()
+    for glyph in label.faces():
+        face = Face(polygon(glyph.outer_wire()), [polygon(hole) for hole in glyph.inner_wires()])
+        traced += face if face.normal_at().Z > 0 else -face
+    return traced
 
 
 def _letters(word, size):
