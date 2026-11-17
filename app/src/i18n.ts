@@ -717,7 +717,7 @@ const ITALIAN: Texts = {
     hearMe: "Ascolta la tua voce",
   },
   pad: (number, pressed) => `Pad ${number} ${pressed ? "premuto" : "rilasciato"}`,
-  buttonNames: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"],
+  buttonNames: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"],
   button: (name, pressed) => `${name} ${pressed ? "premuto" : "rilasciato"}`,
   knobTurned: (right) => (right ? "Manopola girata a destra" : "Manopola girata a sinistra"),
   knob: (pressed) => (pressed ? "Manopola premuta" : "Manopola rilasciata"),
@@ -1235,7 +1235,7 @@ const ITALIAN: Texts = {
         title: "Manopola",
         text: "Ruota per cambiare pagina, tocca per l'elenco. Tienila premuta e premi un tasto per leggerne il nome. Cosa fa ogni gesto si cambia nella pagina Drezimo.",
       },
-      { title: "Tasti funzione", text: "Pagina precedente e successiva, Stop, Muto, Voce e Ascolto." },
+      { title: "Tasti funzione", text: "Pagina precedente e successiva, Stop, Muto, Voce e Senti." },
       { title: "36 tasti", text: "Suoni, voci, azioni e macro: il colore dice cosa fanno e cosa sta succedendo." },
     ],
     legend: {

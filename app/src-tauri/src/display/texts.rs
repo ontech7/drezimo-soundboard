@@ -215,7 +215,7 @@ pub const ITALIAN: Texts = Texts {
     not_available: "NON DISPONIBILE",
     volumes_reset: "VOLUMI RIPRISTINATI",
     knob: "Manopola",
-    keys: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"],
+    keys: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"],
     press_something: "Premi un tasto o gira la manopola",
     decimal_separator: ',',
     modes: Modes {
