@@ -123,7 +123,13 @@ def test_thin_strokes_are_drawn_and_a_flat_part_gets_no_supports():
     _, settings, _ = decided(supported=False)
     assert settings["wall_generator"] == "arachne"
     assert settings["enable_support"] == "0"
-    assert settings["different_settings_to_system"] == ["wall_generator", "", "", ""]
+    assert settings["different_settings_to_system"] == ["initial_layer_infill_speed;initial_layer_speed;wall_generator", "", "", ""]
+
+
+def test_the_first_layer_is_printed_slowly():
+    _, settings, _ = decided(supported=False)
+    assert settings["initial_layer_speed"] == ["30", "30"]
+    assert settings["initial_layer_infill_speed"] == ["60", "60"]
 
 
 def test_a_supported_part_gets_normal_supports_from_the_plate_only():
@@ -134,7 +140,8 @@ def test_a_supported_part_gets_normal_supports_from_the_plate_only():
     assert settings["support_interface_top_layers"] == "3"
     assert settings["support_interface_spacing"] == "0.2"
     changed = settings["different_settings_to_system"][0].split(";")
-    assert set(changed) == {"wall_generator", "enable_support", "support_type", "support_on_build_plate_only", "support_interface_top_layers", "support_interface_spacing"}
+    supports = {"enable_support", "support_type", "support_on_build_plate_only", "support_interface_top_layers", "support_interface_spacing"}
+    assert set(changed) == supports | {"wall_generator", "initial_layer_speed", "initial_layer_infill_speed"}
     assert changed == sorted(changed)
 
 
@@ -185,6 +192,7 @@ def test_bambu_studio_slices_the_gauge_project_cleanly(tmp_path, monkeypatch, ca
     assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"] * 2
     assert settings["initial_layer_line_width"] == "0.5"
     assert settings["wall_generator"] == "arachne"
+    assert settings["initial_layer_speed"] == ["30", "30"]
     assert not any(name.endswith(".gcode") for name in project.namelist())
     assert "Sliced by Bambu Studio" in capsys.readouterr().out
 

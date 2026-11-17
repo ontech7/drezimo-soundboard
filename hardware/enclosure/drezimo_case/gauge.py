@@ -1,18 +1,18 @@
 """A flat gauge for the white inlays.
 
 It shows what the printer can draw in the deck's first layers: white bars and black gaps of
-stepped widths, then the shortest and the longest label at several capital heights. It has
-the deck's thickness and inlay depth, lies flat and needs no supports. The corner next to
-the thinnest samples is cut, so the plate cannot be read the wrong way round.
+stepped widths, then the deck's six labels, at the deck's capital height and one size up.
+It has the deck's thickness and inlay depth, lies flat and needs no supports. The corner
+next to the thinnest samples is cut, so the plate cannot be read the wrong way round.
 """
 
 from build123d import Part, Polygon, Pos, extrude
 
 from .deck import box
-from .inlay import label_outline
+from .inlay import CAP_HEIGHT, LABELS, label_outline
 from .params import Rect
 
-PLATE = (70.0, 54.0)
+PLATE = (70.0, 63.0)
 CUT_CORNER = 5.0
 MARGIN = 3.0
 
@@ -22,9 +22,8 @@ BARS_X, BARS_Y, BARS_PITCH = 6.0, 3.0, 5.0
 GAPS_X, GAPS_Y, GAPS_PITCH = 7.0, 11.5, 9.0
 BLOCK = 2.0
 
-CAP_HEIGHTS = (3.0, 3.5, 4.0, 4.5, 5.0)
-SHORTEST, LONGEST = "PAG", "ASCOLTO"
-FIRST_ROW_Y, ROW_GAP = 20.5, 2.5
+CAP_HEIGHTS = (CAP_HEIGHT, 4.0)
+FIRST_ROW_Y, ROW_GAP = 20.5, 3.0
 
 CAPTION_X = 26.0
 TITLES_X = 53.0
@@ -49,7 +48,7 @@ def captions():
         (TITLES_X, BARS_Y + 1.5, "white bars: width in mm"),
         (TITLES_X, BARS_Y + 4.5, "below: black gaps, width in mm"),
     ]
-    return tuple(notes + [(CAPTION_X, top + cap / 2, f"capitals {cap:.1f} mm") for cap, top in _rows()])
+    return tuple(notes + [(CAPTION_X, top + cap / 2, f"capitals {cap:.1f} mm") for cap, top in list(_rows())[1::3]])
 
 
 def _bars():
@@ -69,14 +68,23 @@ def _sample(x, y, width):
 
 
 def _labels():
-    for cap, top in _rows():
-        shortest, longest = label_outline(SHORTEST, cap), label_outline(LONGEST, cap)
-        yield MARGIN + shortest.bounding_box().size.X / 2, top + cap / 2, shortest
-        yield PLATE[0] - MARGIN - longest.bounding_box().size.X / 2, top + cap / 2, longest
+    """The labels two to a row: one against the left margin, one against the right."""
+    pairs = list(zip(LABELS[::2], LABELS[1::2]))
+    for (cap, top), (left, right) in zip(_rows(), pairs * len(CAP_HEIGHTS)):
+        for text, side in ((left, -1), (right, 1)):
+            outline = label_outline(text, cap)
+            reach = PLATE[0] / 2 - MARGIN - outline.bounding_box().size.X / 2
+            yield PLATE[0] / 2 + side * reach, top + _drawn_height(cap) / 2, outline
 
 
 def _rows():
+    """The capital height and the top of each row: three rows of labels per height."""
     top = FIRST_ROW_Y
     for cap in CAP_HEIGHTS:
-        yield cap, top
-        top += cap + ROW_GAP
+        for _ in range(len(LABELS) // 2):
+            yield cap, top
+            top += cap + ROW_GAP
+
+
+def _drawn_height(cap):
+    return label_outline("H", cap).bounding_box().size.Y

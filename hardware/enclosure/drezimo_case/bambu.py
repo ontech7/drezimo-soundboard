@@ -28,8 +28,13 @@ PROJECT = {
     # mm3 purged going from black to white and from white to black: the white must come out clean.
     "flush_volumes_matrix": ["0", "800", "250", "0"],
 }
-# Strokes and gaps narrower than two lines are drawn at their width instead of being dropped.
-INLAYS = {"wall_generator": "arachne"}
+INLAYS = {
+    # Strokes and gaps narrower than two lines are drawn at their width instead of being dropped.
+    "wall_generator": "arachne",
+    # mm/s, down from 50 and 105: the small black islands inside the letters must hold on the plate.
+    "initial_layer_speed": ["30", "30"],
+    "initial_layer_infill_speed": ["60", "60"],
+}
 SUPPORTS = {
     "enable_support": "1",
     "support_type": "normal(auto)",

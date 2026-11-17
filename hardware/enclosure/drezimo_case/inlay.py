@@ -5,16 +5,21 @@ from functools import cache
 
 from build123d import Align, Axis, Face, GeomType, Polygon, Pos, Rectangle, Sketch, Text, Wire, extrude, offset
 
-from .board import PITCH, REPO
+from .board import REPO
 
 FONT = REPO / "app" / "src-tauri" / "src" / "overlay" / "Inter-SemiBold.ttf"
-LABELS = ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"]
-LABEL_Y = 45.2
+LABELS = ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"]
+# Midway between the OLED module (y 42.40) and the key well (y 49.7).
+LABEL_Y = 46.05
 
-CAP_HEIGHTS = (2.6, 2.5, 2.4)
-MAX_WIDTH = PITCH - 0.4
-STROKE = 0.5
-MIN_GAP = 0.45
+# The capitals' height in the font, before the strokes are thickened.
+CAP_HEIGHT = 3.5
+# Black goes down first on the first layer and takes this much off the width of every white stroke.
+PRINT_LOSS = 0.2
+# As drawn. A thinner stroke prints as a hairline; a narrower gap, between two letters or inside
+# one, is smaller than any the label gauge has shown to print.
+MIN_STROKE = 0.7
+MIN_GAP = 0.5
 TRACE_STEP = 0.1
 JOIN_TOLERANCE = 1e-4
 ARROW_WIDTH = 2.2
@@ -23,12 +28,9 @@ LEFT_ARROW, RIGHT_ARROW = "◀", "▶"
 FIRST_FN_KEY = 37
 
 
-def label_outline(text, cap_height=None):
-    """The label as it reads in the case's top view, centred on the origin.
-
-    Its capitals are as tall as the deck's labels, unless another height is given.
-    """
-    return _outline(text, cap_height or _cap_height())
+def label_outline(text, cap_height=CAP_HEIGHT):
+    """The label as it reads in the case's top view, centred on the origin."""
+    return _outline(text, cap_height)
 
 
 def build_labels(board, p):
@@ -41,14 +43,6 @@ def build_labels(board, p):
         )
         for column, text in enumerate(LABELS)
     ]
-
-
-@cache
-def _cap_height():
-    for height in CAP_HEIGHTS:
-        if all(_outline(text, height).bounding_box().size.X <= MAX_WIDTH for text in LABELS):
-            return height
-    raise ValueError(f"the labels do not fit in {MAX_WIDTH} mm, even with capitals {CAP_HEIGHTS[-1]} mm tall")
 
 
 @cache
@@ -94,14 +88,16 @@ def _traced(label):
 
 
 def _letters(word, size):
-    """The word with every stroke thickened to STROKE and every pair of letters MIN_GAP apart."""
-    grow = max(0.0, (STROKE - size * _thinnest_stroke()) / 2)
+    """The word as it is drawn to print: strokes thickened, every pair of letters MIN_GAP apart.
+
+    Every stroke grows by what printing takes off, and further until the thinnest is MIN_STROKE.
+    """
+    grow = max(PRINT_LOSS, MIN_STROKE - size * _thinnest_stroke()) / 2
     typeset = Text(word, size, font_path=str(FONT), align=(Align.MIN, Align.MIN))
 
     letters, shift, previous_right = Sketch(), 0.0, None
     for glyph in typeset.faces().sort_by(Axis.X):
-        if grow:
-            glyph = offset(glyph, amount=grow).face()
+        glyph = offset(glyph, amount=grow).face()
         box = glyph.bounding_box()
         if previous_right is not None:
             shift += max(0.0, MIN_GAP - (box.min.X + shift - previous_right))

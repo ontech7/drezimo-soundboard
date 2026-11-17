@@ -6,7 +6,10 @@ requires-python = ">=3.11"
 dependencies = ["build123d", "matplotlib"]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "shapely>=2.2.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

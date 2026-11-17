@@ -3,11 +3,12 @@ from helpers import inside, nominal
 
 from drezimo_case import __main__ as cli
 from drezimo_case.gauge import build_label_gauge
+from drezimo_case.inlay import CAP_HEIGHT, LABELS, label_outline
 
-PLATE = (70.0, 54.0)
+PLATE = (70.0, 63.0)
 CUT_CORNER = 5.0
 WIDTHS = (0.4, 0.5, 0.6, 0.7, 0.8, 1.0, 1.2)
-ROWS = ((3.0, 20.5), (3.5, 26.0), (4.0, 32.0), (4.5, 38.5), (5.0, 45.5))
+ROWS = ((3.5, 20.5), (3.5, 27.0), (3.5, 33.5), (4.0, 40.0), (4.0, 47.0), (4.0, 54.0))
 EDGE = 0.04
 
 
@@ -59,22 +60,26 @@ def test_black_gaps_step_the_same_way_between_white_blocks(plate, white, p):
         assert inside(white, x + half + 2.0 - EDGE, 14.5, z) and not inside(white, x + half + 2.0 + EDGE, 14.5, z)
 
 
-def test_the_shortest_and_the_longest_label_come_in_five_capital_heights(white):
+def test_the_six_labels_come_at_the_decks_capital_height_and_one_size_up(white):
     letters = [solid.bounding_box() for solid in white.solids()]
-    for cap, top in ROWS:
-        row = [box for box in letters if top - 0.5 < box.center().Y < top + cap + 0.5]
-        assert len(row) == len("PAG") + len("ASCOLTO")
+    pairs = list(zip(LABELS[::2], LABELS[1::2]))
+    for (cap, top), pair in zip(ROWS, pairs + pairs):
+        drawn = label_outline("H", cap).bounding_box().size.Y
+        row = [box for box in letters if top - 0.5 < box.center().Y < top + drawn + 0.5]
+        assert len(row) == sum(len(label_outline(text).faces()) for text in pair)
         assert min(box.min.X for box in row) == pytest.approx(3.0, abs=0.01)
         assert max(box.max.X for box in row) == pytest.approx(67.0, abs=0.01)
-        assert max(box.size.Y for box in row) == pytest.approx(cap, rel=0.05)
-        assert min(box.min.Y for box in row) >= top - 0.03 * cap
-        assert max(box.max.Y for box in row) <= top + cap + 0.03 * cap
+        assert max(box.size.Y for box in row) == pytest.approx(drawn, rel=0.05)
+        assert min(box.min.Y for box in row) >= top - 0.03 * drawn
+        assert max(box.max.Y for box in row) <= top + drawn + 0.03 * drawn
+    assert ROWS[0][0] == CAP_HEIGHT
+    assert len(letters) == len(WIDTHS) * 3 + 2 * sum(len(label_outline(text).faces()) for text in LABELS)
 
 
 def test_the_corner_next_to_the_thinnest_samples_is_cut(plate):
     assert not inside(plate, 1.0, 1.0, 1.0)
     assert inside(plate, 4.0, 4.0, 1.0)
-    assert inside(plate, 69.0, 1.0, 1.0) and inside(plate, 1.0, 53.0, 1.0) and inside(plate, 69.0, 53.0, 1.0)
+    assert inside(plate, 69.0, 1.0, 1.0) and inside(plate, 1.0, 62.0, 1.0) and inside(plate, 69.0, 62.0, 1.0)
 
 
 def test_command_writes_the_gauge_and_says_nothing_about_estimates(tmp_path, monkeypatch, capsys):
