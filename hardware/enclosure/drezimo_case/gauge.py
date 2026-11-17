@@ -1,15 +1,15 @@
 """A flat gauge for the white inlays.
 
 It shows what the printer can draw in the deck's first layers: white bars and black gaps of
-stepped widths, then the deck's six labels, at the deck's capital height and one size up.
-It has the deck's thickness and inlay depth, lies flat and needs no supports. The corner
-next to the thinnest samples is cut, so the plate cannot be read the wrong way round.
+stepped widths, then the deck's six labels at two capital heights. It has the deck's
+thickness and inlay depth, lies flat and needs no supports. The corner next to the thinnest
+samples is cut, so the plate cannot be read the wrong way round.
 """
 
 from build123d import Part, Polygon, Pos, extrude
 
 from .deck import box
-from .inlay import CAP_HEIGHT, LABELS, label_outline
+from .inlay import LABELS, label_outline
 from .params import Rect
 
 PLATE = (70.0, 63.0)
@@ -22,7 +22,7 @@ BARS_X, BARS_Y, BARS_PITCH = 6.0, 3.0, 5.0
 GAPS_X, GAPS_Y, GAPS_PITCH = 7.0, 11.5, 9.0
 BLOCK = 2.0
 
-CAP_HEIGHTS = (CAP_HEIGHT, 4.0)
+CAP_HEIGHTS = (3.5, 4.0)
 FIRST_ROW_Y, ROW_GAP = 20.5, 3.0
 
 CAPTION_X = 26.0

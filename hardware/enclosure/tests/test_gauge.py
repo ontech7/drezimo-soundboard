@@ -3,7 +3,7 @@ from helpers import inside, nominal
 
 from drezimo_case import __main__ as cli
 from drezimo_case.gauge import build_label_gauge
-from drezimo_case.inlay import CAP_HEIGHT, LABELS, label_outline
+from drezimo_case.inlay import LABELS, label_outline
 
 PLATE = (70.0, 63.0)
 CUT_CORNER = 5.0
@@ -60,7 +60,7 @@ def test_black_gaps_step_the_same_way_between_white_blocks(plate, white, p):
         assert inside(white, x + half + 2.0 - EDGE, 14.5, z) and not inside(white, x + half + 2.0 + EDGE, 14.5, z)
 
 
-def test_the_six_labels_come_at_the_decks_capital_height_and_one_size_up(white):
+def test_the_six_labels_come_at_two_capital_heights(white):
     letters = [solid.bounding_box() for solid in white.solids()]
     pairs = list(zip(LABELS[::2], LABELS[1::2]))
     for (cap, top), pair in zip(ROWS, pairs + pairs):
@@ -72,7 +72,6 @@ def test_the_six_labels_come_at_the_decks_capital_height_and_one_size_up(white):
         assert max(box.size.Y for box in row) == pytest.approx(drawn, rel=0.05)
         assert min(box.min.Y for box in row) >= top - 0.03 * drawn
         assert max(box.max.Y for box in row) <= top + drawn + 0.03 * drawn
-    assert ROWS[0][0] == CAP_HEIGHT
     assert len(letters) == len(WIDTHS) * 3 + 2 * sum(len(label_outline(text).faces()) for text in LABELS)
 
 

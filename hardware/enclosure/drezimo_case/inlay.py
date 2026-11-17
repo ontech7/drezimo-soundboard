@@ -12,9 +12,10 @@ LABELS = ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"]
 # Midway between the OLED module (y 42.40) and the key well (y 49.7).
 LABEL_Y = 46.05
 
-# The capitals' height in the font, before the strokes are thickened.
-CAP_HEIGHT = 3.5
-# Black goes down first on the first layer and takes this much off the width of every white stroke.
+# The capitals' height as printed.
+CAP_HEIGHT = 4.0
+# Black goes down first on the first layer and takes this much off the width of every white stroke,
+# so letters and arrows are drawn that much bigger.
 PRINT_LOSS = 0.2
 # As drawn. A thinner stroke prints as a hairline; a narrower gap, between two letters or inside
 # one, is smaller than any the label gauge has shown to print.
@@ -47,13 +48,15 @@ def build_labels(board, p):
 
 @cache
 def _outline(text, cap_height):
-    label = _letters(text.strip(LEFT_ARROW + RIGHT_ARROW + " "), cap_height / _glyph_size("H").Y)
+    size = cap_height / _glyph_size("H").Y
+    grow = _grow(size)
+    label = _letters(text.strip(LEFT_ARROW + RIGHT_ARROW + " "), size, grow)
 
     box = label.bounding_box()
     if text.startswith(LEFT_ARROW):
-        label += _arrow(box.min.X - ARROW_GAP, -ARROW_WIDTH, cap_height)
+        label += offset(_arrow(box.min.X - ARROW_GAP - grow, -ARROW_WIDTH, cap_height), amount=grow)
     if text.endswith(RIGHT_ARROW):
-        label += _arrow(box.max.X + ARROW_GAP, ARROW_WIDTH, cap_height)
+        label += offset(_arrow(box.max.X + ARROW_GAP + grow, ARROW_WIDTH, cap_height), amount=grow)
 
     return _traced(label)
 
@@ -87,12 +90,13 @@ def _traced(label):
     return traced
 
 
-def _letters(word, size):
-    """The word as it is drawn to print: strokes thickened, every pair of letters MIN_GAP apart.
+def _grow(size):
+    """How far every outline moves out: by what printing takes off, and further until the thinnest stroke is MIN_STROKE."""
+    return max(PRINT_LOSS, MIN_STROKE - size * _thinnest_stroke()) / 2
 
-    Every stroke grows by what printing takes off, and further until the thinnest is MIN_STROKE.
-    """
-    grow = max(PRINT_LOSS, MIN_STROKE - size * _thinnest_stroke()) / 2
+
+def _letters(word, size, grow):
+    """The word as it is drawn to print: strokes thickened, every pair of letters MIN_GAP apart."""
     typeset = Text(word, size, font_path=str(FONT), align=(Align.MIN, Align.MIN))
 
     letters, shift, previous_right = Sketch(), 0.0, None
