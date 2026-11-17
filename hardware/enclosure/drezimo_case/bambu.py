@@ -11,16 +11,29 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass
 from pathlib import Path
 from xml.etree import ElementTree
 
 STUDIO = Path("/Applications/BambuStudio.app/Contents/MacOS/BambuStudio")
 PROFILES = STUDIO.parents[1] / "Resources/profiles/BBL"
 
-PRINTER = "Bambu Lab P1S 0.4 nozzle"
-PROCESS = "0.20mm Standard @BBL X1C"
-FILAMENT = "Overture Matte PLA @BBL X1C"
+
+
+@dataclass(frozen=True)
+class Nozzle:
+    """The system presets of the P1S with one nozzle: the process is the one Bambu Studio picks for it."""
+
+    printer: str
+    process: str
+    filament: str
+
+
+# By the nozzle's diameter in mm.
+NOZZLES = {
+    0.4: Nozzle("Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C", "Overture Matte PLA @BBL X1C"),
+    0.2: Nozzle("Bambu Lab P1S 0.2 nozzle", "0.10mm Standard @BBL X1C 0.2 nozzle", "Overture Matte PLA @BBL X1C 0.2 nozzle"),
+}
 
 PROJECT = {
     "filament_colour": ["#1A1A1C", "#F5F2F0"],
@@ -31,7 +44,7 @@ PROJECT = {
 INLAYS = {
     # Strokes and gaps narrower than two lines are drawn at their width instead of being dropped.
     "wall_generator": "arachne",
-    # mm/s, down from 50 and 105: the small black islands inside the letters must hold on the plate.
+    # mm/s, slower than either nozzle's process: the small black islands inside the letters must hold on the plate.
     "initial_layer_speed": ["30", "30"],
     "initial_layer_infill_speed": ["60", "60"],
 }
@@ -65,15 +78,15 @@ class SliceReport:
     supports: bool
 
 
-def write_project(neutral, target, supported):
-    """Write the project for a neutral 3MF and return what slicing it gave."""
+def write_project(neutral, target, supported, nozzle):
+    """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave."""
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
-        presets = {name: _write_preset(name, work) for name in (PRINTER, PROCESS, FILAMENT)}
+        printer, process, filament = (_write_preset(name, work) for name in astuple(NOZZLES[nozzle]))
         _studio(
             work,
-            "--load-settings", f"{presets[PRINTER]};{presets[PROCESS]}",
-            "--load-filaments", f"{presets[FILAMENT]};{presets[FILAMENT]}",
+            "--load-settings", f"{printer};{process}",
+            "--load-filaments", f"{filament};{filament}",
             "--export-3mf", "imported.3mf",
             Path(neutral).resolve(),
         )

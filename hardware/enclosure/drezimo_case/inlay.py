@@ -24,15 +24,21 @@ MIN_GAP = 0.5
 MIN_OPENING = 0.4
 TRACE_STEP = 0.1
 JOIN_TOLERANCE = 1e-4
+# Thickening leaves an arc a few nanometres long at every corner that is nearly straight. No mesh carries such a side.
+MIN_SIDE = 0.001
 ARROW_WIDTH = 2.2
 ARROW_GAP = 1.0
 LEFT_ARROW, RIGHT_ARROW = "◀", "▶"
 FIRST_FN_KEY = 37
 
 
-def label_outline(text, cap_height=CAP_HEIGHT):
-    """The label as it reads in the case's top view, centred on the origin."""
-    return _outline(text, cap_height)
+def label_outline(text, cap_height=CAP_HEIGHT, loss=PRINT_LOSS, min_stroke=MIN_STROKE, min_gap=MIN_GAP):
+    """The label as it reads in the case's top view, centred on the origin.
+
+    It is drawn to print: strokes `loss` thicker, and thicker still until the thinnest is
+    min_stroke, with every pair of letters min_gap apart.
+    """
+    return _outline(text, cap_height, loss, min_stroke, min_gap)
 
 
 def build_labels(board, p):
@@ -48,10 +54,10 @@ def build_labels(board, p):
 
 
 @cache
-def _outline(text, cap_height):
+def _outline(text, cap_height, loss, min_stroke, min_gap):
     size = cap_height / _glyph_size("H").Y
-    grow = _grow(size)
-    label = _letters(text.strip(LEFT_ARROW + RIGHT_ARROW + " "), size, grow)
+    grow = max(loss, min_stroke - size * _thinnest_stroke()) / 2
+    label = _letters(text.strip(LEFT_ARROW + RIGHT_ARROW + " "), size, grow, min_gap)
 
     box = label.bounding_box()
     if text.startswith(LEFT_ARROW):
@@ -82,7 +88,7 @@ def _traced(label):
                     piece.reverse()
                 piece = piece[1:]
             path += piece
-        return Wire.make_polygon([(pt.X - centre.X, centre.Y - pt.Y) for pt in path[:-1]], close=True)
+        return Wire.make_polygon(_without_crumbs([(pt.X - centre.X, centre.Y - pt.Y) for pt in path[:-1]]), close=True)
 
     traced = Sketch()
     for glyph in label.faces():
@@ -91,13 +97,19 @@ def _traced(label):
     return traced
 
 
-def _grow(size):
-    """How far every outline moves out: by what printing takes off, and further until the thinnest stroke is MIN_STROKE."""
-    return max(PRINT_LOSS, MIN_STROKE - size * _thinnest_stroke()) / 2
+def _without_crumbs(corners):
+    """The corners of a closed outline, less those closer than MIN_SIDE to the one before."""
+    kept = []
+    for corner in corners:
+        if not kept or math.dist(corner, kept[-1]) >= MIN_SIDE:
+            kept.append(corner)
+    while math.dist(kept[-1], kept[0]) < MIN_SIDE:
+        kept.pop()
+    return kept
 
 
-def _letters(word, size, grow):
-    """The word as it is drawn to print: strokes thickened, every pair of letters MIN_GAP apart."""
+def _letters(word, size, grow, min_gap):
+    """The word with every outline moved out by `grow` and every pair of letters min_gap apart."""
     typeset = Text(word, size, font_path=str(FONT), align=(Align.MIN, Align.MIN))
 
     letters, shift, previous_right = Sketch(), 0.0, None
@@ -105,7 +117,7 @@ def _letters(word, size, grow):
         glyph = offset(glyph, amount=grow).face()
         box = glyph.bounding_box()
         if previous_right is not None:
-            shift += max(0.0, MIN_GAP - (box.min.X + shift - previous_right))
+            shift += max(0.0, min_gap - (box.min.X + shift - previous_right))
         letters += Pos(shift, 0) * glyph
         previous_right = box.max.X + shift
     return letters

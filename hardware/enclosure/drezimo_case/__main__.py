@@ -1,8 +1,7 @@
 """Generates the print files.
 
     uv run python -m drezimo_case coupon-a
-    uv run python -m drezimo_case label-gauge
-    uv run python -m drezimo_case logo-gauge
+    uv run python -m drezimo_case inlay-gauge
 
 With --bambu after the name, also a Bambu Studio project with the print settings decided.
 """
@@ -12,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import bambu, gauge, logo_gauge
+from . import bambu, gauge
 from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
@@ -36,12 +35,15 @@ class PrintedPart:
     # Part of it prints over nothing and needs supports.
     supported: bool = False
     captions: tuple = ()
+    # The diameter, in mm, of the nozzle its Bambu Studio project is for.
+    nozzle: float = 0.4
 
 
 PARTS = {
     "coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True, supported=True),
-    "label-gauge": PrintedPart(gauge.build_label_gauge, "Label gauge", off_the_board=True, captions=gauge.captions()),
-    "logo-gauge": PrintedPart(logo_gauge.build_logo_gauge, "Logo gauge", off_the_board=True, captions=logo_gauge.captions()),
+    "inlay-gauge": PrintedPart(
+        gauge.build_inlay_gauge, "Inlay gauge", off_the_board=True, captions=gauge.captions(), nozzle=0.2
+    ),
 }
 
 
@@ -73,11 +75,11 @@ def main(argv):
 def _write_bambu_project(name, part, written):
     neutral = next(path for path in written if path.suffix == ".3mf")
     project = PRINT_DIR / f"{name}-bambu.3mf"
-    report = bambu.write_project(neutral, project, part.supported)
+    report = bambu.write_project(neutral, project, part.supported, part.nozzle)
     black, white = report.grams
     print(project)
     print(
-        f"Sliced by Bambu Studio {report.version} without a warning: {report.minutes:.0f} min, "
+        f"Sliced by Bambu Studio {report.version} for the {part.nozzle} mm nozzle without a warning: {report.minutes:.0f} min, "
         f"{black:.1f} g black, {white:.1f} g white, black first{', on supports' if report.supports else ''}"
     )
 

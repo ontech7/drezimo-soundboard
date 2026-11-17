@@ -129,3 +129,19 @@ def test_a_label_can_be_drawn_at_another_capital_height():
     box = label_outline("PAG", cap_height=5.0).bounding_box()
     assert 5.2 <= box.size.Y <= 5.45
     assert label_outline("H", cap_height=3.5).bounding_box().size.Y == pytest.approx(3.7, abs=0.01)
+
+
+def test_a_label_can_be_drawn_for_another_nozzles_limits():
+    # A finer nozzle takes less off, needs no thickening and lets the letters stand closer.
+    assert label_outline("H", 3.0, loss=0.1, min_stroke=0.0).bounding_box().size.Y == pytest.approx(3.1, abs=0.01)
+
+    for min_gap in (0.3, 0.5):
+        boxes = [glyph.bounding_box() for glyph in label_outline("PAG", 3.0, loss=0.1, min_stroke=0.0, min_gap=min_gap).faces().sort_by(Axis.X)]
+        assert [right.min.X - left.max.X for left, right in zip(boxes, boxes[1:])] == pytest.approx([min_gap] * 2, abs=0.01)
+
+
+def test_no_side_of_an_outline_is_too_short_to_mesh():
+    # Thickening leaves a crumb of an arc, nanometres long, at every corner that is nearly straight.
+    for text in LABELS:
+        for outline in (label_outline(text), label_outline(text, 3.0, loss=0.1, min_stroke=0.0)):
+            assert min(edge.length for edge in outline.edges()) >= 0.001, text

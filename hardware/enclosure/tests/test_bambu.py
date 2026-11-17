@@ -13,14 +13,14 @@ needs_bambu_studio = pytest.mark.skipif(not bambu.STUDIO.exists(), reason="Bambu
 MODEL_SETTINGS = """<?xml version="1.0" encoding="UTF-8"?>
 <config>
   <object id="3">
-    <metadata key="name" value="label-gauge"/>
+    <metadata key="name" value="inlay-gauge"/>
     <metadata key="extruder" value="1"/>
     <part id="1" subtype="normal_part">
-      <metadata key="name" value="label-gauge"/>
+      <metadata key="name" value="inlay-gauge"/>
       <mesh_stat face_count="12"/>
     </part>
     <part id="2" subtype="normal_part">
-      <metadata key="name" value="label-gauge_2"/>
+      <metadata key="name" value="inlay-gauge_2"/>
       <mesh_stat face_count="12"/>
     </part>
   </object>
@@ -163,12 +163,25 @@ def test_first_layer_order_is_read_from_the_gcode():
     assert bambu.first_layer_order(GCODE.replace("M620 S0A\nT1000", "M620 S1A\nT1000").replace("M620 S1A\nT1\n", "M620 S0A\nT0\n")) == [2, 1]
 
 
+def test_each_part_is_printed_with_a_nozzle_that_has_its_presets():
+    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.4, "inlay-gauge": 0.2}
+    assert set(bambu.NOZZLES) == {0.4, 0.2}
+
+
+@needs_bambu_studio
+def test_the_presets_of_each_nozzle_go_with_its_printer():
+    for size, nozzle in bambu.NOZZLES.items():
+        assert bambu.resolve_preset(nozzle.printer)["nozzle_diameter"] == [str(size)]
+        for preset in (nozzle.process, nozzle.filament):
+            assert nozzle.printer in bambu.resolve_preset(preset)["compatible_printers"]
+
+
 def test_command_without_the_flag_does_not_need_bambu_studio(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
     monkeypatch.setattr(cli, "MEASUREMENTS", nominal())
     monkeypatch.setattr(bambu, "STUDIO", tmp_path / "missing")
-    cli.main(["label-gauge"])
-    assert not (tmp_path / "label-gauge-bambu.3mf").exists()
+    cli.main(["coupon-a"])
+    assert not (tmp_path / "coupon-a-bambu.3mf").exists()
 
 
 def test_the_flag_without_bambu_studio_says_so(tmp_path, monkeypatch):
@@ -176,25 +189,27 @@ def test_the_flag_without_bambu_studio_says_so(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "MEASUREMENTS", nominal())
     monkeypatch.setattr(bambu, "STUDIO", tmp_path / "missing")
     with pytest.raises(SystemExit, match="Bambu Studio"):
-        cli.main(["label-gauge", "--bambu"])
+        cli.main(["inlay-gauge", "--bambu"])
 
 
 @needs_bambu_studio
-def test_bambu_studio_slices_the_gauge_project_cleanly(tmp_path, monkeypatch, capsys):
+def test_bambu_studio_slices_the_gauge_project_cleanly_for_the_0_2_mm_nozzle(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
     monkeypatch.setattr(cli, "MEASUREMENTS", nominal())
-    cli.main(["label-gauge", "--bambu"])
+    cli.main(["inlay-gauge", "--bambu"])
 
-    project = zipfile.ZipFile(tmp_path / "label-gauge-bambu.3mf")
+    project = zipfile.ZipFile(tmp_path / "inlay-gauge-bambu.3mf")
     settings = json.loads(project.read("Metadata/project_settings.config"))
-    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.4 nozzle"
-    assert settings["print_settings_id"] == "0.20mm Standard @BBL X1C"
-    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"] * 2
-    assert settings["initial_layer_line_width"] == "0.5"
+    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.2 nozzle"
+    assert settings["print_settings_id"] == "0.10mm Standard @BBL X1C 0.2 nozzle"
+    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C 0.2 nozzle"] * 2
+    assert settings["nozzle_diameter"] == ["0.2"]
+    assert (settings["layer_height"], settings["initial_layer_line_width"]) == ("0.1", "0.25")
     assert settings["wall_generator"] == "arachne"
     assert settings["initial_layer_speed"] == ["30", "30"]
     assert not any(name.endswith(".gcode") for name in project.namelist())
-    assert "Sliced by Bambu Studio" in capsys.readouterr().out
+    said = capsys.readouterr().out
+    assert "Sliced by Bambu Studio" in said and "for the 0.2 mm nozzle" in said
 
 
 @needs_bambu_studio
@@ -202,10 +217,16 @@ def test_bambu_studio_supports_the_coupon_and_raises_no_warning(tmp_path, body, 
     from drezimo_case.export import export_part
 
     neutral = next(path for path in export_part("coupon-a", body, inlay, tmp_path) if path.suffix == ".3mf")
-    report = bambu.write_project(neutral, tmp_path / "coupon-a-bambu.3mf", supported=True)
+    report = bambu.write_project(neutral, tmp_path / "coupon-a-bambu.3mf", supported=True, nozzle=0.4)
     assert report.supports
     assert report.first_layer_order == [1, 2]
     assert report.minutes > 10 and len(report.grams) == 2
 
+    settings = json.loads(zipfile.ZipFile(tmp_path / "coupon-a-bambu.3mf").read("Metadata/project_settings.config"))
+    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.4 nozzle"
+    assert settings["print_settings_id"] == "0.20mm Standard @BBL X1C"
+    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"] * 2
+    assert settings["initial_layer_line_width"] == "0.5"
+
     with pytest.raises(bambu.SliceError, match="floating"):
-        bambu.write_project(neutral, tmp_path / "unsupported.3mf", supported=False)
+        bambu.write_project(neutral, tmp_path / "unsupported.3mf", supported=False, nozzle=0.4)
