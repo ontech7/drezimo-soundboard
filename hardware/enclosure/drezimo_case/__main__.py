@@ -2,6 +2,7 @@
 
     uv run python -m drezimo_case coupon-a
     uv run python -m drezimo_case label-gauge
+    uv run python -m drezimo_case logo-gauge
 
 With --bambu after the name, also a Bambu Studio project with the print settings decided.
 """
@@ -11,11 +12,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import bambu
+from . import bambu, gauge, logo_gauge
 from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
-from .gauge import build_label_gauge, captions
 from .measurements import MEASUREMENTS
 from .params import Params
 from .preview import Keys
@@ -40,7 +40,8 @@ class PrintedPart:
 
 PARTS = {
     "coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True, supported=True),
-    "label-gauge": PrintedPart(build_label_gauge, "Label gauge", off_the_board=True, captions=captions()),
+    "label-gauge": PrintedPart(gauge.build_label_gauge, "Label gauge", off_the_board=True, captions=gauge.captions()),
+    "logo-gauge": PrintedPart(logo_gauge.build_logo_gauge, "Logo gauge", off_the_board=True, captions=logo_gauge.captions()),
 }
 
 

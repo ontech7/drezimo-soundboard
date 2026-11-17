@@ -1,42 +1,30 @@
-import math
-
 import pytest
 from build123d import Axis, CenterOf, GeomType
-from shapely.geometry import Polygon
+from helpers import flat, pieces_and_counters
 
 from drezimo_case.board import PITCH
-from drezimo_case.inlay import ARROW_GAP, ARROW_WIDTH, CAP_HEIGHT, LABELS, MIN_GAP, MIN_STROKE, PRINT_LOSS, build_labels, label_outline
+from drezimo_case.inlay import (
+    ARROW_GAP,
+    ARROW_WIDTH,
+    CAP_HEIGHT,
+    LABELS,
+    MIN_GAP,
+    MIN_OPENING,
+    MIN_STROKE,
+    PRINT_LOSS,
+    build_labels,
+    label_outline,
+)
 
 # Just under half the limit: a stroke or a gap at the limit survives, a thinner one does not.
 MARGIN = 0.01
-# As drawn. The narrowest gap inside a letter is the mouth of the G, 0.44 mm; the gauges printed
-# a 0.4 mm slot twice and a 0.36 mm mouth.
-MIN_OPENING = 0.4
 
 
 def flat_glyphs():
     """Every drawn letter of every label as a flat polygon with its counters."""
     for text in LABELS:
         for glyph in label_outline(text).faces():
-            letter = _ring(glyph.outer_wire())
-            for counter in glyph.inner_wires():
-                letter = letter.difference(_ring(counter))
-            yield text, letter
-
-
-def _ring(wire):
-    sides = [(tuple(edge @ 0)[:2], tuple(edge @ 1)[:2]) for edge in wire.order_edges()]
-    # The corner a side shares with the next one, whichever way each side runs.
-    corners = [
-        min(side, key=lambda end: min(math.dist(end, other) for other in following))
-        for side, following in zip(sides, sides[1:] + sides[:1])
-    ]
-    return Polygon(corners)
-
-
-def pieces_and_counters(shape):
-    parts = [part for part in getattr(shape, "geoms", [shape]) if not part.is_empty]
-    return len(parts), sum(len(part.interiors) for part in parts)
+            yield text, flat(glyph)
 
 
 def test_the_labels_are_the_six_words_the_owner_chose():

@@ -36,8 +36,13 @@ def build_label_gauge(_board, p):
     inlay = Part() + [box(rect, floor, top) for rect in _bars() + _blocks()]
     inlay += [extrude(Pos(x, y, floor) * outline, amount=p.inlay_depth, dir=(0, 0, 1)) for x, y, outline in _labels()]
 
-    plate = Polygon((CUT_CORNER, 0), (PLATE[0], 0), PLATE, (0, PLATE[1]), (0, CUT_CORNER), align=None)
-    return extrude(plate, amount=top) - inlay, inlay
+    return extrude(plate(PLATE), amount=top) - inlay, inlay
+
+
+def plate(size):
+    """A gauge's outline, with the corner on the origin cut."""
+    width, length = size
+    return Polygon((CUT_CORNER, 0), (width, 0), size, (0, length), (0, CUT_CORNER), align=None)
 
 
 def captions():

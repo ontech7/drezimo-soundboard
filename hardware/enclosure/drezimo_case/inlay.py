@@ -17,10 +17,11 @@ CAP_HEIGHT = 4.0
 # Black goes down first on the first layer and takes this much off the width of every white stroke,
 # so letters and arrows are drawn that much bigger.
 PRINT_LOSS = 0.2
-# As drawn. A thinner stroke prints as a hairline; a narrower gap, between two letters or inside
-# one, is smaller than any the label gauge has shown to print.
+# As drawn. A thinner stroke prints as a hairline; a narrower gap between two shapes, or a
+# narrower opening inside one, is smaller than any the label gauges have shown to print.
 MIN_STROKE = 0.7
 MIN_GAP = 0.5
+MIN_OPENING = 0.4
 TRACE_STEP = 0.1
 JOIN_TOLERANCE = 1e-4
 ARROW_WIDTH = 2.2

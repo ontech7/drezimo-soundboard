@@ -33,5 +33,6 @@ firmware/build/
 # Python test cache
 .pytest_cache/
 
-# Enclosure: the label gauge's STEP is 21 MB of traced letters; its 3MF is the print file
+# Enclosure: the gauges' STEPs are about 20 MB of traced letters each; their 3MFs are the print files
 hardware/enclosure/print/label-gauge.step
+hardware/enclosure/print/logo-gauge.step
