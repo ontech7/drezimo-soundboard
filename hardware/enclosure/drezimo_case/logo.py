@@ -11,7 +11,7 @@ from functools import cache
 from itertools import pairwise
 from xml.etree import ElementTree
 
-from build123d import Compound, Face, Sketch, Wire
+from build123d import Compound, Face, Pos, Sketch, Wire, extrude
 from shapely.affinity import translate
 from shapely.geometry import MultiLineString, box
 from shapely.ops import unary_union
@@ -50,9 +50,17 @@ def logo_outline(width=WIDTH, loss=PRINT_LOSS, min_stroke=MIN_STROKE):
     return _outline(width, loss, min_stroke)
 
 
+def build_logo(p):
+    """The logo in the deck: its left edge on the first keycap's, its middle level with the display's lit area."""
+    _, _, width, height = _frame()
+    x = p.fn_well.x0 + p.well_margin
+    y = p.lit.centre[1] - height * WIDTH / width / 2
+    return extrude(Pos(x, y, p.deck_top - p.inlay_depth) * logo_outline(), amount=p.inlay_depth, dir=(0, 0, 1))
+
+
 def stroke_widths(width=WIDTH, loss=PRINT_LOSS, min_stroke=MIN_STROKE):
     """How thick each line of the wordmark is drawn, from the first line down."""
-    unit = width / _corner_and_width()[2]
+    unit = width / _frame()[2]
     return tuple(_stroke(stroke * unit, loss, min_stroke) for stroke, _ in _artwork().lines)
 
 
@@ -79,17 +87,17 @@ def _artwork():
 
 @cache
 def _outline(width, loss, min_stroke):
-    left, top, width_in_units = _corner_and_width()
+    left, top, width_in_units, _ = _frame()
     unit = width / width_in_units
     shapes = translate(_drawn(unit, loss, min_stroke), -left * unit, -top * unit)
     return Sketch(Compound([_face(shape) for shape in shapes.geoms]).wrapped)
 
 
 @cache
-def _corner_and_width():
-    """The artwork's top left corner and its width, as drawn and in its own units."""
-    left, top, right, _ = _drawn(1.0, 0.0, 0.0).bounds
-    return left, top, right - left
+def _frame():
+    """The artwork's top left corner, its width and its height, as drawn and in its own units."""
+    left, top, right, bottom = _drawn(1.0, 0.0, 0.0).bounds
+    return left, top, right - left, bottom - top
 
 
 def _drawn(unit, loss, min_stroke):

@@ -125,3 +125,14 @@ def test_artwork_with_a_shape_it_cannot_trace_is_refused(tmp_path):
     drawing.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0C1 1 2 2 3 3" stroke-width="1"/></svg>')
     with pytest.raises(ValueError, match="C"):
         read_artwork(drawing)
+
+
+def test_the_logo_lies_in_the_deck_beside_the_display(p):
+    from drezimo_case.logo import build_logo
+
+    box = build_logo(p).bounding_box()
+    first_keycap = p.fn_well.x0 + p.well_margin
+    assert (box.min.X, box.max.X) == pytest.approx((first_keycap, first_keycap + WIDTH + PRINT_LOSS / 2), abs=0.02)
+    # Level with the lit area: the artwork as drawn is 10.15 mm tall and its top row of pads is not drawn bigger.
+    assert box.min.Y == pytest.approx(p.lit.centre[1] - 10.15 / 2, abs=0.01)
+    assert (box.min.Z, box.max.Z) == pytest.approx((p.deck_top - p.inlay_depth, p.deck_top))

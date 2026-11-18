@@ -5,6 +5,7 @@ from build123d import Align, Box, Pos, RectangleRounded, extrude
 from helpers import NOMINAL, inside
 
 from drezimo_case.board import INSET
+from drezimo_case.inlay import LABELS, label_outline
 
 MID = 98.0
 # The board's corners are drawn with this radius.
@@ -144,3 +145,25 @@ def test_the_usb_plug_passes_the_back_wall_and_the_connector_passes_the_rim(shel
     assert not inside(shell_body, x, p.rim + 0.3, between)
     assert inside(shell_body, x, p.rim - 0.3, p.seat - 0.5)
     assert inside(shell_body, window.x0 - 0.5, p.rim + 0.3, between)
+
+
+def test_the_inlays_are_the_logo_and_the_six_labels_cut_out_of_the_body(shell, shell_body, p):
+    body, inlay = shell
+    letters = sum(len(label_outline(text).faces()) for text in LABELS)
+    assert len(inlay.solids()) == 53 + letters
+    assert len(body.solids()) == 1
+    assert body.volume + inlay.volume == pytest.approx(shell_body.volume, rel=1e-6)
+    box = inlay.bounding_box()
+    assert (box.min.Z, box.max.Z) == pytest.approx((p.deck_top - p.inlay_depth, p.deck_top))
+
+
+def test_every_inlay_has_whole_deck_under_it_and_a_millimetre_round_it(shell, shell_body, p):
+    # Black behind the white, and no opening, pocket or chamfer close enough to break its edge.
+    _, inlay = shell
+    underside = p.deck_top - p.deck_thickness
+    for solid in inlay.solids():
+        box = solid.bounding_box()
+        x0, y0, x1, y1 = box.min.X - 1.0, box.min.Y - 1.0, box.max.X + 1.0, box.max.Y + 1.0
+        for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1), ((x0 + x1) / 2, (y0 + y1) / 2)):
+            for z in (underside + 0.05, p.deck_top - 0.05):
+                assert inside(shell_body, x, y, z), (round(x, 2), round(y, 2), z)

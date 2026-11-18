@@ -44,3 +44,10 @@ def shell_body(board, p):
     from drezimo_case.shell import build_body
 
     return build_body(board, p)
+
+
+@pytest.fixture(scope="session")
+def shell(board, p):
+    from drezimo_case.shell import build_shell
+
+    return build_shell(board, p)

@@ -3,14 +3,22 @@
 Modelled like the deck, in the case frame with z up from the PCB's top surface.
 """
 
-from build123d import Align, Box, Circle, Cylinder, Pos, Rectangle, extrude
+from build123d import Align, Box, Circle, Cylinder, Part, Pos, Rectangle, extrude
 
 from .deck import box, build_deck, outline
+from .inlay import build_labels
+from .logo import build_logo
 
 # The chamfer leaves 1.06 mm of wall at the cavity's top corner: filled at 45°, it is 2 mm.
 FILL = 1.4
 SCREW_LEAD_IN = 0.3
 ON_ITS_BASE = (Align.CENTER, Align.CENTER, Align.MIN)
+
+
+def build_shell(board, p):
+    """The black body and the white inlays that lie flush in its deck: the logo and the six labels."""
+    inlay = Part() + build_labels(board, p) + build_logo(p)
+    return build_body(board, p) - inlay, inlay
 
 
 def build_body(board, p):
