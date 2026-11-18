@@ -141,8 +141,15 @@ def test_a_supported_part_gets_normal_supports_from_the_plate_only():
     assert settings["support_interface_spacing"] == "0.2"
     changed = settings["different_settings_to_system"][0].split(";")
     supports = {"enable_support", "support_type", "support_on_build_plate_only", "support_interface_top_layers", "support_interface_spacing"}
-    assert set(changed) == supports | {"wall_generator", "initial_layer_speed", "initial_layer_infill_speed"}
+    black = {"support_filament", "support_interface_filament"}
+    assert set(changed) == supports | black | {"wall_generator", "initial_layer_speed", "initial_layer_infill_speed"}
     assert changed == sorted(changed)
+
+
+def test_supports_are_printed_in_the_bodys_black():
+    # Left to Bambu Studio they start in white, a third of a millimetre from the rim of the well on the face that shows.
+    _, settings, _ = decided(supported=True)
+    assert (settings["support_filament"], settings["support_interface_filament"]) == ("1", "1")
 
 
 def test_the_other_files_of_the_project_are_kept():
@@ -163,8 +170,16 @@ def test_first_layer_order_is_read_from_the_gcode():
     assert bambu.first_layer_order(GCODE.replace("M620 S0A\nT1000", "M620 S1A\nT1000").replace("M620 S1A\nT1\n", "M620 S0A\nT0\n")) == [2, 1]
 
 
+def test_the_filaments_of_the_supports_are_read_from_the_gcode():
+    assert bambu.support_filaments(GCODE) == set()
+    white_wall = "; FEATURE: Outer wall\nG1 X30 Y10 E.5"
+    in_white = GCODE.replace(white_wall, f"; FEATURE: Support\nG1 X29 Y10 E.5\n; FEATURE: Support interface\nG1 X29 Y11 E.5\n{white_wall}")
+    assert bambu.support_filaments(in_white) == {2}
+    assert bambu.support_filaments(in_white.replace("; FEATURE: Outer wall\nG1 X20", "; FEATURE: Support\nG1 X20")) == {1, 2}
+
+
 def test_each_part_is_printed_with_a_nozzle_that_has_its_presets():
-    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.4, "inlay-gauge": 0.2}
+    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2}
     assert set(bambu.NOZZLES) == {0.4, 0.2}
 
 
@@ -217,16 +232,17 @@ def test_bambu_studio_supports_the_coupon_and_raises_no_warning(tmp_path, body, 
     from drezimo_case.export import export_part
 
     neutral = next(path for path in export_part("coupon-a", body, inlay, tmp_path) if path.suffix == ".3mf")
-    report = bambu.write_project(neutral, tmp_path / "coupon-a-bambu.3mf", supported=True, nozzle=0.4)
+    report = bambu.write_project(neutral, tmp_path / "coupon-a-bambu.3mf", supported=True, nozzle=0.2)
     assert report.supports
     assert report.first_layer_order == [1, 2]
     assert report.minutes > 10 and len(report.grams) == 2
 
     settings = json.loads(zipfile.ZipFile(tmp_path / "coupon-a-bambu.3mf").read("Metadata/project_settings.config"))
-    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.4 nozzle"
-    assert settings["print_settings_id"] == "0.20mm Standard @BBL X1C"
-    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"] * 2
-    assert settings["initial_layer_line_width"] == "0.5"
+    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.2 nozzle"
+    assert settings["print_settings_id"] == "0.10mm Standard @BBL X1C 0.2 nozzle"
+    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C 0.2 nozzle"] * 2
+    assert (settings["support_top_z_distance"], settings["support_line_width"]) == ("0.1", "0.22")
+    assert (settings["support_filament"], settings["support_interface_filament"]) == ("1", "1")
 
     with pytest.raises(bambu.SliceError, match="floating"):
-        bambu.write_project(neutral, tmp_path / "unsupported.3mf", supported=False, nozzle=0.4)
+        bambu.write_project(neutral, tmp_path / "unsupported.3mf", supported=False, nozzle=0.2)

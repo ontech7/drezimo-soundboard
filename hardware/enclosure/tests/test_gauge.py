@@ -106,8 +106,8 @@ def test_the_six_labels_come_at_three_capital_heights_three_to_a_row(letters):
     assert len(letters) == 3 * sum(len(label_outline(text).faces()) for text in LABELS)
 
 
-def test_the_labels_are_drawn_for_the_0_2_mm_nozzle(letters):
-    # Half the 0.4 mm nozzle's loss and no thickening: its T would be 3.25 mm tall, 0.5 mm from the O.
+def test_the_labels_are_drawn_on_the_guess_the_gauge_was_printed_to_check(letters):
+    # Half the loss the deck's labels are drawn for, and no thickening.
     stop = sorted((box for box in letters if 20.0 < box.center().Y < 24.5 and box.center().X > 2 * THIRD), key=lambda box: box.min.X)
     _, t, o, _ = stop
     assert t.size.Y == pytest.approx(3.0 + LOSS, abs=0.01)

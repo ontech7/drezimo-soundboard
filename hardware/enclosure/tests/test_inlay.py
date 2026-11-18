@@ -38,16 +38,17 @@ def test_every_label_stays_inside_its_key_cell():
 
 def test_letters_are_drawn_bigger_than_they_print():
     # Black goes down first and takes PRINT_LOSS off every white stroke, so the letters are drawn
-    # that much bigger: capitals drawn 4.2 mm tall print 4.0 mm tall.
-    assert (CAP_HEIGHT, PRINT_LOSS, MIN_STROKE, MIN_GAP) == (4.0, 0.2, 0.7, 0.5)
+    # that much bigger: capitals drawn 3.7 mm tall print 3.5 mm tall.
+    assert (CAP_HEIGHT, PRINT_LOSS, MIN_STROKE, MIN_GAP, MIN_OPENING) == (3.5, 0.2, 0.6, 0.3, 0.35)
     assert label_outline("H").bounding_box().size.Y == pytest.approx(CAP_HEIGHT + PRINT_LOSS, abs=0.01)
-    assert label_outline("I").bounding_box().size.X == pytest.approx(0.92, abs=0.01)
+    assert label_outline("I").bounding_box().size.X == pytest.approx(0.83, abs=0.01)
 
 
 def test_small_letters_are_thickened_until_their_thinnest_stroke_prints():
-    bar_of_the_t = 0.45  # mm in the font, at capitals 3.0 mm tall
+    bar_of_the_t = 0.375  # mm in the font, at capitals 2.5 mm tall
     grown = MIN_STROKE - bar_of_the_t
-    assert label_outline("H", cap_height=3.0).bounding_box().size.Y == pytest.approx(3.0 + grown, abs=0.01)
+    assert grown > PRINT_LOSS
+    assert label_outline("H", cap_height=2.5).bounding_box().size.Y == pytest.approx(2.5 + grown, abs=0.01)
 
 
 def test_big_letters_are_only_thickened_by_what_printing_takes_off():
@@ -128,11 +129,11 @@ def test_tracing_keeps_the_shape_of_the_letters():
 def test_a_label_can_be_drawn_at_another_capital_height():
     box = label_outline("PAG", cap_height=5.0).bounding_box()
     assert 5.2 <= box.size.Y <= 5.45
-    assert label_outline("H", cap_height=3.5).bounding_box().size.Y == pytest.approx(3.7, abs=0.01)
+    assert label_outline("H", cap_height=4.0).bounding_box().size.Y == pytest.approx(4.2, abs=0.01)
 
 
-def test_a_label_can_be_drawn_for_another_nozzles_limits():
-    # A finer nozzle takes less off, needs no thickening and lets the letters stand closer.
+def test_a_label_can_be_drawn_to_other_limits():
+    # A gauge draws the labels on a guess of what printing does, to see whether it holds.
     assert label_outline("H", 3.0, loss=0.1, min_stroke=0.0).bounding_box().size.Y == pytest.approx(3.1, abs=0.01)
 
     for min_gap in (0.3, 0.5):

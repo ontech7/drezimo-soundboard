@@ -13,15 +13,15 @@ LABELS = ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"]
 LABEL_Y = 46.05
 
 # The capitals' height as printed.
-CAP_HEIGHT = 4.0
+CAP_HEIGHT = 3.5
 # Black goes down first on the first layer and takes this much off the width of every white stroke,
-# so letters and arrows are drawn that much bigger.
+# with the 0.2 mm nozzle as with the 0.4 mm one, so letters and arrows are drawn that much bigger.
 PRINT_LOSS = 0.2
-# As drawn. A thinner stroke prints as a hairline; a narrower gap between two shapes, or a
-# narrower opening inside one, is smaller than any the label gauges have shown to print.
-MIN_STROKE = 0.7
-MIN_GAP = 0.5
-MIN_OPENING = 0.4
+# As drawn, for the 0.2 mm nozzle. A thinner stroke does not print whole everywhere on the plate; a narrower
+# gap between two shapes, or a narrower opening inside one, is smaller than any the gauges have shown to print.
+MIN_STROKE = 0.6
+MIN_GAP = 0.3
+MIN_OPENING = 0.35
 TRACE_STEP = 0.1
 JOIN_TOLERANCE = 1e-4
 # Thickening leaves an arc a few nanometres long at every corner that is nearly straight. No mesh carries such a side.

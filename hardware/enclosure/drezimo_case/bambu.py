@@ -54,6 +54,9 @@ SUPPORTS = {
     "support_on_build_plate_only": "1",
     "support_interface_top_layers": "3",
     "support_interface_spacing": "0.2",
+    # The body's black. Left to Bambu Studio they start in white, 0.35 mm from the rim of the well on the face that shows.
+    "support_filament": "1",
+    "support_interface_filament": "1",
 }
 PARTS = (("body", 1), ("inlay", 2))
 # The body goes down first and shapes the letters; the white then fills them.
@@ -62,7 +65,6 @@ FIRST_LAYER = {"first_layer_sequence_choice": "Customize", "first_layer_print_se
 SETTINGS_FILE = "Metadata/project_settings.config"
 MODEL_SETTINGS_FILE = "Metadata/model_settings.config"
 UNPRINTED = ("Custom", "Prime tower")
-SUPPORT_FEATURE = "; FEATURE: Support"
 
 
 class SliceError(Exception):
@@ -134,7 +136,21 @@ def decide(files, supported):
 
 def first_layer_order(gcode):
     """The filaments in the order they print the part's first layer."""
-    layer, filament, feature, order = 0, None, "", []
+    order = []
+    for layer, filament, feature in _extrusions(gcode):
+        if layer == 1 and feature not in UNPRINTED and filament not in order:
+            order.append(filament)
+    return order
+
+
+def support_filaments(gcode):
+    """The filaments the supports are printed in."""
+    return {filament for _, filament, feature in _extrusions(gcode) if feature.startswith("Support")}
+
+
+def _extrusions(gcode):
+    """The layer, the filament and the feature of every move that extrudes."""
+    layer, filament, feature = 0, None, ""
     for line in gcode.splitlines():
         if line.startswith("; CHANGE_LAYER"):
             layer += 1
@@ -142,9 +158,8 @@ def first_layer_order(gcode):
             feature = line.split(":")[1].strip()
         elif (loaded := re.match(r"M620 S(\d+)A", line)) and int(loaded.group(1)) < 16:
             filament = int(loaded.group(1)) + 1
-        elif layer == 1 and feature not in UNPRINTED and re.match(r"G[123] .*E\.?\d", line) and filament not in order:
-            order.append(filament)
-    return order
+        elif re.match(r"G[123] .*E\.?\d", line):
+            yield layer, filament, feature
 
 
 def _report(work, imported):
@@ -156,12 +171,15 @@ def _report(work, imported):
     order = first_layer_order(gcode)
     if order != [filament for _, filament in PARTS]:
         raise SliceError(f"the first layer prints the filaments in the order {order}")
+    supports = support_filaments(gcode)
+    if supports - {dict(PARTS)["body"]}:
+        raise SliceError(f"the supports are printed in the filaments {sorted(supports)}")
     return SliceReport(
         version=re.search(rb"BambuStudio-([\d.]+)", imported["3D/3dmodel.model"]).group(1).decode(),
         minutes=plate["total_predication"] / 60,
         grams=tuple(filament["total_used_g"] for filament in plate["filaments"]),
         first_layer_order=order,
-        supports=SUPPORT_FEATURE in gcode,
+        supports=bool(supports),
     )
 
 

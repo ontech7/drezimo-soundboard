@@ -40,7 +40,7 @@ class PrintedPart:
 
 
 PARTS = {
-    "coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True, supported=True),
+    "coupon-a": PrintedPart(build_coupon_a, "Coupon (a)", draft=True, supported=True, nozzle=0.2),
     "inlay-gauge": PrintedPart(
         gauge.build_inlay_gauge, "Inlay gauge", off_the_board=True, captions=gauge.captions(), nozzle=0.2
     ),

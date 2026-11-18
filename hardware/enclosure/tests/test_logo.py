@@ -87,15 +87,19 @@ def test_the_lit_pads_stay_as_drawn_to_keep_the_black_between_them():
         assert right.min.X - left.max.X == pytest.approx(0.5 * UNIT, abs=0.01)
 
 
-def test_the_small_line_is_thickened_as_far_as_its_counters_allow():
-    # Its bars are 1.05 mm apart, centre to centre: a 0.65 mm stroke leaves MIN_OPENING of black between them.
-    assert small_stroke(logo_outline()) == pytest.approx(1.05 - MIN_OPENING, abs=0.01)
-    assert small_stroke(logo_outline(min_stroke=0.0)) == pytest.approx(0.35 + PRINT_LOSS, abs=0.01)
+def test_the_small_line_is_thickened_to_the_thinnest_stroke_that_prints():
     assert small_stroke(as_drawn()) == pytest.approx(0.35, abs=0.01)
+    assert small_stroke(logo_outline(min_stroke=0.0)) == pytest.approx(0.35 + PRINT_LOSS, abs=0.01)
+    assert small_stroke(logo_outline()) == pytest.approx(MIN_STROKE, abs=0.01)
 
 
-def test_a_wider_logo_gets_the_thinnest_stroke_that_prints_and_no_more():
-    assert small_stroke(logo_outline(48.0), unit=0.8) == pytest.approx(MIN_STROKE, abs=0.01)
+def test_a_narrower_logo_is_thickened_only_as_far_as_its_counters_allow():
+    # At 36 mm its bars are 0.9 mm apart, centre to centre: a 0.55 mm stroke leaves MIN_OPENING of black between them.
+    assert small_stroke(logo_outline(36.0), unit=0.6) == pytest.approx(0.9 - MIN_OPENING, abs=0.01)
+    assert 0.3 + PRINT_LOSS < 0.9 - MIN_OPENING < MIN_STROKE
+
+
+def test_a_wider_logo_is_only_thickened_by_what_printing_takes_off():
     assert small_stroke(logo_outline(72.0), unit=1.2) == pytest.approx(0.6 + PRINT_LOSS, abs=0.01)
 
 

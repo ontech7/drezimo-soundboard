@@ -26,8 +26,8 @@ GAPS_X, GAPS_Y, GAPS_PITCH = 7.0, 11.5, 9.0
 BLOCK = 2.0
 TITLES_X = 53.0
 
-# What the 0.2 mm nozzle is taken to do until this gauge is printed: it takes half of what the
-# 0.4 mm nozzle does off a stroke, draws the font's own strokes and keeps a gap of one line open.
+# The guess this gauge was printed to check: the 0.2 mm nozzle takes half of what the 0.4 mm nozzle
+# does off a stroke, draws the font's own strokes and keeps a gap of one line open.
 LOSS, MIN_GAP = 0.1, 0.3
 CAP_HEIGHTS = (3.0, 3.5, 4.0)
 LABEL_ROWS = (LABELS[:3], LABELS[3:])
