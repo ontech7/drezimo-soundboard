@@ -20,3 +20,34 @@ def test_key_centres():
 def test_holes():
     expected = {(x, y) for x in (6.5, 123.8) for y in (6.5, 131.2, 189.85)}
     assert {(round(x, 2), round(y, 2)) for x, y in load_board().holes} == expected
+
+
+def test_the_display_hangs_from_its_header():
+    assert load_board().display_pin1 == pytest.approx((73.89, 10.5), abs=0.01)
+
+
+def test_the_encoder_and_its_body():
+    b = load_board()
+    assert b.encoder_shaft == pytest.approx((112.775, 27.0), abs=0.01)
+    body = b.encoder_body
+    assert (body.x0, body.y0, body.x1, body.y1) == pytest.approx((106.775, 21.2, 118.775, 32.8), abs=0.01)
+    assert body.centre == pytest.approx(b.encoder_shaft, abs=0.01)
+
+
+def test_the_chip_left_of_the_display():
+    chip = load_board().chip
+    assert (chip.x0, chip.y0, chip.x1, chip.y1) == pytest.approx((10.64, 27.73, 16.99, 45.51), abs=0.01)
+
+
+def test_the_usb_module_under_the_board_and_its_pins_on_top():
+    b = load_board()
+    module = b.usb_module
+    assert (module.x0, module.x1) == pytest.approx((21.05, 38.95), abs=0.01)
+    assert module.centre[0] == pytest.approx(30.0, abs=0.01)
+    # Its USB end is at the back edge.
+    assert (module.y0, module.y1) == pytest.approx((2.27, 26.8), abs=0.01)
+
+    assert len(b.usb_pins) == 23
+    for row in (22.38, 37.62):
+        assert sum(1 for x, _ in b.usb_pins if x == pytest.approx(row, abs=0.01)) == 9
+    assert all(module.x0 < x < module.x1 and module.y0 < y < module.y1 for x, y in b.usb_pins)

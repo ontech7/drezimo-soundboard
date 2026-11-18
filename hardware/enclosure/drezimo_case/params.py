@@ -7,7 +7,7 @@ Heights are in mm above the PCB's top surface; the rules are those of the enclos
 import math
 from dataclasses import dataclass
 
-from .board import INSET, PITCH
+from .board import INSET, PITCH, Rect
 from .measurements import MEASUREMENTS, PLAUSIBLE
 
 LAYER = 0.2
@@ -36,26 +36,6 @@ FIRST_PAD, LAST_PAD = 1, 36
 
 class EstimateError(RuntimeError):
     pass
-
-
-@dataclass(frozen=True)
-class Rect:
-    x0: float
-    y0: float
-    x1: float
-    y1: float
-
-    @property
-    def width(self):
-        return self.x1 - self.x0
-
-    @property
-    def height(self):
-        return self.y1 - self.y0
-
-    @property
-    def centre(self):
-        return (self.x0 + self.x1) / 2, (self.y0 + self.y1) / 2
 
 
 @dataclass(frozen=True)
