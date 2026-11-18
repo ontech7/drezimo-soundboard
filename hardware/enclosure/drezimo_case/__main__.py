@@ -94,6 +94,8 @@ def main(argv):
         readings = {code: reading.value for code, reading in MEASUREMENTS.items()}
         preview = {"sections": part.sections(board, p, readings)}
         print(f"Deck top {p.deck_top} mm above the board, set by {p.deck_set_by}")
+        if p.knob_lift:
+            print(f"Set the knob {p.knob_lift:.1f} mm higher on its shaft than it was read (M5b): pressed, it would rub the deck")
 
     if on_estimates:
         picture = PRINT_DIR / f"{name}-draft.png"

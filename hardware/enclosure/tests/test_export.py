@@ -184,3 +184,15 @@ def test_the_shell_is_scaled_and_turned_and_the_coupon_is_not(tmp_path, monkeypa
     (shell, shell_options), (coupon, coupon_options) = calls
     assert (shell, shell_options["turned"], shell_options["scale"]) == ("shell", True, pytest.approx(1.002, abs=1e-4))
     assert (coupon, coupon_options["turned"], coupon_options["scale"]) == ("coupon-a", False, 1.0)
+
+
+def test_the_command_says_how_much_higher_the_knob_must_sit(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "export_part", lambda *_, **options: [])
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured())
+    cli.main(["shell"])
+    assert "knob" not in capsys.readouterr().out
+
+    monkeypatch.setattr(cli, "MEASUREMENTS", {**all_measured(), "M5b": Measurement(8.0, measured=True)})
+    cli.main(["shell"])
+    assert "Set the knob 0.3 mm higher on its shaft" in capsys.readouterr().out

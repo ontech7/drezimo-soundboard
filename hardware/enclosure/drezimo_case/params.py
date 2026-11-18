@@ -34,7 +34,7 @@ DECK_OVER = (
     ("M6a", CHIP_GAP + DECK_THICKNESS),
     ("M6b", CHIP_GAP + DECK_THICKNESS),
 )
-# What stays between the deck and the knob pressed to its click.
+# What must stay between the deck and the knob pressed to its click. A knob read lower is to be set higher on its shaft.
 KNOB_GAP = 0.5
 # The encoder's body, a square about its shaft, measured loose (docs/project.md, section 5).
 # The footprint draws it 11.6 mm from back to front.
@@ -126,6 +126,8 @@ class Params:
     display_module: Rect
     # The chip's, the display's and the encoder's, then one for every other pin that comes up through the board.
     rooms: tuple[Room, ...]
+    # How much higher on its shaft than it was read the knob must sit, to stay clear of the deck when pressed.
+    knob_lift: float
     # How much bigger than drawn a part that goes on the board is printed, for what the printer shrinks.
     print_scale: float
     codes: tuple[str, ...]
@@ -138,11 +140,6 @@ class Params:
 
         deck_set_by, over = max(DECK_OVER, key=lambda part: round(value[part[0]] + part[1], 6))
         deck_top = _round_up(value[deck_set_by] + over, LAYER)
-        if value["M5b"] - KNOB_GAP < deck_top - 1e-9:
-            raise ValueError(
-                f"the pressed knob's lower edge (M5b = {value['M5b']}) would stay less than {KNOB_GAP} mm "
-                f"above the deck top ({deck_top}): the knob would rub the deck"
-            )
 
         well_floor = min(PLATE_LEVEL, value["M2b"] - SKIRT_CLEARANCE)
         rib_height = well_floor - RIB_BOTTOM
@@ -227,6 +224,7 @@ class Params:
             usb_window=usb_window,
             display_module=module,
             rooms=_rooms(board, value, _around(module, glass), underside),
+            knob_lift=_round_up(max(0.0, deck_top + KNOB_GAP - value["M5b"]), 0.1),
             print_scale=_print_scale(value),
             codes=tuple(sorted(m)),
             estimated=tuple(estimates(m)),

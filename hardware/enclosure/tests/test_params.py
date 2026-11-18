@@ -103,11 +103,13 @@ def test_the_deck_says_which_part_sets_its_height():
     assert derive_with(M6b=6.0, M5b=10.0).deck_top == pytest.approx(8.6)
 
 
-def test_a_knob_that_would_rub_the_deck_is_an_error():
-    # M5b is read with the knob pressed to the click: no travel is assumed. Half a millimetre must stay.
-    derive_with(M5b=8.3)
-    with pytest.raises(ValueError, match="M5b.*7.8"):
-        derive_with(M5b=8.2)
+def test_a_knob_that_would_rub_the_deck_is_to_sit_higher_on_its_shaft():
+    # M5b is read with the knob pressed to its click: no travel is assumed. Half a millimetre must stay
+    # over the deck. A knob can be set higher on its shaft, so it stops no shell.
+    assert derive_with(M5b=8.3).knob_lift == pytest.approx(0.0)
+    assert derive_with(M5b=8.2).knob_lift == pytest.approx(0.1)
+    # A display that sits a quarter of a millimetre high raises the deck under the knob too.
+    assert derive_with(M4a=5.75).knob_lift == pytest.approx(0.2)
 
 
 def test_the_walls_go_down_to_a_bottom_that_clears_the_usb_plug():
