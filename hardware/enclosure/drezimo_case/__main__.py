@@ -46,6 +46,8 @@ class PrintedPart:
     supports_within: Callable | None = None
     # Pressed with a finger: its deck is printed full through.
     solid_deck: bool = False
+    # Its outer walls are seen: it lies with its back wall to the back of the bed, where the seam goes, and gets no brim.
+    walls_show: bool = False
 
 
 PARTS = {
@@ -61,6 +63,7 @@ PARTS = {
         nozzle=0.2,
         supports_within=support_areas,
         solid_deck=True,
+        walls_show=True,
     ),
 }
 
@@ -98,7 +101,10 @@ def main(argv):
         render_preview(picture, body, inlay, title=f"{part.title}: a draft on estimates, not to be printed", **preview)
         written = [picture]
     else:
-        written = export_part(name, body, inlay, PRINT_DIR, title=part.title, **preview)
+        scale = p.print_scale if final else 1.0
+        written = export_part(name, body, inlay, PRINT_DIR, title=part.title, turned=part.walls_show, scale=scale, **preview)
+        if scale > 1.0:
+            print(f"Drawn {100 * (scale - 1):.2f} % bigger than the board asks, for what the printer shrinks (P1s, P1l)")
 
     for path in written:
         print(path)
@@ -116,7 +122,7 @@ def _write_bambu_project(name, part, written, p):
     neutral = next(path for path in written if path.suffix == ".3mf")
     project = PRINT_DIR / f"{name}-bambu.3mf"
     allowed = part.supports_within(p) if part.supports_within else None
-    report = bambu.write_project(neutral, project, part.supported, part.nozzle, allowed, part.solid_deck)
+    report = bambu.write_project(neutral, project, part.supported, part.nozzle, allowed, part.solid_deck, part.walls_show)
     black, white = report.grams
     print(project)
     print(

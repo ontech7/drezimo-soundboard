@@ -48,4 +48,4 @@ def test_inlay_is_the_first_two_labels(inlay, board):
 
 
 def test_no_gap_wide_enough_to_show_the_pcb(p):
-    assert (p.opening - NOMINAL["M3a"]) / 2 <= 0.25
+    assert (p.opening - NOMINAL["M3a"]) / 2 <= 0.25 + 1e-9

@@ -11,9 +11,10 @@ from build123d import Compound, Part, Polygon, Pos, Rectangle, Sketch, extrude
 
 from .inlay import LABELS, label_outline
 from .logo import WIDTH, logo_outline, stroke_widths
+from .measurements import GAUGE_DRAWN
 from .params import Rect
 
-PLATE = (70.0, 101.0)
+PLATE = (GAUGE_DRAWN["P1s"], GAUGE_DRAWN["P1l"])
 CUT_CORNER = 5.0
 MARGIN = 3.0
 # Black behind the white, enough to hold it. The deck has more, which would show nowhere and take this nozzle long.

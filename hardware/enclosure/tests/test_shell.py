@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 
 import pytest
 from build123d import Align, Box, Pos, RectangleRounded, extrude
@@ -252,3 +253,25 @@ def test_over_the_usb_modules_pins_the_ribs_are_lowered_not_broken(shell_body, p
         assert not any(inside(shell_body, x, y, pin.top - 0.1) for x, y in points)
         crossings += any(inside(shell_body, x, y, pin.top + 0.2) for x, y in points)
     assert crossings >= 8
+
+
+def test_the_encoders_pocket_clears_its_body_and_lugs_all_round(shell_body, p, board):
+    # The body is a 12 mm square (measured loose), not the 11.6 mm the footprint draws, and a lug can sit 0.35 mm further out.
+    x, y = board.encoder_shaft
+    just_under_the_skin = p.encoder_pocket_top - 0.1
+    for dx, dy in ((6.6, 0), (-6.6, 0), (0, 6.6), (0, -6.6), (6.6, 6.6), (-6.6, -6.6)):
+        assert not inside(shell_body, x + dx, y + dy, just_under_the_skin), (dx, dy)
+
+
+def test_supports_may_stand_in_the_wells_as_the_shell_lies_on_the_plate(p):
+    # The shell is turned half a turn on the plate, its back wall to the back of the bed.
+    from drezimo_case.shell import support_areas
+
+    width, length = p.case_size
+    function_row, pads = support_areas(p)
+    assert (function_row.x0, function_row.x1) == pytest.approx((width / 2 - p.fn_well.x1, width / 2 - p.fn_well.x0))
+    assert (function_row.y0, function_row.y1) == pytest.approx((length / 2 - p.fn_well.y1, length / 2 - p.fn_well.y0))
+    assert pads.y1 < function_row.y0
+    # Drawn bigger for the printer's shrink, the wells move out with the rest.
+    bigger, _ = support_areas(replace(p, print_scale=1.002))
+    assert (bigger.x0, bigger.y1) == pytest.approx((function_row.x0 * 1.002, function_row.y1 * 1.002))

@@ -67,6 +67,12 @@ SOLID_DECK = {
     "top_shell_layers": "10",
     "top_shell_thickness": "1",
 }
+WALLS_SHOW = {
+    # To the back of the bed, where such a part lies with its back wall.
+    "seam_position": "back",
+    # Nothing welded to the edge of the face that shows.
+    "brim_type": "no_brim",
+}
 PARTS = (("body", 1), ("inlay", 2))
 # The body goes down first and shapes the letters; the white then fills them.
 FIRST_LAYER = {"first_layer_sequence_choice": "Customize", "first_layer_print_sequence": "1 2"}
@@ -92,11 +98,12 @@ class SliceReport:
     supports: bool
 
 
-def write_project(neutral, target, supported, nozzle, supports_within=None, solid_deck=False):
+def write_project(neutral, target, supported, nozzle, supports_within=None, solid_deck=False, walls_show=False):
     """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave.
 
     supports_within: the only rectangles where supports may stand, about the middle of the part's first layer.
     solid_deck: print the deck full through, for a part that is pressed with a finger.
+    walls_show: the part's outer walls are seen and its back wall lies to the back of the bed.
     """
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
@@ -109,7 +116,7 @@ def write_project(neutral, target, supported, nozzle, supports_within=None, soli
             Path(neutral).resolve(),
         )
         imported = _read_archive(work / "imported.3mf")
-        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck))
+        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck, walls_show))
         _studio(work, "--slice", "0", "--export-3mf", "sliced.3mf", work / "project.3mf")
 
         report = _report(work, imported, supports_within)
@@ -127,9 +134,9 @@ def resolve_preset(name, profiles=PROFILES):
     return {key: value for key, value in values.items() if key not in ("inherits", "include")}
 
 
-def decide(files, supported, solid_deck=False):
+def decide(files, supported, solid_deck=False, walls_show=False):
     """A project exported by Bambu Studio (archive name to bytes), with this part's settings."""
-    process = INLAYS | (SUPPORTS if supported else {}) | (SOLID_DECK if solid_deck else {})
+    process = INLAYS | (SUPPORTS if supported else {}) | (SOLID_DECK if solid_deck else {}) | (WALLS_SHOW if walls_show else {})
     settings = json.loads(files[SETTINGS_FILE])
     settings |= PROJECT | process
     settings["different_settings_to_system"] = [";".join(sorted(process)), *settings["different_settings_to_system"][1:]]
@@ -222,10 +229,13 @@ def _report(work, imported, supports_within):
     if supports - {dict(PARTS)["body"]}:
         raise SliceError(f"the supports are printed in the filaments {sorted(supports)}")
     check_supports(gcode, supports_within)
+    black, white = (filament["total_used_g"] for filament in plate["filaments"])
+    if white > black:
+        raise SliceError(f"{white:.1f} g of white against {black:.1f} g of black: the body and the inlay are in each other's filament")
     return SliceReport(
         version=re.search(rb"BambuStudio-([\d.]+)", imported["3D/3dmodel.model"]).group(1).decode(),
         minutes=plate["total_predication"] / 60,
-        grams=tuple(filament["total_used_g"] for filament in plate["filaments"]),
+        grams=(black, white),
         first_layer_order=order,
         supports=bool(supports),
     )

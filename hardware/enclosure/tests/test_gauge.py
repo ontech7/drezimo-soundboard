@@ -157,3 +157,10 @@ def test_command_writes_the_gauge_and_says_nothing_about_estimates(tmp_path, mon
     cli.main(["inlay-gauge"])
     assert {path.name for path in tmp_path.iterdir()} == {"inlay-gauge.step", "inlay-gauge.3mf", "inlay-gauge.png"}
     assert "estimates" not in capsys.readouterr().out
+
+
+def test_the_plate_is_the_size_the_print_scale_is_read_against():
+    from drezimo_case.gauge import PLATE
+    from drezimo_case.measurements import GAUGE_DRAWN
+
+    assert PLATE == (GAUGE_DRAWN["P1s"], GAUGE_DRAWN["P1l"]) == (70.0, 101.0)

@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 
 from .board import CHIP, DISPLAY_HEADER, ENCODER, INSET, PITCH, USB_MODULE, Rect
-from .measurements import MEASUREMENTS, PLAUSIBLE
+from .measurements import GAUGE_DRAWN, MEASUREMENTS, PLAUSIBLE, estimates
 
 LAYER = 0.2
 DECK_THICKNESS = 2.0
@@ -21,7 +21,8 @@ INLAY_DEPTH = 1.0
 
 PLATE_LEVEL = 5.0
 SKIRT_CLEARANCE = 1.0
-OPENING_CLEARANCE = 0.2
+# Round each switch: the most a keycap hides, for a shell that prints a little small over a field of 42.
+OPENING_CLEARANCE = 0.25
 ENCODER_GAP, ENCODER_SKIN = 0.25, 1.1
 GLASS_GAP = 0.3
 CHIP_GAP = 0.5
@@ -33,8 +34,11 @@ DECK_OVER = (
     ("M6a", CHIP_GAP + DECK_THICKNESS),
     ("M6b", CHIP_GAP + DECK_THICKNESS),
 )
-# Pressing the knob lowers it by its travel; the gap is what stays between it and the deck then.
-KNOB_TRAVEL, KNOB_GAP = 0.5, 0.5
+# What stays between the deck and the knob pressed to its click.
+KNOB_GAP = 0.5
+# The encoder's body, a square about its shaft, measured loose (docs/project.md, section 5).
+# The footprint draws it 11.6 mm from back to front.
+ENCODER_BODY = 12.0
 ENCODER_CLEARANCE = 0.75
 SHAFT_HOLE = 8.0
 
@@ -53,6 +57,10 @@ PIXEL_DEPTH = 0.7
 WINDOW_SIDE, WINDOW_BACK, WINDOW_LAND = 1.0, 0.75, 0.3
 SIGHT_SPARE = 0.2
 GLASS_OVERLAP = 0.3
+
+# The most a part is drawn bigger for the printer's shrink: PLA gives up to half a percent, and a gauge read wrong
+# must not cost more than the 0.15 mm this is at the far keys.
+MAX_PRINT_SCALE = 1.0025
 
 # Kept clear round a part's body and legs, and round the copper of a single pin.
 ROOM, PIN_ROOM = 1.5, 0.5
@@ -118,6 +126,8 @@ class Params:
     display_module: Rect
     # The chip's, the display's and the encoder's, then one for every other pin that comes up through the board.
     rooms: tuple[Room, ...]
+    # How much bigger than drawn a part that goes on the board is printed, for what the printer shrinks.
+    print_scale: float
     codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
@@ -128,10 +138,10 @@ class Params:
 
         deck_set_by, over = max(DECK_OVER, key=lambda part: round(value[part[0]] + part[1], 6))
         deck_top = _round_up(value[deck_set_by] + over, LAYER)
-        if value["M5b"] - KNOB_TRAVEL - KNOB_GAP < deck_top:
+        if value["M5b"] - KNOB_GAP < deck_top - 1e-9:
             raise ValueError(
-                f"the knob's lower edge (M5b = {value['M5b']}) comes down to {value['M5b'] - KNOB_TRAVEL:.1f} when pressed, "
-                f"less than {KNOB_GAP} mm above the deck top ({deck_top}): the knob would rub the deck"
+                f"the pressed knob's lower edge (M5b = {value['M5b']}) would stay less than {KNOB_GAP} mm "
+                f"above the deck top ({deck_top}): the knob would rub the deck"
             )
 
         well_floor = min(PLATE_LEVEL, value["M2b"] - SKIRT_CLEARANCE)
@@ -157,7 +167,8 @@ class Params:
         # The plug's grip passes the back wall round the connector, and the bottom closes the wall just under it.
         connector = value["M1t"] + value["M7a"] - RECEPTACLE_HEIGHT / 2
         plug = value["M8h"] / 2 + PLUG_CLEARANCE
-        under_board = _round_up(max(value["M7a"] + MODULE_CLEARANCE, connector + plug - value["M1t"]), 0.1)
+        tallest = max(value["M7a"], value["M7b"])
+        under_board = _round_up(max(tallest + MODULE_CLEARANCE, connector + plug - value["M1t"]), 0.1)
         seat = -(value["M1t"] + under_board)
         usb_x = board.usb_module.centre[0]
         half_width = value["M8w"] / 2 + PLUG_CLEARANCE
@@ -178,7 +189,7 @@ class Params:
 
         module = _display_module(board, value, glass)
         underside = deck_top - DECK_THICKNESS
-        body = board.encoder_body
+        pocket = ENCODER_BODY + 2 * ENCODER_CLEARANCE
 
         return cls(
             layer=LAYER,
@@ -210,16 +221,15 @@ class Params:
             glass=glass,
             window=window,
             window_land=WINDOW_LAND,
-            encoder_pocket=Rect(
-                body.x0 - ENCODER_CLEARANCE, body.y0 - ENCODER_CLEARANCE, body.x1 + ENCODER_CLEARANCE, body.y1 + ENCODER_CLEARANCE
-            ),
+            encoder_pocket=_centred(*board.encoder_shaft, pocket, pocket),
             encoder_pocket_top=value["M5a"] + ENCODER_GAP,
             shaft_hole=SHAFT_HOLE,
             usb_window=usb_window,
             display_module=module,
             rooms=_rooms(board, value, _around(module, glass), underside),
+            print_scale=_print_scale(value),
             codes=tuple(sorted(m)),
-            estimated=tuple(sorted(code for code, x in m.items() if not x.measured)),
+            estimated=tuple(estimates(m)),
         )
 
     def require_measured(self, *codes):
@@ -245,6 +255,17 @@ def _check_plausible(value, board):
                 f"{code} = {value[code]} mm: the measured outline is {error:+.2f} mm off the drawing ({drawn}), "
                 f"more than the {MAX_OUTLINE_ERROR} mm the case can follow"
             )
+
+
+def _print_scale(value):
+    """From the printed gauge, how much bigger to draw a part so that it comes out the size of the board.
+
+    The smaller of what the gauge's two sides say, never under 1 and never over the cap. The gauge's
+    edge is all first layers, which the plate spreads, and it bows between the jaws: read long or
+    read short, it must not spoil a fit that holds without it.
+    """
+    read = min(drawn / value[code] for code, drawn in GAUGE_DRAWN.items())
+    return min(max(read, 1.0), MAX_PRINT_SCALE)
 
 
 def _display_module(board, value, glass):

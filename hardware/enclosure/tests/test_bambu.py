@@ -69,8 +69,8 @@ def exported_project(different=("", "", "", "")):
     }
 
 
-def decided(supported, solid_deck=False):
-    files = bambu.decide(exported_project(), supported, solid_deck)
+def decided(supported, solid_deck=False, walls_show=False):
+    files = bambu.decide(exported_project(), supported, solid_deck, walls_show)
     settings = json.loads(files["Metadata/project_settings.config"])
     return files, settings, ElementTree.fromstring(files["Metadata/model_settings.config"])
 
@@ -167,6 +167,33 @@ def test_a_deck_that_must_not_give_is_printed_full_through():
 
 def test_only_the_shell_is_pressed_with_a_finger():
     assert {name: part.solid_deck for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True}
+
+
+def test_walls_that_show_get_their_seam_at_the_back_and_no_brim():
+    _, settings, _ = decided(supported=True, walls_show=True)
+    assert (settings["seam_position"], settings["brim_type"]) == ("back", "no_brim")
+    changed = settings["different_settings_to_system"][0].split(";")
+    assert {"seam_position", "brim_type"} <= set(changed) and changed == sorted(changed)
+
+    _, settings, _ = decided(supported=True)
+    assert "seam_position" not in settings and "brim_type" not in settings
+    assert {name: part.walls_show for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True}
+
+
+def sliced(tmp_path, grams):
+    """A folder as Bambu Studio leaves it after slicing."""
+    plate = {"warning_message": "", "total_predication": 600, "filaments": [{"total_used_g": g} for g in grams]}
+    (tmp_path / "result.json").write_text(json.dumps({"sliced_plates": [plate]}))
+    (tmp_path / "plate_1.gcode").write_text(GCODE)
+    return tmp_path, {"3D/3dmodel.model": b"<model>BambuStudio-02.09.01.70</model>"}
+
+
+def test_a_slice_with_more_white_than_black_is_refused(tmp_path):
+    # The body and the inlay loaded the wrong way round: a white case with black letters.
+    assert bambu._report(*sliced(tmp_path, (19.9, 6.1)), None).grams == (19.9, 6.1)
+    with pytest.raises(bambu.SliceError, match="white"):
+        bambu._report(*sliced(tmp_path, (6.1, 19.9)), None)
+
 
 
 def test_the_other_files_of_the_project_are_kept():
@@ -298,9 +325,9 @@ def test_bambu_studio_supports_the_shell_only_under_its_wells(tmp_path, shell, p
     from drezimo_case.export import export_part
     from drezimo_case.shell import support_areas
 
-    neutral = next(path for path in export_part("shell", *shell, tmp_path) if path.suffix == ".3mf")
+    neutral = next(path for path in export_part("shell", *shell, tmp_path, turned=True) if path.suffix == ".3mf")
     report = bambu.write_project(
-        neutral, tmp_path / "shell-bambu.3mf", supported=True, nozzle=0.2, supports_within=support_areas(p), solid_deck=True
+        neutral, tmp_path / "shell-bambu.3mf", supported=True, nozzle=0.2, supports_within=support_areas(p), solid_deck=True, walls_show=True
     )
     assert report.supports
     assert report.first_layer_order == [1, 2]

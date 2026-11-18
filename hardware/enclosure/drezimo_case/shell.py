@@ -32,9 +32,13 @@ def build_shell(board, p):
 
 
 def support_areas(p):
-    """The two wells, about the middle of the deck: the only places where supports may stand."""
+    """The two wells, about the middle of the deck: the only places where supports may stand.
+
+    As the shell lies on the plate: turned half a turn, and bigger by the print scale.
+    """
     x, y = p.case_size[0] / 2, p.case_size[1] / 2
-    return tuple(Rect(well.x0 - x, well.y0 - y, well.x1 - x, well.y1 - y) for well in (p.fn_well, p.pad_well))
+    wells = (Rect(x - well.x1, y - well.y1, x - well.x0, y - well.y0) for well in (p.fn_well, p.pad_well))
+    return tuple(Rect(*(p.print_scale * edge for edge in (well.x0, well.y0, well.x1, well.y1))) for well in wells)
 
 
 def build_body(board, p):

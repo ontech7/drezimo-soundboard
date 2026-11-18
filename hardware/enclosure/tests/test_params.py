@@ -14,8 +14,9 @@ def test_nominal():
     p = derive_with()
     assert p.deck_top == pytest.approx(7.8)
     assert p.well_floor == pytest.approx(5.0)
-    assert p.opening == pytest.approx(16.0)
-    assert p.rib_width == pytest.approx(3.05)
+    # A quarter of a millimetre round each switch: what a keycap still hides, and room for a shell printed a little small.
+    assert p.opening == pytest.approx(16.1)
+    assert p.rib_width == pytest.approx(2.95)
     assert (p.fn_well.x0, p.fn_well.y0) == pytest.approx((7.675, 49.675))
     assert (p.pad_well.x1, p.pad_well.y1) == pytest.approx((122.625, 188.675))
     assert (p.bar.y0, p.bar.y1) == pytest.approx((69.375, 73.725))
@@ -32,7 +33,7 @@ def test_floor_too_thin_is_an_error():
 
 
 def test_wide_switch_narrows_the_rib_until_it_fails():
-    assert derive_with(M3a=15.9).rib_width == pytest.approx(2.75)
+    assert derive_with(M3a=15.9).rib_width == pytest.approx(2.65)
     with pytest.raises(ValueError, match="rib"):
         derive_with(M3a=17.6)
 
@@ -72,7 +73,7 @@ def test_without_codes_every_estimate_blocks():
     [
         {"M1w": 24.3}, {"M1h": 19.035}, {"M2a": 105.0}, {"M2b": 65.0}, {"M2c": 24.0}, {"M3a": 0.0}, {"M4a": 55.0}, {"M5a": 64.5}, {"M6a": 45.0},
         {"M1t": 16.0}, {"M4b": 50.0}, {"M4w": 2.97}, {"M4h": 149.0}, {"M4x": 7.47}, {"M4y": 214.0}, {"M4t": 19.0}, {"M4s": 24.0}, {"M4f": 60.0},
-        {"M5b": 90.0}, {"M6b": 20.0}, {"M7a": 66.0}, {"M8w": 120.0}, {"M8h": 65.0},
+        {"M5b": 90.0}, {"M6b": 20.0}, {"M7a": 66.0}, {"M7b": 66.0}, {"M8w": 120.0}, {"M8h": 65.0}, {"P1s": 7.0}, {"P1l": 110.0},
     ],
 )
 def test_implausible_values_are_an_error(typo):
@@ -103,8 +104,10 @@ def test_the_deck_says_which_part_sets_its_height():
 
 
 def test_a_knob_that_would_rub_the_deck_is_an_error():
+    # M5b is read with the knob pressed to the click: no travel is assumed. Half a millimetre must stay.
+    derive_with(M5b=8.3)
     with pytest.raises(ValueError, match="M5b.*7.8"):
-        derive_with(M5b=8.0)
+        derive_with(M5b=8.2)
 
 
 def test_the_walls_go_down_to_a_bottom_that_clears_the_usb_plug():
@@ -115,6 +118,8 @@ def test_the_walls_go_down_to_a_bottom_that_clears_the_usb_plug():
     # A thin plug still decides; the module's drop and its clearance alone would give 7.5.
     assert derive_with(M8h=4.0).under_board == pytest.approx(7.6)
     assert derive_with(M1t=1.8).wall_bottom == pytest.approx(-12.7)
+    # Pin ends under the module that hang lower than its connector push the bottom down.
+    assert derive_with(M7b=9.0).under_board == pytest.approx(9.9)
 
 
 def test_the_screw_holes_stop_under_the_well_floor():
@@ -144,7 +149,8 @@ def test_a_window_that_would_show_the_edge_of_the_glass_is_an_error():
 
 def test_the_encoder_gets_a_pocket_and_a_hole_for_its_shaft():
     p = derive_with()
-    assert as_tuple(p.encoder_pocket) == pytest.approx((106.025, 20.45, 119.525, 33.55))
+    # Round the 12 mm square the body measures, not the 11.6 mm the footprint draws from back to front.
+    assert as_tuple(p.encoder_pocket) == pytest.approx((106.025, 20.25, 119.525, 33.75))
     assert (p.encoder_pocket_top, p.shaft_hole) == pytest.approx((6.7, 8.0))
     assert p.deck_top - p.encoder_pocket_top >= 1.1 - 1e-9
 
@@ -186,3 +192,36 @@ def test_every_part_of_the_top_strip_keeps_its_room_under_the_deck():
     assert {round(room.top, 6) for room in derive_with(M6b=4.0).rooms[3:]} == {4.5}
     tall = derive_with(M6b=7.5, M5b=14.0)
     assert {round(room.top, 6) for room in tall.rooms[3:]} == {round(tall.deck_top - tall.deck_thickness, 6)}
+
+
+def test_a_value_known_without_a_caliper_is_no_estimate():
+    known = nominal(M5a=6.45)
+    known["M1t"] = Measurement(1.6, known="as ordered from the fab")
+    p = Params.derive(load_board(), known)
+    assert "M1t" not in p.estimated and "M5a" not in p.estimated and "M2a" in p.estimated
+    assert "M1t" not in estimates(known)
+
+
+def test_the_readings_file_says_where_each_unmeasured_value_comes_from():
+    from drezimo_case.measurements import MEASUREMENTS
+
+    assert {code for code, reading in MEASUREMENTS.items() if reading.known} == {"M1t", "M2a", "M2c", "M3a"}
+    assert not any(reading.known and reading.measured for reading in MEASUREMENTS.values())
+
+
+def test_the_shell_is_drawn_bigger_by_what_the_printer_shrinks():
+    # The printed inlay gauge, drawn 70 x 101 mm, is the printer's own ruler.
+    assert derive_with().print_scale == pytest.approx(1.0)
+    assert derive_with(P1s=69.86, P1l=100.80).print_scale == pytest.approx(1.002, abs=1e-4)
+
+
+def test_the_gauge_never_makes_the_shell_smaller_nor_much_bigger():
+    # Its edge is all first layers, which the plate spreads: a gauge that reads long says nothing.
+    assert derive_with(P1s=70.07, P1l=101.10).print_scale == 1.0
+    # Squeezed between the jaws it bows and reads short.
+    assert derive_with(P1s=69.50, P1l=100.40).print_scale == pytest.approx(1.0025)
+
+
+def test_gauge_sides_that_disagree_give_the_smaller_correction():
+    # 0.2 % of shrink under a lip of 0.1 mm: the short side hides more of it.
+    assert derive_with(P1s=69.96, P1l=100.90).print_scale == pytest.approx(70 / 69.96)

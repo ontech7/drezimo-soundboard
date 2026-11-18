@@ -9,7 +9,7 @@ from helpers import NOMINAL, inside, nominal
 from drezimo_case import __main__ as cli
 from drezimo_case.export import export_part, face_down, to_real
 from drezimo_case.measurements import Measurement
-from drezimo_case.params import EstimateError
+from drezimo_case.params import MAX_PRINT_SCALE, EstimateError
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +84,7 @@ def test_command_names_exactly_the_estimates(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "MEASUREMENTS", nominal(M1w=124.25, M5a=6.45))
     cli.main(["coupon-a"])
     assert {path.name for path in tmp_path.iterdir()} == {"coupon-a.step", "coupon-a.3mf", "coupon-a.png"}
-    assert capsys.readouterr().out.splitlines()[-1].endswith("estimates, not for the final print: M1h, M1t, M2a, M2b, M2c, M3a, M4a, M4b, M4e, M4f, M4h, M4l, M4p, M4s, M4t, M4w, M4x, M4y, M5b, M6a, M6b, M7a, M8h, M8w")
+    assert capsys.readouterr().out.splitlines()[-1].endswith("estimates, not for the final print: M1h, M1t, M2a, M2b, M2c, M3a, M4a, M4b, M4e, M4f, M4h, M4l, M4p, M4s, M4t, M4w, M4x, M4y, M5b, M6a, M6b, M7a, M7b, M8h, M8w, P1l, P1s")
 
 
 def test_command_says_nothing_about_estimates_once_all_is_measured(tmp_path, monkeypatch, capsys):
@@ -141,3 +141,46 @@ def test_the_measured_shell_is_written_to_print(tmp_path, monkeypatch, capsys):
     cli.main(["shell"])
     assert {path.name for path in tmp_path.iterdir()} == {"shell.step", "shell.3mf", "shell.png"}
     assert "estimates" not in capsys.readouterr().out
+
+
+def test_a_part_whose_walls_show_lies_with_its_back_to_the_back_of_the_bed(body, p):
+    # The slicer's "back" is the bed's far side: turned half a turn, the seam goes to the back wall.
+    turned = face_down(to_real(body), p.deck_top, turned=True)
+    assert turned.volume == pytest.approx(body.volume)
+    assert inside(turned, -1.0, -60.0, 5.0)        # the left wall, now on the right of the plate
+    assert inside(turned, -27.0, -45.0, 0.5)
+    assert not inside(turned, 1.0, 60.0, 5.0)
+
+
+def printed_size(path):
+    """The size of what a 3MF holds, as a slicer loads it."""
+    model = zipfile.ZipFile(path).read("3D/3dmodel.model").decode()
+    points = [[float(v) for v in vertex] for vertex in re.findall(r'<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"', model)]
+    return [max(axis) - min(axis) for axis in zip(*points)]
+
+
+def test_a_part_is_printed_bigger_by_the_print_scale_and_drawn_as_modelled(tmp_path, body, inlay):
+    plain = export_part("plain", body, inlay, tmp_path)
+    bigger = export_part("bigger", body, inlay, tmp_path, scale=1.002)
+    # Across the plate only: heights stay on the layers.
+    assert [b / a for a, b in zip(printed_size(plain[1]), printed_size(bigger[1]))] == pytest.approx([1.002, 1.002, 1.0], abs=1e-5)
+    assert tuple(import_step(bigger[0]).bounding_box().size) == pytest.approx(tuple(import_step(plain[0]).bounding_box().size))
+
+
+def test_the_shell_can_be_written_as_big_as_the_gauge_may_ask(tmp_path, shell, p):
+    # Made bigger as a solid, the shell did not mesh: its 3MF is made bigger point by point.
+    written = export_part("shell", *shell, tmp_path, turned=True, scale=MAX_PRINT_SCALE)
+    width, length = p.case_size
+    assert printed_size(written[1])[:2] == pytest.approx((width * MAX_PRINT_SCALE, length * MAX_PRINT_SCALE), abs=0.01)
+
+
+def test_the_shell_is_scaled_and_turned_and_the_coupon_is_not(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", {**all_measured(), "P1s": Measurement(69.86, measured=True), "P1l": Measurement(100.80, measured=True)})
+    monkeypatch.setattr(cli, "export_part", lambda name, body, inlay, out, **options: calls.append((name, options)) or [])
+    cli.main(["shell"])
+    cli.main(["coupon-a"])
+    (shell, shell_options), (coupon, coupon_options) = calls
+    assert (shell, shell_options["turned"], shell_options["scale"]) == ("shell", True, pytest.approx(1.002, abs=1e-4))
+    assert (coupon, coupon_options["turned"], coupon_options["scale"]) == ("coupon-a", False, 1.0)
