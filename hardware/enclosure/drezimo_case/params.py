@@ -46,7 +46,7 @@ PLUG_CLEARANCE = 0.5
 # The board's holes keep copper and parts out of a 6.95 mm circle.
 BOSS_RADIUS = 3.25
 SCREW_HOLE = 2.7
-SCREW_DEPTH, DECK_OVER_SCREW = 6.6, 1.2
+SCREW_UNDER_FLOOR = 0.4
 
 # The pixels lie this far under the top of the glass.
 PIXEL_DEPTH = 0.7
@@ -187,7 +187,7 @@ class Params:
             rim=RIM,
             boss_radius=BOSS_RADIUS,
             screw_hole=SCREW_HOLE,
-            screw_hole_top=round(min(SCREW_DEPTH, deck_top - DECK_OVER_SCREW), 4),
+            screw_hole_top=round(well_floor - SCREW_UNDER_FLOOR, 4),
             lit=lit,
             glass=glass,
             window=window,

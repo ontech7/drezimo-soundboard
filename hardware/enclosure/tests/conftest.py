@@ -37,3 +37,10 @@ def body(coupon):
 @pytest.fixture(scope="session")
 def inlay(coupon):
     return coupon[1]
+
+
+@pytest.fixture(scope="session")
+def shell_body(board, p):
+    from drezimo_case.shell import build_body
+
+    return build_body(board, p)

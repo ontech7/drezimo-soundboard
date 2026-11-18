@@ -15,8 +15,9 @@ OPENING_RADIUS = 0.2
 LEAD_IN = 0.5
 
 
-def build_deck(board, p):
-    deck = _shell(p) + _key_block(p)
+def build_deck(board, p, bottom=SKIRT_BOTTOM, extra=()):
+    """The deck with its walls down to `bottom`. Solids in `extra` join it before the wells and the openings are cut."""
+    deck = _shell(p, bottom) + _key_block(p) + list(extra)
     for well in (p.fn_well, p.pad_well):
         deck -= box(well, p.well_floor, p.deck_top)
     return deck - [_opening(p, *board.key_centre(n)) for n in board.keys]
@@ -26,18 +27,17 @@ def box(rect, z0, z1):
     return Pos(*rect.centre, z0) * Box(rect.width, rect.height, z1 - z0, align=(Align.CENTER, Align.CENTER, Align.MIN))
 
 
-def _shell(p):
+def outline(p, inset=0.0):
+    """The case's outline in the top view, drawn `inset` inside itself."""
     width, length = p.case_size
-    centre = Pos(width / 2, length / 2, SKIRT_BOTTOM)
-    underside = p.deck_top - p.deck_thickness
+    return Pos(width / 2, length / 2) * RectangleRounded(width - 2 * inset, length - 2 * inset, p.corner_radius - inset)
 
-    block = extrude(centre * RectangleRounded(width, length, p.corner_radius), amount=p.deck_top - SKIRT_BOTTOM)
+
+def _shell(p, bottom):
+    underside = p.deck_top - p.deck_thickness
+    block = extrude(Pos(0, 0, bottom) * outline(p), amount=p.deck_top - bottom)
     block = chamfer(block.edges().group_by(Axis.Z)[-1], length=p.chamfer)
-    cavity = extrude(
-        centre * RectangleRounded(width - 2 * p.wall, length - 2 * p.wall, p.corner_radius - p.wall),
-        amount=underside - SKIRT_BOTTOM,
-    )
-    return block - cavity
+    return block - extrude(Pos(0, 0, bottom) * outline(p, p.wall), amount=underside - bottom)
 
 
 def _key_block(p):

@@ -117,10 +117,11 @@ def test_the_walls_go_down_to_a_bottom_that_clears_the_usb_plug():
     assert derive_with(M1t=1.8).wall_bottom == pytest.approx(-12.7)
 
 
-def test_the_bosses_leave_deck_over_their_screw_holes():
+def test_the_screw_holes_stop_under_the_well_floor():
+    # Two of the six stand a sixth of a millimetre into a well's wall: a deeper hole would open into it.
     p = derive_with()
-    assert (p.boss_radius, p.screw_hole, p.screw_hole_top) == pytest.approx((3.25, 2.7, 6.6))
-    assert derive_with(M4a=4.0, M4b=4.0, M5a=5.0, M6a=3.0, M5b=8.0).screw_hole_top == pytest.approx(6.4 - 1.2)
+    assert (p.boss_radius, p.screw_hole, p.screw_hole_top) == pytest.approx((3.25, 2.7, 4.6))
+    assert derive_with(M2b=5.0).screw_hole_top == pytest.approx(3.6)
 
 
 def test_the_window_follows_the_lit_area_and_a_sight_line_from_the_front():
