@@ -2,7 +2,18 @@ import pytest
 from helpers import nominal
 
 from drezimo_case.board import load_board
+from drezimo_case.measurements import MEASUREMENTS
 from drezimo_case.params import Params
+
+AS_MEASURED = "--as-measured"
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        AS_MEASURED,
+        action="store_true",
+        help="build the parts on the board's own readings instead of the tests' nominal ones (for tests/test_shell.py)",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -11,8 +22,14 @@ def board():
 
 
 @pytest.fixture(scope="session")
-def p(board):
-    return Params.derive(board, nominal())
+def readings(request):
+    """What the session's parts are built on, by code."""
+    return MEASUREMENTS if request.config.getoption(AS_MEASURED) else nominal()
+
+
+@pytest.fixture(scope="session")
+def p(board, readings):
+    return Params.derive(board, readings)
 
 
 @pytest.fixture(scope="session")

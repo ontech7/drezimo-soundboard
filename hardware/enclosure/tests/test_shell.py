@@ -2,7 +2,7 @@ import math
 
 import pytest
 from build123d import Align, Box, Pos, RectangleRounded, extrude
-from helpers import NOMINAL, inside
+from helpers import inside
 
 from drezimo_case.board import INSET
 from drezimo_case.deck import CURB
@@ -104,8 +104,8 @@ def test_the_window_opens_on_the_lit_area_with_a_land_and_a_bevel(shell_body, p)
     assert all(inside(shell_body, px, py, top) for px, py in sides(p.window, -bevel - 0.1))
 
 
-def test_no_wall_of_the_window_hides_a_lit_pixel_seen_from_the_front_at_45_degrees(shell_body, p):
-    pixels = NOMINAL["M4a"] - 0.7
+def test_no_wall_of_the_window_hides_a_lit_pixel_seen_from_the_front_at_45_degrees(shell_body, p, readings):
+    pixels = readings["M4a"].value - 0.7
     underside = p.deck_top - p.deck_thickness
     for x in (p.lit.x0 + 1, p.lit.centre[0], p.lit.x1 - 1):
         for z in (underside + 0.02, underside + p.window_land, underside + 1.0, p.deck_top - 0.02):
@@ -218,13 +218,14 @@ def test_the_ribs_come_down_to_just_over_the_board(shell_body, p):
     assert not any(inside(shell_body, *point, p.rib_bottom - 0.2) for point in line)
 
 
-def test_no_rib_comes_down_on_a_part_of_the_board(shell_body, p, board):
+def test_no_rib_comes_down_on_a_part_of_the_board(shell_body, p, board, readings):
     # Worked out here from the board and the readings, not taken from the rooms the shell was built with.
     underside = p.deck_top - p.deck_thickness
-    tops = {"U1": NOMINAL["M6b"], "U2": NOMINAL["M6a"]}
+    chip_top, pin_ends = readings["M6a"].value, readings["M6b"].value
+    tops = {"U1": pin_ends, "U2": chip_top}
     rooms = [(grown(pad.rect, 0.4), tops.get(pad.part, underside) + 0.3) for pad in board.pads]
     rooms += [
-        (grown(board.chip, 1.0), NOMINAL["M6a"] + 0.3),
+        (grown(board.chip, 1.0), chip_top + 0.3),
         (grown(p.display_module, 1.0), underside),
         (grown(p.glass, 1.0), underside),
         (grown(board.encoder_body, 0.7), underside),
