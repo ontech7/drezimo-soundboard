@@ -25,6 +25,20 @@ MEASUREMENTS = {
     "M4a": Measurement(5.5),     # highest corner of the OLED glass
     "M5a": Measurement(6.45),    # EC11 body top
     "M6a": Measurement(4.5),     # U2 (DIP) top
+    "M1t": Measurement(1.6),     # board thickness
+    "M4b": Measurement(5.0),     # highest solder point of the display's header
+    "M4w": Measurement(29.7),    # lit area, width
+    "M4h": Measurement(14.9),    # lit area, height
+    "M4x": Measurement(74.7),    # lit area's centre from the board's left edge
+    "M4y": Measurement(21.4),    # lit area's centre from the board's back edge
+    "M4t": Measurement(1.9),     # glass beyond the lit area, at the back
+    "M4s": Measurement(2.4),     # glass beyond the lit area, at each side
+    "M4f": Measurement(6.0),     # glass beyond the lit area, at the front
+    "M5b": Measurement(9.0),     # knob's lower edge, knob pushed home
+    "M6b": Measurement(2.0),     # tallest pin end of the USB module, on top
+    "M7a": Measurement(6.6),     # under the board: how far the USB connector stands off it
+    "M8w": Measurement(12.0),    # USB plug's grip, width
+    "M8h": Measurement(6.5),     # USB plug's grip, thickness
 }
 
 # Outside these a value is a slip of the hand, not a measurement. The outline (M1w, M1h) is
@@ -37,6 +51,20 @@ PLAUSIBLE = {
     "M4a": (3.0, 8.0),
     "M5a": (5.0, 8.0),
     "M6a": (2.0, 8.0),
+    "M1t": (1.4, 1.8),
+    "M4b": (2.0, 8.0),
+    "M4w": (28.0, 31.0),
+    "M4h": (13.5, 16.0),
+    "M4x": (71.7, 77.7),
+    "M4y": (18.4, 24.4),
+    "M4t": (0.5, 4.0),
+    "M4s": (0.5, 4.0),
+    "M4f": (1.0, 10.0),
+    "M5b": (6.0, 14.0),
+    "M6b": (0.0, 8.0),
+    "M7a": (5.0, 9.0),
+    "M8w": (8.0, 16.0),
+    "M8h": (4.0, 9.0),
 }
 
 

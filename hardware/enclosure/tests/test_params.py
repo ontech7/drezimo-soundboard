@@ -57,8 +57,8 @@ def test_estimates_lists_what_is_not_measured():
 
 
 def test_unknown_codes_are_an_error():
-    with pytest.raises(KeyError, match="M7a"):
-        derive_with().require_measured("M7a")
+    with pytest.raises(KeyError, match="M99"):
+        derive_with().require_measured("M99")
 
 
 def test_without_codes_every_estimate_blocks():
@@ -69,7 +69,11 @@ def test_without_codes_every_estimate_blocks():
 
 @pytest.mark.parametrize(
     "typo",
-    [{"M1w": 24.3}, {"M1h": 19.035}, {"M2a": 105.0}, {"M2b": 65.0}, {"M2c": 24.0}, {"M3a": 0.0}, {"M4a": 55.0}, {"M5a": 64.5}, {"M6a": 45.0}],
+    [
+        {"M1w": 24.3}, {"M1h": 19.035}, {"M2a": 105.0}, {"M2b": 65.0}, {"M2c": 24.0}, {"M3a": 0.0}, {"M4a": 55.0}, {"M5a": 64.5}, {"M6a": 45.0},
+        {"M1t": 16.0}, {"M4b": 50.0}, {"M4w": 2.97}, {"M4h": 149.0}, {"M4x": 7.47}, {"M4y": 214.0}, {"M4t": 19.0}, {"M4s": 24.0}, {"M4f": 60.0},
+        {"M5b": 90.0}, {"M6b": 20.0}, {"M7a": 66.0}, {"M8w": 120.0}, {"M8h": 65.0},
+    ],
 )
 def test_implausible_values_are_an_error(typo):
     with pytest.raises(ValueError, match=next(iter(typo))):
@@ -85,3 +89,60 @@ def test_the_length_may_grow_by_1mm_too():
     assert derive_with(M1h=190.95).case_size[1] == pytest.approx(196.95)
     with pytest.raises(ValueError, match="M1h"):
         derive_with(M1h=191.65)
+
+
+def as_tuple(rect):
+    return rect.x0, rect.y0, rect.x1, rect.y1
+
+
+def test_the_deck_says_which_part_sets_its_height():
+    assert derive_with().deck_set_by == "M5a"
+    raised = derive_with(M4b=6.0, M5b=10.0)
+    assert (raised.deck_top, raised.deck_set_by) == (pytest.approx(8.4), "M4b")
+    assert derive_with(M6b=6.0, M5b=10.0).deck_top == pytest.approx(8.6)
+
+
+def test_a_knob_that_would_rub_the_deck_is_an_error():
+    with pytest.raises(ValueError, match="M5b.*7.8"):
+        derive_with(M5b=8.0)
+
+
+def test_the_walls_go_down_to_a_bottom_that_clears_the_usb_plug():
+    p = derive_with()
+    assert (p.board_thickness, p.under_board, p.seat, p.wall_bottom, p.rim) == pytest.approx((1.6, 8.9, -10.5, -12.5, 1.2))
+    assert as_tuple(p.usb_window) == pytest.approx((23.5, -10.435, 36.5, -2.935), abs=0.001)
+    assert p.usb_window.y0 >= p.seat
+    # A thin plug still decides; the module's drop and its clearance alone would give 7.5.
+    assert derive_with(M8h=4.0).under_board == pytest.approx(7.6)
+    assert derive_with(M1t=1.8).wall_bottom == pytest.approx(-12.7)
+
+
+def test_the_bosses_leave_deck_over_their_screw_holes():
+    p = derive_with()
+    assert (p.boss_radius, p.screw_hole, p.screw_hole_top) == pytest.approx((3.25, 2.7, 6.6))
+    assert derive_with(M4a=4.0, M4b=4.0, M5a=5.0, M6a=3.0, M5b=8.0).screw_hole_top == pytest.approx(6.4 - 1.2)
+
+
+def test_the_window_follows_the_lit_area_and_a_sight_line_from_the_front():
+    p = derive_with()
+    assert as_tuple(p.lit) == pytest.approx((62.85, 16.95, 92.55, 31.85))
+    assert as_tuple(p.glass) == pytest.approx((60.45, 15.05, 94.95, 37.85))
+    assert as_tuple(p.window) == pytest.approx((61.85, 16.2, 93.55, 33.35))
+    assert p.window_land == pytest.approx(0.3)
+
+    moved = derive_with(M4x=75.7, M4y=20.4, M4w=30.0)
+    assert as_tuple(moved.window) == pytest.approx((62.7, 15.2, 94.7, 32.35))
+    # A higher deck stands further over the pixels, so the front edge moves away.
+    assert derive_with(M6b=6.0, M5b=10.0).window.y1 == pytest.approx(31.85 + 2.3)
+
+
+def test_a_window_that_would_show_the_edge_of_the_glass_is_an_error():
+    with pytest.raises(ValueError, match="glass"):
+        derive_with(M4t=0.9)
+
+
+def test_the_encoder_gets_a_pocket_and_a_hole_for_its_shaft():
+    p = derive_with()
+    assert as_tuple(p.encoder_pocket) == pytest.approx((106.025, 20.45, 119.525, 33.55))
+    assert (p.encoder_pocket_top, p.shaft_hole) == pytest.approx((6.7, 8.0))
+    assert p.deck_top - p.encoder_pocket_top >= 1.1 - 1e-9
