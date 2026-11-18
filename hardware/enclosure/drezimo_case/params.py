@@ -7,7 +7,7 @@ Heights are in mm above the PCB's top surface; the rules are those of the enclos
 import math
 from dataclasses import dataclass
 
-from .board import INSET, PITCH, Rect
+from .board import CHIP, DISPLAY_HEADER, ENCODER, INSET, PITCH, USB_MODULE, Rect
 from .measurements import MEASUREMENTS, PLAUSIBLE
 
 LAYER = 0.2
@@ -54,6 +54,11 @@ WINDOW_SIDE, WINDOW_BACK, WINDOW_LAND = 1.0, 0.75, 0.3
 SIGHT_SPARE = 0.2
 GLASS_OVERLAP = 0.3
 
+# Kept clear round a part's body and legs, and round the copper of a single pin.
+ROOM, PIN_ROOM = 1.5, 0.5
+# The glass may read this far over the edge of its module's board: two readings disagreeing, not a slip.
+GLASS_OVERHANG = 1.0
+
 MIN_RIB_HEIGHT = 1.0
 MIN_RIB_WIDTH = 1.2
 MAX_OUTLINE_ERROR = 1.0
@@ -64,6 +69,14 @@ FIRST_PAD, LAST_PAD = 1, 36
 
 class EstimateError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class Room:
+    """What a part of the board needs of the shell: over `rect`, nothing under the deck comes lower than `top`."""
+
+    rect: Rect
+    top: float
 
 
 @dataclass(frozen=True)
@@ -102,6 +115,9 @@ class Params:
     shaft_hole: float
     # In the back wall's plane: x0 and x1 across, y0 and y1 the heights of its lower and upper edge.
     usb_window: Rect
+    display_module: Rect
+    # The chip's, the display's and the encoder's, then one for every other pin that comes up through the board.
+    rooms: tuple[Room, ...]
     codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
@@ -160,6 +176,8 @@ class Params:
                 f"(minimum {GLASS_OVERLAP}): check M4t, M4s and M4f"
             )
 
+        module = _display_module(board, value, glass)
+        underside = deck_top - DECK_THICKNESS
         body = board.encoder_body
 
         return cls(
@@ -198,6 +216,8 @@ class Params:
             encoder_pocket_top=value["M5a"] + ENCODER_GAP,
             shaft_hole=SHAFT_HOLE,
             usb_window=usb_window,
+            display_module=module,
+            rooms=_rooms(board, value, _around(module, glass), underside),
             codes=tuple(sorted(m)),
             estimated=tuple(sorted(code for code, x in m.items() if not x.measured)),
         )
@@ -225,6 +245,44 @@ def _check_plausible(value, board):
                 f"{code} = {value[code]} mm: the measured outline is {error:+.2f} mm off the drawing ({drawn}), "
                 f"more than the {MAX_OUTLINE_ERROR} mm the case can follow"
             )
+
+
+def _display_module(board, value, glass):
+    """The display's own board, which hangs from its header by the middle of its back edge."""
+    pins = [pad for pad in board.pads if pad.part == DISPLAY_HEADER]
+    x = sum(pin.x for pin in pins) / len(pins)
+    back = pins[0].y - value["M4e"]
+    module = Rect(x - value["M4p"] / 2, back, x + value["M4p"] / 2, back + value["M4l"])
+
+    across = max(module.x0 - glass.x0, glass.x1 - module.x1)
+    along = max(module.y0 - glass.y0, glass.y1 - module.y1)
+    for overhang, codes in ((across, "M4p, M4x, M4w and M4s"), (along, "M4l, M4e, M4y, M4h, M4t and M4f")):
+        if overhang > GLASS_OVERHANG:
+            raise ValueError(f"the glass would overhang its module's board by {overhang:.2f} mm: check {codes}")
+    return module
+
+
+def _rooms(board, value, display, underside):
+    def with_its_pins(part, body):
+        return _around(body, *(pad.rect for pad in board.pads if pad.part == part)).grown(ROOM)
+
+    parts = (
+        Room(with_its_pins(CHIP, board.chip), value["M6a"] + CHIP_GAP),
+        Room(display.grown(ROOM), underside),
+        Room(with_its_pins(ENCODER, board.encoder_body), underside),
+    )
+    # A pin of a part nobody has measured gets all the height there is.
+    tops = {USB_MODULE: value["M6b"] + CHIP_GAP}
+    pins = tuple(
+        Room(pad.rect.grown(PIN_ROOM), tops.get(pad.part, underside))
+        for pad in board.pads
+        if not any(room.rect.holds(pad.rect) for room in parts)
+    )
+    return parts + pins
+
+
+def _around(*rects):
+    return Rect(min(r.x0 for r in rects), min(r.y0 for r in rects), max(r.x1 for r in rects), max(r.y1 for r in rects))
 
 
 def _round_up(height, step):

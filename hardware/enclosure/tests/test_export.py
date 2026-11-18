@@ -84,7 +84,7 @@ def test_command_names_exactly_the_estimates(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "MEASUREMENTS", nominal(M1w=124.25, M5a=6.45))
     cli.main(["coupon-a"])
     assert {path.name for path in tmp_path.iterdir()} == {"coupon-a.step", "coupon-a.3mf", "coupon-a.png"}
-    assert capsys.readouterr().out.splitlines()[-1].endswith("estimates, not for the final print: M1h, M2a, M2b, M2c, M3a, M4a, M6a")
+    assert capsys.readouterr().out.splitlines()[-1].endswith("estimates, not for the final print: M1h, M1t, M2a, M2b, M2c, M3a, M4a, M4b, M4e, M4f, M4h, M4l, M4p, M4s, M4t, M4w, M4x, M4y, M5b, M6a, M6b, M7a, M8h, M8w")
 
 
 def test_command_says_nothing_about_estimates_once_all_is_measured(tmp_path, monkeypatch, capsys):
@@ -105,3 +105,39 @@ def test_a_final_part_refuses_estimates(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "MEASUREMENTS", all_measured())
     cli.main(["final"])
     assert (tmp_path / "final.step").exists()
+
+
+def test_the_shell_is_refused_while_a_reading_is_an_estimate(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", nominal(M5a=6.45))
+    with pytest.raises(EstimateError, match="M4x") as error:
+        cli.main(["shell"])
+    assert "M5a" not in str(error.value)
+    assert not list(tmp_path.iterdir())
+
+
+def test_a_draft_of_the_shell_is_a_picture_and_nothing_to_print(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", nominal(M5a=6.45))
+    cli.main(["shell", "--draft"])
+    assert [path.name for path in tmp_path.iterdir()] == ["shell-draft.png"]
+    header = (tmp_path / "shell-draft.png").read_bytes()[:24]
+    assert header[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">II", header[16:24]) == (1600, 1200)
+    said = capsys.readouterr().out
+    assert "Deck top 7.8 mm above the board, set by M5a" in said
+    assert "estimates, not for the final print: M1h, M1t" in said
+
+    with pytest.raises(SystemExit, match="picture"):
+        cli.main(["shell", "--draft", "--bambu"])
+    with pytest.raises(SystemExit, match="usage"):
+        cli.main(["coupon-a", "--draft"])
+    assert [path.name for path in tmp_path.iterdir()] == ["shell-draft.png"]
+
+
+def test_the_measured_shell_is_written_to_print(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured())
+    cli.main(["shell"])
+    assert {path.name for path in tmp_path.iterdir()} == {"shell.step", "shell.3mf", "shell.png"}
+    assert "estimates" not in capsys.readouterr().out

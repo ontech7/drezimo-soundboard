@@ -35,21 +35,41 @@ class Keys:
     skirt_pressed: float
 
 
-def render_preview(path, body, inlay, section_x=None, keys=None, title="", captions=()):
-    """Draws the part from above, with its captions, and cut along section_x when one is given."""
+@dataclass(frozen=True)
+class Section:
+    """A cut along the case's length at x, with what stands on the board there.
+
+    board: where the PCB lies along the cut, as (from, to, thickness); under the whole part when not given.
+    furniture: outlines of the parts the cut meets, each as (corners in (y, z), colour, filled).
+    span: the stretch of the cut that is drawn, as (from, to); all of it when not given.
+    """
+
+    x: float
+    title: str
+    keys: Keys | None = None
+    board: tuple[float, float, float] | None = None
+    furniture: tuple = ()
+    span: tuple[float, float] | None = None
+
+
+def render_preview(path, body, inlay, sections=(), title="", captions=()):
+    """Draws the part from above, with its captions, and cut along each section."""
     box = body.bounding_box()
     figure = plt.figure(figsize=SIZE_INCHES, dpi=DPI, facecolor=PAPER)
     figure.suptitle(title, color=INK, fontsize=20)
 
-    if section_x is None:
+    if not sections:
         above = figure.subplots()
         above.set_title("From above", color=INK, fontsize=13)
     else:
-        above, cut = figure.subplots(1, 2, gridspec_kw={"width_ratios": (2, 3)})
-        above.axvline(section_x, color=PRESSED, linewidth=1, linestyle=(0, (6, 4)))
-        above.set_title("From above (dashed: where the section is cut)", color=INK, fontsize=13)
-        _section_view(cut, body, inlay, section_x, box, keys)
-        cut.set_title("Section, back to the left — dashed keycap: fully pressed", color=INK, fontsize=13)
+        grid = figure.add_gridspec(len(sections), 2, width_ratios=(2, 3), hspace=0.5)
+        above = figure.add_subplot(grid[:, 0])
+        above.set_title("From above (dashed: where it is cut)", color=INK, fontsize=13)
+        for row, cut in enumerate(sections):
+            above.axvline(cut.x, color=PRESSED, linewidth=1, linestyle=(0, (6, 4)))
+            view = figure.add_subplot(grid[row, 1])
+            _section_view(view, body, inlay, cut, box)
+            view.set_title(cut.title, color=INK, fontsize=13)
 
     _top_view(above, body, inlay, box)
     for x, y, text in captions:
@@ -78,8 +98,8 @@ def _top_view(ax, body, inlay, box):
     _frame(ax, (box.min.X, box.max.X), (box.max.Y, box.min.Y))
 
 
-def _section_view(ax, body, inlay, x, box, keys):
-    plane = Plane.YZ.offset(x)
+def _section_view(ax, body, inlay, cut, box):
+    plane = Plane.YZ.offset(cut.x)
     for shape, colour in ((body, _grey(DECK)), (inlay, INLAY)):
         triangles = []
         for face in section(shape, section_by=plane).faces():
@@ -87,15 +107,20 @@ def _section_view(ax, body, inlay, x, box, keys):
             triangles += [[(vertices[i].Y, vertices[i].Z) for i in triangle] for triangle in indices]
         ax.add_collection(PolyCollection(triangles, facecolors=colour, edgecolors=colour, linewidths=0.3))
 
-    ax.add_patch(Rectangle((box.min.Y, -PCB_THICKNESS), box.size.Y, PCB_THICKNESS, color=PCB))
+    start, end, thickness = cut.board or (box.min.Y, box.max.Y, PCB_THICKNESS)
+    ax.add_patch(Rectangle((start, -thickness), end - start, thickness, color=PCB))
     top = box.max.Z + 2
-    if keys:
+    for corners, colour, filled in cut.furniture:
+        ax.add_patch(Polygon(corners, closed=True, fill=filled, facecolor=colour, edgecolor=colour, linewidth=1.4, alpha=0.75 if filled else 1.0))
+        top = max(top, max(z for _, z in corners) + 1)
+    if cut.keys:
+        keys = cut.keys
         for y in keys.centres:
             ax.add_patch(Rectangle((y - keys.switch_width / 2, 0), keys.switch_width, SWITCH_TOP, color=SWITCH, alpha=0.45))
             ax.add_patch(_keycap(y, keys, keys.skirt_at_rest, INK, "solid"))
             ax.add_patch(_keycap(y, keys, keys.skirt_pressed, PRESSED, (0, (5, 3))))
-        top = keys.skirt_at_rest + KEYCAP_HEIGHT + 1
-    _frame(ax, (box.min.Y - 1, box.max.Y + 1), (-PCB_THICKNESS - 1, top))
+        top = max(top, keys.skirt_at_rest + KEYCAP_HEIGHT + 1)
+    _frame(ax, cut.span or (box.min.Y - 1, box.max.Y + 1), (min(box.min.Z, -thickness) - 1, top))
 
 
 def _keycap(y, keys, skirt, colour, style):

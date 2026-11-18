@@ -7,6 +7,7 @@ from helpers import nominal
 
 from drezimo_case import __main__ as cli
 from drezimo_case import bambu
+from drezimo_case.board import Rect
 
 needs_bambu_studio = pytest.mark.skipif(not bambu.STUDIO.exists(), reason="Bambu Studio is not installed")
 
@@ -68,8 +69,8 @@ def exported_project(different=("", "", "", "")):
     }
 
 
-def decided(supported):
-    files = bambu.decide(exported_project(), supported)
+def decided(supported, solid_deck=False):
+    files = bambu.decide(exported_project(), supported, solid_deck)
     settings = json.loads(files["Metadata/project_settings.config"])
     return files, settings, ElementTree.fromstring(files["Metadata/model_settings.config"])
 
@@ -152,6 +153,22 @@ def test_supports_are_printed_in_the_bodys_black():
     assert (settings["support_filament"], settings["support_interface_filament"]) == ("1", "1")
 
 
+def test_a_deck_that_must_not_give_is_printed_full_through():
+    # Bambu Studio's own 0.5 and 0.8 mm skins leave 0.7 mm of a 2 mm deck sparse.
+    skins = ("bottom_shell_layers", "bottom_shell_thickness", "top_shell_layers", "top_shell_thickness")
+    _, settings, _ = decided(supported=True, solid_deck=True)
+    assert [settings[key] for key in skins] == ["10", "1", "10", "1"]
+    changed = settings["different_settings_to_system"][0].split(";")
+    assert set(skins) <= set(changed) and changed == sorted(changed)
+
+    _, settings, _ = decided(supported=True)
+    assert not set(skins) & set(settings)
+
+
+def test_only_the_shell_is_pressed_with_a_finger():
+    assert {name: part.solid_deck for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True}
+
+
 def test_the_other_files_of_the_project_are_kept():
     files, _, _ = decided(supported=False)
     assert files["3D/3dmodel.model"] == b"<model/>"
@@ -178,8 +195,36 @@ def test_the_filaments_of_the_supports_are_read_from_the_gcode():
     assert bambu.support_filaments(in_white.replace("; FEATURE: Outer wall\nG1 X20", "; FEATURE: Support\nG1 X20")) == {1, 2}
 
 
+def with_a_support(at):
+    white_wall = "; FEATURE: Outer wall\nG1 X30 Y10 E.5"
+    return GCODE.replace(white_wall, f"; FEATURE: Support\nG1 {at} E.5\n{white_wall}")
+
+
+def test_where_the_supports_stand_is_read_from_the_gcode():
+    # About the middle of the part's first layer, which in the sample runs from x 20 to x 30 at y 10.
+    assert bambu.support_points(GCODE) == []
+    assert bambu.support_points(with_a_support("X29 Y11")) == [pytest.approx((4.0, 1.0))]
+    assert bambu.support_points(with_a_support("Y14")) == [pytest.approx((-15.0, 4.0))]
+
+
+def test_filament_purged_away_from_the_part_is_not_part_of_it():
+    # At a colour change the head goes to the chute and pushes filament out without moving, under the last feature's name.
+    purged = with_a_support("X29 Y11").replace("M620 S1A\nT1\n", "M620 S1A\nT1\nG1 X250 Y250 F9000\nG1 E20 F300\nG1 E.8\n")
+    assert bambu.support_points(purged) == [pytest.approx((4.0, 1.0))]
+    assert bambu.first_layer_order(purged) == [1, 2]
+
+
+def test_supports_outside_the_areas_a_part_allows_are_refused():
+    supported = with_a_support("X29 Y11")
+    bambu.check_supports(supported, [Rect(-9, -9, -8, -8), Rect(3, 0, 5, 2)])
+    bambu.check_supports(supported, [Rect(0, 0, 3.6, 2)])
+    bambu.check_supports(supported, None)
+    with pytest.raises(bambu.SliceError, match="supports.*1.0 mm"):
+        bambu.check_supports(supported, [Rect(-5, -5, 3.0, 5)])
+
+
 def test_each_part_is_printed_with_a_nozzle_that_has_its_presets():
-    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2}
+    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2, "shell": 0.2}
     assert set(bambu.NOZZLES) == {0.4, 0.2}
 
 
@@ -246,3 +291,22 @@ def test_bambu_studio_supports_the_coupon_and_raises_no_warning(tmp_path, body, 
 
     with pytest.raises(bambu.SliceError, match="floating"):
         bambu.write_project(neutral, tmp_path / "unsupported.3mf", supported=False, nozzle=0.2)
+
+
+@needs_bambu_studio
+def test_bambu_studio_supports_the_shell_only_under_its_wells(tmp_path, shell, p):
+    from drezimo_case.export import export_part
+    from drezimo_case.shell import support_areas
+
+    neutral = next(path for path in export_part("shell", *shell, tmp_path) if path.suffix == ".3mf")
+    report = bambu.write_project(
+        neutral, tmp_path / "shell-bambu.3mf", supported=True, nozzle=0.2, supports_within=support_areas(p), solid_deck=True
+    )
+    assert report.supports
+    assert report.first_layer_order == [1, 2]
+    assert 800 < report.minutes < 1000
+    # 78 g with Bambu Studio's own skins.
+    assert report.grams[0] > 82
+
+    with pytest.raises(bambu.SliceError, match="supports"):
+        bambu.write_project(neutral, tmp_path / "wrong.3mf", supported=True, nozzle=0.2, supports_within=support_areas(p)[:1])

@@ -34,6 +34,10 @@ MEASUREMENTS = {
     "M4t": Measurement(1.9),     # glass beyond the lit area, at the back
     "M4s": Measurement(2.4),     # glass beyond the lit area, at each side
     "M4f": Measurement(6.0),     # glass beyond the lit area, at the front
+    # The display module's own board, measured loose before it was soldered (docs/project.md, section 5).
+    "M4p": Measurement(35.54, measured=True),  # its width
+    "M4l": Measurement(33.59, measured=True),  # its length, from its header's edge
+    "M4e": Measurement(1.69, measured=True),   # from the middle of its pin row to its edge behind
     "M5b": Measurement(9.0),     # knob's lower edge, knob pushed home
     "M6b": Measurement(2.0),     # tallest pin end of the USB module, on top
     "M7a": Measurement(6.6),     # under the board: how far the USB connector stands off it
@@ -60,6 +64,9 @@ PLAUSIBLE = {
     "M4t": (0.5, 4.0),
     "M4s": (0.5, 4.0),
     "M4f": (1.0, 10.0),
+    "M4p": (33.0, 38.0),
+    "M4l": (30.0, 37.0),
+    "M4e": (1.0, 4.0),
     "M5b": (6.0, 14.0),
     "M6b": (0.0, 8.0),
     "M7a": (5.0, 9.0),

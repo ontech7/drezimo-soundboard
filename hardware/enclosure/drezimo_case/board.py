@@ -22,6 +22,7 @@ HOLE_FOOTPRINT = "MountingHole:MountingHole_3.2mm_M3"
 OUTLINE_SHAPES = ("gr_line", "gr_arc", "gr_rect")
 BODY_SHAPES = ("fp_line", "fp_rect", "fp_circle", "fp_arc")
 BODY_LAYERS = ("F.Fab", "B.Fab")
+SOLDERED_THROUGH = "thru_hole"
 
 DISPLAY_HEADER, ENCODER, CHIP, USB_MODULE = "J1", "ENC1", "U2", "U1"
 # From the encoder footprint's origin, its pad A.
@@ -47,10 +48,33 @@ class Rect:
     def centre(self):
         return (self.x0 + self.x1) / 2, (self.y0 + self.y1) / 2
 
+    def grown(self, by):
+        return Rect(self.x0 - by, self.y0 - by, self.x1 + by, self.y1 + by)
+
+    def holds(self, other):
+        return self.x0 <= other.x0 and self.y0 <= other.y0 and other.x1 <= self.x1 and other.y1 <= self.y1
+
+
+@dataclass(frozen=True)
+class Pad:
+    """A pin soldered through the board: its part, its centre and how far its copper reaches from there."""
+
+    part: str
+    x: float
+    y: float
+    reach: float
+
+    @property
+    def rect(self):
+        return Rect(self.x - self.reach, self.y - self.reach, self.x + self.reach, self.y + self.reach)
+
 
 @dataclass(frozen=True)
 class Board:
-    """The USB module hangs under the board; its pins come up through it. The rest stands on top."""
+    """The USB module hangs under the board; its pins come up through it. The rest stands on top.
+
+    pads: every pin soldered through the board, the switches' aside.
+    """
 
     outline: tuple[float, float]
     keys: dict[int, tuple[float, float]]
@@ -61,6 +85,7 @@ class Board:
     chip: Rect
     usb_module: Rect
     usb_pins: tuple[tuple[float, float], ...]
+    pads: tuple[Pad, ...]
 
     @property
     def case_size(self):
@@ -109,6 +134,12 @@ def load_board(path=DEFAULT_PCB):
         chip=body(parts[CHIP]),
         usb_module=body(usb),
         usb_pins=tuple(to_case(usb, _point(first(pad, "at"))) for pad in find(usb, "pad")),
+        pads=tuple(
+            Pad(reference, *to_case(fp, _point(first(pad, "at"))), max(_point(first(pad, "size"))) / 2)
+            for reference, fp in parts.items()
+            for pad in find(fp, "pad")
+            if pad[2] == SOLDERED_THROUGH
+        ),
     )
 
 

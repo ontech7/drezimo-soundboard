@@ -40,9 +40,13 @@ def _shell(p, bottom):
     return block - extrude(Pos(0, 0, bottom) * outline(p, p.wall), amount=underside - bottom)
 
 
+def key_block(p):
+    """The outline of the block the wells and the key openings are cut in."""
+    return Rect(p.fn_well.x0 - CURB, p.fn_well.y0 - CURB, p.pad_well.x1 + CURB, p.pad_well.y1 + CURB)
+
+
 def _key_block(p):
-    area = Rect(p.fn_well.x0 - CURB, p.fn_well.y0 - CURB, p.pad_well.x1 + CURB, p.pad_well.y1 + CURB)
-    return box(area, p.rib_bottom, p.deck_top - p.deck_thickness)
+    return box(key_block(p), p.rib_bottom, p.deck_top - p.deck_thickness)
 
 
 def _opening(p, x, y):

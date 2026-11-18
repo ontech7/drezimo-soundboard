@@ -147,3 +147,42 @@ def test_the_encoder_gets_a_pocket_and_a_hole_for_its_shaft():
     assert as_tuple(p.encoder_pocket) == pytest.approx((106.025, 20.45, 119.525, 33.55))
     assert (p.encoder_pocket_top, p.shaft_hole) == pytest.approx((6.7, 8.0))
     assert p.deck_top - p.encoder_pocket_top >= 1.1 - 1e-9
+
+
+def test_the_display_module_hangs_centred_on_its_header():
+    module = derive_with().display_module
+    assert (module.x0, module.y0, module.x1, module.y1) == pytest.approx((59.93, 8.81, 95.47, 42.4), abs=0.01)
+
+    wider = derive_with(M4p=36.0, M4l=34.0, M4e=2.5).display_module
+    assert (wider.x0, wider.y0, wider.x1, wider.y1) == pytest.approx((59.7, 8.0, 95.7, 42.0), abs=0.01)
+
+
+def test_a_glass_that_would_overhang_its_module_is_an_error():
+    # Under a millimetre is two readings disagreeing, and the display's room follows the glass; more is a slip.
+    assert derive_with(M4p=34.0).rooms[1].rect.x0 == pytest.approx(60.45 - 1.5, abs=0.01)
+    with pytest.raises(ValueError, match="M4p"):
+        derive_with(M4p=33.0, M4x=75.7)
+    with pytest.raises(ValueError, match="M4l"):
+        derive_with(M4l=30.0, M4e=4.0)
+
+
+def test_every_part_of_the_top_strip_keeps_its_room_under_the_deck():
+    p = derive_with()
+    underside = p.deck_top - p.deck_thickness
+    chip, display, encoder, *pins = p.rooms
+
+    # The chip with its legs, 1.5 mm round it, up to half a millimetre over its top.
+    assert (chip.rect.x0, chip.rect.y0, chip.rect.x1, chip.rect.y1) == pytest.approx((7.7, 26.23, 19.92, 47.01), abs=0.01)
+    assert chip.top == pytest.approx(5.0)
+    # The display's module and the encoder with its terminals, all the way up to the deck.
+    assert (display.rect.x0, display.rect.y0, display.rect.x1, display.rect.y1) == pytest.approx((58.43, 7.31, 96.97, 43.9), abs=0.01)
+    assert (encoder.rect.x0, encoder.rect.y0, encoder.rect.x1, encoder.rect.y1) == pytest.approx((102.775, 18.3, 122.275, 35.7), abs=0.01)
+    assert display.top == encoder.top == pytest.approx(underside)
+    # Each pin end of the USB module, which comes up through the board.
+    assert len(pins) == 23
+    assert {round(pin.rect.width, 2) for pin in pins} == {2.7}
+    assert {round(pin.top, 6) for pin in pins} == {2.5}
+
+    assert {round(room.top, 6) for room in derive_with(M6b=4.0).rooms[3:]} == {4.5}
+    tall = derive_with(M6b=7.5, M5b=14.0)
+    assert {round(room.top, 6) for room in tall.rooms[3:]} == {round(tall.deck_top - tall.deck_thickness, 6)}

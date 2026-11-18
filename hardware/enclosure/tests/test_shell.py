@@ -5,6 +5,7 @@ from build123d import Align, Box, Pos, RectangleRounded, extrude
 from helpers import NOMINAL, inside
 
 from drezimo_case.board import INSET
+from drezimo_case.deck import CURB
 from drezimo_case.inlay import LABELS, label_outline
 
 MID = 98.0
@@ -167,3 +168,86 @@ def test_every_inlay_has_whole_deck_under_it_and_a_millimetre_round_it(shell, sh
         for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1), ((x0 + x1) / 2, (y0 + y1) / 2)):
             for z in (underside + 0.05, p.deck_top - 0.05):
                 assert inside(shell_body, x, y, z), (round(x, 2), round(y, 2), z)
+
+
+def grown(rect, by):
+    return rect.x0 - by, rect.y0 - by, rect.x1 + by, rect.y1 + by
+
+
+def within(area, x, y):
+    x0, y0, x1, y1 = area
+    return x0 <= x <= x1 and y0 <= y <= y1
+
+
+def steps(start, end, step):
+    return [start + step * i for i in range(int((end - start) / step + 1e-6) + 1)]
+
+
+def halfway_down(p):
+    """Between the deck and the foot of the ribs: a rib that holds the deck is solid here."""
+    return (p.rib_bottom + p.deck_top - p.deck_thickness) / 2
+
+
+def test_the_deck_over_the_top_strip_is_held_every_few_millimetres(shell_body, p):
+    # The owner presses on the logo and wants nothing to give. A 2 mm deck spanning 14 mm gives 0.02 mm under 1 kg;
+    # the 45 mm from the back wall to the keys would give 0.3 mm.
+    width, _ = p.case_size
+    front = p.fn_well.y0 - CURB
+    held = [
+        (x, y)
+        for x in steps(p.wall - 1, width - p.wall + 1, 1.0)
+        for y in steps(p.wall - 1, front + 1, 1.0)
+        if inside(shell_body, x, y, halfway_down(p))
+    ]
+    openings = (grown(p.glass, 2.0), grown(p.encoder_pocket, 1.0))
+    furthest = max(
+        min(math.dist((x, y), point) for point in held)
+        for x in steps(p.wall + 1, width - p.wall - 1, 2.5)
+        for y in steps(p.wall + 1, front - 1, 2.5)
+        if not any(within(opening, x, y) for opening in openings)
+    )
+    assert furthest <= 7.0
+
+
+def test_the_ribs_come_down_to_just_over_the_board(shell_body, p):
+    # Along a line under the logo's right half and the labels, clear of every part.
+    line = [(x, 37.0) for x in steps(25.0, 55.0, 0.25)]
+    ribs = [point for point in line if inside(shell_body, *point, halfway_down(p))]
+    assert 12 <= len(ribs) <= 30
+    assert [point for point in line if inside(shell_body, *point, p.rib_bottom + 0.2)] == ribs
+    assert not any(inside(shell_body, *point, p.rib_bottom - 0.2) for point in line)
+
+
+def test_no_rib_comes_down_on_a_part_of_the_board(shell_body, p, board):
+    # Worked out here from the board and the readings, not taken from the rooms the shell was built with.
+    underside = p.deck_top - p.deck_thickness
+    tops = {"U1": NOMINAL["M6b"], "U2": NOMINAL["M6a"]}
+    rooms = [(grown(pad.rect, 0.4), tops.get(pad.part, underside) + 0.3) for pad in board.pads]
+    rooms += [
+        (grown(board.chip, 1.0), NOMINAL["M6a"] + 0.3),
+        (grown(p.display_module, 1.0), underside),
+        (grown(p.glass, 1.0), underside),
+        (grown(board.encoder_body, 0.7), underside),
+    ]
+    assert len(rooms) == 52
+    for (x0, y0, x1, y1), top in rooms:
+        room = Pos(x0, y0, 0.0) * Box(x1 - x0, y1 - y0, min(top, underside) - 0.05, align=Align.MIN)
+        assert (shell_body & room).volume == pytest.approx(0.0, abs=1e-6), (x0, y0, x1, y1)
+
+
+def test_a_wall_runs_round_every_part_the_ribs_cannot_cross(shell_body, p):
+    # A rib that ends at a part ends in this wall, not in the air.
+    for room in p.rooms[:3]:
+        x0, y0, x1, y1 = grown(room.rect, 0.6)
+        ring = [(x, y) for x in steps(x0, x1, 1.0) for y in (y0, y1)] + [(x, y) for y in steps(y0, y1, 1.0) for x in (x0, x1)]
+        missing = [point for point in ring if not inside(shell_body, *point, halfway_down(p))]
+        assert not missing, missing[:3]
+
+
+def test_over_the_usb_modules_pins_the_ribs_are_lowered_not_broken(shell_body, p):
+    crossings = 0
+    for pin in p.rooms[3:]:
+        points = [(x, y) for x in steps(pin.rect.x0 + 0.1, pin.rect.x1 - 0.1, 0.25) for y in steps(pin.rect.y0 + 0.1, pin.rect.y1 - 0.1, 0.25)]
+        assert not any(inside(shell_body, x, y, pin.top - 0.1) for x, y in points)
+        crossings += any(inside(shell_body, x, y, pin.top + 0.2) for x, y in points)
+    assert crossings >= 8

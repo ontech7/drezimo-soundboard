@@ -2,8 +2,11 @@
 
     uv run python -m drezimo_case coupon-a
     uv run python -m drezimo_case inlay-gauge
+    uv run python -m drezimo_case shell
 
 With --bambu after the name, also a Bambu Studio project with the print settings decided.
+The shell is written only once every reading it uses is measured; until then, --draft
+after its name draws it on the estimates, as a picture and nothing that can be printed.
 """
 
 import sys
@@ -11,17 +14,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import bambu, gauge
+from . import bambu, gauge, sections
 from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
 from .measurements import MEASUREMENTS
 from .params import Params
-from .preview import Keys
+from .preview import render_preview
+from .shell import build_shell, support_areas
 
 PRINT_DIR = Path(__file__).resolve().parents[1] / "print"
-SECTION_KEYS = (37, 1)
-BAMBU = "--bambu"
+BAMBU, DRAFT = "--bambu", "--draft"
 
 
 @dataclass(frozen=True)
@@ -35,8 +38,14 @@ class PrintedPart:
     # Part of it prints over nothing and needs supports.
     supported: bool = False
     captions: tuple = ()
+    # From the board, the dimensions and the readings, where its picture cuts it.
+    sections: Callable = sections.along_the_keys
     # The diameter, in mm, of the nozzle its Bambu Studio project is for.
     nozzle: float = 0.4
+    # From the dimensions, the only places where its supports may stand; anywhere when not given.
+    supports_within: Callable | None = None
+    # Pressed with a finger: its deck is printed full through.
+    solid_deck: bool = False
 
 
 PARTS = {
@@ -44,55 +53,76 @@ PARTS = {
     "inlay-gauge": PrintedPart(
         gauge.build_inlay_gauge, "Inlay gauge", off_the_board=True, captions=gauge.captions(), nozzle=0.2
     ),
+    "shell": PrintedPart(
+        build_shell,
+        "Shell",
+        sections=sections.through_the_shell,
+        supported=True,
+        nozzle=0.2,
+        supports_within=support_areas,
+        solid_deck=True,
+    ),
 }
 
 
 def main(argv):
-    names = [word for word in argv if word != BAMBU]
+    names = [word for word in argv if word not in (BAMBU, DRAFT)]
     if len(names) != 1 or names[0] not in PARTS:
-        sys.exit(f"usage: python -m drezimo_case {{{','.join(PARTS)}}} [{BAMBU}]")
+        sys.exit(_usage())
     name, part = names[0], PARTS[names[0]]
+    final = not (part.draft or part.off_the_board)
+    on_estimates = DRAFT in argv
+    if on_estimates and not final:
+        sys.exit(_usage())
+    if on_estimates and BAMBU in argv:
+        sys.exit(f"{DRAFT} draws a picture on estimates: no Bambu Studio project is made from it")
     if BAMBU in argv and not bambu.STUDIO.exists():
         sys.exit(f"{BAMBU} needs Bambu Studio, not found at {bambu.STUDIO}")
 
     board = load_board()
     p = Params.derive(board, MEASUREMENTS)
-    if not (part.draft or part.off_the_board):
+    if final and not on_estimates:
         p.require_measured()
 
-    preview = {"captions": part.captions} if part.off_the_board else _section_along_the_keys(board)
     body, inlay = part.build(board, p)
-    written = export_part(name, body, inlay, PRINT_DIR, title=part.title, **preview)
+    if part.off_the_board:
+        preview = {"captions": part.captions}
+    else:
+        readings = {code: reading.value for code, reading in MEASUREMENTS.items()}
+        preview = {"sections": part.sections(board, p, readings)}
+        print(f"Deck top {p.deck_top} mm above the board, set by {p.deck_set_by}")
+
+    if on_estimates:
+        picture = PRINT_DIR / f"{name}-draft.png"
+        PRINT_DIR.mkdir(parents=True, exist_ok=True)
+        render_preview(picture, body, inlay, title=f"{part.title}: a draft on estimates, not to be printed", **preview)
+        written = [picture]
+    else:
+        written = export_part(name, body, inlay, PRINT_DIR, title=part.title, **preview)
 
     for path in written:
         print(path)
     if BAMBU in argv:
-        _write_bambu_project(name, part, written)
+        _write_bambu_project(name, part, written, p)
     if p.estimated and not part.off_the_board:
         print(f"Built on estimates, not for the final print: {', '.join(p.estimated)}")
 
 
-def _write_bambu_project(name, part, written):
+def _usage():
+    return f"usage: python -m drezimo_case {{{','.join(PARTS)}}} [{BAMBU}], or shell {DRAFT}"
+
+
+def _write_bambu_project(name, part, written, p):
     neutral = next(path for path in written if path.suffix == ".3mf")
     project = PRINT_DIR / f"{name}-bambu.3mf"
-    report = bambu.write_project(neutral, project, part.supported, part.nozzle)
+    allowed = part.supports_within(p) if part.supports_within else None
+    report = bambu.write_project(neutral, project, part.supported, part.nozzle, allowed, part.solid_deck)
     black, white = report.grams
     print(project)
     print(
         f"Sliced by Bambu Studio {report.version} for the {part.nozzle} mm nozzle without a warning: {report.minutes:.0f} min, "
         f"{black:.1f} g black, {white:.1f} g white, black first{', on supports' if report.supports else ''}"
     )
-
-
-def _section_along_the_keys(board):
-    keys = Keys(
-        centres=tuple(board.key_centre(n)[1] for n in SECTION_KEYS),
-        switch_width=MEASUREMENTS["M3a"].value,
-        keycap_width=MEASUREMENTS["M2c"].value,
-        skirt_at_rest=MEASUREMENTS["M2a"].value,
-        skirt_pressed=MEASUREMENTS["M2b"].value,
-    )
-    return {"section_x": board.key_centre(SECTION_KEYS[0])[0], "keys": keys}
 
 
 if __name__ == "__main__":

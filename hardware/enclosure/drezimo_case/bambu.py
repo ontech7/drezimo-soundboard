@@ -6,6 +6,7 @@ so a project is only written if it slices without a warning.
 """
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -58,6 +59,14 @@ SUPPORTS = {
     "support_filament": "1",
     "support_interface_filament": "1",
 }
+SOLID_DECK = {
+    # Full plastic for this many layers, and at least this many mm, from each face: the two skins of a 2 mm deck
+    # meet. Bambu Studio's own 0.5 and 0.8 mm leave the middle sparse.
+    "bottom_shell_layers": "10",
+    "bottom_shell_thickness": "1",
+    "top_shell_layers": "10",
+    "top_shell_thickness": "1",
+}
 PARTS = (("body", 1), ("inlay", 2))
 # The body goes down first and shapes the letters; the white then fills them.
 FIRST_LAYER = {"first_layer_sequence_choice": "Customize", "first_layer_print_sequence": "1 2"}
@@ -65,6 +74,9 @@ FIRST_LAYER = {"first_layer_sequence_choice": "Customize", "first_layer_print_se
 SETTINGS_FILE = "Metadata/project_settings.config"
 MODEL_SETTINGS_FILE = "Metadata/model_settings.config"
 UNPRINTED = ("Custom", "Prime tower")
+SUPPORT = "Support"
+# mm a support may stand outside the areas a part allows: the slicer spreads them a little.
+SUPPORT_SPREAD = 0.5
 
 
 class SliceError(Exception):
@@ -80,8 +92,12 @@ class SliceReport:
     supports: bool
 
 
-def write_project(neutral, target, supported, nozzle):
-    """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave."""
+def write_project(neutral, target, supported, nozzle, supports_within=None, solid_deck=False):
+    """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave.
+
+    supports_within: the only rectangles where supports may stand, about the middle of the part's first layer.
+    solid_deck: print the deck full through, for a part that is pressed with a finger.
+    """
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
         printer, process, filament = (_write_preset(name, work) for name in astuple(NOZZLES[nozzle]))
@@ -93,10 +109,10 @@ def write_project(neutral, target, supported, nozzle):
             Path(neutral).resolve(),
         )
         imported = _read_archive(work / "imported.3mf")
-        _write_archive(work / "project.3mf", decide(imported, supported))
+        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck))
         _studio(work, "--slice", "0", "--export-3mf", "sliced.3mf", work / "project.3mf")
 
-        report = _report(work, imported)
+        report = _report(work, imported, supports_within)
         shutil.copyfile(work / "project.3mf", target)
         return report
 
@@ -111,9 +127,9 @@ def resolve_preset(name, profiles=PROFILES):
     return {key: value for key, value in values.items() if key not in ("inherits", "include")}
 
 
-def decide(files, supported):
+def decide(files, supported, solid_deck=False):
     """A project exported by Bambu Studio (archive name to bytes), with this part's settings."""
-    process = INLAYS | (SUPPORTS if supported else {})
+    process = INLAYS | (SUPPORTS if supported else {}) | (SOLID_DECK if solid_deck else {})
     settings = json.loads(files[SETTINGS_FILE])
     settings |= PROJECT | process
     settings["different_settings_to_system"] = [";".join(sorted(process)), *settings["different_settings_to_system"][1:]]
@@ -137,7 +153,7 @@ def decide(files, supported):
 def first_layer_order(gcode):
     """The filaments in the order they print the part's first layer."""
     order = []
-    for layer, filament, feature in _extrusions(gcode):
+    for layer, filament, feature, _ in _extrusions(gcode):
         if layer == 1 and feature not in UNPRINTED and filament not in order:
             order.append(filament)
     return order
@@ -145,12 +161,39 @@ def first_layer_order(gcode):
 
 def support_filaments(gcode):
     """The filaments the supports are printed in."""
-    return {filament for _, filament, feature in _extrusions(gcode) if feature.startswith("Support")}
+    return {filament for _, filament, feature, _ in _extrusions(gcode) if feature.startswith(SUPPORT)}
+
+
+def support_points(gcode):
+    """Where the supports' moves end, about the middle of the part's first layer."""
+    moves = list(_extrusions(gcode))
+    first_layer = [at for layer, _, feature, at in moves if layer == 1 and feature not in UNPRINTED and not feature.startswith(SUPPORT)]
+    xs, ys = zip(*first_layer)
+    middle = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    return [(x - middle[0], y - middle[1]) for _, _, feature, (x, y) in moves if feature.startswith(SUPPORT)]
+
+
+def check_supports(gcode, allowed):
+    """Raises if a support stands outside every rectangle of `allowed`; None allows them anywhere."""
+    if allowed is None:
+        return
+    stray = [_distance_outside(point, allowed) for point in support_points(gcode)]
+    stray = [distance for distance in stray if distance > SUPPORT_SPREAD]
+    if stray:
+        raise SliceError(f"{len(stray)} moves of the supports stand outside the places meant for them, up to {max(stray):.1f} mm out")
+
+
+def _distance_outside(point, rectangles):
+    x, y = point
+    return min(math.hypot(max(r.x0 - x, 0, x - r.x1), max(r.y0 - y, 0, y - r.y1)) for r in rectangles)
 
 
 def _extrusions(gcode):
-    """The layer, the filament and the feature of every move that extrudes."""
-    layer, filament, feature = 0, None, ""
+    """The layer, the filament, the feature and the end point of every move that lays filament down.
+
+    Filament pushed out with the head standing still is purged or primed, not laid.
+    """
+    layer, filament, feature, x, y = 0, None, "", 0.0, 0.0
     for line in gcode.splitlines():
         if line.startswith("; CHANGE_LAYER"):
             layer += 1
@@ -158,11 +201,15 @@ def _extrusions(gcode):
             feature = line.split(":")[1].strip()
         elif (loaded := re.match(r"M620 S(\d+)A", line)) and int(loaded.group(1)) < 16:
             filament = int(loaded.group(1)) + 1
-        elif re.match(r"G[123] .*E\.?\d", line):
-            yield layer, filament, feature
+        elif re.match(r"G[0123] ", line):
+            words = dict(re.findall(r"([XY])(-?\d*\.?\d+)", line.split(";")[0]))
+            moved = (float(words.get("X", x)), float(words.get("Y", y)))
+            if moved != (x, y) and re.match(r"G[123] .*E\.?\d", line):
+                yield layer, filament, feature, moved
+            x, y = moved
 
 
-def _report(work, imported):
+def _report(work, imported, supports_within):
     result = json.loads((work / "result.json").read_text())
     plate = result["sliced_plates"][0]
     if plate["warning_message"]:
@@ -174,6 +221,7 @@ def _report(work, imported):
     supports = support_filaments(gcode)
     if supports - {dict(PARTS)["body"]}:
         raise SliceError(f"the supports are printed in the filaments {sorted(supports)}")
+    check_supports(gcode, supports_within)
     return SliceReport(
         version=re.search(rb"BambuStudio-([\d.]+)", imported["3D/3dmodel.model"]).group(1).decode(),
         minutes=plate["total_predication"] / 60,
