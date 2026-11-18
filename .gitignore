@@ -33,6 +33,7 @@ firmware/build/
 # Python test cache
 .pytest_cache/
 
-# Enclosure: the gauge's STEP is about 45 MB of traced letters; its 3MFs are the print files
+# Enclosure: the gauge's STEP is about 45 MB of traced letters and the shell's 18 MB; their 3MFs are the print files
 hardware/enclosure/print/inlay-gauge.step
+hardware/enclosure/print/shell.step
 hardware/enclosure/print/*-draft.png

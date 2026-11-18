@@ -207,8 +207,21 @@ def test_a_value_known_without_a_caliper_is_no_estimate():
 def test_the_readings_file_says_where_each_unmeasured_value_comes_from():
     from drezimo_case.measurements import MEASUREMENTS
 
-    assert {code for code, reading in MEASUREMENTS.items() if reading.known} == {"M1t", "M2a", "M2c", "M3a"}
+    assert {code for code, reading in MEASUREMENTS.items() if reading.known} == {"M1t", "M2a", "M2c", "M3a", "M4f", "M4s", "M4t"}
     assert not any(reading.known and reading.measured for reading in MEASUREMENTS.values())
+
+
+def test_the_board_is_read_and_the_shell_may_be_built():
+    from drezimo_case.measurements import MEASUREMENTS
+
+    Params.derive(load_board(), MEASUREMENTS).require_measured()
+
+
+def test_where_the_lit_area_lies_in_its_glass_shapes_nothing():
+    # The glass was measured loose, not how the light sits in it: the window follows the light alone.
+    drawn, moved = derive_with(), derive_with(M4t=1.2, M4s=2.0, M4f=4.0)
+    assert moved.glass != drawn.glass
+    assert (moved.window, moved.rooms, moved.display_module) == (drawn.window, drawn.rooms, drawn.display_module)
 
 
 def test_the_shell_is_drawn_bigger_by_what_the_printer_shrinks():
