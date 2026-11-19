@@ -36,9 +36,15 @@ def face_down(real, deck_top, turned=False):
     return Rot(0, 0, 180) * flat if turned else flat
 
 
-def export_part(name, body, inlay, out_dir, turned=False, scale=1.0, **preview_options):
-    """Write the part as it lies on the plate.
+def as_in_the_case(real, lowest):
+    """The bottom's print orientation: the way up it lies in the case, with its lowest face on z = 0."""
+    return Pos(0, 0, -lowest) * real
 
+
+def export_part(name, body, inlay, out_dir, turned=False, upright=False, scale=1.0, **preview_options):
+    """Write the part as it lies on the plate: turned over on its top face or, `upright`, on its lowest one.
+
+    inlay: None for a part of one colour.
     scale: how much bigger than modelled, across the plate, the 3MF holds it: that is what gets printed.
     The STEP and the picture show it as modelled.
     """
@@ -46,11 +52,14 @@ def export_part(name, body, inlay, out_dir, turned=False, scale=1.0, **preview_o
     out_dir.mkdir(parents=True, exist_ok=True)
     step, mesh, picture = (out_dir / f"{name}{suffix}" for suffix in (".step", ".3mf", ".png"))
 
-    deck_top = body.bounding_box().max.Z
-    parts = [
-        _part(face_down(to_real(shape), deck_top, turned), label, colour)
-        for shape, label, colour in ((body, "body", BODY_COLOUR), (inlay, "inlay", INLAY_COLOUR))
-    ]
+    box = body.bounding_box()
+
+    def on_the_plate(shape):
+        real = to_real(shape)
+        return as_in_the_case(real, box.min.Z) if upright else face_down(real, box.max.Z, turned)
+
+    coloured = [(body, "body", BODY_COLOUR)] + ([] if inlay is None else [(inlay, "inlay", INLAY_COLOUR)])
+    parts = [_part(on_the_plate(shape), label, colour) for shape, label, colour in coloured]
 
     export_step(Compound(label=name, children=parts), step, write_pcurves=False, timestamp=STEP_TIMESTAMP)
     _write_3mf(mesh, name, parts, scale)

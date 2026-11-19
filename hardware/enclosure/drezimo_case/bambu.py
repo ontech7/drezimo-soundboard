@@ -77,10 +77,13 @@ PARTS = (("body", 1), ("inlay", 2))
 # The body goes down first and shapes the letters; the white then fills them.
 FIRST_LAYER = {"first_layer_sequence_choice": "Customize", "first_layer_print_sequence": "1 2"}
 
+MODEL_FILE = "3D/3dmodel.model"
 SETTINGS_FILE = "Metadata/project_settings.config"
 MODEL_SETTINGS_FILE = "Metadata/model_settings.config"
 UNPRINTED = ("Custom", "Prime tower")
 SUPPORT = "Support"
+# mm the last layer's top may be from the part's: more, and the layers do not divide the part's height.
+HEIGHT_SLACK = 0.01
 # mm a support may stand outside the areas a part allows: the slicer spreads them a little.
 SUPPORT_SPREAD = 0.5
 
@@ -96,14 +99,19 @@ class SliceReport:
     grams: tuple
     first_layer_order: list
     supports: bool
+    height: float
 
 
-def write_project(neutral, target, supported, nozzle, supports_within=None, solid_deck=False, walls_show=False):
+def write_project(
+    neutral, target, supported, nozzle, supports_within=None, solid_deck=False, walls_show=False, inlaid=True, layer_height=None
+):
     """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave.
 
     supports_within: the only rectangles where supports may stand, about the middle of the part's first layer.
-    solid_deck: print the deck full through, for a part that is pressed with a finger.
+    solid_deck: print the deck or the plate full through, for a part that is pressed with a finger.
     walls_show: the part's outer walls are seen and its back wall lies to the back of the bed.
+    inlaid: the part is a black body with white inlays; a part of one colour is its body alone.
+    layer_height: in mm, for a part whose heights the process's own layers do not divide.
     """
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
@@ -111,15 +119,15 @@ def write_project(neutral, target, supported, nozzle, supports_within=None, soli
         _studio(
             work,
             "--load-settings", f"{printer};{process}",
-            "--load-filaments", f"{filament};{filament}",
+            "--load-filaments", ";".join([str(filament)] * len(_parts(inlaid))),
             "--export-3mf", "imported.3mf",
             Path(neutral).resolve(),
         )
         imported = _read_archive(work / "imported.3mf")
-        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck, walls_show))
+        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck, walls_show, inlaid, layer_height))
         _studio(work, "--slice", "0", "--export-3mf", "sliced.3mf", work / "project.3mf")
 
-        report = _report(work, imported, supports_within)
+        report = _report(work, imported, supports_within, inlaid, _height(neutral))
         shutil.copyfile(work / "project.3mf", target)
         return report
 
@@ -134,27 +142,46 @@ def resolve_preset(name, profiles=PROFILES):
     return {key: value for key, value in values.items() if key not in ("inherits", "include")}
 
 
-def decide(files, supported, solid_deck=False, walls_show=False):
+def decide(files, supported, solid_deck=False, walls_show=False, inlaid=True, layer_height=None):
     """A project exported by Bambu Studio (archive name to bytes), with this part's settings."""
-    process = INLAYS | (SUPPORTS if supported else {}) | (SOLID_DECK if solid_deck else {}) | (WALLS_SHOW if walls_show else {})
+    wanted = _parts(inlaid)
+    process = (
+        (INLAYS if inlaid else {})
+        | (SUPPORTS if supported else {})
+        | (SOLID_DECK if solid_deck else {})
+        | (WALLS_SHOW if walls_show else {})
+        | ({"layer_height": f"{layer_height:g}"} if layer_height else {})
+    )
     settings = json.loads(files[SETTINGS_FILE])
-    settings |= PROJECT | process
+    settings |= _project(len(wanted)) | process
     settings["different_settings_to_system"] = [";".join(sorted(process)), *settings["different_settings_to_system"][1:]]
 
     model = ElementTree.fromstring(files[MODEL_SETTINGS_FILE])
     parts = list(model.iter("part"))
-    if len(parts) != len(PARTS):
-        raise ValueError(f"expected {len(PARTS)} parts in the project, found {len(parts)}")
-    for part, (name, filament) in zip(parts, PARTS):
+    if len(parts) != len(wanted):
+        raise ValueError(f"expected {len(wanted)} part{'s' if len(wanted) > 1 else ''} in the project, found {len(parts)}")
+    for part, (name, filament) in zip(parts, wanted):
         part.find("metadata[@key='name']").set("value", name)
         _add_metadata(part, "extruder", filament)
-    for key, value in FIRST_LAYER.items():
-        _add_metadata(model.find("plate"), key, value)
+    if inlaid:
+        for key, value in FIRST_LAYER.items():
+            _add_metadata(model.find("plate"), key, value)
 
     return files | {
         SETTINGS_FILE: json.dumps(settings, indent=4).encode(),
         MODEL_SETTINGS_FILE: ElementTree.tostring(model, encoding="utf-8", xml_declaration=True),
     }
+
+
+def _parts(inlaid):
+    return PARTS if inlaid else PARTS[:1]
+
+
+def _project(filaments):
+    """The project's own settings, for the body's black alone or with the inlay's white."""
+    if filaments == len(PARTS):
+        return PROJECT
+    return PROJECT | {"filament_colour": PROJECT["filament_colour"][:filaments], "flush_volumes_matrix": ["0"]}
 
 
 def first_layer_order(gcode):
@@ -164,6 +191,11 @@ def first_layer_order(gcode):
         if layer == 1 and feature not in UNPRINTED and filament not in order:
             order.append(filament)
     return order
+
+
+def printed_height(gcode):
+    """How high the last layer ends, in mm over the plate."""
+    return max((float(height) for height in re.findall(r"^; Z_HEIGHT: (\S+)", gcode, re.M)), default=0.0)
 
 
 def support_filaments(gcode):
@@ -216,29 +248,44 @@ def _extrusions(gcode):
             x, y = moved
 
 
-def _report(work, imported, supports_within):
+def _report(work, imported, supports_within, inlaid=True, height=None):
     result = json.loads((work / "result.json").read_text())
     plate = result["sliced_plates"][0]
     if plate["warning_message"]:
         raise SliceError(plate["warning_message"])
     gcode = (work / "plate_1.gcode").read_text()
     order = first_layer_order(gcode)
-    if order != [filament for _, filament in PARTS]:
+    if order != [filament for _, filament in _parts(inlaid)]:
         raise SliceError(f"the first layer prints the filaments in the order {order}")
     supports = support_filaments(gcode)
     if supports - {dict(PARTS)["body"]}:
         raise SliceError(f"the supports are printed in the filaments {sorted(supports)}")
     check_supports(gcode, supports_within)
-    black, white = (filament["total_used_g"] for filament in plate["filaments"])
-    if white > black:
-        raise SliceError(f"{white:.1f} g of white against {black:.1f} g of black: the body and the inlay are in each other's filament")
+    top = printed_height(gcode)
+    if height is not None and abs(top - height) > HEIGHT_SLACK:
+        raise SliceError(f"the layers end at {top:g} mm on a part {height:g} mm high")
+    grams = tuple(filament["total_used_g"] for filament in plate["filaments"])
+    if len(grams) != len(_parts(inlaid)):
+        raise SliceError(f"{len(grams)} filaments are used, for {len(_parts(inlaid))} in the part")
+    if inlaid and grams[1] > grams[0]:
+        raise SliceError(
+            f"{grams[1]:.1f} g of white against {grams[0]:.1f} g of black: the body and the inlay are in each other's filament"
+        )
     return SliceReport(
-        version=re.search(rb"BambuStudio-([\d.]+)", imported["3D/3dmodel.model"]).group(1).decode(),
+        version=re.search(rb"BambuStudio-([\d.]+)", imported[MODEL_FILE]).group(1).decode(),
         minutes=plate["total_predication"] / 60,
-        grams=(black, white),
+        grams=grams,
         first_layer_order=order,
         supports=bool(supports),
+        height=top,
     )
+
+
+def _height(neutral):
+    """How high the part in a neutral 3MF stands."""
+    model = zipfile.ZipFile(neutral).read(MODEL_FILE).decode()
+    heights = [float(z) for z in re.findall(r'<vertex [^>]*\bz="([^"]+)"', model)]
+    return max(heights) - min(heights)
 
 
 def _studio(work, *arguments):

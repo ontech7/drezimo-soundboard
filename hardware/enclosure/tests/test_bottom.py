@@ -5,6 +5,7 @@ from shapely.geometry import Point, Polygon
 from shapely.geometry import box as flat_box
 
 from drezimo_case.board import PITCH
+from drezimo_case.bottom import LAYER, POST_GAP
 
 MID = 98.0
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -107,11 +108,12 @@ def test_the_bottom_touches_the_board_with_its_six_standoffs_and_nothing_else(bo
 def test_a_post_under_every_point_between_four_keys_stops_just_short_of_the_board(bottom, p):
     assert len(p.nodes) == 30
     for x, y in p.nodes:
-        for z in (p.plate_top + 0.1, (p.plate_top + p.standoff_top) / 2, p.standoff_top - 0.2):
+        top = p.standoff_top - POST_GAP
+        for z in (p.plate_top + 0.1, (p.plate_top + p.standoff_top) / 2, top - 0.05):
             assert inside(bottom, x, y, z), (x, y, z)
         # The board is carried by the screws: a post only stops it giving under a key.
-        assert not inside(bottom, x, y, p.standoff_top - 0.1), (x, y)
-        assert inside(bottom, x + 1.8, y, p.standoff_top - 0.2) and not inside(bottom, x + 2.2, y + 2.2, p.standoff_top - 0.2)
+        assert not inside(bottom, x, y, top + 0.05), (x, y)
+        assert inside(bottom, x + 1.8, y, top - 0.05) and not inside(bottom, x + 2.2, y + 2.2, top - 0.05)
 
 
 def test_ribs_run_between_the_posts_both_ways(bottom, p):
@@ -239,3 +241,12 @@ def test_feet_keyholes_and_screws_keep_out_of_each_others_way(p, board):
 
 def test_with_its_keyholes_and_recesses_the_bottom_is_still_one_piece(bottom):
     assert len(bottom.solids()) == 1
+
+
+def test_the_heights_that_carry_the_board_are_whole_layers(p):
+    # Read in the g-code at 0.2 mm layers: the standoffs, 10.9 mm high, ended 0.1 mm short, and the posts, 10.75 mm
+    # high, level with them.
+    for top in (p.plate_top, p.standoff_top, p.standoff_top - POST_GAP):
+        layers = (top - p.wall_bottom) / LAYER
+        assert layers == pytest.approx(round(layers), abs=1e-6)
+    assert POST_GAP >= LAYER

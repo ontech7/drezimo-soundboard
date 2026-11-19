@@ -18,9 +18,12 @@ OFF_THE_WALLS = 0.3
 # Over its last stretch under the board a column is as narrow as the board's hole allows.
 NECK = 0.6
 RIB = 1.2
-# A rib stops this far under the board. A post goes nearly up to it: the screws carry the board, the posts only
-# keep it from giving under a key.
-RIB_UNDER_BOARD, POST_GAP = 1.0, 0.15
+# The height of the layers it is printed in. Its heights are given to a tenth of a millimetre: at 0.2 mm the
+# standoffs ended a tenth short of the board, and the posts level with them.
+LAYER = 0.1
+# A rib stops this far under the board. A post goes nearly up to it, two layers short: the screws carry the board,
+# the posts only keep it from giving under a key.
+RIB_UNDER_BOARD, POST_GAP = 1.0, 2 * LAYER
 POST_RADIUS = 2.0
 # Kept clear of all that hangs under the board: sideways, or under how far it can hang.
 CLEAR, UNDER = 0.5, 0.3

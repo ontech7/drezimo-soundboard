@@ -211,3 +211,83 @@ def test_only_a_part_drawn_from_the_screw_waits_for_it(tmp_path, monkeypatch, ca
     assert "estimates" not in capsys.readouterr().out
     with pytest.raises(EstimateError, match="M9l"):
         cli.main(["screwed"])
+
+
+@pytest.fixture(scope="module")
+def exported_bottom(tmp_path_factory, bottom):
+    out = tmp_path_factory.mktemp("bottom")
+    return out, export_part("bottom", bottom, None, out, upright=True)
+
+
+def test_a_part_with_no_inlay_is_written_as_its_body_alone(exported_bottom, bottom):
+    out, paths = exported_bottom
+    assert [path.name for path in paths] == ["bottom.step", "bottom.3mf", "bottom.png"]
+    (body,) = import_step(out / "bottom.step").children
+    assert body.label == "body"
+    assert body.volume == pytest.approx(bottom.volume, rel=1e-3)
+
+    model = zipfile.ZipFile(out / "bottom.3mf").read("3D/3dmodel.model").decode()
+    (item,) = re.findall(r'<item objectid="(\d+)"', model)
+    assembly = re.search(rf'<object id="{item}"[^>]*>\s*<components>(.*?)</components>', model, re.S)
+    (part,) = re.findall(r'<component objectid="(\d+)"', assembly.group(1))
+    assert re.search(rf'<object id="{part}" name="(\w+)"', model).group(1) == "body"
+    assert len(re.findall(r"<object ", model)) == 2
+
+
+def test_an_upright_part_lies_on_its_lowest_face_and_is_not_a_mirror_image(exported_bottom, p, board):
+    out, _ = exported_bottom
+    (printed,) = import_step(out / "bottom.step").children
+    box = printed.bounding_box()
+    assert (box.min.Z, box.max.Z) == pytest.approx((0.0, p.standoff_top - p.wall_bottom), abs=1e-6)
+    # Seen on the plate: x as in the case, its back to the back of the bed, the outside face down.
+    x, y = p.keyholes[0]
+    assert not inside(printed, x, -(y + p.keyhole_slide), 0.5)
+    assert inside(printed, x + 6.0, -(y + p.keyhole_slide), 0.5)
+    hole_x, hole_y = board.holes[0]
+    assert inside(printed, hole_x + 2.5, -hole_y, box.max.Z - 0.2)
+    assert not inside(printed, hole_x + 2.5, hole_y, box.max.Z - 0.2)
+
+
+def test_the_picture_of_a_part_with_no_inlay_is_drawn(exported_bottom):
+    out, _ = exported_bottom
+    header = (out / "bottom.png").read_bytes()[:24]
+    assert header[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">II", header[16:24]) == (1600, 1200)
+
+
+def test_the_bottom_is_refused_while_the_screw_is_an_estimate(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured() | {"M9l": Measurement(10.4)})
+    with pytest.raises(EstimateError, match="M9l"):
+        cli.main(["bottom"])
+    assert not list(tmp_path.iterdir())
+
+
+def test_a_draft_of_the_bottom_is_a_picture_and_nothing_to_print(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured() | {"M9l": Measurement(10.4)})
+    cli.main(["bottom", "--draft"])
+    assert [path.name for path in tmp_path.iterdir()] == ["bottom-draft.png"]
+    header = (tmp_path / "bottom-draft.png").read_bytes()[:24]
+    assert struct.unpack(">II", header[16:24]) == (1600, 1200)
+    assert capsys.readouterr().out.splitlines()[-1].endswith("estimates, not for the final print: M9l")
+
+
+def test_the_bottom_is_written_upright_in_one_colour(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured())
+    monkeypatch.setattr(cli, "export_part", lambda name, body, inlay, out, **options: calls.append((name, inlay, options)) or [])
+    cli.main(["bottom"])
+    ((name, inlay, options),) = calls
+    assert (name, inlay, options["upright"], options["turned"], options["scale"]) == ("bottom", None, True, False, 1.0)
+    # Cut through the closed case: the shell is drawn round it.
+    assert len(options["beside"]) == 1 and options["underside"]
+
+
+def test_a_screw_that_cannot_be_built_in_is_said_in_one_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured() | {"M9l": Measurement(20.6, measured=True)})
+    with pytest.raises(SystemExit, match="M9l = 20.6.*too long"):
+        cli.main(["bottom"])
+    assert not list(tmp_path.iterdir())

@@ -165,8 +165,8 @@ def test_a_deck_that_must_not_give_is_printed_full_through():
     assert not set(skins) & set(settings)
 
 
-def test_only_the_shell_is_pressed_with_a_finger():
-    assert {name: part.solid_deck for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True}
+def test_the_shell_and_the_bottom_are_pressed_with_a_finger():
+    assert {name: part.solid_deck for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True, "bottom": True}
 
 
 def test_walls_that_show_get_their_seam_at_the_back_and_no_brim():
@@ -177,7 +177,8 @@ def test_walls_that_show_get_their_seam_at_the_back_and_no_brim():
 
     _, settings, _ = decided(supported=True)
     assert "seam_position" not in settings and "brim_type" not in settings
-    assert {name: part.walls_show for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True}
+    # The bottom's edge has to enter the shell's rim: no brim welded to it either.
+    assert {name: part.walls_show for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True, "bottom": True}
 
 
 def sliced(tmp_path, grams):
@@ -251,7 +252,8 @@ def test_supports_outside_the_areas_a_part_allows_are_refused():
 
 
 def test_each_part_is_printed_with_a_nozzle_that_has_its_presets():
-    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2, "shell": 0.2}
+    # Only the inlays need the fine nozzle.
+    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2, "shell": 0.2, "bottom": 0.4}
     assert set(bambu.NOZZLES) == {0.4, 0.2}
 
 
@@ -335,5 +337,106 @@ def test_bambu_studio_supports_the_shell_only_under_its_wells(tmp_path, shell, p
     # 78 g with Bambu Studio's own skins.
     assert report.grams[0] > 82
 
+    assert report.height == pytest.approx(p.deck_top - p.wall_bottom)
+
     with pytest.raises(bambu.SliceError, match="supports"):
         bambu.write_project(neutral, tmp_path / "wrong.3mf", supported=True, nozzle=0.2, supports_within=support_areas(p)[:1])
+
+
+ONE_PART = MODEL_SETTINGS.replace(
+    """    <part id="2" subtype="normal_part">
+      <metadata key="name" value="inlay-gauge_2"/>
+      <mesh_stat face_count="12"/>
+    </part>
+""",
+    "",
+)
+BLACK_ONLY = """M620 S0A
+T1000
+; CHANGE_LAYER
+; FEATURE: Outer wall
+G1 X20 Y10 E.5
+; CHANGE_LAYER
+G1 X40 Y10 E.5
+M620 S255A
+"""
+
+
+def one_colour(**options):
+    files = exported_project() | {"Metadata/model_settings.config": ONE_PART.encode()}
+    files = bambu.decide(files, supported=False, inlaid=False, **options)
+    return json.loads(files["Metadata/project_settings.config"]), ElementTree.fromstring(files["Metadata/model_settings.config"])
+
+
+def test_a_part_of_one_colour_is_its_body_alone_in_black():
+    settings, model = one_colour()
+    assert settings["filament_colour"] == ["#1A1A1C"]
+    assert settings["flush_volumes_matrix"] == ["0"]
+    assert settings["curr_bed_type"] == "Textured PEI Plate"
+    parts = [{m.get("key"): m.get("value") for m in part.findall("metadata")} for part in model.iter("part")]
+    assert parts == [{"name": "body", "extruder": "1"}]
+    assert "first_layer_print_sequence" not in {m.get("key") for m in model.find("plate").findall("metadata")}
+
+
+def test_what_the_inlays_ask_of_the_printer_is_not_asked_without_them():
+    settings, _ = one_colour()
+    assert settings["wall_generator"] == "classic"
+    assert "initial_layer_speed" not in settings
+    assert settings["different_settings_to_system"] == ["", "", "", ""]
+
+
+def test_a_part_whose_heights_need_them_is_printed_in_its_own_layers():
+    settings, _ = one_colour(layer_height=0.1)
+    assert settings["layer_height"] == "0.1"
+    assert settings["different_settings_to_system"][0] == "layer_height"
+    assert settings == one_colour()[0] | {"layer_height": "0.1", "different_settings_to_system": ["layer_height", "", "", ""]}
+    assert {name: part.layers for name, part in cli.PARTS.items()} == {"coupon-a": None, "inlay-gauge": None, "shell": None, "bottom": 0.1}
+
+
+def test_how_high_the_layers_end_is_read_from_the_gcode():
+    assert bambu.printed_height("; CHANGE_LAYER\n; Z_HEIGHT: 0.2\nG1 X1 E.5\n; CHANGE_LAYER\n; Z_HEIGHT: 0.3\nG1 X2 E.5\n") == 0.3
+
+
+def test_a_slice_that_ends_short_of_the_part_is_refused(tmp_path):
+    # Layers that do not divide a part's height leave its top a part of a layer short.
+    folder, imported = sliced(tmp_path, (61.5,))
+    (folder / "plate_1.gcode").write_text(BLACK_ONLY.replace("; CHANGE_LAYER", "; CHANGE_LAYER\n; Z_HEIGHT: 10.8"))
+    assert bambu._report(folder, imported, None, inlaid=False, height=10.8).height == 10.8
+    with pytest.raises(bambu.SliceError, match="end at 10.8 mm on a part 10.9 mm high"):
+        bambu._report(folder, imported, None, inlaid=False, height=10.9)
+
+
+def test_a_part_of_one_colour_with_two_parts_is_refused():
+    with pytest.raises(ValueError, match="1 part"):
+        bambu.decide(exported_project(), supported=False, inlaid=False)
+
+
+def test_the_slice_of_a_part_of_one_colour_is_read(tmp_path):
+    folder, imported = sliced(tmp_path, (61.5,))
+    (folder / "plate_1.gcode").write_text(BLACK_ONLY)
+    report = bambu._report(folder, imported, None, inlaid=False)
+    assert report.grams == (61.5,)
+    assert report.first_layer_order == [1]
+    assert not report.supports
+
+
+@needs_bambu_studio
+def test_bambu_studio_slices_the_bottom_with_no_supports_and_no_warning(tmp_path, bottom, p):
+    from drezimo_case.export import export_part
+
+    neutral = next(path for path in export_part("bottom", bottom, None, tmp_path, upright=True) if path.suffix == ".3mf")
+    report = bambu.write_project(
+        neutral, tmp_path / "bottom-bambu.3mf", supported=False, nozzle=0.4, solid_deck=True, walls_show=True, inlaid=False, layer_height=0.1
+    )
+    assert report.height == pytest.approx(p.standoff_top - p.wall_bottom)
+    assert not report.supports
+    assert report.first_layer_order == [1]
+    assert len(report.grams) == 1 and 50 < report.grams[0] < 120
+
+    settings = json.loads(zipfile.ZipFile(tmp_path / "bottom-bambu.3mf").read("Metadata/project_settings.config"))
+    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.4 nozzle"
+    assert settings["print_settings_id"] == "0.20mm Standard @BBL X1C"
+    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"]
+    assert (settings["layer_height"], settings["enable_support"], settings["brim_type"]) == ("0.1", "0", "no_brim")
+    # Ten layers from each face: the 1.8 mm plate is full through.
+    assert (settings["bottom_shell_layers"], settings["top_shell_layers"]) == ("10", "10")

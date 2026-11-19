@@ -1,7 +1,8 @@
 """Where the picture of each part cuts it, and what stands on the board along the cut."""
 
 from .board import INSET, PITCH
-from .params import PIXEL_DEPTH
+from .bottom import PEG_HEAD, PEG_HEAD_HEIGHT, PEG_NECK
+from .params import COUNTERBORE_PLAY, FOOT_PLAY, PIXEL_DEPTH, SCREW
 from .preview import INK, INLAY, PRESSED, Keys, Section
 
 COUPON_KEYS = (37, 1)
@@ -13,6 +14,10 @@ KNOB_WIDTH, KNOB_HEIGHT = 14.4, 17.0
 SHAFT_WIDTH, SHAFT_LENGTH = 6.0, 20.0
 USB_SPACER, USB_BOARD = 2.5, 1.04
 USB_CONNECTOR_LENGTH, USB_CONNECTOR_HEIGHT = 7.35, 3.03
+# Drawn each side of a keyhole in its cut: the key over it and the ribs of its cell.
+AROUND_A_KEYHOLE = 18.0
+# A peg's neck is this much longer than the plate is thick, and this much of the stand under it is drawn.
+PEG_NECK_SPARE, STAND_DRAWN = 0.4, 3.0
 
 
 def along_the_keys(board, p, readings):
@@ -70,6 +75,57 @@ def through_the_shell(board, p, readings):
         ),
         Section(board.holes[0][0], "Through three of the six screw holes", board=pcb),
     )
+
+
+def through_the_closed_case(board, p, readings):
+    """Three cuts with the shell and the board in place: through a screw, a keyhole and a foot's recess."""
+    pcb = (INSET, INSET + board.outline[1], readings["M1t"])
+
+    def cut(x, title, span, *furniture):
+        column = sorted(n for n, (key_x, _) in board.keys.items() if abs(key_x - x) < PITCH / 2)
+        return Section(x, title, _keys(board, readings, column) if column else None, pcb, furniture, span)
+
+    screw_x, screw_y = board.holes[0]
+    keyhole_x, locked = p.keyholes[0]
+    foot = p.feet[0]
+    foot_top = p.wall_bottom + p.foot_recess
+    return (
+        cut(screw_x, "Through the back left screw — back of the case to the left", (-1.0, 45.0), (_screw(p, screw_y), METAL, True)),
+        cut(
+            keyhole_x,
+            "Through a keyhole — orange: a peg of the stand, locked",
+            (locked - AROUND_A_KEYHOLE, locked + p.keyhole_slide + AROUND_A_KEYHOLE),
+            (_peg(p, locked), PRESSED, False),
+        ),
+        cut(
+            foot.centre[0],
+            "Through a foot's recess — outlined: the rubber foot",
+            (-1.0, 45.0),
+            (_box(foot.y0 + FOOT_PLAY, foot.y1 - FOOT_PLAY, foot_top - p.foot_height, foot_top), INK, False),
+        ),
+    )
+
+
+def _screw(p, y):
+    """A countersunk screw seen from the side, from the flat face of its head to its tip."""
+    head, shank = (p.counterbore - COUNTERBORE_PLAY) / 2, SCREW / 2
+    rim = p.seat_wide + COUNTERBORE_PLAY / 2 - p.head_face
+    cone = p.head_face + rim + head - shank
+    return [
+        (y - head, p.head_face), (y + head, p.head_face), (y + head, p.head_face + rim), (y + shank, cone),
+        (y + shank, p.screw_tip), (y - shank, p.screw_tip), (y - shank, cone), (y - head, p.head_face + rim),
+    ]  # fmt: skip
+
+
+def _peg(p, y):
+    """One of the stand's pegs in its keyhole: the neck through the plate, the head in the pocket behind it."""
+    neck, head = PEG_NECK / 2, PEG_HEAD / 2
+    stand, under_the_head = p.wall_bottom - STAND_DRAWN, p.plate_top + PEG_NECK_SPARE
+    return [
+        (y - neck, stand), (y + neck, stand), (y + neck, under_the_head), (y + head, under_the_head),
+        (y + head, under_the_head + PEG_HEAD_HEIGHT), (y - head, under_the_head + PEG_HEAD_HEIGHT),
+        (y - head, under_the_head), (y - neck, under_the_head),
+    ]  # fmt: skip
 
 
 def _keys(board, readings, numbers):
