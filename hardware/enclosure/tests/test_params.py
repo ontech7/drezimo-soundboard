@@ -249,11 +249,11 @@ def test_the_bottoms_plate_and_the_screws_seat():
     assert p.standoff_top == pytest.approx(-1.6)
     assert p.screw_tip == pytest.approx(4.0)
     assert p.head_face == pytest.approx(-6.4)
-    assert p.counterbore == pytest.approx(6.45)
+    assert p.counterbore == pytest.approx(6.35)
     # Of the head's 1.96 mm its cone is 1.425: the rest is a rim that stands out of the seat.
-    assert p.seat_wide == pytest.approx(-6.165)
+    assert p.seat_wide == pytest.approx(-6.115)
     assert p.seat_narrow == pytest.approx(-4.64)
-    assert p.column_radius == pytest.approx(5.025)
+    assert p.column_radius == pytest.approx(4.975)
     p.check_bottom()
 
 

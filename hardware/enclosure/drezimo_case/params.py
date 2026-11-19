@@ -60,7 +60,7 @@ BOTTOM_FIT = 0.2
 SCREW, SCREW_CLEARANCE = 3.0, 3.4
 # Left between the screw's tip and the end of its hole in the shell.
 TIP_SPARE = 0.6
-COUNTERBORE_PLAY = 0.6
+COUNTERBORE_PLAY = 0.5
 COLUMN_WALL = 1.8
 # The least standoff left over the screw's seat, and the least its head lies inside the bottom's outside face.
 OVER_THE_SEAT, HEAD_INSIDE = 1.5, 0.3

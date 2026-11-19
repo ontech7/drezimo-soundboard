@@ -12,7 +12,7 @@ def pytest_addoption(parser):
     parser.addoption(
         AS_MEASURED,
         action="store_true",
-        help="build the parts on the board's own readings instead of the tests' nominal ones (for tests/test_shell.py)",
+        help="build the parts on the board's own readings instead of the tests' nominal ones (for tests/test_shell.py and tests/test_bottom.py)",
     )
 
 
@@ -68,3 +68,10 @@ def shell(board, p):
     from drezimo_case.shell import build_shell
 
     return build_shell(board, p)
+
+
+@pytest.fixture(scope="session")
+def bottom(board, p):
+    from drezimo_case.bottom import build_bottom
+
+    return build_bottom(board, p)
