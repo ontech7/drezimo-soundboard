@@ -217,6 +217,17 @@ def test_the_board_is_read_and_the_shell_may_be_built():
     Params.derive(load_board(), MEASUREMENTS).require_measured(but=BOTTOM_ONLY)
 
 
+def test_the_bottom_may_be_built_on_the_owners_screws():
+    from drezimo_case.measurements import MEASUREMENTS
+
+    p = Params.derive(load_board(), MEASUREMENTS)
+    p.require_measured()
+    p.check_bottom()
+    # The owner's M3 x 10 run from 10.0 to 10.4 mm: the longest is drawn, the shortest keeps a diameter of thread and more.
+    assert p.screw_length == 10.4
+    assert p.screw_tip - (10.4 - 10.0) >= 3.5
+
+
 def test_where_the_lit_area_lies_in_its_glass_shapes_nothing():
     # The glass was measured loose, not how the light sits in it: the window follows the light alone.
     drawn, moved = derive_with(), derive_with(M4t=1.2, M4s=2.0, M4f=4.0)

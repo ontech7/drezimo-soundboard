@@ -62,11 +62,12 @@ MEASUREMENTS = {
     # Across it reads longer than drawn and along it shorter, so no correction comes of it.
     "P1s": Measurement(70.26, measured=True),
     "P1l": Measurement(100.70, measured=True),
-    # For the bottom. The screws are M3, countersunk: the owner's 10 mm ones, since a 20 mm one would end in the
-    # deck. Its length is the whole screw's, head included, if it was read like the 20 mm one's (20.6): asked.
-    "M9l": Measurement(10.4),   # screw, from the flat face of its head to its tip
-    "M9d": Measurement(5.85),   # its head, across: read on the 20 mm screw
-    "M9k": Measurement(1.96),   # its head, height: read on the 20 mm screw
+    # For the bottom. The screws are M3, countersunk: the 10 mm ones of the owner's set, since a 20 mm one would
+    # end in the deck. They run from 10.0 to 10.4 mm, head included: the longest stands here, so that none reaches
+    # the end of its hole. The head was read on a 20 mm screw of the same set.
+    "M9l": Measurement(10.4, measured=True),   # screw, from the flat face of its head to its tip
+    "M9d": Measurement(5.85, measured=True),   # its head, across
+    "M9k": Measurement(1.96, measured=True),   # its head, height
     "M10w": Measurement(20.0, measured=True),  # a rubber foot's side, as the owner gave it
     "M10h": Measurement(2.5, measured=True),   # and its height
 }
