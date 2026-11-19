@@ -166,6 +166,11 @@ class Params:
     feet: tuple[Rect, ...]
     # What hangs under the board, each with how far at most.
     under: tuple[Under, ...]
+    # The points midway between four neighbouring keys, where nothing hangs, and the lines through them: one more
+    # half a key pitch outside the keys on every side.
+    nodes: tuple[tuple[float, float], ...]
+    rib_lines_x: tuple[float, ...]
+    rib_lines_y: tuple[float, ...]
     codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
@@ -232,6 +237,8 @@ class Params:
         head_rim = max(0.0, value["M9k"] - (value["M9d"] - SCREW) / 2)
         seat_wide = head_face + head_rim - COUNTERBORE_PLAY / 2
         case_size = (value["M1w"] + 2 * INSET, value["M1h"] + 2 * INSET)
+        columns, rows = (sorted({round(centre[axis], 4) for centre in board.keys.values()}) for axis in (0, 1))
+        between_columns, between_rows = _midway(columns), _midway(rows)
 
         return cls(
             layer=LAYER,
@@ -286,7 +293,11 @@ class Params:
             foot_height=value["M10h"],
             foot_recess=FOOT_RECESS,
             feet=_feet(case_size, value["M10w"] + 2 * FOOT_PLAY),
-            under=tuple(_drop(entry, value["M7b"], under_board) for entry in board.under),
+            # Under the USB module, and under a pin's tip that no reading covers, the bottom is plain plate.
+            under=tuple(replace(entry, drop=under_board) if entry.drop is None else entry for entry in board.under),
+            nodes=tuple((x, y) for x in between_columns for y in between_rows),
+            rib_lines_x=(columns[0] - PITCH / 2, *between_columns, columns[-1] + PITCH / 2),
+            rib_lines_y=(rows[0] - PITCH / 2, *between_rows, rows[-1] + PITCH / 2),
             codes=tuple(sorted(m)),
             estimated=tuple(estimates(m)),
         )
@@ -329,10 +340,8 @@ def _feet(case_size, side):
     return tuple(Rect(x, y, x + side, y + side) for y in (y0, length - y0 - side) for x in (x0, width - x0 - side))
 
 
-def _drop(entry, module_drop, whole_space):
-    if entry.drop is not None:
-        return entry
-    return replace(entry, drop=module_drop if entry.part == USB_MODULE else whole_space)
+def _midway(values):
+    return [(a + b) / 2 for a, b in zip(values, values[1:])]
 
 
 def _check_plausible(value, board):

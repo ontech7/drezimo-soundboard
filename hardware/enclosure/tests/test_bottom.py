@@ -1,6 +1,9 @@
 import pytest
 from build123d import Align, Box, Pos
-from helpers import inside
+from helpers import cut, inside
+from shapely.geometry import box as flat_box
+
+from drezimo_case.board import PITCH
 
 MID = 98.0
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -98,3 +101,69 @@ def test_the_bottom_touches_the_board_with_its_six_standoffs_and_nothing_else(bo
     width, length = p.case_size
     at_the_board = Pos(0, 0, p.standoff_top - 0.1) * Box(width, length, 0.1, align=Align.MIN)
     assert len((bottom & at_the_board).solids()) == 6
+
+
+def test_a_post_under_every_point_between_four_keys_stops_just_short_of_the_board(bottom, p):
+    assert len(p.nodes) == 30
+    for x, y in p.nodes:
+        for z in (p.plate_top + 0.1, (p.plate_top + p.standoff_top) / 2, p.standoff_top - 0.2):
+            assert inside(bottom, x, y, z), (x, y, z)
+        # The board is carried by the screws: a post only stops it giving under a key.
+        assert not inside(bottom, x, y, p.standoff_top - 0.1), (x, y)
+        assert inside(bottom, x + 1.8, y, p.standoff_top - 0.2) and not inside(bottom, x + 2.2, y + 2.2, p.standoff_top - 0.2)
+
+
+def test_ribs_run_between_the_posts_both_ways(bottom, p):
+    top = p.standoff_top - 1.0
+    assert top - p.plate_top >= 6.0
+    nodes = sorted(p.nodes)
+    for (x0, y0), (x1, y1) in zip(nodes, nodes[1:]):
+        if x0 != x1:
+            continue
+        x, y = x0, (y0 + y1) / 2
+        assert inside(bottom, x, y, top - 0.1) and not inside(bottom, x, y, top + 0.1), (x, y)
+        assert inside(bottom, x + 0.5, y, top - 1.0) and not inside(bottom, x + 0.7, y, top - 1.0), (x, y)
+    across = sorted(p.nodes, key=lambda node: (node[1], node[0]))
+    for (x0, y0), (x1, y1) in zip(across, across[1:]):
+        if y0 != y1:
+            continue
+        x, y = (x0 + x1) / 2, y0
+        assert inside(bottom, x, y, top - 0.1) and not inside(bottom, x, y, top + 0.1), (x, y)
+        assert inside(bottom, x, y + 0.5, top - 1.0) and not inside(bottom, x, y + 0.7, top - 1.0), (x, y)
+
+
+def test_no_stretch_of_plain_plate_is_wider_than_a_key(bottom, p, board):
+    # Pressed in the middle, a 1.8 mm plate between ribs a key apart gives hundredths of a millimetre.
+    z = p.plate_top + 3.0
+    for x, y in board.keys.values():
+        left = max(line for line in p.rib_lines_x if line < x)
+        right = min(line for line in p.rib_lines_x if line > x)
+        back = max(line for line in p.rib_lines_y if line < y)
+        front = min(line for line in p.rib_lines_y if line > y)
+        assert right - left <= PITCH + 0.01 and front - back <= PITCH + 5.01
+        for px, py in ((left, y), (right, y), (x, back), (x, front)):
+            assert inside(bottom, px, py, z), (x, y, px, py)
+
+
+def test_the_ribs_on_the_middle_screws_line_end_in_their_columns(bottom, p, board):
+    z = p.plate_top + 1.0
+    for x, y in board.holes:
+        if y not in p.rib_lines_y:
+            continue
+        dx, _ = towards_the_middle(p, x, y)
+        assert inside(bottom, x + 4.0 * dx, y, z)
+        assert inside(bottom, x + 6.5 * dx, y, z)
+    assert sum(1 for _, y in board.holes if y in p.rib_lines_y) == 2
+
+
+def test_nothing_of_the_bottom_stands_under_a_part_of_the_board(bottom, p):
+    # Half a millimetre clear sideways of all that hangs under the board, or 0.3 mm under how far it can hang.
+    levels = [p.plate_top + 0.05 + 0.25 * step for step in range(int((p.standoff_top - p.plate_top) / 0.25) + 1)]
+    cuts = {z: cut(bottom, z) for z in levels if z < p.standoff_top - 0.01}
+    assert len(p.under) > 380
+    for entry in p.under:
+        lowest = p.standoff_top - entry.drop - 0.3
+        room = flat_box(entry.rect.x0 - 0.5, entry.rect.y0 - 0.5, entry.rect.x1 + 0.5, entry.rect.y1 + 0.5)
+        for z, flat in cuts.items():
+            if z > lowest:
+                assert flat.intersection(room).area == pytest.approx(0.0, abs=1e-4), (entry, z)

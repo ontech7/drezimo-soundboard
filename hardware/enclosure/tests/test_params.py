@@ -311,8 +311,17 @@ def test_everything_under_the_board_has_a_depth():
     p = derive_with()
     assert len(p.under) == len(board.under)
     assert all(entry.drop is not None for entry in p.under)
+    # Under the USB module the bottom is plain plate, and a pin's tip that no reading covers may hang as far.
     (module,) = [entry for entry in p.under if entry.rect == board.usb_module]
-    assert module.drop == NOMINAL["M7b"]
-    # A pin's tip that no reading covers may hang through the whole space.
     header = [entry for entry in p.under if entry.part == "J1"]
-    assert len(header) == 4 and {entry.drop for entry in header} == {p.under_board}
+    assert len(header) == 4 and {entry.drop for entry in (module, *header)} == {p.under_board}
+
+
+def test_the_points_between_four_keys_and_the_lines_through_them():
+    p = derive_with()
+    xs = [27.05, 46.1, 65.15, 84.2, 103.25]
+    ys = [71.55, 93.1, 112.15, 131.2, 150.25, 169.3]
+    assert sorted(p.nodes) == [pytest.approx(node) for node in sorted((x, y) for x in xs for y in ys)]
+    # One more line half a key pitch outside the keys on every side.
+    assert p.rib_lines_x == pytest.approx([8.0, *xs, 122.3])
+    assert p.rib_lines_y == pytest.approx([50.0, *ys, 188.35])

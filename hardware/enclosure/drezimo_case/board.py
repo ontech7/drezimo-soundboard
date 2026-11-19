@@ -60,6 +60,9 @@ class Rect:
     def holds(self, other):
         return self.x0 <= other.x0 and self.y0 <= other.y0 and other.x1 <= self.x1 and other.y1 <= self.y1
 
+    def overlaps(self, other):
+        return self.x0 < other.x1 and other.x0 < self.x1 and self.y0 < other.y1 and other.y0 < self.y1
+
 
 @dataclass(frozen=True)
 class Pad:

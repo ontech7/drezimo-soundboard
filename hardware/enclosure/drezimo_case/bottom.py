@@ -3,15 +3,23 @@
 Modelled like the shell, in the case frame with z up from the PCB's top surface.
 """
 
-from build123d import Align, Axis, Circle, Cylinder, Pos, chamfer, extrude
+from build123d import Align, Axis, Circle, Cylinder, Part, Pos, chamfer, extrude
 
-from .deck import outline
+from .board import Rect
+from .deck import box, outline
 
 # The first layers print a little wide, and this edge has to enter the shell's rim.
 EDGE_CHAMFER = 0.4
 OFF_THE_WALLS = 0.3
 # Over its last stretch under the board a column is as narrow as the board's hole allows.
 NECK = 0.6
+RIB = 1.2
+# A rib stops this far under the board. A post goes nearly up to it: the screws carry the board, the posts only
+# keep it from giving under a key.
+RIB_UNDER_BOARD, POST_GAP = 1.0, 0.15
+POST_RADIUS = 2.0
+# Kept clear of all that hangs under the board: sideways, or under how far it can hang.
+CLEAR, UNDER = 0.5, 0.3
 ON_ITS_BASE = (Align.CENTER, Align.CENTER, Align.MIN)
 
 
@@ -20,13 +28,34 @@ def build_bottom(board, p):
     plate = extrude(Pos(0, 0, p.wall_bottom) * outline(p, p.rim + p.bottom_fit), amount=p.plate_top - p.wall_bottom)
     plate = chamfer(plate.edges().group_by(Axis.Z)[0], length=EDGE_CHAMFER)
     columns = [_column(p, x, y) for x, y in board.holes]
-    return plate + _inside_the_walls(p, columns) - [_screw_way(p, x, y) for x, y in board.holes]
+    return plate + _inside_the_walls(p, [*columns, _ribs_and_posts(p)]) - [_screw_way(p, x, y) for x, y in board.holes]
 
 
 def _inside_the_walls(p, solids):
     """What stands on the plate, kept off the shell's walls so that the bottom goes in."""
     cavity = extrude(Pos(0, 0, p.plate_top) * outline(p, p.wall + OFF_THE_WALLS), amount=p.standoff_top - p.plate_top)
     return [solid & cavity for solid in solids]
+
+
+def _ribs_and_posts(p):
+    """A rib along every line between the keys, both ways, and a post where they cross between four keys.
+
+    The plate does not give between ribs a key apart, and the board does not give between the posts.
+    """
+    width, length = p.case_size
+    ribs = [Rect(x - RIB / 2, 0, x + RIB / 2, length) for x in p.rib_lines_x]
+    ribs += [Rect(0, y - RIB / 2, width, y + RIB / 2) for y in p.rib_lines_y]
+    posts = [Rect(x - POST_RADIUS, y - POST_RADIUS, x + POST_RADIUS, y + POST_RADIUS) for x, y in p.nodes]
+
+    grid = Part() + [box(rib, p.plate_top, p.standoff_top - RIB_UNDER_BOARD) for rib in ribs]
+    grid += [
+        Pos(x, y, p.plate_top) * Cylinder(POST_RADIUS, p.standoff_top - POST_GAP - p.plate_top, align=ON_ITS_BASE)
+        for x, y in p.nodes
+    ]
+    rooms = [(entry.rect.grown(CLEAR), p.standoff_top - entry.drop - UNDER) for entry in p.under]
+    return grid - [
+        box(room, lowest, p.standoff_top) for room, lowest in rooms if any(room.overlaps(part) for part in ribs + posts)
+    ]
 
 
 def _column(p, x, y):

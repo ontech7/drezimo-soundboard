@@ -1,7 +1,8 @@
 import math
 
-from build123d import Vector
+from build123d import Plane, Vector, section
 from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 from drezimo_case.measurements import Measurement
 
@@ -74,3 +75,27 @@ def _ring(wire):
         for side, following in zip(sides, sides[1:] + sides[:1])
     ]
     return Polygon(corners)
+
+
+def cut(shape, z):
+    """The shape cut at height z, as flat polygons with their holes. Curved sides are traced every 0.05 mm."""
+    return unary_union([_traced(face) for face in section(shape, section_by=Plane.XY.offset(z)).faces()])
+
+
+def _traced(face):
+    shape = Polygon(_trace(face.outer_wire()))
+    for hole in face.inner_wires():
+        shape = shape.difference(Polygon(_trace(hole)))
+    return shape
+
+
+def _trace(wire, step=0.05):
+    edges = wire.order_edges()
+    ends = [(tuple(edge @ 0)[:2], tuple(edge @ 1)[:2]) for edge in edges]
+    points = []
+    for edge, (start, end), following in zip(edges, ends, ends[1:] + ends[:1]):
+        # Which way the side runs: its last corner is the one it shares with the next side.
+        forwards = min(math.dist(end, other) for other in following) <= min(math.dist(start, other) for other in following)
+        count = max(1, math.ceil(edge.length / step))
+        points += [tuple(edge @ (i / count if forwards else 1 - i / count))[:2] for i in range(count)]
+    return points
