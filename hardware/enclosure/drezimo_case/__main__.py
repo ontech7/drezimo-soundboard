@@ -19,7 +19,7 @@ from .board import load_board
 from .coupon import build_coupon_a
 from .export import export_part
 from .measurements import MEASUREMENTS
-from .params import Params
+from .params import BOTTOM_ONLY, Params
 from .preview import render_preview
 from .shell import build_shell, support_areas
 
@@ -48,6 +48,13 @@ class PrintedPart:
     solid_deck: bool = False
     # Its outer walls are seen: it lies with its back wall to the back of the bed, where the seam goes, and gets no brim.
     walls_show: bool = False
+    # Drawn from the screw and the feet as well. The other parts do not wait for those readings.
+    needs_the_screw: bool = False
+
+    @property
+    def unread(self):
+        """The readings this part is not drawn from."""
+        return () if self.needs_the_screw else BOTTOM_ONLY
 
 
 PARTS = {
@@ -85,7 +92,7 @@ def main(argv):
     board = load_board()
     p = Params.derive(board, MEASUREMENTS)
     if final and not on_estimates:
-        p.require_measured()
+        p.require_measured(but=part.unread)
 
     body, inlay = part.build(board, p)
     if part.off_the_board:
@@ -112,8 +119,9 @@ def main(argv):
         print(path)
     if BAMBU in argv:
         _write_bambu_project(name, part, written, p)
-    if p.estimated and not part.off_the_board:
-        print(f"Built on estimates, not for the final print: {', '.join(p.estimated)}")
+    estimated = [code for code in p.estimated if code not in part.unread]
+    if estimated and not part.off_the_board:
+        print(f"Built on estimates, not for the final print: {', '.join(estimated)}")
 
 
 def _usage():

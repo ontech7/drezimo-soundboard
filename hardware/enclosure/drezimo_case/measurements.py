@@ -62,6 +62,13 @@ MEASUREMENTS = {
     # Across it reads longer than drawn and along it shorter, so no correction comes of it.
     "P1s": Measurement(70.26, measured=True),
     "P1l": Measurement(100.70, measured=True),
+    # For the bottom. The screws are M3, countersunk: the owner's 10 mm ones, since a 20 mm one would end in the
+    # deck. Its length is the whole screw's, head included, if it was read like the 20 mm one's (20.6): asked.
+    "M9l": Measurement(10.4),   # screw, from the flat face of its head to its tip
+    "M9d": Measurement(5.85),   # its head, across: read on the 20 mm screw
+    "M9k": Measurement(1.96),   # its head, height: read on the 20 mm screw
+    "M10w": Measurement(20.0, measured=True),  # a rubber foot's side, as the owner gave it
+    "M10h": Measurement(2.5, measured=True),   # and its height
 }
 
 # Outside these a value is a slip of the hand, not a measurement. The outline (M1w, M1h) is
@@ -94,6 +101,11 @@ PLAUSIBLE = {
     "M8h": (4.0, 9.0),
     "P1s": (69.3, 70.7),
     "P1l": (100.0, 102.0),
+    "M9l": (6.0, 25.0),
+    "M9d": (4.5, 7.5),
+    "M9k": (1.0, 3.0),
+    "M10w": (8.0, 30.0),
+    "M10h": (1.5, 6.0),
 }
 
 

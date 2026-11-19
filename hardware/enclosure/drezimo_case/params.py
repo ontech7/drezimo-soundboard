@@ -5,9 +5,9 @@ Heights are in mm above the PCB's top surface; the rules are those of the enclos
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from .board import CHIP, DISPLAY_HEADER, ENCODER, INSET, PITCH, USB_MODULE, Rect
+from .board import CHIP, DISPLAY_HEADER, ENCODER, INSET, PITCH, USB_MODULE, Rect, Under
 from .measurements import GAUGE_DRAWN, MEASUREMENTS, PLAUSIBLE, estimates
 
 LAYER = 0.2
@@ -51,6 +51,22 @@ PLUG_CLEARANCE = 0.5
 BOSS_RADIUS = 3.25
 SCREW_HOLE = 2.7
 SCREW_UNDER_FLOOR = 0.4
+
+# The readings only the bottom is drawn from: the screw and the feet. The shell does not wait for them.
+BOTTOM_ONLY = ("M9l", "M9d", "M9k", "M10w", "M10h")
+# The standoffs must reach the board before the plate reaches the shell's seat: a board is 10 % thicker or thinner.
+SEAT_GAP = 0.2
+BOTTOM_FIT = 0.2
+SCREW, SCREW_CLEARANCE = 3.0, 3.4
+# Left between the screw's tip and the end of its hole in the shell.
+TIP_SPARE = 0.6
+COUNTERBORE_PLAY = 0.6
+COLUMN_WALL = 1.8
+# The least standoff left over the screw's seat, and the least its head lies inside the bottom's outside face.
+OVER_THE_SEAT, HEAD_INSIDE = 1.5, 0.3
+FOOT_RECESS, FOOT_PLAY, FOOT_PROUD = 0.6, 0.4, 1.0
+# A foot's middle from the case's side edge, beside the screw's counterbore, and its edge from the case's end.
+FOOT_FROM_THE_SIDE, FOOT_FROM_THE_END = 21.5, 3.5
 
 # The pixels lie this far under the top of the glass.
 PIXEL_DEPTH = 0.7
@@ -130,6 +146,26 @@ class Params:
     knob_lift: float
     # How much bigger than drawn a part that goes on the board is printed, for what the printer shrinks.
     print_scale: float
+    # The bottom: a plate inside the shell's rim, and a standoff under each screw hole up to the board's underside.
+    plate_top: float
+    bottom_fit: float
+    standoff_top: float
+    standoff_radius: float
+    column_radius: float
+    screw_clearance: float
+    screw_length: float
+    # z of the screw's tip in the shell, and of the flat face of its head in the bottom.
+    screw_tip: float
+    head_face: float
+    # The head goes in through a counterbore this wide, to a 45° seat from z `seat_wide` to `seat_narrow`.
+    counterbore: float
+    seat_wide: float
+    seat_narrow: float
+    foot_height: float
+    foot_recess: float
+    feet: tuple[Rect, ...]
+    # What hangs under the board, each with how far at most.
+    under: tuple[Under, ...]
     codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
@@ -188,6 +224,15 @@ class Params:
         underside = deck_top - DECK_THICKNESS
         pocket = ENCODER_BODY + 2 * ENCODER_CLEARANCE
 
+        screw_hole_top = round(well_floor - SCREW_UNDER_FLOOR, 4)
+        screw_tip = screw_hole_top - TIP_SPARE
+        head_face = screw_tip - value["M9l"]
+        counterbore = value["M9d"] + COUNTERBORE_PLAY
+        # The head's cone meets the seat where the seat is as wide as the head; its rim stands out from there.
+        head_rim = max(0.0, value["M9k"] - (value["M9d"] - SCREW) / 2)
+        seat_wide = head_face + head_rim - COUNTERBORE_PLAY / 2
+        case_size = (value["M1w"] + 2 * INSET, value["M1h"] + 2 * INSET)
+
         return cls(
             layer=LAYER,
             deck_top=deck_top,
@@ -204,7 +249,7 @@ class Params:
             fn_well=fn_well,
             pad_well=pad_well,
             bar=Rect(fn_well.x0, fn_well.y1, fn_well.x1, pad_well.y0),
-            case_size=(value["M1w"] + 2 * INSET, value["M1h"] + 2 * INSET),
+            case_size=case_size,
             deck_set_by=deck_set_by,
             board_thickness=value["M1t"],
             under_board=under_board,
@@ -213,7 +258,7 @@ class Params:
             rim=RIM,
             boss_radius=BOSS_RADIUS,
             screw_hole=SCREW_HOLE,
-            screw_hole_top=round(well_floor - SCREW_UNDER_FLOOR, 4),
+            screw_hole_top=screw_hole_top,
             lit=lit,
             glass=glass,
             window=window,
@@ -226,18 +271,68 @@ class Params:
             rooms=_rooms(board, value, _around(module, glass), underside),
             knob_lift=_round_up(max(0.0, deck_top + KNOB_GAP - value["M5b"]), 0.1),
             print_scale=_print_scale(value),
+            plate_top=seat - SEAT_GAP,
+            bottom_fit=BOTTOM_FIT,
+            standoff_top=-value["M1t"],
+            standoff_radius=BOSS_RADIUS,
+            column_radius=counterbore / 2 + COLUMN_WALL,
+            screw_clearance=SCREW_CLEARANCE,
+            screw_length=value["M9l"],
+            screw_tip=screw_tip,
+            head_face=head_face,
+            counterbore=counterbore,
+            seat_wide=seat_wide,
+            seat_narrow=seat_wide + (counterbore - SCREW_CLEARANCE) / 2,
+            foot_height=value["M10h"],
+            foot_recess=FOOT_RECESS,
+            feet=_feet(case_size, value["M10w"] + 2 * FOOT_PLAY),
+            under=tuple(_drop(entry, value["M7b"], under_board) for entry in board.under),
             codes=tuple(sorted(m)),
             estimated=tuple(estimates(m)),
         )
 
-    def require_measured(self, *codes):
-        """Raises if any of these codes, or any code at all when none is given, is still an estimate."""
+    def require_measured(self, *codes, but=()):
+        """Raises if any of these codes is still an estimate; when none is given, any code at all `but` those named."""
         unknown = [code for code in codes if code not in self.codes]
         if unknown:
             raise KeyError(f"unknown measurement codes: {', '.join(unknown)}")
-        missing = [code for code in codes or self.codes if code in self.estimated]
+        missing = [code for code in codes or self.codes if code in self.estimated and code not in but]
         if missing:
             raise EstimateError(f"still estimates, measure them first: {', '.join(missing)}")
+
+    def check_bottom(self):
+        """Raises if the screw or the feet, as read, cannot be built into the bottom. The shell does not ask."""
+        outside = self.wall_bottom + HEAD_INSIDE - self.head_face
+        if outside > 1e-9:
+            raise ValueError(
+                f"the screw (M9l = {self.screw_length}) is too long: with its tip {TIP_SPARE} mm short of the end of "
+                f"its hole in the shell, its head would stand {outside:.1f} mm out of the bottom"
+            )
+        over_the_seat = self.standoff_top - self.seat_narrow
+        if over_the_seat < OVER_THE_SEAT - 1e-9:
+            raise ValueError(
+                f"the screw (M9l = {self.screw_length}) is too short: its seat would leave {over_the_seat:.1f} mm "
+                f"of standoff under the board (minimum {OVER_THE_SEAT})"
+            )
+        proud = self.foot_height - self.foot_recess
+        if proud < FOOT_PROUD - 1e-9:
+            raise ValueError(
+                f"a foot (M10h = {self.foot_height}) would stand {proud:.1f} mm out of its {self.foot_recess} mm "
+                f"recess (minimum {FOOT_PROUD})"
+            )
+
+
+def _feet(case_size, side):
+    """Four squares beside the corner screws: back left, back right, front left, front right."""
+    width, length = case_size
+    x0, y0 = FOOT_FROM_THE_SIDE - side / 2, FOOT_FROM_THE_END
+    return tuple(Rect(x, y, x + side, y + side) for y in (y0, length - y0 - side) for x in (x0, width - x0 - side))
+
+
+def _drop(entry, module_drop, whole_space):
+    if entry.drop is not None:
+        return entry
+    return replace(entry, drop=module_drop if entry.part == USB_MODULE else whole_space)
 
 
 def _check_plausible(value, board):

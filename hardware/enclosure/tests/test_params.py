@@ -1,9 +1,9 @@
 import pytest
 from helpers import NOMINAL, nominal
 
-from drezimo_case.board import load_board
+from drezimo_case.board import Rect, load_board
 from drezimo_case.measurements import Measurement, estimates
-from drezimo_case.params import EstimateError, Params
+from drezimo_case.params import BOTTOM_ONLY, EstimateError, Params
 
 
 def derive_with(**measured):
@@ -214,7 +214,7 @@ def test_the_readings_file_says_where_each_unmeasured_value_comes_from():
 def test_the_board_is_read_and_the_shell_may_be_built():
     from drezimo_case.measurements import MEASUREMENTS
 
-    Params.derive(load_board(), MEASUREMENTS).require_measured()
+    Params.derive(load_board(), MEASUREMENTS).require_measured(but=BOTTOM_ONLY)
 
 
 def test_where_the_lit_area_lies_in_its_glass_shapes_nothing():
@@ -240,3 +240,79 @@ def test_the_gauge_never_makes_the_shell_smaller_nor_much_bigger():
 def test_gauge_sides_that_disagree_give_the_smaller_correction():
     # 0.2 % of shrink under a lip of 0.1 mm: the short side hides more of it.
     assert derive_with(P1s=69.96, P1l=100.90).print_scale == pytest.approx(70 / 69.96)
+
+
+def test_the_bottoms_plate_and_the_screws_seat():
+    p = derive_with()
+    # The standoffs must reach the board before the plate reaches the shell's seat.
+    assert p.plate_top == pytest.approx(p.seat - 0.2) == pytest.approx(-10.7)
+    assert p.standoff_top == pytest.approx(-1.6)
+    assert p.screw_tip == pytest.approx(4.0)
+    assert p.head_face == pytest.approx(-6.4)
+    assert p.counterbore == pytest.approx(6.45)
+    # Of the head's 1.96 mm its cone is 1.425: the rest is a rim that stands out of the seat.
+    assert p.seat_wide == pytest.approx(-6.165)
+    assert p.seat_narrow == pytest.approx(-4.64)
+    assert p.column_radius == pytest.approx(5.025)
+    p.check_bottom()
+
+
+@pytest.mark.parametrize("length", [9.0, 10.0, 10.4, 12.0])
+def test_the_screws_tip_stays_short_of_the_end_of_its_hole_whatever_its_length(length):
+    p = derive_with(M9l=length)
+    assert p.screw_tip == pytest.approx(p.screw_hole_top - 0.6)
+    assert p.head_face == pytest.approx(p.screw_tip - length)
+    p.check_bottom()
+
+
+def test_a_screw_too_long_would_stand_out_of_the_bottom():
+    with pytest.raises(ValueError, match=r"M9l.*4\.4 mm"):
+        derive_with(M9l=20.6).check_bottom()
+
+
+def test_a_screw_too_short_leaves_no_standoff_over_its_head():
+    with pytest.raises(ValueError, match="M9l"):
+        derive_with(M9l=6.0).check_bottom()
+
+
+def test_a_wrong_screw_stops_the_bottom_and_not_the_shell():
+    assert derive_with(M9l=20.6).deck_top == derive_with().deck_top
+
+
+def test_a_foot_must_stand_out_of_its_recess():
+    with pytest.raises(ValueError, match="M10h"):
+        derive_with(M10h=1.5).check_bottom()
+
+
+def test_four_feet_near_the_corners_beside_the_screws():
+    p = derive_with()
+    width, length = p.case_size
+    back_left = Rect(11.1, 3.5, 31.9, 24.3)
+    expected = [
+        back_left,
+        Rect(width - back_left.x1, back_left.y0, width - back_left.x0, back_left.y1),
+        Rect(back_left.x0, length - back_left.y1, back_left.x1, length - back_left.y0),
+        Rect(width - back_left.x1, length - back_left.y1, width - back_left.x0, length - back_left.y0),
+    ]
+    assert len(p.feet) == 4
+    for foot, wanted in zip(p.feet, expected):
+        assert (foot.x0, foot.y0, foot.x1, foot.y1) == pytest.approx((wanted.x0, wanted.y0, wanted.x1, wanted.y1))
+
+
+def test_the_shell_does_not_wait_for_the_screw_and_the_bottom_does():
+    p = derive_with(**{code: value for code, value in NOMINAL.items() if code not in BOTTOM_ONLY})
+    p.require_measured(but=BOTTOM_ONLY)
+    with pytest.raises(EstimateError, match="M9l"):
+        p.require_measured()
+
+
+def test_everything_under_the_board_has_a_depth():
+    board = load_board()
+    p = derive_with()
+    assert len(p.under) == len(board.under)
+    assert all(entry.drop is not None for entry in p.under)
+    (module,) = [entry for entry in p.under if entry.rect == board.usb_module]
+    assert module.drop == NOMINAL["M7b"]
+    # A pin's tip that no reading covers may hang through the whole space.
+    header = [entry for entry in p.under if entry.part == "J1"]
+    assert len(header) == 4 and {entry.drop for entry in header} == {p.under_board}

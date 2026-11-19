@@ -196,3 +196,18 @@ def test_the_command_says_how_much_higher_the_knob_must_sit(tmp_path, monkeypatc
     monkeypatch.setattr(cli, "MEASUREMENTS", {**all_measured(), "M5b": Measurement(8.0, measured=True)})
     cli.main(["shell"])
     assert "Set the knob 0.3 mm higher on its shaft" in capsys.readouterr().out
+
+
+def test_only_a_part_drawn_from_the_screw_waits_for_it(tmp_path, monkeypatch, capsys):
+    build = cli.PARTS["coupon-a"].build
+    monkeypatch.setattr(cli, "PRINT_DIR", tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "PARTS",
+        {"final": cli.PrintedPart(build, title="Final"), "screwed": cli.PrintedPart(build, title="Screwed", needs_the_screw=True)},
+    )
+    monkeypatch.setattr(cli, "MEASUREMENTS", all_measured() | {"M9l": Measurement(10.4)})
+    cli.main(["final"])
+    assert "estimates" not in capsys.readouterr().out
+    with pytest.raises(EstimateError, match="M9l"):
+        cli.main(["screwed"])
