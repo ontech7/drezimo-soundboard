@@ -67,6 +67,12 @@ SOLID_DECK = {
     "top_shell_layers": "10",
     "top_shell_thickness": "1",
 }
+FULL = {
+    # No sparse middle anywhere, however thick the part: two skins close 2 mm and no more.
+    "sparse_infill_density": "100%",
+    # Lines side by side: Bambu Studio refuses the preset's grid at 100 %.
+    "sparse_infill_pattern": "zig-zag",
+}
 WALLS_SHOW = {
     # To the back of the bed, where such a part lies with its back wall.
     "seam_position": "back",
@@ -103,7 +109,16 @@ class SliceReport:
 
 
 def write_project(
-    neutral, target, supported, nozzle, supports_within=None, solid_deck=False, walls_show=False, inlaid=True, layer_height=None
+    neutral,
+    target,
+    supported,
+    nozzle,
+    supports_within=None,
+    solid_deck=False,
+    walls_show=False,
+    inlaid=True,
+    layer_height=None,
+    full=False,
 ):
     """Write the project for a neutral 3MF, to print with this nozzle, and return what slicing it gave.
 
@@ -112,6 +127,7 @@ def write_project(
     walls_show: the part's outer walls are seen and its back wall lies to the back of the bed.
     inlaid: the part is a black body with white inlays; a part of one colour is its body alone.
     layer_height: in mm, for a part whose heights the process's own layers do not divide.
+    full: print it full plastic all through, for a part pressed where it is thicker than two skins.
     """
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
@@ -124,7 +140,7 @@ def write_project(
             Path(neutral).resolve(),
         )
         imported = _read_archive(work / "imported.3mf")
-        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck, walls_show, inlaid, layer_height))
+        _write_archive(work / "project.3mf", decide(imported, supported, solid_deck, walls_show, inlaid, layer_height, full))
         _studio(work, "--slice", "0", "--export-3mf", "sliced.3mf", work / "project.3mf")
 
         report = _report(work, imported, supports_within, inlaid, _height(neutral))
@@ -142,7 +158,7 @@ def resolve_preset(name, profiles=PROFILES):
     return {key: value for key, value in values.items() if key not in ("inherits", "include")}
 
 
-def decide(files, supported, solid_deck=False, walls_show=False, inlaid=True, layer_height=None):
+def decide(files, supported, solid_deck=False, walls_show=False, inlaid=True, layer_height=None, full=False):
     """A project exported by Bambu Studio (archive name to bytes), with this part's settings."""
     wanted = _parts(inlaid)
     process = (
@@ -151,6 +167,7 @@ def decide(files, supported, solid_deck=False, walls_show=False, inlaid=True, la
         | (SOLID_DECK if solid_deck else {})
         | (WALLS_SHOW if walls_show else {})
         | ({"layer_height": f"{layer_height:g}"} if layer_height else {})
+        | (FULL if full else {})
     )
     settings = json.loads(files[SETTINGS_FILE])
     settings |= _project(len(wanted)) | process

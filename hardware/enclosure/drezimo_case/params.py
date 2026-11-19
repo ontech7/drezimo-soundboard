@@ -64,9 +64,12 @@ COUNTERBORE_PLAY = 0.5
 COLUMN_WALL = 1.8
 # The least standoff left over the screw's seat, and the least its head lies inside the bottom's outside face.
 OVER_THE_SEAT, HEAD_INSIDE = 1.5, 0.3
-FOOT_RECESS, FOOT_PLAY, FOOT_PROUD = 0.6, 0.4, 1.0
-# A foot's middle from the case's side edge, beside the screw's counterbore, and its edge from the case's end.
-FOOT_FROM_THE_SIDE, FOOT_FROM_THE_END = 21.5, 3.5
+# A foot is glued flat on the plate's face, inside a groove this wide and deep that frames it with this play: a
+# recess would print as a bridge as long as the foot.
+FOOT_PLAY = 0.4
+FOOT_MARK, FOOT_MARK_DEPTH = 0.6, 0.2
+# A foot's middle from the case's side edge, beside the screw's counterbore, and its place's edge from the case's end.
+FOOT_FROM_THE_SIDE, FOOT_FROM_THE_END = 22.1, 4.1
 
 # The stand's four pegs hook under these keys, wide apart and clear of the feet. A peg goes in at the front end of
 # its keyhole and the case slides towards its own front to lock, so that at 45° its weight keeps it there.
@@ -167,10 +170,14 @@ class Params:
     seat_wide: float
     seat_narrow: float
     foot_height: float
-    foot_recess: float
+    # Where each foot goes, and the groove that frames it.
     feet: tuple[Rect, ...]
+    foot_mark: float
+    foot_mark_depth: float
     # What hangs under the board, each with how far at most.
     under: tuple[Under, ...]
+    # How near the board's underside the plate may come where the USB module hangs.
+    under_the_module: float
     # The points midway between four neighbouring keys, where nothing hangs, and the lines through them: one more
     # half a key pitch outside the keys on every side.
     nodes: tuple[tuple[float, float], ...]
@@ -299,10 +306,12 @@ class Params:
             seat_wide=seat_wide,
             seat_narrow=seat_wide + (counterbore - SCREW_CLEARANCE) / 2,
             foot_height=value["M10h"],
-            foot_recess=FOOT_RECESS,
             feet=_feet(case_size, value["M10w"] + 2 * FOOT_PLAY),
-            # Under the USB module, and under a pin's tip that no reading covers, the bottom is plain plate.
+            foot_mark=FOOT_MARK,
+            foot_mark_depth=FOOT_MARK_DEPTH,
+            # Under the USB module, and under a pin's tip that no reading covers, no rib and no post stands.
             under=tuple(replace(entry, drop=under_board) if entry.drop is None else entry for entry in board.under),
+            under_the_module=tallest + MODULE_CLEARANCE,
             nodes=tuple((x, y) for x in between_columns for y in between_rows),
             rib_lines_x=(columns[0] - PITCH / 2, *between_columns, columns[-1] + PITCH / 2),
             rib_lines_y=(rows[0] - PITCH / 2, *between_rows, rows[-1] + PITCH / 2),
@@ -323,7 +332,7 @@ class Params:
             raise EstimateError(f"still estimates, measure them first: {', '.join(missing)}")
 
     def check_bottom(self):
-        """Raises if the screw or the feet, as read, cannot be built into the bottom. The shell does not ask."""
+        """Raises if the screw, as read, cannot be built into the bottom. The shell does not ask."""
         outside = self.wall_bottom + HEAD_INSIDE - self.head_face
         if outside > 1e-9:
             raise ValueError(
@@ -336,16 +345,10 @@ class Params:
                 f"the screw (M9l = {self.screw_length}) is too short: its seat would leave {over_the_seat:.1f} mm "
                 f"of standoff under the board (minimum {OVER_THE_SEAT})"
             )
-        proud = self.foot_height - self.foot_recess
-        if proud < FOOT_PROUD - 1e-9:
-            raise ValueError(
-                f"a foot (M10h = {self.foot_height}) would stand {proud:.1f} mm out of its {self.foot_recess} mm "
-                f"recess (minimum {FOOT_PROUD})"
-            )
 
 
 def _feet(case_size, side):
-    """Four squares beside the corner screws: back left, back right, front left, front right."""
+    """Four squares beside the corner screws, a foot and its play each: back left, back right, front left, front right."""
     width, length = case_size
     x0, y0 = FOOT_FROM_THE_SIDE - side / 2, FOOT_FROM_THE_END
     return tuple(Rect(x, y, x + side, y + side) for y in (y0, length - y0 - side) for x in (x0, width - x0 - side))

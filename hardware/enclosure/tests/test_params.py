@@ -228,6 +228,13 @@ def test_the_bottom_may_be_built_on_the_owners_screws():
     assert p.screw_tip - (10.4 - 10.0) >= 3.5
 
 
+def test_the_plate_may_come_as_near_the_usb_module_as_the_shell_itself_allows():
+    # The shell's space under the board is set by the plug, 1.4 mm lower than the module alone would ask.
+    p = derive_with()
+    assert p.under_the_module == pytest.approx(max(NOMINAL["M7a"], NOMINAL["M7b"]) + 0.9)
+    assert p.under_the_module < p.under_board
+
+
 def test_where_the_lit_area_lies_in_its_glass_shapes_nothing():
     # The glass was measured loose, not how the light sits in it: the window follows the light alone.
     drawn, moved = derive_with(), derive_with(M4t=1.2, M4s=2.0, M4f=4.0)
@@ -290,15 +297,11 @@ def test_a_wrong_screw_stops_the_bottom_and_not_the_shell():
     assert derive_with(M9l=20.6).deck_top == derive_with().deck_top
 
 
-def test_a_foot_must_stand_out_of_its_recess():
-    with pytest.raises(ValueError, match="M10h"):
-        derive_with(M10h=1.5).check_bottom()
-
-
 def test_four_feet_near_the_corners_beside_the_screws():
     p = derive_with()
     width, length = p.case_size
-    back_left = Rect(11.1, 3.5, 31.9, 24.3)
+    # The frame round each foot ends where a recess would have: 1.4 mm from the corner screw's counterbore.
+    back_left = Rect(11.7, 4.1, 32.5, 24.9)
     expected = [
         back_left,
         Rect(width - back_left.x1, back_left.y0, width - back_left.x0, back_left.y1),

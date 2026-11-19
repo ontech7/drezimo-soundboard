@@ -1,10 +1,15 @@
+import math
+from dataclasses import astuple
+
 import pytest
+import shapely
 from build123d import Align, Box, Pos
 from helpers import cut, inside
 from shapely.geometry import Point, Polygon
 from shapely.geometry import box as flat_box
+from shapely.ops import unary_union
 
-from drezimo_case.board import PITCH
+from drezimo_case.board import PITCH, USB_MODULE
 from drezimo_case.bottom import LAYER, POST_GAP
 
 MID = 98.0
@@ -148,6 +153,30 @@ def test_no_stretch_of_plain_plate_is_wider_than_a_key(bottom, p, board):
             assert inside(bottom, px, py, z), (x, y, px, py)
 
 
+def test_nowhere_on_the_plate_does_a_circle_of_plain_plate_wider_than_a_key_fit(bottom, p):
+    # No rib can stand under the USB module: 27 mm of plain plate there gave ten times what a key's cell gives.
+    plate = unary_union(cut(bottom, p.plate_top - 0.05))
+    standing = unary_union(cut(bottom, p.plate_top + 0.05))
+    stretches = [stretch for stretch in plate.difference(standing).geoms if stretch.area > 1.0]
+    widest = max(shapely.maximum_inscribed_circle(stretch, tolerance=0.05).length for stretch in stretches)
+    assert widest <= PITCH / 2
+
+
+def test_under_the_usb_module_the_plate_is_thicker_and_keeps_out_of_the_plugs_way(bottom, p, board):
+    module = board.usb_module
+    x, y = module.centre
+    top = p.wall_bottom + math.floor((p.standoff_top - p.under_the_module - p.wall_bottom) / LAYER + 1e-6) * LAYER
+    assert p.standoff_top - p.under_the_module - LAYER < top <= p.standoff_top - p.under_the_module + 1e-9
+    for px, py in ((x, y), (module.x0, module.y1), (module.x1, module.y1), (module.x0, module.y0 + 4.0), (module.x1, module.y0 + 4.0)):
+        assert inside(bottom, px, py, top - 0.05) and not inside(bottom, px, py, top + 0.05), (px, py)
+    # The plug's grip comes through the back wall as far as the connector's mouth: 3 mm behind it stay plain plate.
+    window = p.usb_window
+    assert module.x0 < window.x0 and window.x1 < module.x1
+    for px in (window.x0, x, window.x1):
+        assert not inside(bottom, px, module.y0 + 2.4, p.plate_top + 0.05), px
+        assert inside(bottom, px, module.y0 + 3.0, p.plate_top + 0.05), px
+
+
 def test_the_ribs_on_the_middle_screws_line_end_in_their_columns(bottom, p, board):
     z = p.plate_top + 1.0
     for x, y in board.holes:
@@ -160,12 +189,13 @@ def test_the_ribs_on_the_middle_screws_line_end_in_their_columns(bottom, p, boar
 
 
 def test_nothing_of_the_bottom_stands_under_a_part_of_the_board(bottom, p):
-    # Half a millimetre clear sideways of all that hangs under the board, or 0.3 mm under how far it can hang.
+    # Half a millimetre clear sideways of all that hangs under the board, or 0.3 mm under how far it can hang;
+    # under the USB module, the space the shell itself keeps under it.
     levels = [p.plate_top + 0.05 + 0.25 * step for step in range(int((p.standoff_top - p.plate_top) / 0.25) + 1)]
     cuts = {z: cut(bottom, z) for z in levels if z < p.standoff_top - 0.01}
     assert len(p.under) > 380
     for entry in p.under:
-        lowest = p.standoff_top - entry.drop - 0.3
+        lowest = p.standoff_top - (p.under_the_module if entry.part == USB_MODULE else entry.drop + 0.3)
         room = flat_box(entry.rect.x0 - 0.5, entry.rect.y0 - 0.5, entry.rect.x1 + 0.5, entry.rect.y1 + 0.5)
         for z, flat in cuts.items():
             if z > lowest:
@@ -187,7 +217,8 @@ def test_a_keyhole_takes_a_peg_in_and_lets_only_its_neck_slide(bottom, p):
 
 
 def test_behind_each_keyhole_a_closed_pocket_for_the_pegs_head(bottom, p):
-    room = p.plate_top + 2.6
+    # The roof is a bridge of fine strands: a head 2 mm high on a neck 0.4 mm longer than the plate keeps 0.6 mm under it.
+    room = p.plate_top + 3.0
     walls = cut(bottom, p.plate_top + 1.3)
     pieces = list(getattr(walls, "geoms", [walls]))
     for x, y in p.keyholes:
@@ -208,7 +239,7 @@ def test_behind_each_keyhole_a_closed_pocket_for_the_pegs_head(bottom, p):
 
 
 def test_a_pockets_roof_stays_well_under_all_that_hangs_over_it(bottom, p):
-    roof = p.plate_top + 3.6
+    roof = p.plate_top + 4.0
     for x, y in p.keyholes:
         pocket = flat_box(x - 5.1, y - 5.1, x + 5.1, y + p.keyhole_slide + 5.1)
         over = [entry for entry in p.under if pocket.intersects(flat_box(entry.rect.x0, entry.rect.y0, entry.rect.x1, entry.rect.y1))]
@@ -216,18 +247,23 @@ def test_a_pockets_roof_stays_well_under_all_that_hangs_over_it(bottom, p):
         assert all(p.standoff_top - entry.drop - roof >= 1.5 for entry in over), (x, y)
 
 
-def test_four_shallow_recesses_for_the_feet(bottom, p):
+def test_each_foot_is_glued_flat_on_the_plate_inside_a_shallow_frame(bottom, p):
+    # A recess would print as a bridge 20.8 mm long, and the foot would be glued to the underside of its strands.
     assert len(p.feet) == 4
     for foot in p.feet:
         for x, y in ((foot.x0 + 0.2, foot.y0 + 0.2), (foot.x1 - 0.2, foot.y1 - 0.2), foot.centre):
-            assert not inside(bottom, x, y, p.wall_bottom + p.foot_recess - 0.1), foot
-            assert inside(bottom, x, y, p.wall_bottom + p.foot_recess + 0.1), foot
-        assert inside(bottom, foot.x0 - 0.2, foot.centre[1], p.wall_bottom + 0.3), foot
-    assert p.foot_height - p.foot_recess == pytest.approx(1.9)
+            assert inside(bottom, x, y, p.wall_bottom + 0.05), foot
+        groove, beyond = foot.grown(p.foot_mark / 2), foot.grown(p.foot_mark + 0.2)
+        cx, cy = foot.centre
+        for x, y in ((groove.x0, cy), (groove.x1, cy), (cx, groove.y0), (cx, groove.y1), (groove.x0, groove.y0)):
+            assert not inside(bottom, x, y, p.wall_bottom + p.foot_mark_depth - 0.05), foot
+            assert inside(bottom, x, y, p.wall_bottom + p.foot_mark_depth + 0.05), foot
+        assert inside(bottom, beyond.x0, cy, p.wall_bottom + 0.05) and inside(bottom, cx, beyond.y1, p.wall_bottom + 0.05), foot
+    assert (p.foot_mark, p.foot_mark_depth) == (0.6, 0.2)
 
 
 def test_feet_keyholes_and_screws_keep_out_of_each_others_way(p, board):
-    feet = [flat_box(foot.x0, foot.y0, foot.x1, foot.y1) for foot in p.feet]
+    feet = [flat_box(*astuple(foot.grown(p.foot_mark))) for foot in p.feet]
     screws = [Point(x, y).buffer(p.counterbore / 2) for x, y in board.holes]
     keyholes = [flat_box(x - 3.9, y - 3.9, x + 3.9, y + p.keyhole_slide + 3.9) for x, y in p.keyholes]
     openings = feet + screws + keyholes

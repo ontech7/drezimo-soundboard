@@ -78,7 +78,7 @@ def through_the_shell(board, p, readings):
 
 
 def through_the_closed_case(board, p, readings):
-    """Three cuts with the shell and the board in place: through a screw, a keyhole and a foot's recess."""
+    """Three cuts with the shell and the board in place: through a screw, a keyhole and a foot."""
     pcb = (INSET, INSET + board.outline[1], readings["M1t"])
 
     def cut(x, title, span, *furniture):
@@ -88,7 +88,6 @@ def through_the_closed_case(board, p, readings):
     screw_x, screw_y = board.holes[0]
     keyhole_x, locked = p.keyholes[0]
     foot = p.feet[0]
-    foot_top = p.wall_bottom + p.foot_recess
     return (
         cut(screw_x, "Through the back left screw — back of the case to the left", (-1.0, 45.0), (_screw(p, screw_y), METAL, True)),
         cut(
@@ -99,9 +98,9 @@ def through_the_closed_case(board, p, readings):
         ),
         cut(
             foot.centre[0],
-            "Through a foot's recess — outlined: the rubber foot",
+            "Through a foot's place — outlined: the rubber foot, glued on",
             (-1.0, 45.0),
-            (_box(foot.y0 + FOOT_PLAY, foot.y1 - FOOT_PLAY, foot_top - p.foot_height, foot_top), INK, False),
+            (_box(foot.y0 + FOOT_PLAY, foot.y1 - FOOT_PLAY, p.wall_bottom - p.foot_height, p.wall_bottom), INK, False),
         ),
     )
 

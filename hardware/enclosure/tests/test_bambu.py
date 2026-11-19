@@ -169,6 +169,20 @@ def test_the_shell_and_the_bottom_are_pressed_with_a_finger():
     assert {name: part.solid_deck for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": True, "bottom": True}
 
 
+def test_a_part_that_is_full_plastic_has_no_sparse_middle_anywhere():
+    # Under the USB module the bottom's plate is 3.4 mm thick: two skins of 1 mm left 1.4 mm of it sparse.
+    settings, _ = one_colour(solid_deck=True, full=True)
+    assert settings["bottom_shell_layers"] == "10"
+    settings, _ = one_colour(full=True)
+    # Bambu Studio refuses its own grid at 100 %: lines side by side, as it fills any full layer.
+    assert (settings["sparse_infill_density"], settings["sparse_infill_pattern"]) == ("100%", "zig-zag")
+    assert settings["different_settings_to_system"][0] == "sparse_infill_density;sparse_infill_pattern"
+    assert "sparse_infill_density" not in one_colour()[0]
+    assert {name: part.full for name, part in cli.PARTS.items()} == {"coupon-a": False, "inlay-gauge": False, "shell": False, "bottom": True}
+
+
+
+
 def test_walls_that_show_get_their_seam_at_the_back_and_no_brim():
     _, settings, _ = decided(supported=True, walls_show=True)
     assert (settings["seam_position"], settings["brim_type"]) == ("back", "no_brim")
@@ -426,7 +440,7 @@ def test_bambu_studio_slices_the_bottom_with_no_supports_and_no_warning(tmp_path
 
     neutral = next(path for path in export_part("bottom", bottom, None, tmp_path, upright=True) if path.suffix == ".3mf")
     report = bambu.write_project(
-        neutral, tmp_path / "bottom-bambu.3mf", supported=False, nozzle=0.2, solid_deck=True, walls_show=True, inlaid=False, layer_height=0.1
+        neutral, tmp_path / "bottom-bambu.3mf", supported=False, nozzle=0.2, solid_deck=True, walls_show=True, inlaid=False, layer_height=0.1, full=True
     )
     assert report.height == pytest.approx(p.standoff_top - p.wall_bottom)
     assert not report.supports
@@ -438,5 +452,6 @@ def test_bambu_studio_slices_the_bottom_with_no_supports_and_no_warning(tmp_path
     assert settings["print_settings_id"] == "0.10mm Standard @BBL X1C 0.2 nozzle"
     assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C 0.2 nozzle"]
     assert (settings["layer_height"], settings["enable_support"], settings["brim_type"]) == ("0.1", "0", "no_brim")
-    # Ten layers from each face: the 1.8 mm plate is full through.
+    # Ten layers from each face, and what lies between them full too.
     assert (settings["bottom_shell_layers"], settings["top_shell_layers"]) == ("10", "10")
+    assert (settings["sparse_infill_density"], settings["sparse_infill_pattern"]) == ("100%", "zig-zag")

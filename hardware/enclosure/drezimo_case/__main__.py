@@ -50,6 +50,8 @@ class PrintedPart:
     supports_within: Callable | None = None
     # Pressed with a finger: its deck is printed full through.
     solid_deck: bool = False
+    # Pressed with a finger where it is thicker than its two skins: what lies between them is printed full too.
+    full: bool = False
     # Its outer walls are seen: it lies with its back wall to the back of the bed, where the seam goes, and gets no brim.
     walls_show: bool = False
     # Drawn from the screw and the feet as well. The other parts do not wait for those readings.
@@ -89,6 +91,7 @@ PARTS = {
         sections=sections.through_the_closed_case,
         nozzle=0.2,
         solid_deck=True,
+        full=True,
         walls_show=True,
         needs_the_screw=True,
         upright=True,
@@ -174,7 +177,7 @@ def _write_bambu_project(name, part, written, p, inlaid):
     project = PRINT_DIR / f"{name}-bambu.3mf"
     allowed = part.supports_within(p) if part.supports_within else None
     report = bambu.write_project(
-        neutral, project, part.supported, part.nozzle, allowed, part.solid_deck, part.walls_show, inlaid, part.layers
+        neutral, project, part.supported, part.nozzle, allowed, part.solid_deck, part.walls_show, inlaid, part.layers, part.full
     )
     filaments = f"{report.grams[0]:.1f} g black"
     if inlaid:

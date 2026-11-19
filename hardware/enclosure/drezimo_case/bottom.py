@@ -1,11 +1,14 @@
 """The bottom: the plate that closes the shell, with what stands on it.
 
 Six standoffs take the screws and clamp the board against the shell's bosses. Ribs between the keys and a post under
-every point between four of them keep plate and board from giving under a finger. Four keyhole sockets take the
-stand's pegs, and four shallow recesses the rubber feet.
+every point between four of them keep plate and board from giving under a finger; under the USB module, where
+neither can stand, the plate is thicker. Four keyhole sockets take the stand's pegs, and four shallow frames show
+where the rubber feet are glued.
 
 Modelled like the shell, in the case frame with z up from the PCB's top surface.
 """
+
+import math
 
 from build123d import Align, Axis, Circle, Cylinder, Part, Pos, Rectangle, chamfer, extrude
 
@@ -30,7 +33,11 @@ CLEAR, UNDER = 0.5, 0.3
 # The stand's peg: a 4 mm neck under a head 7 mm across and 2 mm high.
 PEG_NECK, PEG_HEAD, PEG_HEAD_HEIGHT = 4.0, 7.0, 2.0
 KEYHOLE_PLAY = 0.4
-POCKET_HEADROOM, POCKET_ROOF, POCKET_WALL = 0.6, 1.0, 1.2
+# The roof is a bridge of fine strands that may hang a little: the head keeps 0.6 mm under it on the stand's neck,
+# which is 0.4 mm longer than the plate is thick.
+POCKET_HEADROOM, POCKET_ROOF, POCKET_WALL = 1.0, 1.0, 1.2
+# Left as plain plate behind the USB connector's mouth, where the plug's grip comes in through the back wall.
+BEHIND_THE_PLUG = 3.0
 ON_ITS_BASE = (Align.CENTER, Align.CENTER, Align.MIN)
 
 
@@ -40,10 +47,10 @@ def build_bottom(board, p):
     plate = chamfer(plate.edges().group_by(Axis.Z)[0], length=EDGE_CHAMFER)
     columns = [_column(p, x, y) for x, y in board.holes]
     pockets = [_pocket(p, x, y) for x, y in p.keyholes]
-    body = plate + _inside_the_walls(p, [*columns, _ribs_and_posts(p), *pockets])
+    body = plate + _inside_the_walls(p, [*columns, _ribs_and_posts(p), _under_the_module(board, p), *pockets])
     body -= [_screw_way(p, x, y) for x, y in board.holes]
     body -= [_keyhole(p, x, y) for x, y in p.keyholes]
-    return body - [box(foot, p.wall_bottom - 1, p.wall_bottom + p.foot_recess) for foot in p.feet]
+    return body - [_foot_mark(p, foot) for foot in p.feet]
 
 
 def _inside_the_walls(p, solids):
@@ -71,6 +78,20 @@ def _ribs_and_posts(p):
     return grid - [
         box(room, lowest, p.standoff_top) for room, lowest in rooms if any(room.overlaps(part) for part in ribs + posts)
     ]
+
+
+def _under_the_module(board, p):
+    """Where no rib can stand, under the USB module, the plate is thicker instead, up to a whole layer."""
+    module = board.usb_module.grown(CLEAR)
+    layers = math.floor((p.standoff_top - p.under_the_module - p.wall_bottom) / LAYER + 1e-6)
+    thicker = Rect(module.x0, board.usb_module.y0 + BEHIND_THE_PLUG, module.x1, module.y1)
+    return box(thicker, p.plate_top, p.wall_bottom + layers * LAYER)
+
+
+def _foot_mark(p, foot):
+    """The groove round a foot's place, in the plate's outside face."""
+    depth = p.wall_bottom - 1, p.wall_bottom + p.foot_mark_depth
+    return box(foot.grown(p.foot_mark), *depth) - box(foot, *depth)
 
 
 def _slot(x, y, slide, width):
