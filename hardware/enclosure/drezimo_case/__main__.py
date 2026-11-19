@@ -87,7 +87,7 @@ PARTS = {
         lambda board, p: (build_bottom(board, p), None),
         "Bottom",
         sections=sections.through_the_closed_case,
-        nozzle=0.4,
+        nozzle=0.2,
         solid_deck=True,
         walls_show=True,
         needs_the_screw=True,

@@ -252,8 +252,8 @@ def test_supports_outside_the_areas_a_part_allows_are_refused():
 
 
 def test_each_part_is_printed_with_a_nozzle_that_has_its_presets():
-    # Only the inlays need the fine nozzle.
-    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2, "shell": 0.2, "bottom": 0.4}
+    # Only the inlays need the fine nozzle, but the owner prints every part with it: changing nozzle is no quick job.
+    assert {name: part.nozzle for name, part in cli.PARTS.items()} == {"coupon-a": 0.2, "inlay-gauge": 0.2, "shell": 0.2, "bottom": 0.2}
     assert set(bambu.NOZZLES) == {0.4, 0.2}
 
 
@@ -426,7 +426,7 @@ def test_bambu_studio_slices_the_bottom_with_no_supports_and_no_warning(tmp_path
 
     neutral = next(path for path in export_part("bottom", bottom, None, tmp_path, upright=True) if path.suffix == ".3mf")
     report = bambu.write_project(
-        neutral, tmp_path / "bottom-bambu.3mf", supported=False, nozzle=0.4, solid_deck=True, walls_show=True, inlaid=False, layer_height=0.1
+        neutral, tmp_path / "bottom-bambu.3mf", supported=False, nozzle=0.2, solid_deck=True, walls_show=True, inlaid=False, layer_height=0.1
     )
     assert report.height == pytest.approx(p.standoff_top - p.wall_bottom)
     assert not report.supports
@@ -434,9 +434,9 @@ def test_bambu_studio_slices_the_bottom_with_no_supports_and_no_warning(tmp_path
     assert len(report.grams) == 1 and 50 < report.grams[0] < 120
 
     settings = json.loads(zipfile.ZipFile(tmp_path / "bottom-bambu.3mf").read("Metadata/project_settings.config"))
-    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.4 nozzle"
-    assert settings["print_settings_id"] == "0.20mm Standard @BBL X1C"
-    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C"]
+    assert settings["printer_settings_id"] == "Bambu Lab P1S 0.2 nozzle"
+    assert settings["print_settings_id"] == "0.10mm Standard @BBL X1C 0.2 nozzle"
+    assert settings["filament_settings_id"] == ["Overture Matte PLA @BBL X1C 0.2 nozzle"]
     assert (settings["layer_height"], settings["enable_support"], settings["brim_type"]) == ("0.1", "0", "no_brim")
     # Ten layers from each face: the 1.8 mm plate is full through.
     assert (settings["bottom_shell_layers"], settings["top_shell_layers"]) == ("10", "10")
