@@ -40,10 +40,11 @@ MEASUREMENTS = {
     # The lit area, like its glass of 34.44 x 22.97 mm, was measured loose (docs/project.md, section 4).
     "M4w": Measurement(29.71, measured=True),  # lit area, width
     "M4h": Measurement(14.90, measured=True),  # lit area, height
-    # The light starts 2.50 mm from the left edge of the display's own board and 7.87 mm from its back
-    # edge; that board hangs from its header 56.93 and 5.81 mm inside the main board's edges.
-    "M4x": Measurement(74.285, measured=True),  # lit area's centre from the board's left edge: 56.93 + 2.50 + 29.71 / 2
-    "M4y": Measurement(21.13, measured=True),   # lit area's centre from the board's back edge: 5.81 + 7.87 + 14.90 / 2
+    # Where the light starts from the left and back edges of the display's own board, which hangs from its
+    # header 56.93 and 5.81 mm inside the main board's edges: 2.50 and 7.87 mm by caliper and eye, 3.06 and
+    # 7.38 off a photo of the lit display (2026-11-19). Neither is trusted alone: the mean of the two stands.
+    "M4x": Measurement(74.565, measured=True),  # lit area's centre from the board's left edge: 56.93 + 2.78 + 29.71 / 2
+    "M4y": Measurement(20.885, measured=True),  # lit area's centre from the board's back edge: 5.81 + 7.625 + 14.90 / 2
     "M4t": Measurement(1.9, known=WINDOW_ON_THE_GLASS),    # glass beyond the lit area, at the back: as the panel's makers draw it
     "M4s": Measurement(2.365, known=WINDOW_ON_THE_GLASS),  # glass beyond the lit area, at each side: half of 34.44 - 29.71
     "M4f": Measurement(6.17, known=WINDOW_ON_THE_GLASS),   # glass beyond the lit area, at the front: 22.97 - 14.90 - 1.9
