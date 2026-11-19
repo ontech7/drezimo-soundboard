@@ -23,6 +23,12 @@ OUTLINE_SHAPES = ("gr_line", "gr_arc", "gr_rect")
 BODY_SHAPES = ("fp_line", "fp_rect", "fp_circle", "fp_arc")
 BODY_LAYERS = ("F.Fab", "B.Fab")
 SOLDERED_THROUGH = "thru_hole"
+PEG_HOLE = "np_thru_hole"
+UNDERSIDE = "B.Cu"
+# How far under the board a soldered body hangs at most: the tallest there is a 1206, 1.8 mm.
+SMD_DROP = 2.0
+# A switch's pins and pegs are 3.3 mm long in a 1.6 mm board; the pins carry solder.
+SWITCH_DROP = 2.5
 
 DISPLAY_HEADER, ENCODER, CHIP, USB_MODULE = "J1", "ENC1", "U2", "U1"
 # From the encoder footprint's origin, its pad A.
@@ -70,10 +76,23 @@ class Pad:
 
 
 @dataclass(frozen=True)
+class Under:
+    """Something that hangs under the board: over `rect`, at most `drop` mm below its underside.
+
+    drop is None when nothing says how far: the tip of a pin no reading covers, or the USB module, which a reading does.
+    """
+
+    part: str
+    rect: Rect
+    drop: float | None
+
+
+@dataclass(frozen=True)
 class Board:
     """The USB module hangs under the board; its pins come up through it. The rest stands on top.
 
     pads: every pin soldered through the board, the switches' aside.
+    under: everything that hangs under the board, the switches' pins and pegs included.
     """
 
     outline: tuple[float, float]
@@ -86,6 +105,7 @@ class Board:
     usb_module: Rect
     usb_pins: tuple[tuple[float, float], ...]
     pads: tuple[Pad, ...]
+    under: tuple[Under, ...]
 
     @property
     def case_size(self):
@@ -114,16 +134,43 @@ def load_board(path=DEFAULT_PCB):
         xs, ys = zip(*(to_case(fp, point) for point in _body_points(fp)))
         return Rect(min(xs), min(ys), max(xs), max(ys))
 
-    keys, holes, parts = {}, [], {}
+    def footprint_box(fp, points):
+        xs, ys = zip(*(to_case(fp, point) for point in points))
+        return Rect(min(xs), min(ys), max(xs), max(ys))
+
+    def soldered_under(reference, fp):
+        corners = [corner for pad in find(fp, "pad") for corner in _pad_corners(fp, pad)]
+        return Under(reference, footprint_box(fp, [*corners, *_body_points(fp)]), SMD_DROP)
+
+    def switch_under(reference, fp):
+        for pad in find(fp, "pad"):
+            if pad[2] in (SOLDERED_THROUGH, PEG_HOLE):
+                yield Under(reference, footprint_box(fp, _pad_corners(fp, pad)), SWITCH_DROP)
+
+    keys, holes, parts, switches = {}, [], {}, {}
     for fp in find(pcb, "footprint"):
         if fp[1] == SWITCH_FOOTPRINT:
             keys[int(_reference(fp).removeprefix("SW"))] = to_case(fp)
+            switches[_reference(fp)] = fp
         elif fp[1] == HOLE_FOOTPRINT:
             holes.append(to_case(fp))
         else:
             parts[_reference(fp)] = fp
 
     usb = parts[USB_MODULE]
+    pads = tuple(
+        Pad(reference, *to_case(fp, _point(first(pad, "at"))), max(_point(first(pad, "size"))) / 2)
+        for reference, fp in parts.items()
+        for pad in find(fp, "pad")
+        if pad[2] == SOLDERED_THROUGH
+    )
+    under = [
+        soldered_under(reference, fp)
+        for reference, fp in parts.items()
+        if reference != USB_MODULE and first(fp, "layer")[1] == UNDERSIDE and find(fp, "pad")
+    ]
+    under += [entry for reference, fp in switches.items() for entry in switch_under(reference, fp)]
+    under += [Under(USB_MODULE, body(usb), None), *(Under(pad.part, pad.rect, None) for pad in pads)]
     return Board(
         outline=(round(max(xs) - left, 4), round(max(ys) - back, 4)),
         keys=keys,
@@ -134,12 +181,8 @@ def load_board(path=DEFAULT_PCB):
         chip=body(parts[CHIP]),
         usb_module=body(usb),
         usb_pins=tuple(to_case(usb, _point(first(pad, "at"))) for pad in find(usb, "pad")),
-        pads=tuple(
-            Pad(reference, *to_case(fp, _point(first(pad, "at"))), max(_point(first(pad, "size"))) / 2)
-            for reference, fp in parts.items()
-            for pad in find(fp, "pad")
-            if pad[2] == SOLDERED_THROUGH
-        ),
+        pads=pads,
+        under=tuple(under),
     )
 
 
@@ -161,6 +204,16 @@ def _body_points(fp):
         for shape in find(fp, kind):
             if first(shape, "layer")[1] in BODY_LAYERS:
                 yield from (_point(first(shape, key)) for key in ("start", "mid", "end") if first(shape, key))
+
+
+def _pad_corners(fp, pad):
+    """The pad's four corners in the footprint's own frame. A pad's angle is written with its footprint's in it."""
+    x, y, *turned = (float(value) for value in first(pad, "at")[1:])
+    footprint = [float(value) for value in first(fp, "at")[1:]]
+    angle = math.radians((turned[0] if turned else 0.0) - (footprint[2] if len(footprint) > 2 else 0.0))
+    width, height = _point(first(pad, "size"))
+    for px, py in ((-width / 2, -height / 2), (width / 2, -height / 2), (width / 2, height / 2), (-width / 2, height / 2)):
+        yield x + px * math.cos(angle) + py * math.sin(angle), y - px * math.sin(angle) + py * math.cos(angle)
 
 
 def _point(item):

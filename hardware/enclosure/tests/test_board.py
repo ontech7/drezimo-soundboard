@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 
-from drezimo_case.board import load_board
+from drezimo_case.board import SMD_DROP, SWITCH_DROP, load_board
 
 
 def test_outline_and_case():
@@ -73,3 +73,62 @@ def test_every_pin_soldered_through_the_board_outside_the_keys():
     assert header == pytest.approx([73.89, 76.43, 78.97, 81.51], abs=0.01)
     pin = next(pad for pad in pads if pad.part == "U2")
     assert (pin.rect.x0, pin.rect.y0, pin.rect.x1, pin.rect.y1) == pytest.approx((pin.x - 0.8, pin.y - 0.8, pin.x + 0.8, pin.y + 0.8))
+
+
+def under(part):
+    return [entry for entry in load_board().under if entry.part == part]
+
+
+def test_what_is_soldered_under_the_board():
+    parts = Counter(entry.part.rstrip("0123456789") for entry in load_board().under if entry.drop == SMD_DROP)
+    # A capacitor under each key, one by the USB module and the big one on the supply.
+    assert parts == {"LED": 42, "D": 42, "C": 44, "F": 1, "R": 1}
+    assert len(under("C43")) == 1
+
+
+def test_a_keys_led_and_diode_hang_where_the_board_file_puts_them():
+    b = load_board()
+    x, y = b.key_centre(8)
+    (led,) = under("LED8")
+    assert (led.rect.x0, led.rect.y0, led.rect.x1, led.rect.y1) == pytest.approx(
+        (x - 3.4, y + 3.31, x + 3.4, y + 5.63), abs=0.3
+    )
+    (diode,) = under("D8")
+    assert diode.rect.centre == pytest.approx((x - 7.3, y + 1.4), abs=0.05)
+    # Turned a quarter: its two pads lie one behind the other.
+    assert 3.7 <= diode.rect.height <= 4.3
+    assert 1.2 <= diode.rect.width <= 1.8 + 1e-6
+
+
+def test_the_usb_module_hangs_as_far_as_its_connector_which_a_reading_gives():
+    b = load_board()
+    (module,) = [entry for entry in under("U1") if entry.rect == b.usb_module]
+    assert module.drop is None
+
+
+def test_a_switch_hangs_two_pins_and_three_pegs():
+    b = load_board()
+    switches = [entry for entry in b.under if entry.part.startswith("SW")]
+    assert len(switches) == 42 * 5
+    assert {entry.drop for entry in switches} == {SWITCH_DROP}
+    x, y = b.key_centre(8)
+    assert any(entry.rect.centre == pytest.approx((x + 2.54, y - 5.08), abs=0.01) for entry in under("SW8"))
+    widths = sorted(round(entry.rect.width, 2) for entry in under("SW8"))
+    assert widths == [1.75, 1.75, 2.2, 2.2, 4.0]
+
+
+def test_the_tip_of_a_pin_no_reading_covers_hangs_no_one_knows_how_far():
+    b = load_board()
+    tips = [entry for entry in b.under if entry.drop is None and entry.rect != b.usb_module]
+    assert Counter((entry.part, entry.rect) for entry in tips) == Counter((pad.part, pad.rect) for pad in b.pads)
+    assert len(tips) == 48
+
+
+def test_everything_under_the_board_is_under_the_board():
+    b = load_board()
+    width, length = b.outline
+    for entry in b.under:
+        assert 3.0 <= entry.rect.x0 < entry.rect.x1 <= 3.0 + width, entry
+        # The USB module's connector end stands out over the board's back edge.
+        back = b.usb_module.y0 if entry.rect == b.usb_module else 3.0
+        assert back <= entry.rect.y0 < entry.rect.y1 <= 3.0 + length, entry
