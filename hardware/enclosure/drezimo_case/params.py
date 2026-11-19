@@ -68,6 +68,11 @@ FOOT_RECESS, FOOT_PLAY, FOOT_PROUD = 0.6, 0.4, 1.0
 # A foot's middle from the case's side edge, beside the screw's counterbore, and its edge from the case's end.
 FOOT_FROM_THE_SIDE, FOOT_FROM_THE_END = 21.5, 3.5
 
+# The stand's four pegs hook under these keys, wide apart and clear of the feet. A peg goes in at the front end of
+# its keyhole and the case slides towards its own front to lock, so that at 45° its weight keeps it there.
+KEYHOLE_KEYS = (7, 12, 25, 30)
+KEYHOLE_SLIDE = 8.0
+
 # The pixels lie this far under the top of the glass.
 PIXEL_DEPTH = 0.7
 WINDOW_SIDE, WINDOW_BACK, WINDOW_LAND = 1.0, 0.75, 0.3
@@ -171,6 +176,9 @@ class Params:
     nodes: tuple[tuple[float, float], ...]
     rib_lines_x: tuple[float, ...]
     rib_lines_y: tuple[float, ...]
+    # Where each of the stand's pegs ends when locked; it goes in `keyhole_slide` nearer the front.
+    keyholes: tuple[tuple[float, float], ...]
+    keyhole_slide: float
     codes: tuple[str, ...]
     estimated: tuple[str, ...]
 
@@ -298,6 +306,9 @@ class Params:
             nodes=tuple((x, y) for x in between_columns for y in between_rows),
             rib_lines_x=(columns[0] - PITCH / 2, *between_columns, columns[-1] + PITCH / 2),
             rib_lines_y=(rows[0] - PITCH / 2, *between_rows, rows[-1] + PITCH / 2),
+            # Each socket in the middle of its key's cell, between the ribs.
+            keyholes=tuple((x, y - KEYHOLE_SLIDE / 2) for x, y in (board.key_centre(n) for n in KEYHOLE_KEYS)),
+            keyhole_slide=KEYHOLE_SLIDE,
             codes=tuple(sorted(m)),
             estimated=tuple(estimates(m)),
         )

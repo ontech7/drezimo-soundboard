@@ -1,9 +1,13 @@
-"""The bottom: the plate that closes the shell, and the standoffs that carry the board over it.
+"""The bottom: the plate that closes the shell, with what stands on it.
+
+Six standoffs take the screws and clamp the board against the shell's bosses. Ribs between the keys and a post under
+every point between four of them keep plate and board from giving under a finger. Four keyhole sockets take the
+stand's pegs, and four shallow recesses the rubber feet.
 
 Modelled like the shell, in the case frame with z up from the PCB's top surface.
 """
 
-from build123d import Align, Axis, Circle, Cylinder, Part, Pos, chamfer, extrude
+from build123d import Align, Axis, Circle, Cylinder, Part, Pos, Rectangle, chamfer, extrude
 
 from .board import Rect
 from .deck import box, outline
@@ -20,6 +24,10 @@ RIB_UNDER_BOARD, POST_GAP = 1.0, 0.15
 POST_RADIUS = 2.0
 # Kept clear of all that hangs under the board: sideways, or under how far it can hang.
 CLEAR, UNDER = 0.5, 0.3
+# The stand's peg: a 4 mm neck under a head 7 mm across and 2 mm high.
+PEG_NECK, PEG_HEAD, PEG_HEAD_HEIGHT = 4.0, 7.0, 2.0
+KEYHOLE_PLAY = 0.4
+POCKET_HEADROOM, POCKET_ROOF, POCKET_WALL = 0.6, 1.0, 1.2
 ON_ITS_BASE = (Align.CENTER, Align.CENTER, Align.MIN)
 
 
@@ -28,7 +36,11 @@ def build_bottom(board, p):
     plate = extrude(Pos(0, 0, p.wall_bottom) * outline(p, p.rim + p.bottom_fit), amount=p.plate_top - p.wall_bottom)
     plate = chamfer(plate.edges().group_by(Axis.Z)[0], length=EDGE_CHAMFER)
     columns = [_column(p, x, y) for x, y in board.holes]
-    return plate + _inside_the_walls(p, [*columns, _ribs_and_posts(p)]) - [_screw_way(p, x, y) for x, y in board.holes]
+    pockets = [_pocket(p, x, y) for x, y in p.keyholes]
+    body = plate + _inside_the_walls(p, [*columns, _ribs_and_posts(p), *pockets])
+    body -= [_screw_way(p, x, y) for x, y in board.holes]
+    body -= [_keyhole(p, x, y) for x, y in p.keyholes]
+    return body - [box(foot, p.wall_bottom - 1, p.wall_bottom + p.foot_recess) for foot in p.feet]
 
 
 def _inside_the_walls(p, solids):
@@ -56,6 +68,27 @@ def _ribs_and_posts(p):
     return grid - [
         box(room, lowest, p.standoff_top) for room, lowest in rooms if any(room.overlaps(part) for part in ribs + posts)
     ]
+
+
+def _slot(x, y, slide, width):
+    """In the top view, the way of something `width` across from the locked point (x, y) to where it goes in."""
+    return Pos(x, y + slide / 2) * Rectangle(width, slide) + [Pos(x, end) * Circle(width / 2) for end in (y, y + slide)]
+
+
+def _pocket(p, x, y):
+    """A closed box on the plate, behind a keyhole: the peg's head moves in it, and the case stays shut."""
+    height = PEG_HEAD_HEIGHT + POCKET_HEADROOM + POCKET_ROOF
+    around = _slot(x, y, p.keyhole_slide, PEG_HEAD + 2 * (KEYHOLE_PLAY + POCKET_WALL))
+    return extrude(Pos(0, 0, p.plate_top) * around, amount=height)
+
+
+def _keyhole(p, x, y):
+    """Through the plate, a hole for the peg's head and a slot for its neck; behind it, the room its head slides in."""
+    head, neck = PEG_HEAD + 2 * KEYHOLE_PLAY, PEG_NECK + 2 * KEYHOLE_PLAY
+    way_in = Pos(x, y + p.keyhole_slide) * Circle(head / 2) + _slot(x, y, p.keyhole_slide, neck)
+    through = extrude(Pos(0, 0, p.wall_bottom - 1) * way_in, amount=p.plate_top - p.wall_bottom + 1)
+    room = extrude(Pos(0, 0, p.plate_top) * _slot(x, y, p.keyhole_slide, head), amount=PEG_HEAD_HEIGHT + POCKET_HEADROOM)
+    return through + room
 
 
 def _column(p, x, y):

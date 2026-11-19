@@ -325,3 +325,11 @@ def test_the_points_between_four_keys_and_the_lines_through_them():
     # One more line half a key pitch outside the keys on every side.
     assert p.rib_lines_x == pytest.approx([8.0, *xs, 122.3])
     assert p.rib_lines_y == pytest.approx([50.0, *ys, 188.35])
+
+
+def test_four_keyholes_under_keys_wide_apart_each_in_the_middle_of_its_cell():
+    board = load_board()
+    p = derive_with()
+    assert p.keyhole_slide == 8.0
+    # Where a peg ends when locked; it goes in 8 mm nearer the front.
+    assert list(p.keyholes) == [pytest.approx((x, y - 4.0)) for x, y in (board.key_centre(n) for n in (7, 12, 25, 30))]
