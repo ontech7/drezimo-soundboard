@@ -7,7 +7,7 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** work in progress. The PCB (v0.2) is designed and ordered. The firmware implements the board ↔ app protocol and runs on a bare RP2040-Zero with the real display; the keys and LEDs wait for the PCB. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date.
+**Status:** work in progress. The PCB (v0.2) is designed and ordered. The firmware implements the board ↔ app protocol and runs on a bare RP2040-Zero with the real display; the keys and LEDs wait for the PCB. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date. The enclosure's top shell and bottom are designed and the bottom is printed; its stand is still to come.
 
 ## Hardware
 
@@ -15,7 +15,8 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - 6×6 sound pads + 6 function keys, MX switches soldered to the PCB, 7×6 diode matrix
 - 42 SK6812MINI-E reverse-mount RGB LEDs, one per key
 - 1.3" SH1106 OLED (I²C) and an EC11 encoder with push button
-- Custom 2-layer PCB, 3D-printed enclosure
+- Custom 2-layer PCB
+- 3D-printed enclosure in two parts, a top shell and a bottom, closed by six M3 screws from below
 - Powered from USB only
 
 <p align="center">
@@ -23,6 +24,17 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
   <br>
   <sub>The bottom of the PCB v0.2 as the fab assembles it: the LEDs and the small parts. The switches, the RP2040-Zero, the LED buffer, the knob and the display are soldered by hand.</sub>
 </p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/case-shell.webp" alt="The enclosure's top shell: a matte black tray with 42 key openings, the display's window and the knob's hole, the Drezimo logo and the six function keys' labels in white"></td>
+    <td width="50%"><img src="docs/images/case-bottom.webp" alt="The enclosure's bottom seen from inside: a plate with a grid of ribs, six standoffs for the screws and four closed pockets"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The top shell: the logo and the function keys' labels are printed flush in white</sub></td>
+    <td align="center"><sub>The bottom, from inside: six standoffs for the screws, ribs and posts under the keys, pockets for the stand's pegs</sub></td>
+  </tr>
+</table>
 
 ## The app
 
@@ -68,6 +80,7 @@ The board talks to a desktop bridge app over USB. The app controls Voicemod thro
 | `firmware/` | RP2040-Zero firmware (Arduino core for RP2040, built with `arduino-cli`) |
 | `app/` | Bridge app for macOS and Windows (Tauri 2: Rust core, React settings window) |
 | `hardware/lib/` | Project symbol and footprints (RP2040-Zero, MX switch, logo silkscreen) |
+| `hardware/enclosure/` | The 3D-printed enclosure, generated from the PCB file and caliper readings (Python, build123d): the generator, its tests and the print files |
 | `assets/logo/` | Logo (SVG) and app icon |
 | `simulator/dummy-board.html` | 1:1 browser simulator of the board; can connect to Voicemod |
 | `tools/` | Voicemod API probe, log watcher and behaviour experiments |
@@ -89,6 +102,19 @@ python3 export_docs.py   # schematic PDF, 1:1 fit-check PDFs, 3D renders, DRC re
 `build_pcb.py` and `export_fab.py` need KiCad's bundled Python, which provides the `pcbnew` module. Edit the scripts, not the generated KiCad files.
 
 `export_fab.py` writes the JLCPCB package to `hardware/fab/`: the Gerber + drill zip, the assembly BOM with LCSC part numbers and the placement file (CPL). All assembled parts are on the bottom side; the SK6812MINI-E is a JLCPCB "Standard PCBA only" part. The switches, the RP2040-Zero, the SN74AHCT125N, the OLED module and the encoder are hand-soldered.
+
+## Building the enclosure files
+
+Requires [`uv`](https://docs.astral.sh/uv/), which installs Python and build123d on the first run.
+
+```sh
+cd hardware/enclosure
+uv run python -m drezimo_case shell    # the top shell
+uv run python -m drezimo_case bottom   # the bottom
+uv run pytest -q
+```
+
+Each command writes the part to `hardware/enclosure/print/` as STEP and 3MF, lying as it is printed, with a picture of it cut through. With `--bambu` after the name, and Bambu Studio installed (macOS), it also writes a Bambu Studio project for the P1S with the print settings decided, sliced once as a check. The parts are drawn from the PCB file and from the caliper readings in `drezimo_case/measurements.py`; `docs/project.md` (section 7) says how.
 
 ## Building the firmware
 
