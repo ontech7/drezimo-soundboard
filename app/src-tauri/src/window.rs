@@ -128,13 +128,21 @@ fn reveal(app: &AppHandle, label: &str) {
 }
 
 pub fn on_event(window: &Window, event: &WindowEvent) {
-    let WindowEvent::CloseRequested { api, .. } = event else {
-        return;
-    };
     if !window.label().starts_with(LABEL_PREFIX) {
         return;
     }
-    api.prevent_close();
+    match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            close(window);
+        }
+        // Minimising resizes the window to nothing
+        WindowEvent::Resized(_) => hide_page_while_minimised(window),
+        _ => {}
+    }
+}
+
+fn close(window: &Window) {
     let _ = window.hide();
     // The page stays: it learns it was closed, rather than only hidden or minimised
     let _ = window.emit("window-closed", ());
@@ -224,3 +232,24 @@ fn keep_only_editing_items(window: &WebviewWindow) {
 
 #[cfg(not(windows))]
 fn keep_only_editing_items(_window: &WebviewWindow) {}
+
+/// WebView2 is not told when its window is minimised: the page would go on drawing its animations unseen, an
+/// explanation's at a third of a CPU core. Hidden, it pauses them as a browser's hidden tab.
+#[cfg(windows)]
+fn hide_page_while_minimised(window: &Window) {
+    let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
+        return;
+    };
+    let visible = !window.is_minimized().unwrap_or(false);
+    let told = webview.with_webview(move |webview| {
+        if let Err(error) = unsafe { webview.controller().SetIsVisible(visible) } {
+            crate::errors::log(format!("cannot tell the page it is minimised: {error}"));
+        }
+    });
+    if let Err(error) = told {
+        crate::errors::log(format!("cannot tell the page it is minimised: {error}"));
+    }
+}
+
+#[cfg(not(windows))]
+fn hide_page_while_minimised(_window: &Window) {}

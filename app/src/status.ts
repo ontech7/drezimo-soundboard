@@ -37,8 +37,8 @@ export interface Status {
   voicemodVersion: string | null;
   /** The macro running, if any */
   runningMacro: MacroProgress | null;
-  /** A sound played while Voicemod's Mute for me was on, which is still on */
-  mutedPlay: boolean;
+  /** Why a sound that played was not heard by the user, while it is still so: Mute for me, or the volume for them */
+  mutedPlay: "switch" | "volume" | null;
   /** Voicemod's bridge was found: a pad can stop a single sound */
   singleSoundStop: boolean;
 }

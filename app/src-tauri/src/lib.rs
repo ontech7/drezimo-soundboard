@@ -37,18 +37,24 @@ pub(crate) fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain([0]).collect()
 }
 
-/// Passed by the login item the installer adds (windows/hooks.nsh): the app then starts in the tray, with no window
+/// Passed by the login item (settings.rs, windows/hooks.nsh): the app then starts in the tray, with no window
 pub(crate) const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| window::open(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            // The login item can come after the user has opened the app, and maybe closed its window again
+            if !args.iter().any(|arg| arg == AUTOSTART_ARG) {
+                window::open(app);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(window::WindowState::default())
         .manage(Mutex::new(device::Status::default()))
         .manage(device::DisplayFrame::default())
         .manage(device::BoardViewState::default())
         .manage(device::BoardTestState::default())
+        .manage(device::DisplayLookState::default())
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .manage(updates::UpdateStateHolder::default())
@@ -59,6 +65,12 @@ pub fn run() {
             device::board_view,
             device::press_pad,
             device::press_key,
+            device::hear_sounds_again,
+            device::close_volume_notice,
+            device::turn_knob,
+            device::press_knob,
+            device::display_look,
+            device::set_display_look,
             device::go_to_page,
             device::board_test,
             device::start_board_test,

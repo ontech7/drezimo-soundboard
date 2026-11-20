@@ -59,6 +59,13 @@ export function choicesFor(mode: PlaybackMode, outcomes: Outcomes): PressAgain[]
   return ["voicemod", ...others];
 }
 
+/** A choice as the selects name it: Voicemod's own behaviour said, and whether it stops every other sound */
+export function choiceLabel(texts: Texts, mode: KindMode, choice: PressAgain, outcomes: Outcomes | null): string {
+  if (choice === "voicemod") return `${texts.pressAgainNames.voicemod} · ${texts.voicemodDoes[mode]}`;
+  const name = texts.pressAgainNames[choice];
+  return outcomes?.[mode][choice].stopsAll ? `${name} · ${texts.alsoStopsOthers}` : name;
+}
+
 /** As chosen, stopping every sound, or what Voicemod allows instead */
 export type Reach = "chosen" | "stopsAll" | "instead";
 

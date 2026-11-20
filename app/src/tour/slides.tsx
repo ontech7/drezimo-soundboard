@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Row, Section, Segmented, Toggle } from "../controls";
+import { Row, Section, Segmented } from "../controls";
 import {
   ACTION_COLOURS,
   LOCKED_COLOUR,
@@ -14,10 +14,14 @@ import {
 import { DisplayCanvas } from "../DisplayPreview";
 import { Cap } from "../Drezimo";
 import { Swatches } from "../editing";
+import type { KnobGesture } from "../explain/story";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
-import { languages, WINDOWS } from "../pages/SettingsPage";
+import { actionName, PRESS_ACTIONS, TURN_ACTIONS } from "../knob";
 import { describe, Timeline, Tinted } from "../pages/MacrosPage";
+import { choiceLabel, choicesFor, MODE_ROWS, usePressOutcomes } from "../pressAgain";
+import { SearchSelect } from "../SearchSelect";
+import type { KnobSettings, PressAction, PressAgainByMode } from "../settings";
 import { type PageId, Sidebar } from "../Sidebar";
 import {
   FIRST_TARGET,
@@ -122,7 +126,7 @@ export function Screens({ pictures }: { pictures: Pictures | null }) {
       </div>
       <figure className="tour-overlay">
         {pictures && <OverlayPicture picture={pictures.overlay} />}
-        <figcaption className="muted">{texts.tour.onThePc}</figcaption>
+        <figcaption className="muted">{texts.tour.onTheComputer}</figcaption>
       </figure>
     </>
   );
@@ -309,9 +313,132 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
   );
 }
 
+type Explainer = typeof import("../explain/Explainer");
+
+let explainer: Explainer | null = null;
+
+/** The explanations' code, loaded with the tour so that the Drezimo slide shows them from its first frame */
+export function loadExplainer(): Promise<Explainer> {
+  return import("../explain/Explainer").then((module) => (explainer = module));
+}
+
+const GESTURES: KnobGesture[] = ["turn", "holdTurn", "tap", "doubleTap", "longPress"];
+
+/** The knob as the slide starts: the gestures that do nothing at first get something to show */
+const SAMPLE_KNOB: KnobSettings = {
+  turn: { action: "page" },
+  holdTurn: { action: "rows" },
+  tap: { action: "menu" },
+  doubleTap: { action: "muteMic" },
+  longPress: { action: "stopSounds" },
+};
+
+const AS_IN_VOICEMOD = Object.fromEntries(MODE_ROWS.map(([, saved]) => [saved, "voicemod"])) as PressAgainByMode;
+
+function pressChoice(action: PressAction["action"]): PressAction {
+  if (action === "macro") return { action, macroId: "" };
+  if (action === "page") return { action, page: "" };
+  return { action };
+}
+
+/** The Drezimo page's tabs and rows, each tried in its explanation: nothing is saved */
+export function DrezimoPage() {
+  const texts = useTexts();
+  const [demos, setDemos] = useState(explainer);
+  const [tab, setTab] = useState<"pad" | "knob">("knob");
+  const [knob, setKnob] = useState(SAMPLE_KNOB);
+  const [gesture, setGesture] = useState<KnobGesture>("turn");
+  const [pads, setPads] = useState(AS_IN_VOICEMOD);
+  const [row, setRow] = useState(0);
+  // As with Voicemod's bridge, which stops a single sound on Windows and macOS alike
+  const outcomes = usePressOutcomes(true);
+  const [mode, saved] = MODE_ROWS[row];
+
+  useEffect(() => {
+    if (!demos) loadExplainer().then(setDemos, () => {});
+  }, [demos]);
+
+  const rowButton = (on: boolean, name: string, value: string, onPick: () => void) => (
+    <button key={name} type="button" className={on ? "choice on" : "choice"} aria-pressed={on} onClick={onPick}>
+      <span className="text">
+        <span className="name">{name}</span>
+        <span className="muted">{value}</span>
+      </span>
+    </button>
+  );
+
+  let select: ReactNode;
+  let demo: ReactNode = null;
+  if (tab === "pad") {
+    select = (
+      <SearchSelect
+        label={texts.kindNames[mode]}
+        options={(outcomes ? choicesFor(mode, outcomes) : [pads[saved]]).map((value) => ({
+          value,
+          label: choiceLabel(texts, mode, value, outcomes),
+        }))}
+        value={pads[saved]}
+        onChange={(picked) => setPads({ ...pads, [saved]: picked })}
+        align="left"
+        above
+      />
+    );
+    if (demos) demo = <demos.PadDemo mode={mode} choice={pads[saved]} outcome={outcomes?.[mode][pads[saved]] ?? null} />;
+  } else {
+    select =
+      gesture === "turn" || gesture === "holdTurn" ? (
+        <SearchSelect
+          label={texts.knobTab.gestures[gesture]}
+          options={TURN_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.turnActions[action] }))}
+          value={knob[gesture].action}
+          onChange={(action) => setKnob({ ...knob, [gesture]: { action } })}
+          align="left"
+          above
+        />
+      ) : (
+        <SearchSelect
+          label={texts.knobTab.gestures[gesture]}
+          options={PRESS_ACTIONS.map((action) => ({ value: action, label: texts.knobTab.pressActions[action] }))}
+          value={knob[gesture].action}
+          onChange={(action) => setKnob({ ...knob, [gesture]: pressChoice(action) })}
+          align="left"
+          above
+        />
+      );
+    if (demos) demo = <demos.KnobDemo gesture={gesture} knob={knob} />;
+  }
+
+  return (
+    <>
+      <div className="tour-drezimo-rows">
+        <Segmented
+          label={texts.nav.board}
+          options={[
+            { value: "pad" as const, label: texts.boardTabs.pad },
+            { value: "knob" as const, label: texts.boardTabs.knob },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+        {tab === "pad"
+          ? MODE_ROWS.map(([kind, kindSaved], i) =>
+              rowButton(i === row, texts.kindNames[kind], choiceLabel(texts, kind, pads[kindSaved], outcomes), () => setRow(i))
+            )
+          : GESTURES.map((item) =>
+              rowButton(item === gesture, texts.knobTab.gestures[item], actionName(texts, item, knob), () => setGesture(item))
+            )}
+      </div>
+      <div className="tour-drezimo-stage">
+        {demo}
+        {select}
+      </div>
+    </>
+  );
+}
+
 const SIDEBAR: PageId[] = ["soundboard", "pages", "macros", "board", "overlay"];
 
-/** The Settings page, where the tour stays */
+/** The Settings page, where the tour stays and the backup is */
 export function AllSet() {
   const texts = useTexts();
   const nothing = () => {};
@@ -330,17 +457,21 @@ export function AllSet() {
         <main>
           <h1>{texts.nav.settings}</h1>
           <Section>
-            <Row label={texts.language}>
-              <Segmented label={texts.language} options={languages(texts)} value="system" onChange={nothing} />
-            </Row>
-            {WINDOWS && (
-              <Row label={texts.startWithWindows} text={texts.startWithWindowsText}>
-                <Toggle label={texts.startWithWindows} checked onChange={nothing} />
-              </Row>
-            )}
             <Row label={texts.tour.label} text={texts.tour.settingText}>
               <button type="button" className="button secondary calling">
                 {texts.tour.watch}
+              </button>
+            </Row>
+          </Section>
+          <Section title={texts.backup.title}>
+            <Row label={texts.backup.exportLabel} text={texts.backup.exportText}>
+              <button type="button" className="button secondary">
+                {texts.backup.exportButton}
+              </button>
+            </Row>
+            <Row label={texts.backup.importLabel} text={texts.backup.importText}>
+              <button type="button" className="button secondary">
+                {texts.backup.importButton}
               </button>
             </Row>
           </Section>

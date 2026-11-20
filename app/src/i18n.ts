@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
 import type { KindMode, PlaybackMode } from "./pressAgain";
 
+const MAC = navigator.userAgent.includes("Mac");
+
 const ENGLISH = {
   nav: {
     soundboard: "Soundboard",
@@ -29,8 +31,9 @@ const ENGLISH = {
     restarting: (to: string) => `Drezimo is restarting with firmware ${to}.`,
     failed: (reason: string) => `Drezimo's update failed: ${reason} Tried again when the app starts.`,
   },
-  mutedForMe: "You do not hear the sounds on this PC: the others do.",
+  mutedForMe: "You do not hear the sounds on this computer: the others do.",
   mutedForMeDetail: "Voicemod's Mute for me is on.",
+  mutedForMeVolume: "In Voicemod's mixer, the sounds' volume for your headphones is at zero.",
   hearAgain: "Hear them again",
   fineAsItIs: "Fine as it is",
   boardConnected: "Drezimo connected",
@@ -52,6 +55,18 @@ const ENGLISH = {
   missingKey: "No Voicemod key",
   missingKeyDetail: "This build was made without VOICEMOD_CLIENT_KEY.",
   noActivity: "Press a key or turn the knob.",
+  displayOnScreen: "Display on the screen",
+  showDisplayOnScreen: "Show Drezimo's display",
+  showDisplayOnScreenText:
+    "Above the other windows, also while you change page or close this one. Off again when the app quits.",
+  displayOnScreenPlace: "On the overlay's screen.",
+  displayOnScreenSize: "Each dot of the display 2 or 3 times as big, always sharp.",
+  latestInputs: "Latest keys",
+  latestInputsText:
+    "Below the display, what Drezimo sent: in amber the keys still held, → ← the knob's steps. In grey, what came from this window.",
+  virtualKnob: "Knob",
+  virtualKnobHint:
+    "Knob: the mouse wheel turns it, a click presses it, a held click is a long press. Shift + a pad: the knob held and the pad pressed.",
   soundboard: "Soundboard",
   previousPage: "Previous page",
   nextPage: "Next page",
@@ -70,6 +85,9 @@ const ENGLISH = {
   knobGesture: (gesture: "tap" | "doubleTap" | "longPress"): string =>
     `Knob: ${{ tap: "tap", doubleTap: "double tap", longPress: "long press" }[gesture]}`,
   boardError: (reason: string) => `Drezimo error: ${reason}`,
+
+  explainButton: (row: string): string => `How it works: ${row}`,
+  explainHint: "See how it works",
 
   padPressedAgain: "Pressed again",
   pressAgainText:
@@ -229,8 +247,8 @@ const ENGLISH = {
 
   language: "Language",
   system: "System",
-  startWithWindows: "Start with Windows",
-  startWithWindowsText: "In the notification area, without the window.",
+  startAtLogin: MAC ? "Start with macOS" : "Start with Windows",
+  startAtLoginText: MAC ? "In the menu bar, without the window." : "In the notification area, without the window.",
   onlyInstalled: "Only in the installed app.",
   about: "About",
   version: "Version",
@@ -545,7 +563,7 @@ const ENGLISH = {
       },
       {
         title: "How it's made",
-        text: "Everything happens on Drezimo, without looking at the PC. Pick a part to see what it does.",
+        text: "Everything happens on Drezimo, without looking at the computer. Pick a part to see what it does.",
       },
       {
         title: "The LEDs' colours",
@@ -553,7 +571,7 @@ const ENGLISH = {
       },
       {
         title: "Display and overlay",
-        text: "The display shows the page and the last sound. On the PC, the overlay shows the names of the whole page when you change it or hold the knob.",
+        text: "The display shows the page and the last sound. On the computer, the overlay shows the names of the whole page when you change it or hold the knob.",
       },
       {
         title: "Your pages",
@@ -564,8 +582,12 @@ const ENGLISH = {
         text: "A sequence on a single pad: sounds, waits, voices, the microphone and more. At the end it can put everything back. Press Try.",
       },
       {
+        title: "Drezimo, your way",
+        text: "Choose what each knob gesture does, Voicemod's volumes included, and what a pad does when pressed again. On the Drezimo page, ▶ shows how each row works.",
+      },
+      {
         title: "All set",
-        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob. In this window you manage pages, macros and the rest; the tour stays in Settings.",
+        text: "Plug in Drezimo and open Voicemod: the rest happens on its keys and knob, or with the mouse on the Soundboard page, where the wheel turns the knob. In Settings you find the tour again and a backup of the whole configuration.",
       },
     ],
     parts: [
@@ -595,7 +617,7 @@ const ENGLISH = {
       peek: "Hold the knob and press a pad: you read its name without playing it.",
       row: "Hold the knob and turn it: one row at a time lights up white.",
     },
-    onThePc: "The overlay, on the PC",
+    onTheComputer: "The overlay, on the computer",
     page: "Stream",
     otherPage: "Gaming",
     // The page shown, row by row (tour/sample.ts)
@@ -647,8 +669,9 @@ const ITALIAN: Texts = {
     restarting: (to) => `Drezimo si riavvia con il firmware ${to}.`,
     failed: (reason) => `L'aggiornamento di Drezimo non è riuscito: ${reason} Ci riprovo al prossimo avvio dell'app.`,
   },
-  mutedForMe: "Non senti i suoni su questo PC: gli altri sì.",
+  mutedForMe: "Non senti i suoni su questo computer: gli altri sì.",
   mutedForMeDetail: "In Voicemod è attivo Mute for me.",
+  mutedForMeVolume: "Nel mixer di Voicemod il volume dei suoni per le tue cuffie è a zero.",
   hearAgain: "Riattiva l'audio",
   fineAsItIs: "Va bene così",
   boardConnected: "Drezimo collegato",
@@ -671,6 +694,18 @@ const ITALIAN: Texts = {
   missingKey: "Manca la chiave di Voicemod",
   missingKeyDetail: "Questa build è stata fatta senza VOICEMOD_CLIENT_KEY.",
   noActivity: "Premi un tasto o gira la manopola.",
+  displayOnScreen: "Display sullo schermo",
+  showDisplayOnScreen: "Mostra il display di Drezimo",
+  showDisplayOnScreenText:
+    "Sopra le altre finestre, anche cambiando pagina o chiudendo questa. Si spegne quando l'app si chiude.",
+  displayOnScreenPlace: "Sullo schermo dell'overlay.",
+  displayOnScreenSize: "Ogni punto del display 2 o 3 volte più grande, sempre nitido.",
+  latestInputs: "Ultimi tasti",
+  latestInputsText:
+    "Sotto il display, cosa ha mandato Drezimo: in ambra i tasti ancora premuti, → ← gli scatti della manopola. In grigio, quelli dati da questa finestra.",
+  virtualKnob: "Manopola",
+  virtualKnobHint:
+    "Manopola: la rotella del mouse la gira, il clic la preme, il clic tenuto è una pressione lunga. Maiusc + un pad: manopola tenuta e pad premuto.",
   soundboard: "Soundboard",
   previousPage: "Pagina precedente",
   nextPage: "Pagina successiva",
@@ -682,12 +717,15 @@ const ITALIAN: Texts = {
     hearMe: "Ascolta la tua voce",
   },
   pad: (number, pressed) => `Pad ${number} ${pressed ? "premuto" : "rilasciato"}`,
-  buttonNames: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "ASCOLTO"],
+  buttonNames: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"],
   button: (name, pressed) => `${name} ${pressed ? "premuto" : "rilasciato"}`,
   knobTurned: (right) => (right ? "Manopola girata a destra" : "Manopola girata a sinistra"),
   knob: (pressed) => (pressed ? "Manopola premuta" : "Manopola rilasciata"),
   knobGesture: (gesture) => `Manopola: ${{ tap: "tocco", doubleTap: "doppio tocco", longPress: "pressione lunga" }[gesture]}`,
   boardError: (reason) => `Errore di Drezimo: ${reason}`,
+
+  explainButton: (row) => `Come funziona: ${row}`,
+  explainHint: "Guarda come funziona",
 
   padPressedAgain: "Pad ripremuto",
   pressAgainText:
@@ -847,8 +885,10 @@ const ITALIAN: Texts = {
 
   language: "Lingua",
   system: "Sistema",
-  startWithWindows: "Avvia con Windows",
-  startWithWindowsText: "Nell'area di notifica, senza aprire la finestra.",
+  startAtLogin: MAC ? "Avvia con macOS" : "Avvia con Windows",
+  startAtLoginText: MAC
+    ? "Nella barra dei menu, senza aprire la finestra."
+    : "Nell'area di notifica, senza aprire la finestra.",
   onlyInstalled: "Solo nell'app installata.",
   about: "Informazioni",
   version: "Versione",
@@ -1162,7 +1202,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Com'è fatto",
-        text: "Si comanda tutto da Drezimo, senza guardare il PC. Scegli una parte per sapere a cosa serve.",
+        text: "Si comanda tutto da Drezimo, senza guardare il computer. Scegli una parte per sapere a cosa serve.",
       },
       {
         title: "I colori dei LED",
@@ -1170,7 +1210,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Display e overlay",
-        text: "Il display mostra la pagina e l'ultimo suono. Sul PC, l'overlay mostra i nomi di tutta la pagina quando la cambi o tieni premuta la manopola.",
+        text: "Il display mostra la pagina e l'ultimo suono. Sul computer, l'overlay mostra i nomi di tutta la pagina quando la cambi o tieni premuta la manopola.",
       },
       {
         title: "Le tue pagine",
@@ -1181,8 +1221,12 @@ const ITALIAN: Texts = {
         text: "Una sequenza su un solo tasto: suoni, pause, voci, microfono e altro. Alla fine può rimettere tutto com'era. Premi Prova.",
       },
       {
+        title: "Drezimo, a modo tuo",
+        text: "Scegli cosa fa ogni gesto della manopola, volumi di Voicemod compresi, e cosa fa un pad ripremuto. Nella pagina Drezimo, ▶ mostra come funziona ogni riga.",
+      },
+      {
         title: "Tutto pronto",
-        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola. Da questa finestra gestisci pagine, macro e il resto; il tour resta in Impostazioni.",
+        text: "Collega Drezimo e apri Voicemod: il resto si fa con i suoi tasti e la manopola, o col mouse nella pagina Soundboard, dove la rotella gira la manopola. In Impostazioni ritrovi il tour e il backup di tutta la configurazione.",
       },
     ],
     parts: [
@@ -1191,7 +1235,7 @@ const ITALIAN: Texts = {
         title: "Manopola",
         text: "Ruota per cambiare pagina, tocca per l'elenco. Tienila premuta e premi un tasto per leggerne il nome. Cosa fa ogni gesto si cambia nella pagina Drezimo.",
       },
-      { title: "Tasti funzione", text: "Pagina precedente e successiva, Stop, Muto, Voce e Ascolto." },
+      { title: "Tasti funzione", text: "Pagina precedente e successiva, Stop, Muto, Voce e Senti." },
       { title: "36 tasti", text: "Suoni, voci, azioni e macro: il colore dice cosa fanno e cosa sta succedendo." },
     ],
     legend: {
@@ -1212,7 +1256,7 @@ const ITALIAN: Texts = {
       peek: "Tieni premuta la manopola e premi un tasto: ne leggi il nome senza farlo suonare.",
       row: "Tieni premuta la manopola e ruotala: una riga alla volta si accende di bianco.",
     },
-    onThePc: "L'overlay, sul PC",
+    onTheComputer: "L'overlay, sul computer",
     page: "Stream",
     otherPage: "Gaming",
     // prettier-ignore

@@ -53,9 +53,10 @@ input:focus-visible {
 }
 
 .sidebar {
+  --sidebar-gap: 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--sidebar-gap);
   padding: 24px 12px;
   border-right: 1px solid var(--line);
   background: var(--card);
@@ -233,19 +234,26 @@ p {
   font-size: 12.5px;
 }
 
+/* Lined up with the pages under it: the dot centred on their icons, the words where their names start */
 .connections p {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .connections .dot {
   width: 8px;
   height: 8px;
+  margin-inline: 5px;
 }
 
 .connections .dot.ok {
   box-shadow: 0 0 6px var(--ok);
+}
+
+/* Settings close under the connections, as one group at the foot */
+.sidebar .sidebar-foot {
+  margin-top: calc(10px - var(--sidebar-gap));
 }
 
 /* A notice on the Soundboard page: what is new, the sounds muted for this PC */
@@ -397,6 +405,71 @@ p {
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 12px 40px rgb(0 0 0 / 60%);
+}
+
+/* The display and the knob beside the Soundboard page's title, as on the device */
+.page-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Drezimo's knob in the window, drawn as in the explanations: the wheel turns it, a click presses it */
+.virtual-knob {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #5a5a63, #2a2a30 70%);
+  box-shadow:
+    0 4px 10px rgb(0 0 0 / 50%),
+    inset 0 0 0 1.5px #4a4a52;
+  cursor: pointer;
+  touch-action: none;
+  transition:
+    scale 0.09s ease,
+    box-shadow 0.2s ease;
+}
+
+.virtual-knob:hover {
+  box-shadow:
+    0 4px 10px rgb(0 0 0 / 50%),
+    inset 0 0 0 1.5px var(--muted);
+}
+
+.virtual-knob.down {
+  scale: 0.94;
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 50%),
+    inset 0 0 0 1.5px var(--amber);
+}
+
+.virtual-knob-mark {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.17s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.virtual-knob-mark::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: calc(50% - 2px);
+  width: 4px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--text);
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .virtual-knob,
+  .virtual-knob-mark {
+    transition: none;
+  }
 }
 
 .display {
@@ -596,6 +669,41 @@ output,
   flex: none;
 }
 
+.row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explain-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #34343c;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.explain-button:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.explain-button .icon {
+  width: 10px;
+  height: 10px;
+  margin-left: 1px;
+  fill: currentColor;
+}
+
 .row.disabled .row-label > p:first-child {
   color: var(--muted);
 }
@@ -761,6 +869,11 @@ select:hover:not(:disabled),
 .search-menu.right {
   right: 0;
   left: auto;
+}
+
+.search-menu.above {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 /* A short list without a search field, as wide as its longest option */
@@ -3136,6 +3249,49 @@ input.seconds {
   font-size: 12px;
 }
 
+/* The Drezimo page: its tabs and rows on the left, a row's explanation on the right */
+.tour-drezimo-rows {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  width: 226px;
+}
+
+.tour-drezimo-rows .segmented {
+  margin-bottom: 4px;
+}
+
+.tour-drezimo-rows .segmented button {
+  flex: 1;
+}
+
+.tour-drezimo-rows .choice {
+  min-height: 0;
+  padding: 6px 12px;
+}
+
+.tour-drezimo-stage {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 266px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  width: 422px;
+}
+
+/* The longest list scrolls inside the stage, above the select */
+.tour-drezimo-stage .search-menu ul {
+  max-height: 216px;
+}
+
 /* The Settings page, a little smaller */
 .tour-window {
   position: absolute;
@@ -3155,9 +3311,14 @@ input.seconds {
   transform-origin: top left;
 }
 
+/* A picture: nothing in it scrolls */
+.tour-window main {
+  overflow: hidden;
+}
+
 /* Tighter, so that the settings at its foot fit the window's height */
 .tour-window .sidebar {
-  gap: 12px;
+  --sidebar-gap: 12px;
   padding-block: 14px;
 }
 

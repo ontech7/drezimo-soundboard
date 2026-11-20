@@ -11,6 +11,7 @@ import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
 import { SoundboardPage, SoundboardTitle } from "./pages/SoundboardPage";
 import { DisplayButton } from "./DisplayPreview";
+import { VirtualKnob } from "./VirtualKnob";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
 import { useStatus } from "./status";
@@ -77,7 +78,12 @@ export default function App() {
         <main>
           <header className="page-header">
             {shown === "soundboard" ? <SoundboardTitle status={status} playable={!!view} /> : <h1>{texts.nav[shown]}</h1>}
-            {shown === "soundboard" && <DisplayButton />}
+            {shown === "soundboard" && (
+              <div className="page-tools">
+                <DisplayButton />
+                <VirtualKnob />
+              </div>
+            )}
           </header>
           {shown === "soundboard" && (
             <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />

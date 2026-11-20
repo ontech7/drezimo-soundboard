@@ -291,11 +291,9 @@ pub fn set_start_at_login(enabled: bool) -> Result<(), String> {
 mod login {
     use crate::wide;
     use std::path::PathBuf;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use windows_sys::Win32::Foundation::ERROR_SUCCESS;
     use windows_sys::Win32::System::Registry::{
-        HKEY_CURRENT_USER, REG_BINARY, REG_SZ, RRF_RT_REG_BINARY, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW,
-        RegSetKeyValueW,
+        HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_BINARY, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
     };
 
     const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -327,36 +325,23 @@ mod login {
     pub fn set(enabled: bool) -> Result<(), String> {
         let exe = installed_exe().ok_or("the app is not installed")?;
         if enabled {
-            let command = format!("\"{}\" {}", exe.display(), crate::AUTOSTART_ARG);
-            let bytes: Vec<u8> = wide(&command).iter().flat_map(|unit| unit.to_le_bytes()).collect();
-            write(RUN, REG_SZ, &bytes)?;
-            // On for the startup apps too
-            delete(APPROVED);
-            Ok(())
+            write_run(&format!("\"{}\" {}", exe.display(), crate::AUTOSTART_ARG))?;
         } else {
-            // Off as the startup apps turn it off: the installer writes the Run value again at each update
-            write(APPROVED, REG_BINARY, &turned_off())
+            delete(RUN);
         }
+        // Turned off in the startup apps, the Run value alone would stay off
+        delete(APPROVED);
+        Ok(())
     }
 
-    /// What the startup apps keep for an app turned off: 3, then since when, as a FILETIME
-    fn turned_off() -> [u8; 12] {
-        let since_1601 =
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default() + Duration::from_secs(11_644_473_600);
-        let ticks = (since_1601.as_nanos() / 100) as u64;
-        let mut value = [0; 12];
-        value[0] = 3;
-        value[4..].copy_from_slice(&ticks.to_le_bytes());
-        value
-    }
-
-    fn write(key: &str, kind: u32, data: &[u8]) -> Result<(), String> {
+    fn write_run(command: &str) -> Result<(), String> {
+        let data: Vec<u8> = wide(command).iter().flat_map(|unit| unit.to_le_bytes()).collect();
         let written = unsafe {
             RegSetKeyValueW(
                 HKEY_CURRENT_USER,
-                wide(key).as_ptr(),
+                wide(RUN).as_ptr(),
                 wide(NAME).as_ptr(),
-                kind,
+                REG_SZ,
                 data.as_ptr().cast(),
                 data.len() as u32,
             )
@@ -394,8 +379,89 @@ mod login {
     }
 }
 
-/// No login item yet on macOS (docs/project.md, phase 5)
-#[cfg(not(windows))]
+/// A launch agent: launchd reads its file at each login, so the file alone turns it on. System Settings can also turn it
+/// off among the login items, which the app cannot see.
+#[cfg(target_os = "macos")]
+mod login {
+    use super::{agent_program, launch_agent, stays_in_place};
+    use std::path::PathBuf;
+    use std::{fs, io};
+
+    const FILE: &str = "dev.drezimo.soundboard.plist";
+
+    pub fn enabled() -> Option<bool> {
+        let exe = installed_exe()?;
+        let agent = fs::read_to_string(agents_folder()?.join(FILE));
+        // With another path in it, the app has moved since and the agent starts nothing
+        Some(agent.is_ok_and(|agent| agent.contains(&agent_program(&exe))))
+    }
+
+    pub fn set(enabled: bool) -> Result<(), String> {
+        let exe = installed_exe().ok_or("the app is not installed")?;
+        let folder = agents_folder().ok_or("no home folder")?;
+        let done = if enabled {
+            fs::create_dir_all(&folder).and_then(|()| fs::write(folder.join(FILE), launch_agent(&exe)))
+        } else {
+            fs::remove_file(folder.join(FILE)).or_else(|error| match error.kind() {
+                io::ErrorKind::NotFound => Ok(()),
+                _ => Err(error),
+            })
+        };
+        done.map_err(|error| format!("cannot change the login item: {error}"))
+    }
+
+    fn installed_exe() -> Option<String> {
+        let exe = std::env::current_exe().ok()?;
+        exe.to_str().filter(|path| stays_in_place(path)).map(String::from)
+    }
+
+    fn agents_folder() -> Option<PathBuf> {
+        Some(PathBuf::from(std::env::var_os("HOME")?).join("Library/LaunchAgents"))
+    }
+}
+
+/// What launchd runs at login: the app in the menu bar, with no window. Without KeepAlive, Quit stays quit.
+#[cfg(any(target_os = "macos", test))]
+fn launch_agent(exe: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.drezimo.soundboard</string>
+	<key>ProgramArguments</key>
+	<array>
+		{program}
+		<string>{autostart}</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+</dict>
+</plist>
+"#,
+        program = agent_program(exe),
+        autostart = crate::AUTOSTART_ARG
+    )
+}
+
+/// The app's path, as the launch agent holds it
+#[cfg(any(target_os = "macos", test))]
+fn agent_program(exe: &str) -> String {
+    let exe = exe.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    format!("<string>{exe}</string>")
+}
+
+/// An app bundle at a lasting path: not one still on its disk image, nor one that macOS runs from a random copy because
+/// it was opened where it was downloaded.
+#[cfg(any(target_os = "macos", test))]
+fn stays_in_place(exe: &str) -> bool {
+    exe.contains(".app/Contents/MacOS/") && !exe.starts_with("/Volumes/") && !exe.contains("/AppTranslocation/")
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod login {
     pub fn enabled() -> Option<bool> {
         None
@@ -409,6 +475,27 @@ mod login {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_launch_agent_starts_the_app_with_no_window() {
+        let agent = launch_agent("/Applications/R&B <1>.app/Contents/MacOS/drezimo");
+        assert!(agent.contains("<string>/Applications/R&amp;B &lt;1&gt;.app/Contents/MacOS/drezimo</string>"));
+        assert!(agent.contains("<string>--autostart</string>"));
+        assert!(agent.contains("<key>RunAtLoad</key>\n\t<true/>"));
+        assert!(!agent.contains("KeepAlive"));
+    }
+
+    #[test]
+    fn only_a_bundle_at_a_lasting_path_can_start_at_login() {
+        let in_bundle = "Drezimo Soundboard.app/Contents/MacOS/drezimo";
+        assert!(stays_in_place(&format!("/Applications/{in_bundle}")));
+        assert!(stays_in_place(&format!("/Users/me/Applications/{in_bundle}")));
+        assert!(!stays_in_place("/Users/me/drezimo/app/src-tauri/target/debug/drezimo"));
+        assert!(!stays_in_place(&format!("/Volumes/Drezimo Soundboard/{in_bundle}")));
+        assert!(!stays_in_place(&format!(
+            "/private/var/folders/ab/T/AppTranslocation/1234/d/{in_bundle}"
+        )));
+    }
 
     #[test]
     fn a_screen_name_longer_than_any_screens_is_the_mouses() {

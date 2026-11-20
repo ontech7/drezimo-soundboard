@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { dirname, documentDir, join } from "@tauri-apps/api/path";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { Row, Section, Toggle } from "./controls";
@@ -54,6 +55,20 @@ function today(): string {
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
+}
+
+/**
+ * The system's dialogs open in the folder used last, else in Documents: left to itself, Windows opens the app's working
+ * folder, its program folder or a system one
+ */
+let lastFolder: string | undefined;
+
+async function startFolder(): Promise<string | undefined> {
+  return lastFolder ?? (await documentDir().catch(() => undefined));
+}
+
+async function keepFolder(path: string) {
+  lastFolder = await dirname(path);
 }
 
 /** The commands fail with the key of a sentence; anything else, a system dialog's failure too, is a plain retry */
@@ -123,8 +138,11 @@ export function BackupCard() {
     run(async () => {
       try {
         const filters = [{ name: backup.filter, extensions: ["json"] }];
-        const path = await save({ defaultPath: backup.fileName(today()), filters });
+        const folder = await startFolder();
+        const name = backup.fileName(today());
+        const path = await save({ defaultPath: folder ? await join(folder, name) : name, filters });
         if (!path) return null;
+        await keepFolder(path);
         await invoke("export_configuration", { path });
         return { kind: "exported", name: fileName(path) };
       } catch (error) {
@@ -136,8 +154,9 @@ export function BackupCard() {
     run(async () => {
       try {
         const filters = [{ name: backup.filter, extensions: ["json"] }];
-        const path = await open({ multiple: false, directory: false, filters });
+        const path = await open({ multiple: false, directory: false, defaultPath: await startFolder(), filters });
         if (typeof path !== "string") return null;
+        await keepFolder(path);
         const checked = await invoke<ImportPreview>("check_import", { path });
         setParts({
           settings: checked.settings,

@@ -3,7 +3,7 @@ import { useTexts } from "../i18n";
 import { ChevronLeft, ChevronRight } from "../icons";
 import { Board } from "./Board";
 import { type Legend, usePictures } from "./sample";
-import { AllSet, Colours, Macro, OVERLAY_WIDTH, Pages, Parts, Screens } from "./slides";
+import { AllSet, Colours, DrezimoPage, loadExplainer, Macro, OVERLAY_WIDTH, Pages, Parts, Screens } from "./slides";
 
 // The slides are drawn at this size, then scaled down to fit a smaller window
 const STAGE_WIDTH = 708;
@@ -31,6 +31,14 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
     };
   }, [opener]);
 
+  // The Drezimo slide's explanations load with the tour, not once it is reached
+  useEffect(() => {
+    loadExplainer().catch(() => {});
+  }, []);
+
+  // Escape in a menu closes the menu alone, though WebKit cancels the dialog anyway once the menu is gone
+  const escapeInMenu = useRef(false);
+
   // A control that went with the last slide, as Back with the first one, leaves its focus to Next: the arrows keep working
   useEffect(() => {
     if (!dialog.current?.contains(document.activeElement)) next.current?.focus();
@@ -38,8 +46,8 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
 
   const go = (to: number) => setSlide(Math.max(0, Math.min(slides.length - 1, to)));
   const onKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
-    // A group of choices keeps its arrows
-    if (event.target instanceof Element && event.target.closest("[role=radiogroup]")) return;
+    // A group of choices and an open menu keep their arrows
+    if (event.target instanceof Element && event.target.closest("[role=radiogroup], .search-menu")) return;
     if (event.key === "ArrowRight") go(slide + 1);
     else if (event.key === "ArrowLeft") go(slide - 1);
     else return;
@@ -52,7 +60,8 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
   if (slide === 3) scene = <Screens pictures={pictures} />;
   if (slide === 4) scene = <Pages />;
   if (slide === 5) scene = <Macro pictures={pictures} />;
-  if (slide === 6) scene = <AllSet />;
+  if (slide === 6) scene = <DrezimoPage />;
+  if (slide === 7) scene = <AllSet />;
 
   return (
     <dialog
@@ -60,9 +69,13 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
       className="tour"
       aria-labelledby="tour-title"
       onKeyDown={onKeyDown}
+      onKeyDownCapture={(event) => {
+        escapeInMenu.current =
+          event.key === "Escape" && event.target instanceof Element && event.target.closest(".search-menu") !== null;
+      }}
       onCancel={(event) => {
         event.preventDefault();
-        onClose(false);
+        if (!escapeInMenu.current) onClose(false);
       }}
     >
       <header>

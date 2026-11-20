@@ -1,6 +1,6 @@
 //! Voicemod's volumes as the knob changes them: its mixer's channels and the volume of a sound playing.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
@@ -70,6 +70,10 @@ pub struct Mixer {
     saved: HashMap<String, f32>,
     /// The volume the knob gave a sound for the play under way
     playing: HashMap<String, f32>,
+    /// The channels muted in Voicemod's mixer, as it last told: a read gives 0 for them
+    off: HashSet<Channel>,
+    /// The channels whose value is only a read of 0: unknown while they are off
+    read_zero: HashSet<Channel>,
 }
 
 impl Mixer {
@@ -78,13 +82,48 @@ impl Mixer {
         *self = Self::default();
     }
 
-    /// A channel's gain, as Voicemod tells it. `ours`: the knob's own change coming back, older than its latest step.
-    pub fn voicemod_gain(&mut self, channel: Channel, gain: f32, ours: bool) {
+    /// A channel's gain, and whether it is on when Voicemod tells. `ours`: the knob's own change coming back, older
+    /// than its latest step.
+    pub fn voicemod_gain(&mut self, channel: Channel, gain: f32, enabled: Option<bool>, ours: bool) {
         if ours {
             return;
         }
+        if let Some(on) = enabled {
+            self.set_on(channel, on);
+        }
+        // A change tells the slider's value even for a channel off; a read of one off gives 0
+        if enabled.is_none() && gain <= 0.0 {
+            self.read_zero.insert(channel);
+        } else {
+            self.read_zero.remove(&channel);
+        }
         self.voicemods.insert(channel, gain);
         self.current.insert(channel, gain);
+    }
+
+    pub fn set_on(&mut self, channel: Channel, on: bool) {
+        if on {
+            self.off.remove(&channel);
+        } else {
+            self.off.insert(channel);
+        }
+    }
+
+    /// Whether the channel is on in Voicemod's mixer: the knob's changes keep it so
+    pub fn is_on(&self, channel: Channel) -> bool {
+        !self.off.contains(&channel)
+    }
+
+    /// The channel's gain now, when known: not while it is off and was only read as 0
+    pub fn gain_of(&self, channel: Channel) -> Option<f32> {
+        if self.unknown_while_off(channel) {
+            return None;
+        }
+        self.current.get(&channel).copied()
+    }
+
+    fn unknown_while_off(&self, channel: Channel) -> bool {
+        !self.is_on(channel) && self.read_zero.contains(&channel)
     }
 
     pub fn sound_volumes(&mut self, volumes: HashMap<String, f32>) {
@@ -93,7 +132,7 @@ impl Mixer {
 
     /// The channel's percent after `steps` clicks, or None while its value is not known yet
     pub fn step_gain(&mut self, channel: Channel, steps: i8) -> Option<u16> {
-        let now = percent(*self.current.get(&channel)?);
+        let now = percent(self.gain_of(channel)?);
         let next = stepped(now, steps, channel.max_percent());
         self.current.insert(channel, gain(next));
         Some(next)
@@ -115,7 +154,12 @@ impl Mixer {
     /// Each channel away from Voicemod's own value, and each sound still playing at another volume than its saved one
     pub fn reset(&mut self) -> Reset {
         let mut channels = Vec::new();
-        for channel in Channel::ALL {
+        // Not to a value never known: a channel off read as 0 may be anything
+        let known: Vec<Channel> = Channel::ALL
+            .into_iter()
+            .filter(|channel| !self.unknown_while_off(*channel))
+            .collect();
+        for channel in known {
             if let (Some(&own), Some(&now)) = (self.voicemods.get(&channel), self.current.get(&channel))
                 && own != now
             {
@@ -144,9 +188,9 @@ mod tests {
 
     fn mixer() -> Mixer {
         let mut mixer = Mixer::default();
-        mixer.voicemod_gain(Channel::SoundboardForOthers, 1.0, false);
-        mixer.voicemod_gain(Channel::SoundboardForMe, 0.25, false);
-        mixer.voicemod_gain(Channel::Microphone, gain(195), false);
+        mixer.voicemod_gain(Channel::SoundboardForOthers, 1.0, None, false);
+        mixer.voicemod_gain(Channel::SoundboardForMe, 0.25, None, false);
+        mixer.voicemod_gain(Channel::Microphone, gain(195), None, false);
         mixer.sound_volumes(HashMap::from([("song".into(), 0.3), ("honk".into(), 1.0)]));
         mixer
     }
@@ -197,7 +241,7 @@ mod tests {
         let mut mixer = Mixer::default();
         assert_eq!(mixer.step_gain(Channel::SoundboardForOthers, 1), None);
         assert_eq!(mixer.step_sound("song", 1), None);
-        mixer.voicemod_gain(Channel::SoundboardForOthers, 0.25, false);
+        mixer.voicemod_gain(Channel::SoundboardForOthers, 0.25, None, false);
         assert_eq!(mixer.step_gain(Channel::SoundboardForOthers, 1), Some(55));
         assert_eq!(mixer.step_gain(Channel::Microphone, 1), None);
     }
@@ -207,7 +251,7 @@ mod tests {
         let mut mixer = mixer();
         mixer.step_gain(Channel::SoundboardForOthers, -2);
         // Our own change, coming back from the bridge
-        mixer.voicemod_gain(Channel::SoundboardForOthers, gain(90), true);
+        mixer.voicemod_gain(Channel::SoundboardForOthers, gain(90), None, true);
         let reset = mixer.reset();
         assert_eq!(reset.channels, [(Channel::SoundboardForOthers, 1.0)]);
         assert!(reset.sounds.is_empty());
@@ -215,7 +259,7 @@ mod tests {
 
         mixer.step_gain(Channel::SoundboardForMe, 1);
         // The user moved Voicemod's own slider since
-        mixer.voicemod_gain(Channel::SoundboardForMe, gain(70), false);
+        mixer.voicemod_gain(Channel::SoundboardForMe, gain(70), None, false);
         assert_eq!(mixer.step_gain(Channel::SoundboardForMe, 1), Some(75));
         assert_eq!(mixer.reset().channels, [(Channel::SoundboardForMe, gain(70))]);
     }

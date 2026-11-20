@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
 import { ChevronLeft, ChevronRight, CloseIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
@@ -9,6 +10,7 @@ import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
 import { useNews } from "../updates";
 import { SearchSelect } from "../SearchSelect";
+import { holdWithShift } from "../VirtualKnob";
 
 interface State {
   dot: "ok" | "off" | "waiting" | "warning" | "error";
@@ -74,16 +76,24 @@ function WhatIsNew() {
 const STOP = 2;
 const MUTE_ME = 3;
 
-/** Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight */
-function MutedForMe({ settings }: { settings: Settings }) {
+/**
+ * Only the others hear the sounds: easy to miss, as Voicemod's switch for it is out of sight, and its mixer's volume
+ * for the user too
+ */
+function MutedForMe({ settings, cause }: { settings: Settings; cause: "switch" | "volume" }) {
   const texts = useTexts();
-  const seen = () => saveSettings({ ...settings, muteForMeNoticeSeen: true });
+  // A volume at zero is no choice of the user's to remember: closed until the app starts again
+  const seen = () =>
+    cause === "switch"
+      ? saveSettings({ ...settings, muteForMeNoticeSeen: true })
+      : invoke("close_volume_notice").catch((error) => console.error("cannot close the notice", error));
+  if (cause === "switch" && settings.muteForMeNoticeSeen) return null;
   return (
     <div className="notice warning">
       <span className="dot warning" />
       <p>
         <strong>{texts.mutedForMe}</strong>
-        <span className="muted">{texts.mutedForMeDetail}</span>
+        <span className="muted">{cause === "switch" ? texts.mutedForMeDetail : texts.mutedForMeVolume}</span>
       </p>
       <div className="notice-actions">
         <button type="button" className="button secondary" onClick={seen}>
@@ -93,7 +103,7 @@ function MutedForMe({ settings }: { settings: Settings }) {
           type="button"
           className="button"
           onClick={() => {
-            pressKey(MUTE_ME);
+            invoke("hear_sounds_again").catch((error) => console.error("cannot bring the sounds back", error));
             seen();
           }}
         >
@@ -201,6 +211,8 @@ function Pad({ index, pad }: { index: number; pad: PadView }) {
       onPointerDown={(event) => {
         if (event.button !== 0 || !pad.name) return;
         event.currentTarget.setPointerCapture(event.pointerId);
+        // Shift holds the knob, as a hand on it: the pad is then peeked
+        holdWithShift(event);
         press(true);
       }}
       onPointerUp={() => press(false)}
@@ -308,7 +320,7 @@ export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
   return (
     <>
       <WhatIsNew />
-      {status.mutedPlay && !settings.muteForMeNoticeSeen && <MutedForMe settings={settings} />}
+      {status.mutedPlay && <MutedForMe settings={settings} cause={status.mutedPlay} />}
       {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
   );

@@ -2,6 +2,7 @@
 
 use super::{Controller, HeldSound, MIN_HOLD};
 use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::mixer::Channel;
 use crate::press_again::Command;
 use crate::soundboard::{PlaybackMode, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
@@ -281,6 +282,9 @@ impl Controller {
             Switch::Background => (Request::ToggleBackground, &mut switches.background),
         };
         *value = on;
+        if switch == Switch::MuteForMe {
+            self.mixer.set_on(Channel::SoundboardForMe, !on);
+        }
         self.request(request);
     }
 }

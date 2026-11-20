@@ -488,6 +488,7 @@ fn soonest(first: Option<Duration>, second: Option<Duration>) -> Option<Duration
 #[cfg(test)]
 mod tests {
     use super::super::tests::{margin_is_dark, picture};
+    use super::super::texts::{ENGLISH, ITALIAN};
     use super::*;
 
     fn home(name: &str, progress: Option<Progress>) -> Screen {
@@ -566,6 +567,13 @@ mod tests {
                 let (canvas, _) = draw(screen, at(millis, millis));
                 assert!(margin_is_dark(&canvas), "{screen:?} at {millis} ms");
             }
+        }
+    }
+
+    #[test]
+    fn the_message_to_open_voicemod_fits_its_line_whole() {
+        for texts in [&ENGLISH, &ITALIAN] {
+            assert_eq!(fit(texts.open_voicemod, LINE, Size::Small), texts.open_voicemod);
         }
     }
 

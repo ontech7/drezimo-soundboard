@@ -26,6 +26,8 @@ interface Props<T> {
   placeholder?: string;
   /** The menu's side, for a list at the right edge of a dialog */
   align?: "left" | "right";
+  /** The menu above the button, for a select near the foot of a dialog */
+  above?: boolean;
 }
 
 /** The app's select, the same on Windows and macOS: for a long list its menu has a search field. */
@@ -144,7 +146,11 @@ export function SearchSelect<T extends string | number>(props: Props<T>) {
         <span>{current?.label ?? props.placeholder ?? ""}</span>
       </button>
       {open && (
-        <div className={["search-menu", props.align === "right" && "right", !searchable && "plain"].filter(Boolean).join(" ")}>
+        <div
+          className={["search-menu", props.align === "right" && "right", props.above && "above", !searchable && "plain"]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {searchable && (
             <label className="search">
               <SearchIcon />
