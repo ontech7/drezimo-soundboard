@@ -3,7 +3,7 @@
 > Note: the project is in English. The OLED display texts can be localised: English and Italian so far: the system's language by default, or the one set in the app.
 
 > Project document  
-> Status: PCB v0.2 ordered with its LEDs fab-assembled; firmware 0.2.1 tested on a bare RP2040-Zero with the real OLED; the bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. Next: the assembled PCB and the enclosure.
+> Status: PCB v0.2 ordered with its LEDs fab-assembled; firmware 0.2.1 tested on a bare RP2040-Zero with the real OLED; the bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. The enclosure's top shell and bottom are drawn (section 7) and the bottom is printed. Next: the assembled PCB and the enclosure's stand.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
