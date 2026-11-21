@@ -1,8 +1,9 @@
 name: Release
 
-# Builds the Windows installer, with the Voicemod key and the updater's signature, and publishes it as a GitHub release
-# with latest.json, which installed apps read (app/src-tauri/tauri.conf.json, plugins.updater). Manual, from main:
-# Actions → Release. The tag is the app's version in tauri.conf.json: raise it before.
+# Builds the Windows installer and the macOS disk image (Apple Silicon), each with the Voicemod key and the updater's
+# signature, then publishes both at once in a GitHub release with latest.json, which installed apps read
+# (app/src-tauri/tauri.conf.json, plugins.updater). Manual, from main: Actions → Release. The tag is the app's version
+# in tauri.conf.json: raise it before.
 
 on:
   workflow_dispatch:
@@ -17,20 +18,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  windows:
+  check:
     if: github.ref == 'refs/heads/main'
-    runs-on: windows-latest
-    permissions:
-      contents: write
-    defaults:
-      run:
-        working-directory: app
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
       # A build without them would publish an app that cannot reach Voicemod, or an update nobody can install
       - name: Check the secrets
-        shell: bash
         env:
           VOICEMOD_CLIENT_KEY: ${{ secrets.VOICEMOD_CLIENT_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -42,15 +39,35 @@ jobs:
 
       # Published again, a version would change under the apps that already have it
       - name: Check the version
-        shell: bash
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          version=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
           if gh release view "v$version" > /dev/null 2>&1; then
             echo "::error::v$version is already released: raise version in app/src-tauri/tauri.conf.json"
             exit 1
           fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis
+          - os: macos-latest
+            bundles: app
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
@@ -64,37 +81,95 @@ jobs:
         with:
           workspaces: app/src-tauri
 
-      # The installed apps show what comes before the --- line, once updated (src-tauri/src/news.rs): the rest is for
-      # the release page. Without notes there is no line, and nothing to show. tauri-action also writes the text in
-      # latest.json, where the updater reads it.
-      - name: Write the release text
-        id: release-text
-        shell: bash
+      - name: Build
         env:
-          NOTES: ${{ inputs.notes }}
-        run: |
-          # A delimiter the notes cannot contain
-          end="END_$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')"
-          {
-            echo "body<<$end"
-            if [ -n "$NOTES" ]; then printf '%s\n\n---\n' "$NOTES"; fi
-            echo 'The Windows installer is the `-setup.exe` file. Installed apps update themselves.'
-            echo "$end"
-          } >> "$GITHUB_OUTPUT"
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VOICEMOD_CLIENT_KEY: ${{ secrets.VOICEMOD_CLIENT_KEY }}
           # The published builds update themselves and start with the system (src-tauri/src/updates.rs)
           DREZIMO_OFFICIAL: "1"
+        run: yarn tauri build --config src-tauri/tauri.release.conf.json --bundles ${{ matrix.bundles }}
+
+      - name: Collect the installer
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p ../dist
+          nsis="src-tauri/target/release/bundle/nsis/Drezimo Soundboard_${VERSION}_x64-setup.exe"
+          cp "$nsis" "../dist/Drezimo.Soundboard_${VERSION}_x64-setup.exe"
+          cp "$nsis.sig" "../dist/Drezimo.Soundboard_${VERSION}_x64-setup.exe.sig"
+
+      - uses: actions/setup-python@v5
+        if: runner.os == 'macOS'
         with:
-          projectPath: app
-          args: --config src-tauri/tauri.release.conf.json
-          tagName: v__VERSION__
-          releaseName: Drezimo Soundboard __VERSION__
-          releaseBody: ${{ steps.release-text.outputs.body }}
-          releaseDraft: false
-          prerelease: false
+          python-version: "3.13"
+
+      # dmgbuild writes Finder's layout itself: Tauri's own disk image loses it on CI
+      - name: Make the disk image
+        if: runner.os == 'macOS'
+        run: |
+          pip install dmgbuild==2.0.0
+          mkdir -p ../dist
+          bundle="src-tauri/target/release/bundle/macos"
+          dmgbuild -s src-tauri/macos/dmg.py -D app="$bundle/Drezimo Soundboard.app" "Drezimo Soundboard" \
+            "../dist/Drezimo.Soundboard_${VERSION}_aarch64.dmg"
+          cp "$bundle/Drezimo Soundboard.app.tar.gz" ../dist/Drezimo.Soundboard_aarch64.app.tar.gz
+          cp "$bundle/Drezimo Soundboard.app.tar.gz.sig" ../dist/Drezimo.Soundboard_aarch64.app.tar.gz.sig
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}
+          path: dist/
+          if-no-files-found: error
+
+  # Both platforms at once: an app finds a release only once it has its own update
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The installed apps show what comes before the --- line, once updated (src-tauri/src/news.rs): the rest is for
+      # the release page. Without notes there is no line, and nothing to show.
+      - name: Write the release text
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          {
+            if [ -n "$NOTES" ]; then printf '%s\n\n---\n' "$NOTES"; fi
+            echo 'The Windows installer is the `-setup.exe` file, the macOS one (Apple Silicon) the `.dmg` file. Installed apps update themselves.'
+          } > notes.md
+
+      # What the installed apps read: the version, the notes, and each platform's package with its signature
+      - name: Write latest.json
+        run: |
+          base="${{ github.server_url }}/${{ github.repository }}/releases/download/v$VERSION"
+          windows="Drezimo.Soundboard_${VERSION}_x64-setup.exe"
+          macos="Drezimo.Soundboard_aarch64.app.tar.gz"
+          jq -n \
+            --arg version "$VERSION" \
+            --rawfile notes notes.md \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg windows_url "$base/$windows" --rawfile windows_sig "dist/$windows.sig" \
+            --arg macos_url "$base/$macos" --rawfile macos_sig "dist/$macos.sig" \
+            '($windows_sig | rtrimstr("\n")) as $windows_sig | ($macos_sig | rtrimstr("\n")) as $macos_sig
+            | {version: $version, notes: $notes, pub_date: $date, platforms: {
+              "windows-x86_64": {signature: $windows_sig, url: $windows_url},
+              "windows-x86_64-nsis": {signature: $windows_sig, url: $windows_url},
+              "darwin-aarch64": {signature: $macos_sig, url: $macos_url},
+              "darwin-aarch64-app": {signature: $macos_sig, url: $macos_url}
+            }}' > dist/latest.json
+          cat dist/latest.json
+
+      - name: Publish
+        run: |
+          gh release create "v$VERSION" dist/* \
+            --title "Drezimo Soundboard $VERSION" --notes-file notes.md --target "$GITHUB_SHA" --latest
