@@ -10,7 +10,7 @@
 #include "pins.h"
 #include "settings.h"
 
-const char FIRMWARE_VERSION[] = "0.2.1";
+const char FIRMWARE_VERSION[] = "0.2.2";
 const size_t MAX_LINE_LENGTH = 2100;
 const int MAX_FIELDS = 6;
 const uint32_t LOGO_FRAME_MS = 25;
