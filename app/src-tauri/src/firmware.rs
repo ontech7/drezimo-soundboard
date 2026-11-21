@@ -1,6 +1,9 @@
-//! The board's firmware, built into the app. A board with an older one is updated as soon as it connects, through the
-//! RP2040's own USB bootloader (docs/project.md, section 9): after `BOOT` the board shows up as a drive, RPI-RP2, that
-//! takes the firmware as a UF2 file and restarts with it. Nothing changes on the board until the whole file is written.
+//! The board's firmware, built into the app. A board with an older one is updated as soon as it connects
+//! (docs/project.md, section 9). A board that takes `UPDATE` gets the new firmware over the serial port, and the
+//! core's OTA bootloader installs it at the next start, with no drive showing on the PC. An older one is sent to the
+//! chip's USB bootloader with `BOOT`, which shows up as a drive that takes the firmware as a UF2 file; on macOS that
+//! drive is unmounted and the firmware goes through the bootloader's USB interface instead (picoboot.rs), since macOS
+//! warns about a drive that goes away by itself.
 
 use serde::Serialize;
 use std::fs::{self, File};
@@ -10,9 +13,16 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub const VERSION: &str = env!("DREZIMO_FIRMWARE_VERSION");
-const IMAGE: &[u8] = include_bytes!(env!("DREZIMO_FIRMWARE_IMAGE"));
+pub(crate) const IMAGE: &[u8] = include_bytes!(env!("DREZIMO_FIRMWARE_IMAGE"));
+/// The same firmware as a plain image, for `UPDATE`
+pub const BINARY: &[u8] = include_bytes!(env!("DREZIMO_FIRMWARE_BINARY"));
+/// The first firmware that takes `UPDATE`
+const SERIAL_UPDATES_SINCE: &str = "0.3.0";
 /// How long the board may take to show up as a drive after `BOOT`
 const BOOTLOADER_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long macOS may take to mount the bootloader's drive, once the bootloader is there
+#[cfg(target_os = "macos")]
+const MOUNT_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long the board may take to come back once its firmware is written: a few seconds are enough
 const RESTART_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(250);
@@ -118,6 +128,13 @@ pub fn is_outdated(version: &str) -> bool {
         .is_some_and(|(board, app)| board < app)
 }
 
+/// Whether a board reporting `version` takes a new firmware over the serial port.
+pub fn takes_serial_updates(version: &str) -> bool {
+    parse(version)
+        .zip(parse(SERIAL_UPDATES_SINCE))
+        .is_some_and(|(board, first)| board >= first)
+}
+
 /// "1.2.3", or "1.2.3-test", as numbers that sort a test build before its release.
 fn parse(version: &str) -> Option<(u32, u32, u32, bool)> {
     let (numbers, suffix) = version.split_once('-').unwrap_or((version, ""));
@@ -126,8 +143,23 @@ fn parse(version: &str) -> Option<(u32, u32, u32, bool)> {
     numbers.next().is_none().then_some(parsed)
 }
 
+/// The bootloaders connected before `BOOT`: one already there belongs to another board, and is left alone.
+pub struct Before {
+    drives: Vec<PathBuf>,
+    #[cfg(target_os = "macos")]
+    bootloaders: Vec<nusb::DeviceId>,
+}
+
+pub fn before_boot() -> Before {
+    Before {
+        drives: bootloader_drives(),
+        #[cfg(target_os = "macos")]
+        bootloaders: crate::picoboot::bootloaders(),
+    }
+}
+
 /// The RP2040 bootloader drives present now, told apart by the file each one carries.
-pub fn bootloader_drives() -> Vec<PathBuf> {
+fn bootloader_drives() -> Vec<PathBuf> {
     without_disk_prompts(|| {
         drives()
             .into_iter()
@@ -138,12 +170,18 @@ pub fn bootloader_drives() -> Vec<PathBuf> {
     })
 }
 
-/// Waits for the bootloader drive that `BOOT` brings up, one not in `before`, and writes the firmware to it. Another
-/// RP2040 board already waiting in its bootloader is left alone.
-pub fn install(before: &[PathBuf]) -> Result<(), String> {
+fn new_drive(before: &Before) -> Option<PathBuf> {
+    bootloader_drives()
+        .into_iter()
+        .find(|drive| !before.drives.contains(drive))
+}
+
+/// Waits for the bootloader that `BOOT` brings up and writes the firmware to its drive.
+#[cfg(not(target_os = "macos"))]
+pub fn install(before: &Before) -> Result<(), String> {
     let deadline = Instant::now() + BOOTLOADER_TIMEOUT;
     let drive = loop {
-        if let Some(drive) = bootloader_drives().into_iter().find(|drive| !before.contains(drive)) {
+        if let Some(drive) = new_drive(before) {
             break drive;
         }
         if Instant::now() >= deadline {
@@ -151,7 +189,69 @@ pub fn install(before: &[PathBuf]) -> Result<(), String> {
         }
         thread::sleep(POLL);
     };
+    copy_to(&drive)
+}
 
+/// Waits for the bootloader that `BOOT` brings up, unmounts its drive and writes the firmware through its USB
+/// interface, so the drive is not gone unexpectedly when the board restarts. Should that interface fail to open, the
+/// firmware is copied to the drive as on Windows.
+#[cfg(target_os = "macos")]
+pub fn install(before: &Before) -> Result<(), String> {
+    use crate::picoboot::{self, Picoboot};
+
+    let deadline = Instant::now() + BOOTLOADER_TIMEOUT;
+    let device = loop {
+        if let Some(device) = picoboot::new_bootloader(&before.bootloaders) {
+            break device;
+        }
+        if Instant::now() >= deadline {
+            return Err("The board's bootloader did not appear. Unplug the board and plug it back in.".to_string());
+        }
+        thread::sleep(POLL);
+    };
+    let mounted_by = Instant::now() + MOUNT_TIMEOUT;
+    let drive = loop {
+        let drive = new_drive(before);
+        if drive.is_some() || Instant::now() >= mounted_by {
+            break drive;
+        }
+        thread::sleep(POLL);
+    };
+    // Its interfaces may not all have been there when it was first seen
+    let device = picoboot::new_bootloader(&before.bootloaders).unwrap_or(device);
+    let board = match Picoboot::open(&device) {
+        Ok(board) => board,
+        Err(error) => {
+            crate::errors::log(format!("writing the firmware to the drive instead: {error}"));
+            let drive =
+                drive.ok_or("The board's update drive did not appear. Unplug the board and plug it back in.")?;
+            return copy_to(&drive);
+        }
+    };
+    // Still mounted, the drive brings the warning back when the board restarts, but the update goes on
+    if let Some(Err(error)) = drive.map(|drive| unmount(&drive)) {
+        crate::errors::log(error);
+    }
+    board
+        .write_firmware(IMAGE)
+        .map_err(|error| format!("Cannot write the firmware to the board: {error}."))
+}
+
+#[cfg(target_os = "macos")]
+fn unmount(drive: &std::path::Path) -> Result<(), String> {
+    let status = std::process::Command::new("/usr/sbin/diskutil")
+        .arg("unmount")
+        .arg(drive)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .map_err(|error| format!("Cannot unmount the board's update drive: {error}."))?;
+    status
+        .success()
+        .then_some(())
+        .ok_or_else(|| "Cannot unmount the board's update drive.".to_string())
+}
+
+fn copy_to(drive: &std::path::Path) -> Result<(), String> {
     let written = File::create(drive.join("DREZIMO.UF2")).and_then(|mut file| {
         file.write_all(IMAGE)?;
         file.sync_all()
@@ -299,6 +399,21 @@ mod tests {
             Instant::now(),
         );
         assert!(matches!(updater.state(), Some(FirmwareUpdate::Failed { .. })));
+    }
+
+    #[test]
+    fn serial_updates_start_with_0_3_0() {
+        assert!(!takes_serial_updates("0.2.2"));
+        assert!(takes_serial_updates("0.3.0"));
+        assert!(takes_serial_updates("1.0.0"));
+        assert!(!takes_serial_updates("unknown"));
+    }
+
+    #[test]
+    fn the_bundled_binary_is_the_uf2_file_s_image() {
+        assert!(BINARY.len() > 0x3000);
+        // Both start with the same boot code, from the start of the flash
+        assert_eq!(&BINARY[..256], &IMAGE[32..32 + 256]);
     }
 
     #[test]

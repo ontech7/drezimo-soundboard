@@ -28,6 +28,10 @@ const QUICK_RETRIES: u32 = 3;
 const SLOW_RETRY_AFTER: Duration = Duration::from_secs(30);
 /// How often an idle session checks that the board is still there
 const PRESENCE_CHECK: Duration = Duration::from_secs(2);
+/// A new firmware goes in pieces of this size, as the board takes them (`UPDATE_CHUNK` in the firmware)
+const UPDATE_CHUNK: usize = 4096;
+/// How long the board may take to store a piece, or to check the whole image once it has it
+const UPDATE_REPLY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
@@ -47,16 +51,23 @@ pub enum BoardStatus {
 pub enum BoardEvent {
     Status(BoardStatus),
     Message(BoardMessage),
+    /// A new firmware went over the serial port and the board restarts to install it, or why not
+    FirmwareSent(Result<(), String>),
+}
+
+enum Outgoing {
+    Line(String),
+    Firmware(&'static [u8]),
 }
 
 #[derive(Clone)]
 pub struct Board {
-    commands: Sender<String>,
+    commands: Sender<Outgoing>,
 }
 
 /// The board thread's side of the link, consumed by `start`.
 pub struct BoardLink {
-    outgoing: Receiver<String>,
+    outgoing: Receiver<Outgoing>,
 }
 
 impl Board {
@@ -68,7 +79,13 @@ impl Board {
     /// Sends a message to the board. Dropped if no board is connected.
     pub fn send(&self, message: impl Into<String>) {
         // The board thread lives as long as the app, so the channel never closes
-        let _ = self.commands.send(message.into());
+        let _ = self.commands.send(Outgoing::Line(message.into()));
+    }
+
+    /// Sends `image`, a firmware `.bin`, for the board to install (`UPDATE`, docs/project.md section 9); the outcome
+    /// comes back as `BoardEvent::FirmwareSent`.
+    pub fn send_firmware(&self, image: &'static [u8]) {
+        let _ = self.commands.send(Outgoing::Firmware(image));
     }
 }
 
@@ -164,14 +181,101 @@ impl BoardLink {
             }
 
             // Replies to what was just received go out at once, anything else within READ_TIMEOUT
-            let pending: String = self.outgoing.try_iter().map(|message| message + "\n").collect();
-            if !pending.is_empty() {
-                port.set_timeout(WRITE_TIMEOUT).map_err(serial_error)?;
-                port.write_all(pending.as_bytes())?;
-                port.set_timeout(READ_TIMEOUT).map_err(serial_error)?;
+            let mut pending = String::new();
+            for outgoing in self.outgoing.try_iter() {
+                match outgoing {
+                    Outgoing::Line(message) => pending += &(message + "\n"),
+                    Outgoing::Firmware(image) => {
+                        write(port, pending.as_bytes())?;
+                        pending.clear();
+                        let sent = send_firmware(port, lines, image, on_event);
+                        let restarting = sent.is_ok();
+                        on_event(BoardEvent::FirmwareSent(sent));
+                        // What was queued after it is for the old firmware, which is gone
+                        if restarting {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            write(port, pending.as_bytes())?;
+        }
+    }
+}
+
+fn write(port: &mut dyn SerialPort, bytes: &[u8]) -> io::Result<()> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    port.set_timeout(WRITE_TIMEOUT).map_err(serial_error)?;
+    port.write_all(bytes)?;
+    port.set_timeout(READ_TIMEOUT).map_err(serial_error)
+}
+
+/// Sends a firmware image with `UPDATE`, a piece at a time, each acknowledged by the board. Messages the board sends
+/// meanwhile, such as a key pressed, go on as usual.
+fn send_firmware(
+    port: &mut dyn SerialPort,
+    lines: &mut LineReader,
+    image: &[u8],
+    on_event: &impl Fn(BoardEvent),
+) -> Result<(), String> {
+    let failed = |error: io::Error| {
+        format!(
+            "the connection to the board broke: {}",
+            crate::errors::in_english(&error)
+        )
+    };
+    let digest = format!("{:x}", md5::compute(image));
+    write(port, format!("UPDATE,{},{digest}\n", image.len()).as_bytes()).map_err(failed)?;
+    // The board may first have to prepare its file system
+    expect(port, lines, on_event, "READY", Duration::from_secs(10)).map_err(|error| error.into_reason(&failed))?;
+    for chunk in image.chunks(UPDATE_CHUNK) {
+        write(port, chunk).map_err(failed)?;
+        expect(port, lines, on_event, "NEXT", UPDATE_REPLY_TIMEOUT).map_err(|error| error.into_reason(&failed))?;
+    }
+    expect(port, lines, on_event, "UPDATED", UPDATE_REPLY_TIMEOUT).map_err(|error| error.into_reason(&failed))
+}
+
+enum UpdateError {
+    Io(io::Error),
+    Refused(String),
+    NoAnswer,
+}
+
+impl UpdateError {
+    fn into_reason(self, failed: &impl Fn(io::Error) -> String) -> String {
+        match self {
+            Self::Io(error) => failed(error),
+            Self::Refused(reason) => format!("the board refused the firmware: {reason}"),
+            Self::NoAnswer => "the board stopped answering while receiving the firmware".to_string(),
+        }
+    }
+}
+
+/// Waits for `reply`; an `ERR` line instead means the update failed.
+fn expect(
+    port: &mut dyn SerialPort,
+    lines: &mut LineReader,
+    on_event: &impl Fn(BoardEvent),
+    reply: &str,
+    timeout: Duration,
+) -> Result<(), UpdateError> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        for line in lines.read(port).map_err(UpdateError::Io)? {
+            if line == reply {
+                return Ok(());
+            }
+            if let Some(reason) = line.strip_prefix("ERR,") {
+                return Err(UpdateError::Refused(reason.to_string()));
+            }
+            if let Some(message) = BoardMessage::parse(&line) {
+                on_event(BoardEvent::Message(message));
             }
         }
     }
+    Err(UpdateError::NoAnswer)
 }
 
 fn drezimo_ports() -> Vec<String> {
