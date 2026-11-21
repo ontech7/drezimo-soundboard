@@ -7,7 +7,7 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** the first unit is built and works: the PCB (v0.2) with its keys, LEDs, display and knob, closed in its 3D-printed enclosure. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date.
+**Status:** the first unit is built and works: the PCB (v0.2) with its keys, LEDs, display and knob, closed in its 3D-printed enclosure. The desktop app runs on Windows and macOS (Apple Silicon), comes with an installer for each and keeps itself and the board's firmware up to date.
 
 ## Hardware
 
@@ -65,7 +65,7 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 
 Download the Windows installer (`-setup.exe`) from [Releases](https://github.com/ontech7/drezimo-soundboard/releases). It needs Voicemod, free or PRO, on the same PC. The app then starts with Windows, in the notification area, and keeps itself and the board's firmware up to date. The installer is not code-signed: at the first install Windows asks to confirm an unknown publisher (More info → Run anyway).
 
-There is no macOS installer yet: build the app from source (below).
+On a Mac with Apple Silicon, download the disk image (`.dmg`), open it and drag Drezimo Soundboard to Applications. It also needs Voicemod, and keeps itself and the board's firmware up to date; starting with macOS is a switch in its Settings. The app is not signed by Apple: the first time, macOS refuses to open it, then System Settings → Privacy & Security → Open Anyway lets it start (or run `xattr -cr "/Applications/Drezimo Soundboard.app"`).
 
 ## How it works
 
@@ -127,7 +127,7 @@ Requires [`arduino-cli`](https://arduino.github.io/arduino-cli/) (`brew install 
 
 The script works with the firmware running (it sends `BOOT` to reach the bootloader) or with the board already in bootloader mode: a blank module, or one plugged in while holding BOOT. It uploads with `picotool`; on macOS, copying the `.uf2` onto the RPI-RP2 drive can hang. It also sets the name the PC shows for the device: **Drezimo Soundboard**.
 
-The app carries the firmware (`app/src-tauri/firmware/drezimo-<version>.uf2`) and updates every board with an older one as soon as it connects. After changing the firmware, raise `FIRMWARE_VERSION` in `firmware/drezimo/drezimo.ino` and run `build.sh --bundle`; the app's build stops while the two versions differ.
+The app carries the firmware (`app/src-tauri/firmware/drezimo-<version>.uf2` and `.bin`) and updates every board with an older one as soon as it connects, over the USB serial link: nothing shows on the PC. After changing the firmware, raise `FIRMWARE_VERSION` in `firmware/drezimo/drezimo.ino` and run `build.sh --bundle`; the app's build stops while the two versions differ.
 
 ## Building the app
 
@@ -137,13 +137,13 @@ Requires [Rust](https://rustup.rs/), Node.js and Yarn 1, plus Tauri's [system pr
 cd app
 yarn install
 yarn tauri dev     # run with live reload; the app lives in the menu bar / notification area
-yarn tauri build   # installer for the current platform
+yarn tauri build   # the Windows installer, or the macOS app (its disk image: see the Release workflow)
 cd src-tauri && cargo test
 ```
 
 The Voicemod client key is built into the app. Request your own at [control-api.voicemod.net](https://control-api.voicemod.net/), then copy `.env.example` to `.env` at the repository root (git ignores it) and set `VOICEMOD_CLIENT_KEY`, or set it in the environment. Without it the app builds and runs, but cannot reach Voicemod.
 
-A build made this way does not update itself: only the published ones do. To publish a version, raise `version` in `app/src-tauri/tauri.conf.json`, bring it to `main` and run **Actions → Release**, with what is new in one short line in its **notes** field, if anything: the installed apps show it once they have updated. The workflow needs three repository secrets: `VOICEMOD_CLIENT_KEY`, and the updater's private key and password as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (made with `yarn tauri signer generate`; the public key is in `tauri.conf.json`).
+A build made this way does not update itself: only the published ones do. To publish a version, raise `version` in `app/src-tauri/tauri.conf.json`, bring it to `main` and run **Actions → Release**, which builds both platforms and publishes them together, with what is new in one short line in its **notes** field, if anything: the installed apps show it once they have updated. The workflow needs three repository secrets: `VOICEMOD_CLIENT_KEY`, and the updater's private key and password as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (made with `yarn tauri signer generate`; the public key is in `tauri.conf.json`).
 
 Close the simulator page before running the app: only one program at a time can hold the board's serial port.
 

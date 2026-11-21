@@ -2,6 +2,7 @@
 // Serial messages are described in docs/project.md, section 9.
 
 #include <Adafruit_NeoPixel.h>
+#include <Updater.h>
 #include <tusb.h>
 #include "display.h"
 #include "input.h"
@@ -10,11 +11,15 @@
 #include "pins.h"
 #include "settings.h"
 
-const char FIRMWARE_VERSION[] = "0.2.1";
+const char FIRMWARE_VERSION[] = "0.3.0";
 const size_t MAX_LINE_LENGTH = 2100;
 const int MAX_FIELDS = 6;
 const uint32_t LOGO_FRAME_MS = 25;
 const uint8_t AMBER[] = {255, 176, 32};  // the logo's accent colour
+// A new firmware comes in pieces of this size, each acknowledged, and is kept in the flash's file system until the
+// core's OTA bootloader copies it into place at the next start
+const size_t UPDATE_CHUNK = 4096;
+const uint32_t UPDATE_TIMEOUT_MS = 3000;
 
 struct Command {
   const char* name;
@@ -148,6 +153,43 @@ bool sendSettings(char**, int) {
   return true;
 }
 
+// UPDATE,<size>,<MD5>: the image follows as raw bytes, UPDATE_CHUNK at a time, each answered NEXT. A complete image
+// with the right MD5 is answered UPDATED and installed by a restart; anything else leaves the firmware as it is.
+bool update(char** args, int count) {
+  int size;
+  if (count != 2 || !parseNumber(args[0], 1, INT32_MAX, size) || strlen(args[1]) != 32) {
+    return false;
+  }
+  if (!Update.begin(size) || !Update.setMD5(args[1])) {
+    Serial.printf("ERR,update refused (%u)\n", Update.getError());
+    return true;
+  }
+  Serial.println("READY");
+
+  static uint8_t chunk[UPDATE_CHUNK];
+  Serial.setTimeout(UPDATE_TIMEOUT_MS);
+  for (size_t received = 0; received < (size_t)size;) {
+    size_t expected = min(UPDATE_CHUNK, size - received);
+    size_t read = Serial.readBytes(chunk, expected);
+    if (read != expected || Update.write(chunk, read) != read) {
+      Update.end(true);  // fails the MD5 check, so nothing is installed
+      Serial.println("ERR,update interrupted");
+      return true;
+    }
+    received += read;
+    Serial.println("NEXT");
+  }
+  if (!Update.end()) {
+    Serial.printf("ERR,update rejected (%u)\n", Update.getError());
+    return true;
+  }
+  Serial.println("UPDATED");
+  Serial.flush();
+  delay(100);  // let the reply reach the PC before USB goes away
+  rp2040.reboot();
+  return true;
+}
+
 bool rebootToBootloader(char**, int) {
   Serial.println("OK");
   Serial.flush();
@@ -175,7 +217,7 @@ const Command COMMANDS[] = {
     {"BRIGHT", setBrightness},  {"DISPLAY", showFrame},
     {"WAKE", wake},             {"SET", changeSetting},
     {"SETTINGS", sendSettings}, {"BOOT", rebootToBootloader},
-    {"DEVLED", setDevLed},
+    {"DEVLED", setDevLed},      {"UPDATE", update},
 };
 
 // Splits text at the commas, in place. Extra fields stay joined to the last one.

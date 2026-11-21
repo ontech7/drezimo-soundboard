@@ -24,9 +24,11 @@ function when(texts: Texts, millis: number): string {
     : texts.appUpdate.onDay(dayFormat.format(at), time);
 }
 
-function updateText(texts: Texts, update: UpdateState): string {
+/** A build made here does not update itself and says nothing about it */
+type PublishedUpdateState = Exclude<UpdateState, { state: "local" }>;
+
+function updateText(texts: Texts, update: PublishedUpdateState): string {
   switch (update.state) {
-    case "local":
     case "unavailable":
     case "waiting":
     case "checking":
@@ -40,6 +42,34 @@ function updateText(texts: Texts, update: UpdateState): string {
     case "failed":
       return texts.appUpdate.failed(when(texts, update.at));
   }
+}
+
+/** The app's updates, with a button to look for one now, or to install at once the one downloaded */
+function UpdateRow({ update }: { update: PublishedUpdateState }) {
+  const texts = useTexts();
+  const run = (command: string) => () => {
+    invoke(command).catch((error) => console.error(`cannot ${command}`, error));
+  };
+  return (
+    <Row label={texts.updates} text={updateText(texts, update)}>
+      {update.state === "ready" ? (
+        <button type="button" className="button" onClick={run("install_update")}>
+          {texts.appUpdate.installNow}
+        </button>
+      ) : (
+        update.state !== "unavailable" && (
+          <button
+            type="button"
+            className="button secondary"
+            disabled={update.state === "checking" || update.state === "downloading"}
+            onClick={run("check_for_updates")}
+          >
+            {texts.appUpdate.checkNow}
+          </button>
+        )
+      )}
+    </Row>
+  );
 }
 
 function languages(texts: Texts): { value: Language; label: string }[] {
@@ -118,7 +148,7 @@ export function SettingsPage({ settings, status, onTour }: Props) {
           <Row label={texts.voicemodLicense}>
             <span className="value">{status.license ? texts.license(status.license) : "—"}</span>
           </Row>
-          {update && <Row label={texts.updates} text={updateText(texts, update)} />}
+          {update && update.state !== "local" && <UpdateRow update={update} />}
         </Section>
       )}
 

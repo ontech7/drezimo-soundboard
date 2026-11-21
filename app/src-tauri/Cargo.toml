@@ -1,6 +1,6 @@
 [package]
 name = "drezimo"
-version = "1.0.0"
+version = "1.0.1"
 description = "Drezimo Soundboard: the bridge between the board and Voicemod"
 authors = ["ontech7"]
 license = "MIT"
@@ -37,6 +37,8 @@ futures-util = { version = "0.3", default-features = false, features = ["sink"] 
 fontdue = "0.9"
 # Voicemod sends its pictures as base64
 base64 = "0.23"
+# The board checks a new firmware against its MD5
+md5 = "0.8"
 
 # The overlay draws its own picture (src/overlay/), into a native window
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -48,6 +50,8 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer"] }
 # Voicemod's processes, to find its bridge
 libc = "0.2"
+# The board's bootloader, written without its drive (src/picoboot.rs)
+nusb = "0.2"
 
 # The overlay's window, the drives where the board's firmware is written, the login item and Voicemod's ports
 [target.'cfg(windows)'.dependencies]
