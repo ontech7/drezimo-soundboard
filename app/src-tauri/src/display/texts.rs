@@ -231,7 +231,7 @@ pub const ITALIAN: Texts = Texts {
         mute_mic: "Muto mic",
         voice_changer: "Cambio voce",
         random_voice: "Voce casuale",
-        hear_myself: "Ascoltami",
+        hear_myself: "Senti",
         mute_for_me: "Non sentire",
         background: "Sottofondo",
         go_to_page: "Vai a pagina",
