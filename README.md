@@ -7,7 +7,7 @@
 
 A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 function keys, a rotary encoder and a small OLED display, connected to the PC with a single USB cable.
 
-**Status:** work in progress. The PCB (v0.2) is designed and ordered. The firmware implements the board ↔ app protocol and runs on a bare RP2040-Zero with the real display; the keys and LEDs wait for the PCB. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date. The enclosure's top shell and bottom are designed and the bottom is printed; its stand is still to come.
+**Status:** the first unit is built and works: the PCB (v0.2) with its keys, LEDs, display and knob, closed in its 3D-printed enclosure. The desktop app runs on Windows and macOS; on Windows it comes with an installer and keeps itself and the board's firmware up to date.
 
 ## Hardware
 
@@ -32,7 +32,7 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
   </tr>
   <tr>
     <td align="center"><sub>The top shell: the logo and the function keys' labels are printed flush in white</sub></td>
-    <td align="center"><sub>The bottom, from inside: six standoffs for the screws, ribs and posts under the keys, pockets for the stand's pegs</sub></td>
+    <td align="center"><sub>The bottom, from inside: six standoffs for the screws, ribs and posts under the keys, keyholes for an optional stand</sub></td>
   </tr>
 </table>
 
@@ -159,7 +159,7 @@ Open `simulator/dummy-board.html` in a browser to try the board without hardware
 ## License
 
 - Everything but the hardware design (the app, firmware, simulator, tools, `hardware/scripts/`, logo and docs): [MIT](LICENSE).
-- Hardware design (`hardware/pcb/`, `hardware/lib/`, and the enclosure once added): [CERN-OHL-P-2.0](hardware/LICENSE).
+- Hardware design (`hardware/pcb/`, `hardware/lib/`, `hardware/enclosure/`): [CERN-OHL-P-2.0](hardware/LICENSE).
 - Fonts: Silkscreen on the display and Inter in the PC overlay, both under the SIL Open Font License, with their licences in `app/src-tauri/src/display/` and `app/src-tauri/src/overlay/`.
 - The firmware image in `app/src-tauri/firmware/` is built from `firmware/` with the Arduino core for RP2040 (LGPL-2.1) and the libraries pinned in `firmware/drezimo/sketch.yaml` (Adafruit NeoPixel, LGPL-3.0; U8g2, BSD-2-Clause).
 
