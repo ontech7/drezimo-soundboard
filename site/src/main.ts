@@ -17,6 +17,7 @@ loadDownloads().then(({ version, exe, dmg }) => {
 });
 
 const hero = document.getElementById("hero")!;
+const intro = document.querySelector<HTMLElement>(".intro")!;
 const canvas = document.getElementById("scene") as HTMLCanvasElement;
 const captions = [...document.querySelectorAll<HTMLElement>(".caption")];
 
@@ -34,6 +35,7 @@ function onScroll() {
   const progress = Math.min(1, Math.max(0, -box.top / (box.height - innerHeight)));
   scene?.setProgress(progress);
   hero.style.setProperty("--progress", progress.toFixed(4));
+  intro.inert = progress > 0.12;
   for (const caption of captions) {
     const shown = progress >= Number(caption.dataset.from) && progress < Number(caption.dataset.to);
     caption.classList.toggle("shown", shown);
@@ -43,4 +45,4 @@ addEventListener("scroll", onScroll, { passive: true });
 addEventListener("resize", onScroll);
 onScroll();
 
-new IntersectionObserver(([entry]) => scene?.setVisible(entry.isIntersecting)).observe(canvas);
+new IntersectionObserver((entries) => scene?.setVisible(entries[entries.length - 1].isIntersecting)).observe(canvas);

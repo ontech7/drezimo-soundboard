@@ -4,6 +4,7 @@ import {
   Color,
   DirectionalLight,
   Group,
+  HalfFloatType,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -17,6 +18,7 @@ import {
   SRGBColorSpace,
   Vector2,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -28,7 +30,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { buildBoard, layout, type Key } from "./board";
 import { t } from "./i18n";
 import { explode, PAGE_HUES, pressDepth, waveColour, type Rgb } from "./motion";
-import { playKey, stopAll } from "./sound";
+import { playKey } from "./sound";
 
 const BACKGROUND = 0x0e0e10;
 const PAGES = PAGE_HUES.length;
@@ -47,7 +49,8 @@ export interface Hero {
 }
 
 export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onReady: () => void, onFailed: () => void): Hero {
-  const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  const renderer = new WebGLRenderer({ canvas });
+  canvas.addEventListener("webglcontextlost", onFailed);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.95;
@@ -66,7 +69,8 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   scene.add(key, rim);
 
   const camera = new PerspectiveCamera(26, 1, 10, 3000);
-  const composer = new EffectComposer(renderer);
+  // The bloom draws into its own buffer: the smoothing of edges has to be asked of that one.
+  const composer = new EffectComposer(renderer, new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new Vector2(256, 256), 0.8, 0.45, 1.35);
   composer.addPass(bloom);
@@ -108,6 +112,7 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
         target.add(mesh);
       }
       device.visible = true;
+      loaded = true;
       startedAt = performance.now();
       onReady();
     },
@@ -116,6 +121,7 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   );
 
   // What the board is doing, as the page shows it.
+  let loaded = false;
   let page = 0;
   let line = t("oledReady");
   let level = 0;
@@ -137,7 +143,6 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     if (n <= 36) line = `PAD ${n}`;
     else if (n === FN.prev || n === FN.next) turnPage(n === FN.next ? 1 : -1);
     else if (n === FN.stop) {
-      stopAll();
       stoppedAt = now;
       line = t("oledStop");
       level = 0;
@@ -163,8 +168,10 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   let drag: { x: number; y: number; yaw: number; moved: boolean } | null = null;
 
   addEventListener("pointermove", (event) => {
-    lookX = (event.clientX / innerWidth) * 2 - 1;
-    lookY = (event.clientY / innerHeight) * 2 - 1;
+    if (!reducedMotion) {
+      lookX = (event.clientX / innerWidth) * 2 - 1;
+      lookY = (event.clientY / innerHeight) * 2 - 1;
+    }
     if (drag) {
       const dx = event.clientX - drag.x;
       if (Math.abs(dx) > 6 || Math.abs(event.clientY - drag.y) > 6) drag.moved = true;
@@ -172,12 +179,13 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     }
   });
   canvas.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
     drag = { x: event.clientX, y: event.clientY, yaw: dragYaw, moved: false };
   });
   addEventListener("pointerup", (event) => {
     const wasDrag = drag?.moved;
     drag = null;
-    if (wasDrag || event.target !== canvas) return;
+    if (wasDrag || !loaded || event.button !== 0 || event.target !== canvas) return;
     const box = canvas.getBoundingClientRect();
     pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
@@ -190,11 +198,10 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   });
   addEventListener("pointercancel", () => (drag = null));
   addEventListener("keydown", (event) => {
-    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || !visible) return;
+    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || !visible || !loaded) return;
     const typed = event.key === "Delete" ? 36 : TYPED.indexOf(event.key.toLowerCase()) + 1;
-    const n = typed || ({ ArrowLeft: FN.prev, ArrowRight: FN.next, " ": FN.stop } as Record<string, number>)[event.key];
+    const n = typed || ({ ArrowLeft: FN.prev, ArrowRight: FN.next, Escape: FN.stop } as Record<string, number>)[event.key];
     if (!n) return;
-    if (event.key === " ") event.preventDefault();
     press(n, performance.now());
   });
 
@@ -203,7 +210,6 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     const height = canvas.clientHeight;
     renderer.setSize(width, height, false);
     composer.setSize(width, height);
-    bloom.resolution.set(width / 2, height / 2);
     camera.aspect = width / height;
     const wide = width > 900;
     const portrait = width < height;
@@ -223,7 +229,8 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   let visible = true;
   let startedAt = Infinity;
   let last = performance.now();
-  const yaw = { now: -0.5, look: 0 };
+  let yaw = -0.5;
+  let drawn = "";
 
   function frame(now: number) {
     requestAnimationFrame(frame);
@@ -238,8 +245,8 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
 
     const idle = reducedMotion ? 0 : 0.22 * Math.sin(seconds * 0.35);
     const target = idle + dragYaw + lookX * 0.18 + open.spin;
-    yaw.now += (target - yaw.now) * (1 - Math.exp(-dt * 4));
-    device.rotation.y = yaw.now - 0.5 * (1 - intro);
+    yaw += (target - yaw) * (1 - Math.exp(-dt * 4));
+    device.rotation.y = yaw - 0.5 * (1 - intro);
     tilt.rotation.x = open.tilt + lookY * 0.06 - 0.25 * (1 - intro);
     device.position.y = -30 * (1 - intro);
 
@@ -261,7 +268,11 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     }
 
     level = Math.max(0, level - dt * 0.9);
-    oled.draw({ page, pages: PAGES, line, level }, t("oledPage"));
+    const showing = `${page}|${line}|${Math.round(level * 100)}`;
+    if (showing !== drawn) {
+      drawn = showing;
+      oled.draw({ page, pages: PAGES, line, level }, t("oledPage"));
+    }
     composer.render();
   }
 
