@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e10" />
+    <meta name="description" content="Drezimo Soundboard: 36 pads, 6 function keys, a knob and a display for Voicemod." />
+    <link rel="icon" href="/drezimo-icon.svg" type="image/svg+xml" />
+    <style>
+      html,
+      body {
+        background: #0e0e10;
+      }
+    </style>
+    <title>Drezimo Soundboard</title>
+  </head>
+
+  <body>
+    <section class="hero" id="hero">
+      <div class="stage">
+        <canvas id="scene" aria-label="The Drezimo in 3D"></canvas>
+        <img class="fallback" src="/images/case-shell.webp" alt="The Drezimo's enclosure" />
+        <div class="vignette"></div>
+
+        <div class="intro">
+          <img class="logo" src="/drezimo-logo-dark.svg" alt="Drezimo" width="61.5" height="16" />
+          <h1 data-t="title">Drezimo Soundboard</h1>
+          <p class="tagline" data-t="tagline"></p>
+          <div class="actions">
+            <a class="download" id="download" href="https://github.com/ontech7/drezimo-soundboard/releases/latest">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 5.5 10.5 4.4v7H3zm0 13 7.5 1.1v-7.1H3zm8.5 1.2L21 21v-8.6h-9.5zm0-15.4v7.1H21V3z" />
+              </svg>
+              <span>
+                <strong data-t="download"></strong>
+                <small id="version"></small>
+              </span>
+            </a>
+            <a class="mac" id="mac" href="https://github.com/ontech7/drezimo-soundboard/releases/latest" data-t="mac"></a>
+          </div>
+        </div>
+
+        <p class="hint" id="hint"></p>
+
+        <div class="captions">
+          <article class="caption" data-from="0.12" data-to="0.4">
+            <h2 data-t="caption1Title"></h2>
+            <p data-t="caption1Text"></p>
+          </article>
+          <article class="caption" data-from="0.4" data-to="0.66">
+            <h2 data-t="caption2Title"></h2>
+            <p data-t="caption2Text"></p>
+          </article>
+          <article class="caption" data-from="0.72" data-to="1.01">
+            <h2 data-t="caption3Title"></h2>
+            <p data-t="caption3Text"></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <main>
+      <section class="features">
+        <h2 data-t="featuresTitle"></h2>
+        <div class="grid">
+          <article>
+            <span class="dot" style="--c: #ffb020"></span>
+            <h3 data-t="feature1Title"></h3>
+            <p data-t="feature1Text"></p>
+          </article>
+          <article>
+            <span class="dot" style="--c: #3fa9ff"></span>
+            <h3 data-t="feature2Title"></h3>
+            <p data-t="feature2Text"></p>
+          </article>
+          <article>
+            <span class="dot" style="--c: #b45cff"></span>
+            <h3 data-t="feature3Title"></h3>
+            <p data-t="feature3Text"></p>
+          </article>
+          <article>
+            <span class="dot" style="--c: #22e05a"></span>
+            <h3 data-t="feature4Title"></h3>
+            <p data-t="feature4Text"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="app">
+        <h2 data-t="appTitle"></h2>
+        <figure class="shot main">
+          <img src="/images/app-soundboard.webp" alt="" loading="lazy" />
+          <figcaption data-t="app1"></figcaption>
+        </figure>
+        <div class="pair">
+          <figure class="shot">
+            <img src="/images/app-pages.webp" alt="" loading="lazy" />
+            <figcaption data-t="app2"></figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/images/overlay.webp" alt="" loading="lazy" />
+            <figcaption data-t="app3"></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="install">
+        <h2 data-t="installTitle"></h2>
+        <ol>
+          <li>
+            <h3 data-t="step1Title"></h3>
+            <p data-t="step1Text"></p>
+          </li>
+          <li>
+            <h3 data-t="step2Title"></h3>
+            <p data-t="step2Text"></p>
+          </li>
+          <li>
+            <h3 data-t="step3Title"></h3>
+            <p data-t="step3Text"></p>
+          </li>
+        </ol>
+        <a class="download small" id="download-again" href="https://github.com/ontech7/drezimo-soundboard/releases/latest">
+          <strong data-t="download"></strong>
+        </a>
+      </section>
+    </main>
+
+    <footer>
+      <img src="/drezimo-logo-dark.svg" alt="Drezimo" width="92" height="24" />
+      <p data-t="footer"></p>
+      <a href="https://github.com/ontech7/drezimo-soundboard" data-t="source"></a>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
