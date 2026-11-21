@@ -13,6 +13,8 @@ mod macros;
 mod mixer;
 mod news;
 mod overlay;
+#[cfg(target_os = "macos")]
+mod picoboot;
 mod pictures;
 mod playback;
 mod press_again;
@@ -58,6 +60,7 @@ pub fn run() {
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .manage(updates::UpdateStateHolder::default())
+        .manage(updates::Requests::default())
         .manage(backup::ImportState::default())
         .invoke_handler(tauri::generate_handler![
             device::status,
@@ -105,6 +108,8 @@ pub fn run() {
             news::dismiss_news,
             overlay::screens,
             updates::update_state,
+            updates::check_for_updates,
+            updates::install_update,
             tour::tour_pictures,
             window::window_ready
         ])

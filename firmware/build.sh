@@ -18,7 +18,9 @@ if [ "$1" = "--bundle" ]; then
   fi
   bundled=../app/src-tauri/firmware
   mkdir -p "$bundled"
-  rm -f "$bundled"/drezimo-*.uf2
+  rm -f "$bundled"/drezimo-*.uf2 "$bundled"/drezimo-*.bin
+  # The .bin goes over USB serial to boards that take UPDATE, the .uf2 to the bootloader of older ones
+  cp build/drezimo.ino.bin "$bundled/drezimo-$version.bin"
   cp build/drezimo.ino.uf2 "$bundled/drezimo-$version.uf2"
   echo "bundled firmware $version"
 fi

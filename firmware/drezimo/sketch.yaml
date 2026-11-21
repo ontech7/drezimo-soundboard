@@ -3,7 +3,9 @@ profiles:
     notes: RP2040-Zero (Waveshare or compatible clone)
     # Generic RP2040 instead of the Waveshare board: that one reuses the bootloader's USB ID,
     # and macOS then never brings up the serial port after an upload.
-    fqbn: rp2040:rp2040:generic:flash=2097152_0,boot2=boot2_w25q16jvxq_4_padded_checksum,uploadmethod=picotool
+    # 512 KB of file system hold a new firmware while it is sent over USB serial (UPDATE). The settings
+    # (EEPROM) stay in the flash's last sector whatever the file system's size.
+    fqbn: rp2040:rp2040:generic:flash=2097152_524288,boot2=boot2_w25q16jvxq_4_padded_checksum,uploadmethod=picotool
     platforms:
       - platform: rp2040:rp2040 (6.3.2)
         platform_index_url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json

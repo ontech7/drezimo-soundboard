@@ -7,7 +7,7 @@ const KEY_VAR: &str = "VOICEMOD_CLIENT_KEY";
 const ENV_FILE: &str = "../../.env";
 
 /// The board's firmware, built into the app (src/firmware.rs): the one `drezimo-<version>.uf2` in this folder, which
-/// `firmware/build.sh --bundle` writes. It must be the version the firmware's source declares.
+/// `firmware/build.sh --bundle` writes with its `.bin` beside it. It must be the version the firmware's source declares.
 const FIRMWARE_DIR: &str = "firmware";
 const FIRMWARE_SOURCE: &str = "../../firmware/drezimo/drezimo.ino";
 
@@ -59,6 +59,13 @@ fn bundle_firmware() {
     let image = fs::canonicalize(image).expect("the bundled firmware");
     println!("cargo:rustc-env=DREZIMO_FIRMWARE_VERSION={version}");
     println!("cargo:rustc-env=DREZIMO_FIRMWARE_IMAGE={}", image.display());
+    let binary = image.with_extension("bin");
+    assert!(
+        binary.exists(),
+        "{} is missing: run firmware/build.sh --bundle",
+        binary.display()
+    );
+    println!("cargo:rustc-env=DREZIMO_FIRMWARE_BINARY={}", binary.display());
 }
 
 fn key_from_env_file(path: &Path) -> Option<String> {

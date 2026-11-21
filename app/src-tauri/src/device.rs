@@ -311,7 +311,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 controller.voicemod_event(event, now);
             }
             Some(Input::Log(input)) => controller.log_input(input, now),
-            Some(Input::Firmware(result)) => {
+            Some(Input::Firmware(result) | Input::Board(BoardEvent::FirmwareSent(result))) => {
                 if let Err(reason) = &result {
                     crate::errors::log(format!("the board's firmware update failed: {reason}"));
                 }
@@ -689,15 +689,18 @@ pub fn end_board_test(app: &AppHandle) {
     send(app, Input::Test(TestInput::Stop));
 }
 
-/// Sends the board to its bootloader and writes the app's firmware there, on a thread of its own: looking at the drives
-/// can take a while.
+/// Sends the app's firmware to the board: over the serial port to one that takes it, otherwise through its bootloader,
+/// on a thread of its own, as looking at the drives can take a while.
 fn update_firmware(board: &Board, current: &str, inputs: &Sender<Input>) {
     eprintln!("updating the board's firmware from {current} to {}", firmware::VERSION);
+    if firmware::takes_serial_updates(current) {
+        board.send_firmware(firmware::BINARY);
+        return;
+    }
     let board = board.clone();
     let inputs = inputs.clone();
     thread::spawn(move || {
-        // A bootloader drive there before BOOT belongs to another board
-        let before = firmware::bootloader_drives();
+        let before = firmware::before_boot();
         board.send("BOOT");
         let _ = inputs.send(Input::Firmware(firmware::install(&before)));
     });
