@@ -3,7 +3,7 @@
 > Note: the project is in English. The OLED display texts can be localised: English and Italian so far: the system's language by default, or the one set in the app.
 
 > Project document  
-> Status: the first unit is built and works: PCB v0.2 with its LEDs fab-assembled, firmware 0.2.1, the 42 keys, the LEDs, the display and the knob, closed in the printed enclosure (section 7). The bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. Next: the updates tried from a public release, and the macOS distribution.
+> Status: the first unit is built and works: PCB v0.2 with its LEDs fab-assembled, firmware 0.2.2, the 42 keys, the LEDs, the display and the knob, closed in the printed enclosure (section 7). The bridge app drives Voicemod, the display, the PC overlay and the board's firmware updates, and installs and updates itself on Windows. Next: the updates tried from a public release, and the macOS distribution.
 
 **Changelog**
 - 2026-10-29: moved to 6×6 + custom PCB + USB-only power.
