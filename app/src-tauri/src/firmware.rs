@@ -158,7 +158,15 @@ pub fn before_boot() -> Before {
     }
 }
 
-/// The RP2040 bootloader drives present now, told apart by the file each one carries.
+/// The bootloader drives present now, told apart by the file each one carries. On macOS their name is enough, since
+/// the bootloader itself is found on USB: reading a file there would have macOS ask the user for access to
+/// removable volumes.
+#[cfg(target_os = "macos")]
+fn bootloader_drives() -> Vec<PathBuf> {
+    drives()
+}
+
+#[cfg(not(target_os = "macos"))]
 fn bootloader_drives() -> Vec<PathBuf> {
     without_disk_prompts(|| {
         drives()
@@ -282,11 +290,6 @@ fn drives() -> Vec<PathBuf> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-#[cfg(target_os = "macos")]
-fn without_disk_prompts<T>(look: impl FnOnce() -> T) -> T {
-    look()
 }
 
 #[cfg(windows)]
