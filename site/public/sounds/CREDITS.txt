@@ -1,0 +1,23 @@
+Sounds from Freesound, each released under Creative Commons 0 (public domain) by its author.
+Trimmed, levelled and converted to mono MP3 for this page.
+
+airhorn.mp3	Airhorn	by jacksonacademyashmore	https://freesound.org/s/414208/	CC0 1.0
+applause.mp3	crowd_cheering_and_clapping.wav	by NobodyYouKnowOf	https://freesound.org/s/410868/	CC0 1.0
+drum-roll.mp3	drum roll	by owowowwo	https://freesound.org/s/197763/	CC0 1.0
+rimshot.mp3	Rimshot (sweet)	by Sajmund	https://freesound.org/s/132418/	CC0 1.0
+sad-trombone.mp3	wah wah sad trombone.wav	by kirbydx	https://freesound.org/s/175409/	CC0 1.0
+boing.mp3	Boing 2	by magnuswaker	https://freesound.org/s/540790/	CC0 1.0
+laser.mp3	Laser Gun.wav	by zazz.sound.design	https://freesound.org/s/361471/	CC0 1.0
+ding.mp3	Ding! idea.mp3	by Saya13	https://freesound.org/s/407258/	CC0 1.0
+bruh.mp3	bruh.m4a	by ivar.nohre	https://freesound.org/s/506582/	CC0 1.0
+wow.mp3	WOW male voice	by ahab2000	https://freesound.org/s/398933/	CC0 1.0
+honk.mp3	Clown_Horn.mp3	by inplay	https://freesound.org/s/251611/	CC0 1.0
+crickets.mp3	Cricket - Grillo	by Lunevix	https://freesound.org/s/543965/	CC0 1.0
+victory.mp3	Tada Fanfare A	by plasterbrain	https://freesound.org/s/397355/	CC0 1.0
+fail.mp3	Buzzer sounds (Wrong answer / Error)	by Breviceps	https://freesound.org/s/493163/	CC0 1.0
+bleep.mp3	Censor Beep	by mattskydoodle	https://freesound.org/s/195116/	CC0 1.0
+record-scratch.mp3	record_scratch.wav	by simkiott	https://freesound.org/s/43404/	CC0 1.0
+evil-laugh.mp3	evil laugh.wav	by kintana24	https://freesound.org/s/478934/	CC0 1.0
+ka-ching.mp3	Cash Register Purchase	by Zott820	https://freesound.org/s/209578/	CC0 1.0
+click.mp3	Videogame Menu BUTTON CLICK	by Christopherderp	https://freesound.org/s/342200/	CC0 1.0
+switch.mp3	Small_Flashlight_Click_on_02.wav	by Rudmer_Rotteveel	https://freesound.org/s/457463/	CC0 1.0
