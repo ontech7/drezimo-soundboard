@@ -25,7 +25,8 @@
 
         <div class="intro">
           <img class="logo" src="/drezimo-logo-dark.svg" alt="Drezimo" width="61.5" height="16" />
-          <h1 data-t="title">Drezimo Soundboard</h1>
+          <p class="pill" id="released" hidden><i></i><span></span></p>
+          <h1>Drezimo <span class="spectrum">Soundboard</span></h1>
           <p class="tagline" data-t="tagline"></p>
           <div class="actions">
             <a class="download" id="download" href="https://github.com/ontech7/drezimo-soundboard/releases/latest">
@@ -34,25 +35,31 @@
               </svg>
               <span>
                 <strong data-t="download"></strong>
-                <small id="version"></small>
+                <small data-t="needs"></small>
               </span>
             </a>
             <a class="mac" id="mac" href="https://github.com/ontech7/drezimo-soundboard/releases/latest" data-t="mac"></a>
           </div>
         </div>
 
-        <p class="hint" id="hint"></p>
+        <div class="hint">
+          <p id="hint"></p>
+          <p class="scroll"><span class="wheel" aria-hidden="true"></span><span data-t="hintScroll"></span></p>
+        </div>
 
         <div class="captions">
           <article class="caption" data-from="0.12" data-to="0.4">
+            <span class="eyebrow">01 / 03</span>
             <h2 data-t="caption1Title"></h2>
             <p data-t="caption1Text"></p>
           </article>
           <article class="caption" data-from="0.4" data-to="0.66">
+            <span class="eyebrow">02 / 03</span>
             <h2 data-t="caption2Title"></h2>
             <p data-t="caption2Text"></p>
           </article>
           <article class="caption" data-from="0.72" data-to="1.01">
+            <span class="eyebrow">03 / 03</span>
             <h2 data-t="caption3Title"></h2>
             <p data-t="caption3Text"></p>
           </article>
@@ -60,45 +67,68 @@
       </div>
     </section>
 
+    <section class="ticker" id="ticker"></section>
+
     <main>
+      <section class="stats" data-reveal>
+        <div><strong data-count="36">36</strong><span data-t="stat1"></span></div>
+        <div><strong data-count="6">6</strong><span data-t="stat2"></span></div>
+        <div><strong data-count="42">42</strong><span data-t="stat3"></span></div>
+        <div><strong data-count="1">1</strong><span data-t="stat4"></span></div>
+      </section>
+
       <section class="features">
-        <h2 data-t="featuresTitle"></h2>
-        <div class="grid">
-          <article>
-            <span class="dot" style="--c: #ffb020"></span>
-            <h3 data-t="feature1Title"></h3>
-            <p data-t="feature1Text"></p>
+        <header data-reveal>
+          <span class="eyebrow" data-t="featuresEyebrow"></span>
+          <h2 data-t="featuresTitle"></h2>
+        </header>
+        <div class="bento">
+          <article class="card wide" style="--c: #ffb020" data-reveal>
+            <div class="visual mini-pads" id="mini-pads" aria-hidden="true"></div>
+            <div>
+              <h3 data-t="feature1Title"></h3>
+              <p data-t="feature1Text"></p>
+            </div>
           </article>
-          <article>
-            <span class="dot" style="--c: #3fa9ff"></span>
+          <article class="card" style="--c: #3fa9ff" data-reveal>
+            <div class="visual mini-pages" aria-hidden="true"><i></i><i></i><i></i></div>
             <h3 data-t="feature2Title"></h3>
             <p data-t="feature2Text"></p>
           </article>
-          <article>
-            <span class="dot" style="--c: #b45cff"></span>
+          <article class="card" style="--c: #b45cff" data-reveal>
+            <div class="visual mini-macro" id="mini-macro" aria-hidden="true"></div>
             <h3 data-t="feature3Title"></h3>
             <p data-t="feature3Text"></p>
           </article>
-          <article>
-            <span class="dot" style="--c: #22e05a"></span>
-            <h3 data-t="feature4Title"></h3>
-            <p data-t="feature4Text"></p>
+          <article class="card wide" style="--c: #22e05a" data-reveal>
+            <div class="visual mini-update" aria-hidden="true">
+              <div class="bar"><span data-t="updateApp"></span><i></i></div>
+              <div class="bar"><span data-t="updateFirmware"></span><i></i></div>
+              <p class="done"><b>✓</b><span data-t="updateDone"></span></p>
+            </div>
+            <div>
+              <h3 data-t="feature4Title"></h3>
+              <p data-t="feature4Text"></p>
+            </div>
           </article>
         </div>
       </section>
 
       <section class="app">
-        <h2 data-t="appTitle"></h2>
-        <figure class="shot main">
+        <header data-reveal>
+          <span class="eyebrow" data-t="appEyebrow"></span>
+          <h2 data-t="appTitle"></h2>
+        </header>
+        <figure class="shot main" id="app-shot">
           <img src="/images/app-soundboard.webp" alt="" loading="lazy" />
           <figcaption data-t="app1"></figcaption>
         </figure>
         <div class="pair">
-          <figure class="shot">
+          <figure class="shot" data-reveal>
             <img src="/images/app-pages.webp" alt="" loading="lazy" />
             <figcaption data-t="app2"></figcaption>
           </figure>
-          <figure class="shot">
+          <figure class="shot" data-reveal>
             <img src="/images/overlay.webp" alt="" loading="lazy" />
             <figcaption data-t="app3"></figcaption>
           </figure>
@@ -106,30 +136,49 @@
       </section>
 
       <section class="install">
-        <h2 data-t="installTitle"></h2>
+        <header data-reveal>
+          <span class="eyebrow" data-t="installEyebrow"></span>
+          <h2 data-t="installTitle"></h2>
+        </header>
         <ol>
-          <li>
+          <li data-reveal>
             <h3 data-t="step1Title"></h3>
             <p data-t="step1Text"></p>
           </li>
-          <li>
+          <li data-reveal>
             <h3 data-t="step2Title"></h3>
             <p data-t="step2Text"></p>
           </li>
-          <li>
+          <li data-reveal>
             <h3 data-t="step3Title"></h3>
             <p data-t="step3Text"></p>
           </li>
         </ol>
-        <a class="download small" id="download-again" href="https://github.com/ontech7/drezimo-soundboard/releases/latest">
-          <strong data-t="download"></strong>
-        </a>
+      </section>
+
+      <section class="encore" data-reveal>
+        <h2 class="spectrum" data-t="encoreTitle"></h2>
+        <p data-t="encoreText"></p>
+        <div class="pads" id="pads"></div>
+        <div class="actions">
+          <a class="download big" id="download-again" href="https://github.com/ontech7/drezimo-soundboard/releases/latest">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 5.5 10.5 4.4v7H3zm0 13 7.5 1.1v-7.1H3zm8.5 1.2L21 21v-8.6h-9.5zm0-15.4v7.1H21V3z" />
+            </svg>
+            <span>
+              <strong data-t="download"></strong>
+              <small data-t="needs"></small>
+            </span>
+          </a>
+          <a class="mac" id="mac-again" href="https://github.com/ontech7/drezimo-soundboard/releases/latest" data-t="mac"></a>
+        </div>
       </section>
     </main>
 
     <footer>
       <img src="/drezimo-logo-dark.svg" alt="Drezimo" width="92" height="24" />
       <p data-t="footer"></p>
+      <a href="/sounds/CREDITS.txt" data-t="soundsCredit"></a>
       <a href="https://github.com/ontech7/drezimo-soundboard" data-t="source"></a>
     </footer>
 

@@ -29,7 +29,8 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { buildBoard, layout, type Key } from "./board";
 import { t } from "./i18n";
-import { explode, PAGE_HUES, pressDepth, waveColour, type Rgb } from "./motion";
+import { createEffects, createFloorGlow } from "./effects";
+import { explode, kick, PAGE_HUES, pressDepth, waveColour, type Rgb } from "./motion";
 import { playKey } from "./sound";
 
 const BACKGROUND = 0x0e0e10;
@@ -92,7 +93,12 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     new MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false })
   );
   shadow.position.y = layout.lowest - 34;
-  tilt.add(shadow);
+  const floor = createFloorGlow(420);
+  floor.mesh.position.y = shadow.position.y - 0.5;
+  tilt.add(floor.mesh, shadow);
+
+  const effects = createEffects(layout.keycap.base);
+  device.add(effects.group);
 
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const body = new MeshStandardMaterial({ color: 0x121214, roughness: 0.8, metalness: 0.02 });
@@ -134,10 +140,13 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   };
   let knobTurn = 0;
   let knobAngle = 0;
+  let lastPressAt = -Infinity;
+  const pressColour: Rgb = [0, 0, 0];
 
   function press(n: number, now: number) {
     const pressed = keys[n - 1];
     pressed.pressedAt = now;
+    lastPressAt = now;
     playKey(n, page);
     level = 1;
     if (n <= 36) line = `PAD ${n}`;
@@ -151,6 +160,11 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
       const label = { [FN.mute]: "oledMute", [FN.voice]: "oledVoice", [FN.hear]: "oledHear" } as const;
       line = toggles[n] ? t(label[n]) : t("oledReady");
     }
+
+    const colour = keyColour(pressed, now / 1000);
+    const peak = Math.max(...colour, 0.01);
+    for (let i = 0; i < 3; i++) pressColour[i] = colour[i] / peak;
+    if (!reducedMotion) effects.burst(pressed.x, pressed.restY + layout.keycap.height + 0.6, pressed.z, pressColour, now);
   }
 
   function turnPage(by: number) {
@@ -217,7 +231,7 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     camera.position.set(0, distance * 0.78, distance * 0.62);
     camera.lookAt(0, 0, 0);
     if (wide) camera.setViewOffset(width, height, -width * 0.14, 0, width, height);
-    else if (portrait) camera.setViewOffset(width, height, 0, -height * 0.2, width, height);
+    else if (portrait) camera.setViewOffset(width, height, 0, -height * (height < 760 ? 0.25 : 0.2), width, height);
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
@@ -248,24 +262,35 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     yaw += (target - yaw) * (1 - Math.exp(-dt * 4));
     device.rotation.y = yaw - 0.5 * (1 - intro);
     tilt.rotation.x = open.tilt + lookY * 0.06 - 0.25 * (1 - intro);
-    device.position.y = -30 * (1 - intro);
+    const thump = reducedMotion ? 0 : kick(now - lastPressAt);
+    device.position.y = -30 * (1 - intro) - 2.2 * thump;
 
     shell.position.y = open.shell;
     bottom.position.y = open.bottom;
     caps.position.y = open.keys;
     shadow.material.opacity = 0.85 - 0.4 * shownProgress;
+    effects.group.position.y = caps.position.y;
+    effects.update(now);
 
     knobAngle += (knobTurn - knobAngle) * (1 - Math.exp(-dt * 12));
     knob.rotation.y = -knobAngle;
 
     const sinceStop = (now - stoppedAt) / 900;
     const dim = sinceStop < 1 ? sinceStop : 1;
+    glowSum.setRGB(0, 0, 0);
     for (const k of keys) {
       const since = now - k.pressedAt;
       const dropIn = reducedMotion ? 0 : Math.max(0, 1 - ease((now - startedAt - 500 - (k.x - k.z + 140) * 2.2) / 450));
       k.cap.position.y = k.restY - TRAVEL * pressDepth(since) + 60 * dropIn;
       lightKey(k, since, seconds, dim * (1 - dropIn));
+      if (k.n <= 36) glowSum.add(scratch);
     }
+    const flare = Math.max(0, 1 - (now - lastPressAt) / 900);
+    glowSum.getHSL(hsl);
+    floor.material.color
+      .setHSL(hsl.h, 1, 0.5)
+      .multiplyScalar(0.16 * intro * dim)
+      .lerp(pressTint.setRGB(...pressColour).multiplyScalar(0.45), flare * 0.7);
 
     level = Math.max(0, level - dt * 0.9);
     const showing = `${page}|${line}|${Math.round(level * 100)}`;
@@ -277,13 +302,17 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   }
 
   const scratch = new Color();
+  const glowSum = new Color();
+  const pressTint = new Color();
+  const hsl = { h: 0, s: 0, l: 0 };
+
+  function keyColour(k: Key, seconds: number): Rgb {
+    if (k.n > 36) return toggles[k.n] ? toggleColour[k.n] : [0.5, 0.33, 0.06];
+    return waveColour(k, reducedMotion ? 0 : seconds, page);
+  }
+
   function lightKey(k: Key, since: number, seconds: number, strength: number) {
-    let colour: Rgb;
-    if (k.n > 36) {
-      colour = toggles[k.n] ? toggleColour[k.n] : [0.5, 0.33, 0.06];
-    } else {
-      colour = reducedMotion ? waveColour(k, 0, page) : waveColour(k, seconds, page);
-    }
+    const colour = keyColour(k, seconds);
     const flash = since < FLASH_MS ? 1 - since / FLASH_MS : 0;
     const boost = 1 + 2.2 * flash;
     scratch.setRGB(

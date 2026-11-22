@@ -57,3 +57,30 @@ export function waveColour(key: { x: number; z: number }, seconds: number, page 
   const brightness = 0.35 + 0.25 * (1 + Math.sin(2 * Math.PI * (along * 1.5 - seconds * 0.5)));
   return hsl(((hue % 1) + 1) % 1, 1, 0.5).map((channel) => channel * brightness) as Rgb;
 }
+
+export const RIPPLE_MS = 700;
+export const SPARK_MS = 900;
+const GRAVITY = -340;
+
+/** The ring that spreads from a pressed key: its size, 1 to 2.8 keycaps, and how much it still shows. */
+export function ripple(sincePress: number): { scale: number; opacity: number } | null {
+  if (sincePress < 0 || sincePress >= RIPPLE_MS) return null;
+  const t = sincePress / RIPPLE_MS;
+  return { scale: 1 + 1.8 * (1 - (1 - t) ** 3), opacity: (1 - t) ** 2 };
+}
+
+/** Where a spark is, in mm from its key, and how bright, this many ms after the press. */
+export function spark(sincePress: number, velocity: Rgb): { offset: Rgb; brightness: number } | null {
+  if (sincePress < 0 || sincePress >= SPARK_MS) return null;
+  const s = sincePress / 1000;
+  return {
+    offset: [velocity[0] * s, velocity[1] * s + 0.5 * GRAVITY * s * s, velocity[2] * s],
+    brightness: 1 - sincePress / SPARK_MS,
+  };
+}
+
+/** A short thump after a press, 1 at once and gone in a few hundred ms. */
+export function kick(sincePress: number): number {
+  if (!(sincePress >= 0 && sincePress < 1000)) return 0;
+  return Math.exp(-sincePress / 90) * Math.cos(sincePress / 40);
+}
