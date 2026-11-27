@@ -230,6 +230,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     controller.set_shown_pages(settings.shown_pages.clone());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
+    controller.left_overrides(crate::sound_overrides::load(app));
     let mut kept_page = last_page::load(app);
     if let Some(page) = kept_page.clone() {
         controller.start_on(page);
@@ -413,12 +414,12 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
             Some(Input::CustomPages(pages)) => controller.set_custom_pages(pages),
             Some(Input::Macros(macros)) => controller.set_macros(macros),
             Some(Input::TryMacro(id)) => controller.try_macro(&id, now),
-            Some(Input::StopMacro) => controller.stop_macro(),
+            Some(Input::StopMacro) => controller.stop_macro(now),
             Some(Input::ReadSoundLengths) => controller.read_sound_lengths(now),
             Some(Input::Test(input)) => match (input, &mut tester) {
                 (TestInput::Start, None) => {
                     // Nothing plays meanwhile, a macro tried on the Macros page included
-                    controller.stop_macro();
+                    controller.stop_macro(now);
                     board.send(brightness_message(led_brightness(&settings, true)));
                     tester = Some(Tester::default());
                 }
@@ -463,6 +464,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 Output::Overlay(shown) => {
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
+                Output::Overrides(kept) => crate::sound_overrides::save(app, &kept),
                 Output::Log(message) => crate::errors::log(message),
                 Output::Gesture(gesture) => {
                     let _ = app.emit("knob-gesture", gesture);

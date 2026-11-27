@@ -4,6 +4,7 @@
 
 mod knob;
 mod overlay;
+mod overrides;
 mod running;
 mod screen;
 mod wheel;
@@ -27,6 +28,7 @@ use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use crate::wheel::WheelSettings;
+pub use overrides::OwnOptions;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, RandomState};
@@ -42,6 +44,9 @@ const REFUSED_BLINK: Duration = Duration::from_millis(1200);
 const MIN_HOLD: Duration = Duration::from_millis(200);
 /// How long the soundboard menu stays open after the knob last moved
 const MENU_TIME: Duration = Duration::from_secs(6);
+/// The options a new bridge connection reads for the macros, unless read this recently: Voicemod's servers turn
+/// away reads too close together
+const OPTIONS_READ_AGAIN: Duration = Duration::from_secs(10);
 /// How long a peeked name stays after the press
 const PEEK_TIME: Duration = Duration::from_millis(2500);
 
@@ -79,6 +84,8 @@ pub enum Output {
     Log(String),
     /// What the knob just did, for the window's list of key presses
     Gesture(Gesture),
+    /// The sounds whose options a macro changed in Voicemod, as they were, to keep in case the app closes meanwhile
+    Overrides(HashMap<String, OwnOptions>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -234,6 +241,10 @@ pub struct Controller {
     overlay_hidden: bool,
     /// What the overlay shows, as sent
     overlay: Option<OverlayContent>,
+    /// The sounds whose own options a macro turned off in Voicemod, until put back
+    overrides: HashMap<String, overrides::Override>,
+    /// Those put back a moment ago, as they were, and when
+    restored: HashMap<String, (OwnOptions, Instant)>,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -294,6 +305,8 @@ impl Default for Controller {
             overlay_always: false,
             overlay_hidden: false,
             overlay: None,
+            overrides: HashMap::new(),
+            restored: HashMap::new(),
             next_update: None,
             outputs: Vec::new(),
         }
@@ -473,6 +486,16 @@ impl Controller {
                 self.single_stop = there;
                 self.volumes_forgotten();
                 self.read_sound_volumes(now);
+                // A new connection knows no sound's options: a macro's first play changes them from those read now
+                if there {
+                    self.overrides_reconnected();
+                    if self.macros.iter().any(|item| item.timeline.is_some())
+                        && self.volumes_read.is_none_or(|read| now >= read + OPTIONS_READ_AGAIN)
+                    {
+                        self.volumes_read = Some(now);
+                        self.request(Request::ReadSoundVolumes);
+                    }
+                }
                 self.follow_muted_play();
             }
             VoicemodEvent::MixerGain {
@@ -493,6 +516,7 @@ impl Controller {
             }
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
             VoicemodEvent::SoundChanged => self.request(Request::ReadSoundboards),
+            VoicemodEvent::OptionsApplied { sound, changed } => self.override_applied(&sound, changed, now),
             // Only for the window (src/pictures.rs) and the status
             VoicemodEvent::SoundLengths(lengths) => {
                 self.file_lengths = lengths
@@ -522,7 +546,9 @@ impl Controller {
         if self.playback.update(now) {
             self.resync(now);
         }
+        self.expire_overrides(now);
         self.advance_macro(now);
+        self.restore_sounds(now);
         self.menu = self.menu.take().filter(|menu| menu.until > now);
         // A peek lasts while the knob is held, its blink only its time
         self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.is_down());
@@ -558,6 +584,7 @@ impl Controller {
             .chain(self.overlay_until)
             .chain(self.wheel_until())
             .chain(self.macro_wake())
+            .chain(self.override_wake())
             .chain(self.knob_wake())
             .min();
     }
@@ -1003,6 +1030,7 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
+        self.keep_override_flags();
         self.pages = soundboard::pages(
             &self.soundboards,
             &self.voices,

@@ -9,6 +9,7 @@ use crate::press_again::Command;
 use crate::soundboard::{PlaybackMode, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// A sound waited for that never ends, as a loop, holds the macro this long at most
@@ -38,6 +39,8 @@ pub(super) struct Running {
     round_wall: SystemTime,
     /// On a time line: what is left to do in this round
     played: Option<Played>,
+    /// The sounds it started, to stop with it
+    started: HashSet<String>,
 }
 
 /// A round of a macro on its time line
@@ -49,6 +52,8 @@ struct Played {
     done: usize,
     /// The clips with a volume of their own that play
     shaped: Vec<Shaped>,
+    /// When the clip that waits for its sound's options was due: the time line goes on from there once it plays
+    held: Option<Instant>,
 }
 
 #[derive(Clone)]
@@ -78,19 +83,29 @@ impl Played {
         for action in &timeline.actions {
             events.push((millis(action.at), Event::Action(action.step.clone())));
         }
-        // At the same time, a cut and an action come before a start: a stop then a sound plays the sound
-        let rank = |event: &Event| match event {
-            Event::Cut(_) => 0,
-            Event::Action(_) => 1,
-            Event::Start(_) => 2,
-        };
         events.sort_by_key(|(at, event)| (*at, rank(event)));
         Self {
             events,
             next: 0,
             done: 0,
             shaped: Vec::new(),
+            held: None,
         }
+    }
+
+    /// A cut found on the way, among those still to come
+    fn add_cut(&mut self, at: Duration, id: String) {
+        let ahead = self.events[self.next..].partition_point(|(other, event)| (*other, rank(event)) <= (at, 0));
+        self.events.insert(self.next + ahead, (at, Event::Cut(id)));
+    }
+}
+
+/// At the same time, a cut and an action come before a start: a stop then a sound plays the sound
+fn rank(event: &Event) -> u8 {
+    match event {
+        Event::Cut(_) => 0,
+        Event::Action(_) => 1,
+        Event::Start(_) => 2,
     }
 }
 
@@ -129,9 +144,32 @@ impl Controller {
         }
     }
 
-    /// The editor's Stop, whatever a press on its pads does.
-    pub fn stop_macro(&mut self) {
+    /// The editor's Stop, whatever a press on its pads does: its sounds stop with it.
+    pub fn stop_macro(&mut self, now: Instant) {
+        self.silence_macro(now);
         self.finish_macro();
+    }
+
+    /// Stops the sounds the macro running started that still play, as a stop asked by the user does: one by one
+    /// through the bridge, else every sound
+    fn silence_macro(&mut self, now: Instant) {
+        let Some(running) = self.running.as_mut() else {
+            return;
+        };
+        let playing: Vec<String> = std::mem::take(&mut running.started)
+            .into_iter()
+            .filter(|id| self.playback.state(id).is_some())
+            .collect();
+        if playing.is_empty() {
+            return;
+        }
+        if !self.single_stop {
+            return self.stop_every_sound(now);
+        }
+        for id in playing {
+            self.request(Request::StopSound(id.clone()));
+            self.playback.stop(&id, now);
+        }
     }
 
     pub fn macro_progress(&self) -> Option<MacroProgress> {
@@ -159,10 +197,12 @@ impl Controller {
             .map(|running| running.item.again);
         match again {
             Some(Again::Stop) => {
+                self.silence_macro(now);
                 self.finish_macro();
                 return;
             }
             Some(Again::Restart) => {
+                self.silence_macro(now);
                 if let Some(running) = &mut self.running {
                     running.step = 0;
                     running.rounds = 0;
@@ -178,7 +218,10 @@ impl Controller {
                 let Some(item) = self.macros.iter().find(|item| item.id == id).cloned() else {
                     return;
                 };
+                // Another one stops, its sounds with it
+                self.silence_macro(now);
                 self.finish_macro();
+                self.override_sounds(&item, now);
                 let played = item.timeline.as_ref().map(Played::of);
                 self.running = Some(Running {
                     item,
@@ -192,6 +235,7 @@ impl Controller {
                     switches_before: Vec::new(),
                     round_wall: SystemTime::now(),
                     played,
+                    started: HashSet::new(),
                 });
             }
         }
@@ -239,21 +283,41 @@ impl Controller {
     /// Runs what is due on the time line by `now`, follows the volumes, and ends the round once its sounds end.
     fn advance_timeline(&mut self, now: Instant) {
         loop {
-            let Some(running) = self.running.as_mut() else {
+            let Some(running) = self.running.as_ref() else {
                 return;
             };
             let start = running.round_started;
-            let Some(played) = running.played.as_mut() else {
+            let Some(played) = running.played.as_ref() else {
                 return;
             };
             let due = played
                 .events
                 .get(played.next)
                 .filter(|(at, _)| start + *at <= now)
-                .map(|(_, event)| event.clone());
-            let Some(event) = due else {
+                .map(|(at, event)| (start + *at, event.clone()));
+            let Some((due_at, event)) = due else {
                 break;
             };
+            // A sound that would stop or mute the others playing waits for its options to change, a moment at most
+            let holds = matches!(&event, Event::Start(clip)
+                if self.override_pending(&clip.id, now) && self.others_playing(&clip.id));
+            let Some(running) = self.running.as_mut() else {
+                return;
+            };
+            let Some(played) = running.played.as_mut() else {
+                return;
+            };
+            if holds {
+                played.held.get_or_insert(due_at);
+                break;
+            }
+            // The rest of the time line keeps its distance from the clip that waited
+            if let Some(since) = played.held.take() {
+                let waited = now.saturating_duration_since(since);
+                running.round_started += waited;
+                running.round_wall += waited;
+                continue;
+            }
             played.next += 1;
             if !matches!(event, Event::Cut(_)) {
                 played.done += 1;
@@ -308,6 +372,18 @@ impl Controller {
                 };
                 self.command(Command::KeyDown, &sound, now);
                 self.sound_started();
+                // A sound that loops plays once, as the time line draws it, should its loop not be turned off in time
+                let once = (clip.cut.is_none() && (sound.looped || self.overridden_loop(&clip.id)))
+                    .then(|| self.sound_length(&clip.id))
+                    .flatten()
+                    .filter(|_| sound.playback_mode != PlaybackMode::PlayLoopOnPress);
+                if let Some(running) = self.running.as_mut() {
+                    running.started.insert(sound.id.clone());
+                    if let (Some(length), Some(played)) = (once, running.played.as_mut()) {
+                        let end = Duration::from_millis(clip.at.into()) + length;
+                        played.add_cut(end, clip.id.clone());
+                    }
+                }
                 if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
                     let length = clip.cut.map(|cut| Duration::from_millis(cut.into()));
                     let hold = length.or(self.sound_length(&clip.id)).unwrap_or(MIN_HOLD).max(MIN_HOLD);
@@ -395,6 +471,17 @@ impl Controller {
         started + (last + MAX_SOUND_WAIT).max(known)
     }
 
+    /// Another sound the macro running started still plays: one that stops or mutes the others would cut it
+    fn others_playing(&self, id: &str) -> bool {
+        self.quiets_others(id)
+            && self.running.as_ref().is_some_and(|running| {
+                running
+                    .started
+                    .iter()
+                    .any(|other| other != id && self.playback.state(other).is_some())
+            })
+    }
+
     /// From its file, as Voicemod tells it, else as the log taught it
     fn sound_length(&self, id: &str) -> Option<Duration> {
         self.file_lengths.get(id).copied().or(self.playback.length(id))
@@ -413,9 +500,13 @@ impl Controller {
     pub(super) fn macro_wake(&self) -> Option<Instant> {
         let running = self.running.as_ref()?;
         if let Some(played) = &running.played {
+            // A clip waiting for its options wakes with them, or when it stops waiting
             let next = played
                 .events
                 .get(played.next)
+                .filter(|(_, event)| {
+                    !matches!(event, Event::Start(clip) if self.override_asked(&clip.id) && self.others_playing(&clip.id))
+                })
                 .map(|(at, _)| running.round_started + *at);
             let level = played.shaped.iter().map(|shaped| shaped.sent.1 + LEVEL_EVERY).min();
             // The round's end, should its last sound never end
@@ -451,6 +542,9 @@ impl Controller {
                 };
                 self.command(Command::KeyDown, &sound, now);
                 self.sound_started();
+                if let Some(running) = self.running.as_mut() {
+                    running.started.insert(sound.id.clone());
+                }
                 if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
                     // Held for its length, once known, else as a tap
                     let hold = self.playback.length(&id).unwrap_or(MIN_HOLD).max(MIN_HOLD);

@@ -81,6 +81,17 @@ pub enum Request {
     },
     /// The soundboards again, as after a sound's options changed: Voicemod does not tell the Control API
     ReadSoundboards,
+    /// Some of a sound's own options for a while, as for a macro's run, through the bridge only: answered with
+    /// `VoicemodEvent::OptionsApplied`
+    OverrideSoundOptions {
+        id: String,
+        stops_others: Option<bool>,
+        /// Whether it mutes the other sounds while it plays
+        mutes_others: Option<bool>,
+        loops: Option<bool>,
+        /// Putting them back as they were, which can wait for a fresh read of the options
+        restore: bool,
+    },
 }
 
 /// The picture of a sound or a voice, by its id
@@ -108,7 +119,8 @@ impl Request {
             Self::SetGain { .. }
             | Self::SetSoundVolume { .. }
             | Self::ReadSoundVolumes
-            | Self::SetSoundOptions { .. } => {
+            | Self::SetSoundOptions { .. }
+            | Self::OverrideSoundOptions { .. } => {
                 return None;
             }
         })
@@ -155,6 +167,11 @@ pub enum VoicemodEvent {
     SoundVolumes(HashMap<String, f32>),
     /// A sound's own options changed as the app asked, through the bridge
     SoundChanged,
+    /// Options changed for a while answered, through the bridge: `changed` false when Voicemod refused
+    OptionsApplied {
+        sound: String,
+        changed: bool,
+    },
     /// Each sound's length from its file, through the bridge, in seconds
     SoundLengths(HashMap<String, f32>),
 }
@@ -194,6 +211,7 @@ impl Voicemod {
                 },
                 BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
                 BridgeEvent::SoundChanged => VoicemodEvent::SoundChanged,
+                BridgeEvent::OptionsApplied { sound, changed } => VoicemodEvent::OptionsApplied { sound, changed },
                 BridgeEvent::SoundLengths(lengths) => VoicemodEvent::SoundLengths(lengths),
             })
         });
@@ -367,6 +385,23 @@ async fn exchange(
                         stops_others,
                     } => {
                         bridge.set_sound_options(id, sound_options(*mode, *volume, *stops_others));
+                        true
+                    }
+                    Request::OverrideSoundOptions {
+                        id,
+                        stops_others,
+                        mutes_others,
+                        loops,
+                        restore,
+                    } => {
+                        let mut changes = sound_options(None, None, *stops_others);
+                        if let Some(mutes_others) = mutes_others {
+                            changes.insert("muteOtherSounds".into(), (*mutes_others).into());
+                        }
+                        if let Some(loops) = loops {
+                            changes.insert("loop".into(), (*loops).into());
+                        }
+                        bridge.override_sound_options(id, changes, *restore);
                         true
                     }
                     _ => false,

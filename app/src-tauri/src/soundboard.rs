@@ -40,6 +40,9 @@ pub struct Sound {
     pub looped: bool,
     #[serde(default)]
     pub stop_other_sounds: bool,
+    /// The other sounds are muted while it plays
+    #[serde(default)]
+    pub mute_other_sounds: bool,
     /// The microphone is silenced while it plays
     #[serde(default)]
     pub mute_voice: bool,
@@ -407,6 +410,7 @@ pub mod tests {
             playback_mode: PlaybackMode::PlayRestart,
             looped: false,
             stop_other_sounds: false,
+            mute_other_sounds: false,
             mute_voice: false,
             favorited: false,
             image_url: String::new(),
@@ -583,6 +587,7 @@ pub mod tests {
         let own = CustomPage {
             id: "page-1".into(),
             name: "Gaming".into(),
+            compact: false,
             pads: vec![
                 Some(CustomPad {
                     label: "Fail".into(),

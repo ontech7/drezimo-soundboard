@@ -7,7 +7,7 @@
 use crate::mixer::Channel;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Map, Value, json};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -34,6 +34,8 @@ const STOP_ONCE_STARTED: Duration = Duration::from_secs(3);
 const OPTIONS_FRESH: Duration = Duration::from_secs(600);
 /// A change waiting for the options to be read is dropped after that: Voicemod's answers do not say whose read failed
 const READ_WAIT: Duration = Duration::from_secs(10);
+/// A change of a sound's options Voicemod has not answered in this long never will: answers go to those after it
+const ANSWER_WAIT: Duration = Duration::from_secs(3);
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Voicemod's ports, by process, that did not answer as the bridge, and since when
@@ -57,10 +59,14 @@ enum Job {
     },
     /// The sounds' saved volumes again, as after Voicemod's soundboards changed
     ReadSounds,
-    /// Some of a sound's own options, kept by Voicemod: Voicemod takes them only all together
+    /// Some of a sound's own options, kept by Voicemod: Voicemod takes them only all together. `quiet`: for one play,
+    /// as a macro's, told back as `OptionsApplied` and not as a change of the soundboards
     SetSoundOptions {
         sound: String,
         changes: Map<String, Value>,
+        quiet: bool,
+        /// From the options known however old, as for a play that cannot wait for a read
+        stale_ok: bool,
     },
 }
 
@@ -127,6 +133,19 @@ impl Bridge {
         self.send(Job::SetSoundOptions {
             sound: sound.to_string(),
             changes,
+            quiet: false,
+            stale_ok: false,
+        });
+    }
+
+    /// Changes them for a while, as for a macro's run, answered with `OptionsApplied`: from the options known however
+    /// old, as Voicemod's window tells each change, unless putting them back, which can wait for a fresh read
+    pub fn override_sound_options(&self, sound: &str, changes: Map<String, Value>, back: bool) {
+        self.send(Job::SetSoundOptions {
+            sound: sound.to_string(),
+            changes,
+            quiet: true,
+            stale_ok: !back,
         });
     }
 
@@ -181,6 +200,10 @@ async fn serve(
 ) -> Result<(), tungstenite::Error> {
     let mut stops = Stops::default();
     let mut options = SoundOptions::default();
+    // The changes sent, in order, as Voicemod answers them without saying which sound: whether each is quiet, and when
+    let mut asked: VecDeque<(String, bool, Instant)> = VecDeque::new();
+    // Quiet changes waiting for the options to be read
+    let mut quiet_waiting: HashSet<String> = HashSet::new();
     // Values from before this connection may be gone, as after Voicemod restarted
     for channel in Channel::ALL {
         socket.send(gain_request(&stops.next_id(), channel)).await?;
@@ -198,16 +221,27 @@ async fn serve(
                         on_event(BridgeEvent::SoundVolumes(volumes(&options.known)));
                         on_event(BridgeEvent::SoundLengths(lengths(&resources)));
                         for (sound, changed) in ready {
+                            let quiet = quiet_waiting.remove(&sound);
                             socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
+                            asked.push_back((sound, quiet, Instant::now()));
                         }
+                        quiet_waiting.clear();
                     }
                     Some(BridgeMessage::OptionsSet { sound, options: set }) => options.set(sound, set),
                     Some(BridgeMessage::OptionsAnswer { changed }) => {
-                        if changed {
-                            on_event(BridgeEvent::SoundChanged);
-                        } else {
+                        // One never answered would shift every answer after it onto the wrong change
+                        while asked.front().is_some_and(|(_, _, at)| at.elapsed() > ANSWER_WAIT) {
+                            asked.pop_front();
+                        }
+                        let (sound, quiet, _) = asked.pop_front().unwrap_or((String::new(), false, Instant::now()));
+                        if !changed {
                             options.refused();
                             crate::errors::log("Voicemod refused to change a sound's options");
+                        }
+                        if quiet {
+                            on_event(BridgeEvent::OptionsApplied { sound, changed });
+                        } else if changed {
+                            on_event(BridgeEvent::SoundChanged);
                         }
                     }
                     Some(other) => {
@@ -231,13 +265,25 @@ async fn serve(
                     socket.send(sound_volume_request(&stops.next_id(), &sound, volume)).await?;
                 }
                 Some(Job::ReadSounds) => socket.send(resources_request(&stops.next_id())).await?,
-                Some(Job::SetSoundOptions { sound, changes }) => match options.change(sound, changes, Instant::now()) {
-                    Change::Send(sound, changed) => {
-                        socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
+                Some(Job::SetSoundOptions { sound, changes, quiet, stale_ok }) => {
+                    if quiet {
+                        quiet_waiting.insert(sound.clone());
                     }
-                    Change::Read => socket.send(resources_request(&stops.next_id())).await?,
-                    Change::Wait => {}
-                },
+                    let change = if stale_ok {
+                        options.change_known(sound, changes, Instant::now())
+                    } else {
+                        options.change(sound, changes, Instant::now())
+                    };
+                    match change {
+                        Change::Send(sound, changed) => {
+                            quiet_waiting.remove(&sound);
+                            socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
+                            asked.push_back((sound, quiet, Instant::now()));
+                        }
+                        Change::Read => socket.send(resources_request(&stops.next_id())).await?,
+                        Change::Wait => {}
+                    }
+                }
                 None => return Ok(()),
             },
         }
@@ -280,6 +326,16 @@ impl SoundOptions {
         }
         self.reading = Some(now);
         Change::Read
+    }
+
+    /// As `change`, but from the options known however old they are: Voicemod's window tells each change, and a
+    /// macro's play cannot wait for a read
+    fn change_known(&mut self, sound: String, changes: Map<String, Value>, now: Instant) -> Change {
+        if let Some(known) = self.known.get_mut(&sound) {
+            known.extend(changes);
+            return Change::Send(sound, known.clone());
+        }
+        self.change(sound, changes, now)
     }
 
     /// A read came: the changes waiting, now with all the sounds' options. One waiting too long, as after a failed
@@ -457,6 +513,8 @@ pub enum BridgeEvent {
     SoundVolumes(HashMap<String, f32>),
     /// A sound's own options changed in Voicemod, as the app asked: its soundboards tell them
     SoundChanged,
+    /// A quiet change answered: `changed` false when Voicemod refused it
+    OptionsApplied { sound: String, changed: bool },
     /// Each sound's length, in seconds, as Voicemod knows it from its file
     SoundLengths(HashMap<String, f32>),
 }

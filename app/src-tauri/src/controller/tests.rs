@@ -461,10 +461,26 @@ fn a_tap_opens_the_menu_and_another_picks_the_page() {
 
     turn(&mut controller, 1, now);
     turn(&mut controller, 1, now);
-    turn(&mut controller, 1, now);
     knob(&mut controller, true, now);
     knob(&mut controller, false, now);
     assert_eq!(controller.page().unwrap().name, "C");
+    assert!(matches!(controller.screen(now).0, Screen::Home { .. }));
+}
+
+#[test]
+fn the_menu_goes_round_past_its_ends() {
+    let (mut controller, now) = ready(three_soundboards());
+    knob(&mut controller, true, now);
+    knob(&mut controller, false, now);
+    turn(&mut controller, -1, now);
+    let Screen::Menu { selected, .. } = controller.screen(now).0 else {
+        panic!("the menu");
+    };
+    assert_eq!(selected, 2, "before the first, the last");
+    turn(&mut controller, 1, now);
+    knob(&mut controller, true, now);
+    knob(&mut controller, false, now);
+    assert_eq!(controller.page().unwrap().name, "A", "past the last, the first");
     assert!(matches!(controller.screen(now).0, Screen::Home { .. }));
 }
 
@@ -1091,6 +1107,7 @@ fn own_page(id: &str, pads: Vec<Option<CustomPad>>) -> CustomPage {
         id: id.into(),
         name: id.to_uppercase(),
         pads,
+        compact: false,
     }
 }
 
@@ -3174,4 +3191,283 @@ fn the_wheel_goes_with_the_board() {
     turn(&mut controller, 1, now);
     controller.set_board_connected(false, now);
     assert!(controller.wheel.is_none());
+}
+
+/// A song that loops and stops the other sounds, and a horn that stops them too, as Voicemod's own, on a time line
+fn song_and_horn() -> (Controller, Instant) {
+    let horn = Sound {
+        stop_other_sounds: true,
+        ..sound("horn")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![song(), horn])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let timeline = Timeline {
+        clips: vec![clip("song", 0, 0), clip("horn", 1, 500)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-s", Vec::new())
+        },
+    );
+    controller.take_outputs();
+    (controller, now)
+}
+
+fn song() -> Sound {
+    Sound {
+        looped: true,
+        stop_other_sounds: true,
+        ..sound("song")
+    }
+}
+
+fn override_of(id: &str, on: bool) -> Request {
+    Request::OverrideSoundOptions {
+        id: id.into(),
+        stops_others: Some(on),
+        mutes_others: None,
+        loops: (id == "song").then_some(on),
+        restore: on,
+    }
+}
+
+fn applied(controller: &mut Controller, sound: &str, now: Instant) {
+    let event = VoicemodEvent::OptionsApplied {
+        sound: sound.into(),
+        changed: true,
+    };
+    controller.voicemod_event(event, now);
+}
+
+#[test]
+fn a_macro_s_sounds_play_over_each_other_once_each() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+
+    let outputs = press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    let asked: Vec<&Request> = requests(&outputs);
+    assert!(asked.contains(&&override_of("song", false)) && asked.contains(&&override_of("horn", false)));
+    assert!(
+        asked.contains(&&play("song", true)),
+        "the first plays at once: nothing to stop yet"
+    );
+    assert!(
+        outputs
+            .iter()
+            .any(|output| matches!(output, Output::Overrides(kept) if kept.len() == 2))
+    );
+    applied(&mut controller, "song", at(100));
+    assert_eq!(
+        requests_at(&mut controller, at(500)),
+        [],
+        "the horn waits, as it would stop the song"
+    );
+    applied(&mut controller, "horn", at(600));
+    assert_eq!(requests_at(&mut controller, at(600)), [play("horn", true)]);
+
+    // Pressed again, the macro stops with its sounds, and their options go back
+    let requests: Vec<Request> = requests(&press(&mut controller, 0, true, at(800)))
+        .into_iter()
+        .cloned()
+        .collect();
+    press(&mut controller, 0, false, at(800));
+    for expected in [
+        Request::StopSound("song".into()),
+        Request::StopSound("horn".into()),
+        override_of("song", true),
+        override_of("horn", true),
+    ] {
+        assert!(requests.contains(&expected), "{expected:?} in {requests:?}");
+    }
+}
+
+#[test]
+fn a_clip_waits_a_second_at_most_for_its_options() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    assert_eq!(requests_at(&mut controller, at(500)), []);
+    assert!(
+        controller
+            .next_update()
+            .is_some_and(|next| next <= now + overrides::OVERRIDE_WAIT)
+    );
+    assert_eq!(
+        requests_at(
+            &mut controller,
+            now + overrides::OVERRIDE_WAIT - Duration::from_millis(1)
+        ),
+        []
+    );
+    assert_eq!(
+        requests_at(&mut controller, now + overrides::OVERRIDE_WAIT),
+        [play("horn", true)]
+    );
+}
+
+#[test]
+fn a_looping_sound_plays_once_whatever_its_options() {
+    let (mut controller, now) = song_and_horn();
+    controller.file_lengths.insert("song".into(), Duration::from_secs(3));
+    controller.playback.learn_length("song", Duration::from_secs(60));
+    press(&mut controller, 0, true, now);
+    let at = |millis| now + Duration::from_millis(millis);
+    applied(&mut controller, "horn", at(100));
+    requests_at(&mut controller, at(500));
+    assert_eq!(
+        requests_at(&mut controller, at(3000)),
+        [Request::StopSound("song".into())],
+        "cut at its length"
+    );
+}
+
+#[test]
+fn options_left_changed_go_back_once_the_bridge_is_there() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![song()])]);
+    let own = OwnOptions {
+        stops_others: true,
+        mutes_others: false,
+        loops: true,
+    };
+    controller.left_overrides([("song".to_string(), own)].into());
+    assert_eq!(requests_at(&mut controller, now), [], "not without the bridge");
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let outputs = {
+        controller.update(now);
+        controller.take_outputs()
+    };
+    assert!(requests(&outputs).contains(&&override_of("song", true)));
+    applied(&mut controller, "song", now);
+    let outputs = controller.take_outputs();
+    assert!(
+        outputs
+            .iter()
+            .any(|output| matches!(output, Output::Overrides(kept) if kept.is_empty()))
+    );
+}
+
+#[test]
+fn the_editor_s_stop_stops_the_macro_s_sounds() {
+    let (mut controller, now) = song_and_horn();
+    controller.try_macro("macro-s", now);
+    controller.update(now);
+    controller.take_outputs();
+    controller.stop_macro(now);
+    controller.update(now);
+    let outputs = controller.take_outputs();
+    assert_eq!(
+        requests(&outputs)[0],
+        &Request::StopSound("song".into()),
+        "then the options go back"
+    );
+}
+
+#[test]
+fn a_sound_that_stops_the_others_leaves_the_macro_s_others_playing() {
+    // Thunder cut at 3 s, a horse that stops the others over it at 1 s
+    let horse = Sound {
+        stop_other_sounds: true,
+        ..sound("horse")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("thunder"), horse])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let timeline = Timeline {
+        clips: vec![
+            Clip {
+                cut: Some(3000),
+                ..clip("thunder", 0, 0)
+            },
+            clip("horse", 1, 1000),
+        ],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-h", Vec::new())
+        },
+    );
+    controller.playback.learn_length("thunder", Duration::from_secs(10));
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    applied(&mut controller, "horse", at(150));
+    assert_eq!(requests_at(&mut controller, at(1000)), [play("horse", true)]);
+    assert_eq!(
+        requests_at(&mut controller, at(3000)),
+        [Request::StopSound("thunder".into())],
+        "the thunder still plays: its cut comes"
+    );
+}
+
+#[test]
+fn options_put_back_are_kept_until_voicemod_confirms_them() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    applied(&mut controller, "song", at(100));
+    applied(&mut controller, "horn", at(100));
+    press(&mut controller, 0, true, at(200));
+    press(&mut controller, 0, false, at(200));
+    // Not confirmed: sent again
+    assert!(requests_at(&mut controller, at(5199)).is_empty());
+    let again = requests_at(&mut controller, at(5200));
+    assert!(again.contains(&override_of("song", true)) && again.contains(&override_of("horn", true)));
+    applied(&mut controller, "song", at(5300));
+    let outputs = controller.take_outputs();
+    assert!(
+        outputs
+            .iter()
+            .any(|output| matches!(output, Output::Overrides(kept) if kept.len() == 1)),
+        "the song is put back"
+    );
+}
+
+#[test]
+fn the_time_line_keeps_its_distances_after_a_clip_waited() {
+    let (mut controller, now) = song_and_horn();
+    let timeline = Timeline {
+        clips: vec![clip("song", 0, 0), clip("horn", 1, 500), clip("fx", 2, 900)],
+        actions: Vec::new(),
+    };
+    controller.voicemod_event(
+        VoicemodEvent::Soundboards(vec![soundboard(
+            "b",
+            vec![
+                song(),
+                Sound {
+                    stop_other_sounds: true,
+                    ..sound("horn")
+                },
+                sound("fx"),
+            ],
+        )]),
+        now,
+    );
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-s", Vec::new())
+        },
+    );
+    controller.take_outputs();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    assert!(
+        requests_at(&mut controller, at(900)).is_empty(),
+        "the horn waits, the fx behind it"
+    );
+    applied(&mut controller, "horn", at(1000));
+    assert_eq!(requests_at(&mut controller, at(1000)), [play("horn", true)]);
+    assert!(
+        requests_at(&mut controller, at(1399)).is_empty(),
+        "400 ms after the horn, as drawn"
+    );
+    assert_eq!(requests_at(&mut controller, at(1400)), [play("fx", true)]);
 }

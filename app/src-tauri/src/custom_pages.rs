@@ -36,6 +36,9 @@ pub struct CustomPage {
     /// One per pad, from the top left; null for an empty pad
     #[serde(deserialize_with = "pads_known")]
     pub pads: Vec<Option<CustomPad>>,
+    /// Kept without empty pads between the others: the editor moves the next ones up when one is cleared
+    #[serde(default)]
+    pub compact: bool,
 }
 
 /// A pad this app does not know, from another version, is left empty rather than losing the page.
@@ -439,6 +442,7 @@ mod tests {
         let page = |id: &str, name: &str| CustomPage {
             id: id.into(),
             name: name.into(),
+            compact: false,
             pads: vec![Some(CustomPad {
                 content: Content::Action {
                     action: Action::MuteMic,

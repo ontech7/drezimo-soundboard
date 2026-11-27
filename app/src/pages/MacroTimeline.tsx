@@ -47,9 +47,12 @@ import { PadPicture } from "../PadPicture";
 
 const LANE = 58;
 const ACTION_LANE = 44;
-/** The volume curve's height inside a clip, below its name */
-const CURVE_TOP = 20;
-const CURVE_HEIGHT = 30;
+/**
+ * The volume curve inside a clip, below its name: its points, 4.5 px round, stay inside the clip (LANE less its
+ * margins and border) at 0 % too, where they can still be grabbed
+ */
+const CURVE_TOP = 18;
+const CURVE_HEIGHT = 22;
 /** The time line always shows at least this much, in seconds, and a little past its end */
 const MIN_SHOWN = 10;
 const PAST_END = 2;

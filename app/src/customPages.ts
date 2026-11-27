@@ -44,6 +44,14 @@ export interface CustomPage {
   name: string;
   /** 36, from the top left */
   pads: (CustomPad | null)[];
+  /** Kept without empty pads between the others: the next ones move up when one is cleared */
+  compact?: boolean;
+}
+
+/** The pads in their order, the empty ones at the end */
+export function closedUp(pads: (CustomPad | null)[]): (CustomPad | null)[] {
+  const filled = pads.filter((pad) => pad !== null);
+  return [...filled, ...Array<null>(pads.length - filled.length).fill(null)];
 }
 
 export interface LibraryItem {

@@ -21,6 +21,7 @@ mod press_again;
 mod protocol;
 mod report;
 mod settings;
+mod sound_overrides;
 mod soundboard;
 mod tour;
 mod tray;

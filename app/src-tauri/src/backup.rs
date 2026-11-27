@@ -781,6 +781,7 @@ mod tests {
             id: id.into(),
             name: "Mine".into(),
             pads,
+            compact: false,
         }
     }
 

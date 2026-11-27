@@ -3989,3 +3989,56 @@ button.wheel-label {
 .explain-wheel.open {
   opacity: 1;
 }
+
+/* A page option that is on or off, in the page's menu */
+.menu .check-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  white-space: normal;
+}
+
+.check-item .check .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--amber);
+  stroke-width: 2.4;
+}
+
+.check-item .text {
+  display: grid;
+  gap: 2px;
+}
+
+.check-item .muted {
+  font-size: 12px;
+}
+
+/* A soundboard longer than a page: one of its parts of 36 makes the page */
+.choice.in-parts {
+  flex-wrap: wrap;
+  cursor: default;
+}
+
+.choice.in-parts .parts {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.choice.in-parts .parts button {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.choice.in-parts .parts button:hover {
+  border-color: var(--amber);
+  color: var(--text);
+}
