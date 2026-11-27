@@ -40,7 +40,9 @@ impl Controller {
         let settings = &self.knob_settings;
         let double_tap = settings.double_tap != PressAction::Nothing && self.menu.is_none() && !self.wheel_waits();
         let long_press = settings.long_press != PressAction::Nothing;
+        let times = (settings.double_tap_time(), settings.long_press_time());
         self.knob.set_waits(double_tap, long_press);
+        self.knob.set_times(times.0, times.1);
     }
 
     pub(super) fn knob_turned(&mut self, step: i8, now: Instant) {

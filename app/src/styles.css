@@ -1886,6 +1886,23 @@ input::placeholder {
   border-radius: 50%;
   background: var(--led);
   box-shadow: 0 0 8px var(--led);
+  /* Steady unless it moves at rest */
+  animation: none;
+}
+
+/* The LED at rest as it moves on Drezimo: on the colour's button and the editor's pads */
+.colour-button .dot.breathe,
+.pad.rest-breathe::before {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+.colour-button .dot.blink,
+.pad.rest-blink::before {
+  animation: blink 0.8s steps(1) infinite;
+}
+
+.popover .segmented {
+  margin-top: 2px;
 }
 
 .inspector .popover {

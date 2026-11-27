@@ -3,6 +3,7 @@
 //! the time line keep their sequence of steps (docs/project.md, section 8). `controller/running.rs` runs them.
 
 use crate::custom_pages::{colour_into_range, into_range};
+use crate::protocol::Effect;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -41,6 +42,13 @@ pub struct Macro {
     /// The LED's colour at rest on its pads, unless a pad has its own
     #[serde(default)]
     pub colour: Option<[u8; 3]>,
+    /// How the LED moves at rest on its pads, unless a pad has its own
+    #[serde(
+        default,
+        deserialize_with = "crate::protocol::known_effect",
+        skip_serializing_if = "Effect::is_solid"
+    )]
+    pub animation: Effect,
     /// What a press does while it runs
     #[serde(default)]
     pub again: Again,
@@ -443,6 +451,7 @@ mod tests {
             id: id.into(),
             name: name.into(),
             colour: None,
+            animation: Default::default(),
             again: Again::Stop,
             repeat: 9,
             restore: false,

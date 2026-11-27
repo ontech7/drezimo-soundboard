@@ -4,6 +4,7 @@ import { AnchorPicker, Row, Section, Segmented, Slider, Toggle } from "../contro
 import { type Texts, useTexts } from "../i18n";
 import { type OverlayScreen, type OverlaySettings, type SettingsView, saveSettings } from "../settings";
 import type { Status } from "../status";
+import { DisplayOnScreenCard } from "./DisplayOnScreenCard";
 
 const DURATIONS = [2, 4, 6, 10];
 const ALWAYS = 0;
@@ -184,6 +185,8 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
         </button>
         {overlay.enabled && !canPreview && <p className="muted">{texts.previewNeeds}</p>}
       </div>
+
+      <DisplayOnScreenCard settings={settings} />
     </>
   );
 }

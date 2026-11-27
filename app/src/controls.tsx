@@ -79,9 +79,11 @@ interface SliderProps {
   onPreview?: (value: number) => void;
   /** Once it is let go */
   onCommit: (value: number) => void;
+  /** How its value reads, a percent unless given */
+  format?: (value: number) => string;
 }
 
-export function Slider({ label, value, min, max, step, disabled, onPreview, onCommit }: SliderProps) {
+export function Slider({ label, value, min, max, step, disabled, onPreview, onCommit, format }: SliderProps) {
   const [shown, setShown] = useState(value);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => setShown(value), [value]);
@@ -115,7 +117,7 @@ export function Slider({ label, value, min, max, step, disabled, onPreview, onCo
           onPreview?.(next);
         }}
       />
-      <output>{shown}%</output>
+      <output>{format ? format(shown) : `${shown}%`}</output>
     </div>
   );
 }

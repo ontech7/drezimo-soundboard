@@ -7,6 +7,7 @@ mod overlay;
 mod overrides;
 mod running;
 mod screen;
+mod screen_display;
 mod wheel;
 mod window;
 
@@ -24,6 +25,7 @@ use crate::overlay::Content as OverlayContent;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
+use crate::settings::ScreenDisplaySettings;
 use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
@@ -86,6 +88,8 @@ pub enum Output {
     Gesture(Gesture),
     /// The sounds whose options a macro changed in Voicemod, as they were, to keep in case the app closes meanwhile
     Overrides(HashMap<String, OwnOptions>),
+    /// Whether Drezimo's display shows on the PC screen now
+    ScreenDisplay(bool),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -245,6 +249,16 @@ pub struct Controller {
     overrides: HashMap<String, overrides::Override>,
     /// Those put back a moment ago, as they were, and when
     restored: HashMap<String, (OwnOptions, Instant)>,
+    /// When Drezimo's display shows on the PC screen
+    screen_display: ScreenDisplaySettings,
+    /// Until when it shows after its last action, or for the Overlay page's preview
+    display_until: Option<Instant>,
+    display_preview_until: Option<Instant>,
+    display_shown: bool,
+    /// The page last seen, to tell a page change
+    display_page: Option<(String, usize)>,
+    /// One of its actions was under way at the last update
+    display_wanted_before: bool,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -307,6 +321,12 @@ impl Default for Controller {
             overlay: None,
             overrides: HashMap::new(),
             restored: HashMap::new(),
+            screen_display: ScreenDisplaySettings::default(),
+            display_until: None,
+            display_preview_until: None,
+            display_shown: false,
+            display_page: None,
+            display_wanted_before: false,
             next_update: None,
             outputs: Vec::new(),
         }
@@ -569,6 +589,8 @@ impl Controller {
             self.overlay = overlay;
         }
 
+        self.update_screen_display(now);
+
         let flashes = self.flashes.values().chain(self.refused.values()).copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
         let menu_end = self.menu.as_ref().map(|menu| menu.until);
@@ -585,6 +607,7 @@ impl Controller {
             .chain(self.wheel_until())
             .chain(self.macro_wake())
             .chain(self.override_wake())
+            .chain(self.screen_display_wake())
             .chain(self.knob_wake())
             .min();
     }
@@ -1239,7 +1262,15 @@ impl Controller {
     /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
     fn content_led(&self, pad: u8, now: Instant) -> Led {
         let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
-        let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
+        let animation = self
+            .pages
+            .get(self.page)
+            .map(|page| page.animation(pad))
+            .unwrap_or_default();
+        let at_rest = |usual| Led {
+            color: colour.unwrap_or(usual),
+            effect: animation,
+        };
         match self.pad_at(pad) {
             None => Led::OFF,
             Some(content) if !content.enabled() => Led::solid(DIM_RED),
@@ -1254,14 +1285,21 @@ impl Controller {
                 },
             },
             Some(Pad::Macro { id, .. }) => {
-                let own = self
-                    .macros
-                    .iter()
-                    .find(|item| item.id == *id)
-                    .and_then(|item| item.colour);
-                let color = colour.or(own).unwrap_or(AMBER);
+                let item = self.macros.iter().find(|item| item.id == *id);
+                let color = colour.or(item.and_then(|item| item.colour)).unwrap_or(AMBER);
                 let running = self.running.as_ref().is_some_and(|running| running.item.id == *id);
-                let effect = if running { Effect::Breathe } else { Effect::Solid };
+                // Its pad's own animation, else the macro's; breathing while it runs
+                let rest = if animation.is_solid() {
+                    item.map(|item| item.animation).unwrap_or_default()
+                } else {
+                    animation
+                };
+                // Running, it breathes, or blinks when it breathes at rest
+                let effect = match (running, rest) {
+                    (true, Effect::Breathe) => Effect::Blink,
+                    (true, _) => Effect::Breathe,
+                    (false, _) => rest,
+                };
                 Led { color, effect }
             }
             Some(Pad::Action { action, page, .. }) => {
@@ -1281,7 +1319,14 @@ impl Controller {
                     Action::ResetVolumes => self.single_stop,
                 };
                 let color = colour.unwrap_or(action_colour(*action));
-                Led::solid(if on { color } else { color.map(|level| level / 4) })
+                if on {
+                    Led {
+                        color,
+                        effect: animation,
+                    }
+                } else {
+                    Led::solid(color.map(|level| level / 4))
+                }
             }
         }
     }

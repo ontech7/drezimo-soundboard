@@ -4,7 +4,7 @@ use crate::custom_pages::{Content, CustomPad, CustomPage};
 use crate::display::texts::Texts;
 use crate::macros::Macro;
 use crate::press_again::PressAgain;
-use crate::protocol::PAD_COUNT;
+use crate::protocol::{Effect, PAD_COUNT};
 use serde::de::{IntoDeserializer, value};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -225,6 +225,8 @@ pub struct Page {
     pub pads: Vec<Option<Pad>>,
     /// The LEDs' colours at rest the user picked, on their own pages
     pub colours: Vec<Option<[u8; 3]>>,
+    /// And how they move at rest
+    pub animations: Vec<Effect>,
     /// What a pad does when pressed again, where the user picked it for that pad
     pub presses: Vec<Option<PressAgain>>,
     /// A sound's volume when started from that pad, in percent, where the user picked it
@@ -234,6 +236,10 @@ pub struct Page {
 impl Page {
     pub fn colour(&self, pad: u8) -> Option<[u8; 3]> {
         self.colours.get(usize::from(pad)).copied().flatten()
+    }
+
+    pub fn animation(&self, pad: u8) -> Effect {
+        self.animations.get(usize::from(pad)).copied().unwrap_or_default()
     }
 
     pub fn press_again(&self, pad: u8) -> Option<PressAgain> {
@@ -319,6 +325,7 @@ fn add_pages(pages: &mut Vec<Page>, soundboard_id: &str, name: &str, pads: Vec<P
             parts,
             pads: page_pads,
             colours: Vec::new(),
+            animations: Vec::new(),
             presses: Vec::new(),
             volumes: Vec::new(),
         });
@@ -381,6 +388,12 @@ fn custom_page(
     pads.resize(PADS, None);
     let mut colours: Vec<Option<[u8; 3]>> = page.pads.iter().map(|slot| slot.as_ref()?.colour).collect();
     colours.resize(PADS, None);
+    let mut animations: Vec<Effect> = page
+        .pads
+        .iter()
+        .map(|slot| slot.as_ref().map(|pad| pad.animation).unwrap_or_default())
+        .collect();
+    animations.resize(PADS, Effect::Solid);
     let mut presses: Vec<Option<PressAgain>> = page.pads.iter().map(|slot| slot.as_ref()?.press_again).collect();
     presses.resize(PADS, None);
     let mut volumes: Vec<Option<u8>> = page.pads.iter().map(|slot| slot.as_ref()?.volume).collect();
@@ -392,6 +405,7 @@ fn custom_page(
         parts: 1,
         pads,
         colours,
+        animations,
         presses,
         volumes,
     }
@@ -573,6 +587,7 @@ pub mod tests {
             content,
             label: String::new(),
             colour: None,
+            animation: Default::default(),
             press_again: None,
             volume: None,
         })

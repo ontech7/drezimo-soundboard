@@ -1405,6 +1405,7 @@ fn macro_item(id: &str, steps: Vec<Step>) -> Macro {
         id: id.into(),
         name: id.to_uppercase(),
         colour: None,
+        animation: Default::default(),
         again: Again::Stop,
         repeat: 1,
         restore: false,
@@ -3470,4 +3471,97 @@ fn the_time_line_keeps_its_distances_after_a_clip_waited() {
         "400 ms after the horn, as drawn"
     );
     assert_eq!(requests_at(&mut controller, at(1400)), [play("fx", true)]);
+}
+
+fn screen_display_in(outputs: &[Output]) -> Option<bool> {
+    outputs.iter().rev().find_map(|output| match output {
+        Output::ScreenDisplay(shown) => Some(*shown),
+        _ => None,
+    })
+}
+
+#[test]
+fn the_display_shows_on_screen_with_the_soundboard_menu_and_a_moment_after() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.set_screen_display(crate::settings::ScreenDisplaySettings {
+        when: crate::settings::ShowDisplay::OnActions,
+        ..crate::settings::ScreenDisplaySettings::default()
+    });
+    controller.update(now);
+    assert_eq!(screen_display_in(&controller.take_outputs()), None, "not yet");
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(screen_display_in(&outputs), Some(true), "the menu opened");
+    turn(&mut controller, 1, now);
+    knob(&mut controller, true, now);
+    knob(&mut controller, false, now);
+    let later = now + Duration::from_millis(1499);
+    controller.update(later);
+    assert_eq!(
+        screen_display_in(&controller.take_outputs()),
+        None,
+        "still, to see the page picked"
+    );
+    controller.update(now + Duration::from_millis(1500));
+    assert_eq!(screen_display_in(&controller.take_outputs()), Some(false));
+}
+
+#[test]
+fn the_display_on_screen_always_never_or_for_a_preview() {
+    let (mut controller, now) = ready(three_soundboards());
+    controller.set_screen_display(crate::settings::ScreenDisplaySettings {
+        when: crate::settings::ShowDisplay::Always,
+        ..crate::settings::ScreenDisplaySettings::default()
+    });
+    controller.update(now);
+    assert_eq!(screen_display_in(&controller.take_outputs()), Some(true));
+    controller.set_screen_display(crate::settings::ScreenDisplaySettings::default());
+    controller.update(now);
+    assert_eq!(
+        screen_display_in(&controller.take_outputs()),
+        Some(false),
+        "never, by default"
+    );
+    controller.preview_screen_display(now);
+    controller.update(now);
+    assert_eq!(
+        screen_display_in(&controller.take_outputs()),
+        Some(true),
+        "for the preview"
+    );
+    controller.update(now + Duration::from_secs(3));
+    assert_eq!(screen_display_in(&controller.take_outputs()), Some(false));
+}
+
+#[test]
+fn a_pad_of_one_s_own_breathes_or_blinks_at_rest_as_picked() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a"), sound("b")])]);
+    let pad = |id: &str, animation| CustomPad {
+        animation,
+        colour: Some([0, 200, 150]),
+        ..custom_pad(Content::Sound {
+            id: id.into(),
+            name: String::new(),
+        })
+        .unwrap()
+    };
+    controller.set_custom_pages(vec![own_page(
+        "mine",
+        vec![Some(pad("a", Effect::Breathe)), Some(pad("b", Effect::Blink))],
+    )]);
+    controller.go_to_page(0);
+    controller.update(now);
+    assert_eq!(
+        (controller.pad_led(0, now), controller.pad_led(1, now)),
+        (
+            Led {
+                color: [0, 200, 150],
+                effect: Effect::Breathe
+            },
+            Led {
+                color: [0, 200, 150],
+                effect: Effect::Blink
+            }
+        )
+    );
 }

@@ -27,11 +27,17 @@ export type Content =
 
 export type Rgb = [number, number, number];
 
+/** An LED's effect at rest, as the board animates it (src-tauri/src/protocol.rs) */
+export type LedAnimation = "solid" | "breathe" | "blink";
+export const ANIMATIONS: LedAnimation[] = ["solid", "breathe", "blink"];
+
 export type CustomPad = Content & {
   /** Shown instead of its own name, when not empty */
   label: string;
   /** The LED at rest, instead of its kind's colour */
   colour: Rgb | null;
+  /** How it moves at rest */
+  animation?: LedAnimation;
   /** A sound's, instead of the one set on the Drezimo page */
   pressAgain?: PressAgain | null;
   /** A sound's volume when started from this pad, in percent: Voicemod's own when none */
@@ -116,6 +122,11 @@ export const SWATCHES: Rgb[] = [
   [255, 42, 42],
   [255, 60, 160],
   [200, 200, 210],
+  [150, 230, 30],
+  [0, 200, 150],
+  [220, 40, 255],
+  [255, 90, 60],
+  [180, 150, 255],
 ];
 
 export const ACTIONS: Action[] = [

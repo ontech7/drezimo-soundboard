@@ -3,7 +3,7 @@
 
 use crate::pictures;
 use crate::press_again::PressAgain;
-use crate::protocol::PAD_COUNT;
+use crate::protocol::{Effect, PAD_COUNT};
 use crate::soundboard::{Action, Pad, PlaybackMode, Soundboard, Voice};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -58,6 +58,13 @@ pub struct CustomPad {
     /// The LED's colour at rest, instead of its kind's
     #[serde(default)]
     pub colour: Option<[u8; 3]>,
+    /// How the LED moves at rest
+    #[serde(
+        default,
+        deserialize_with = "crate::protocol::known_effect",
+        skip_serializing_if = "Effect::is_solid"
+    )]
+    pub animation: Effect,
     /// A sound's, when pressed again: instead of the one set for every pad
     #[serde(
         default,
@@ -416,6 +423,7 @@ mod tests {
                 },
                 label: "Fail".into(),
                 colour: Some([255, 140, 40]),
+                animation: Default::default(),
                 press_again: Some(PressAgain::Pause),
                 volume: Some(30),
             })
@@ -450,6 +458,7 @@ mod tests {
                 },
                 label: "  a label far too long for the display  ".into(),
                 colour: None,
+                animation: Default::default(),
                 press_again: Some(PressAgain::Stop),
                 volume: None,
             })],

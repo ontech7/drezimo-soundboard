@@ -217,7 +217,7 @@
 .explain-ring circle.filling {
   stroke-dasharray: 100 0;
   opacity: 1;
-  transition: stroke-dasharray 0.6s linear;
+  transition: stroke-dasharray var(--hold, 0.6s) linear;
 }
 
 .explain-ripple {

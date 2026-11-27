@@ -72,8 +72,8 @@ enum Input {
     /// The Macro section opened: its time line wants the sounds' lengths
     ReadSoundLengths,
     Test(TestInput),
-    /// The display on the PC screen, as Diagnostics sets it
-    DisplayLook(DisplayLook),
+    /// Shows Drezimo's display on the PC screen for a moment, from the Overlay page
+    ScreenDisplayPreview,
 }
 
 enum TestInput {
@@ -139,18 +139,10 @@ pub fn display_frame(frame: State<DisplayFrame>) -> String {
     frame.0.lock().unwrap().clone()
 }
 
-/// The display on the PC screen, as Diagnostics shows it: off at each start
-#[derive(Default)]
-pub struct DisplayLookState(Mutex<DisplayLook>);
-
+/// Drezimo's display on the PC screen for a moment, to see where it sits
 #[tauri::command]
-pub fn display_look(look: State<DisplayLookState>) -> DisplayLook {
-    look.0.lock().unwrap().clone()
-}
-
-#[tauri::command]
-pub fn set_display_look(app: AppHandle, look: DisplayLook) {
-    send(&app, Input::DisplayLook(look.checked()));
+pub fn preview_screen_display(app: AppHandle) {
+    send(&app, Input::ScreenDisplayPreview);
 }
 
 /// The board test, while one runs
@@ -163,7 +155,7 @@ pub fn board_test(test: State<BoardTestState>) -> Option<BoardTest> {
 }
 
 /// Starts looking for the board and Voicemod. Expects `Mutex<Status>`, `DisplayFrame`, `BoardViewState`,
-/// `BoardTestState`, `DisplayLookState`, `LastUse`, `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to
+/// `BoardTestState`, `LastUse`, `SettingsState`, `CustomPagesState`, `MacrosState`, `LibraryState` and `Pictures` to
 /// be managed.
 pub fn start(app: AppHandle) {
     let (inputs, received) = mpsc::channel();
@@ -227,6 +219,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     controller.set_press_again(settings.press_again_by_mode);
     controller.set_knob(settings.knob.clone(), Instant::now());
     controller.set_wheel(settings.wheel.clone());
+    controller.set_screen_display(settings.screen_display.clone());
+    // Whether Drezimo's display shows on the PC screen, as the controller last said
+    let mut display_shown = false;
     controller.set_shown_pages(settings.shown_pages.clone());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
@@ -353,9 +348,8 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&new.wheel, &new.overlay)));
                 let _ = display.send(DisplayUpdate::Texts(new.language.texts()));
                 let _ = display.send(DisplayUpdate::Screen(new.overlay.screen.clone()));
-                if !new.diagnostics {
-                    show_display(app, display, DisplayLook::default());
-                }
+                controller.set_screen_display(new.screen_display.clone());
+                let _ = display.send(DisplayUpdate::Look(screen_look(&new, display_shown)));
                 if new.led_brightness != settings.led_brightness {
                     board.send(brightness_message(led_brightness(&new, tester.is_some())));
                 }
@@ -433,7 +427,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 }
                 _ => {}
             },
-            Some(Input::DisplayLook(look)) => show_display(app, display, look),
+            Some(Input::ScreenDisplayPreview) => controller.preview_screen_display(now),
             None => {}
         }
         updater.update(now);
@@ -465,6 +459,10 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                     let _ = overlay.send(OverlayUpdate::Content(shown));
                 }
                 Output::Overrides(kept) => crate::sound_overrides::save(app, &kept),
+                Output::ScreenDisplay(shown) => {
+                    display_shown = shown;
+                    let _ = display.send(DisplayUpdate::Look(screen_look(&settings, shown)));
+                }
                 Output::Log(message) => crate::errors::log(message),
                 Output::Gesture(gesture) => {
                     let _ = app.emit("knob-gesture", gesture);
@@ -534,10 +532,21 @@ fn show_frame(app: &AppHandle, display: &Sender<DisplayUpdate>, hex: String) {
     let _ = display.send(DisplayUpdate::Frame(hex));
 }
 
-/// The display on the PC screen as asked, stored for the window
-fn show_display(app: &AppHandle, display: &Sender<DisplayUpdate>, look: DisplayLook) {
-    app.state::<DisplayLookState>().0.lock().unwrap().clone_from(&look);
-    let _ = display.send(DisplayUpdate::Look(look));
+/// Drezimo's display on the PC screen: its own place and size, or the overlay's place, beside it, at a size near it
+fn screen_look(settings: &Settings, shown: bool) -> DisplayLook {
+    let own = &settings.screen_display;
+    let overlay = &settings.overlay;
+    DisplayLook {
+        shown,
+        anchor: if own.own_look { own.anchor } else { overlay.anchor },
+        size: match (own.own_look, overlay.size < 90) {
+            (true, _) => own.size,
+            (false, true) => 2,
+            (false, false) => 3,
+        },
+        inputs: own.inputs,
+        beside: (!own.own_look).then(|| f64::from(overlay.size) / 100.0),
+    }
 }
 
 fn window_touch(display: &Sender<DisplayUpdate>, touch: Touch) {

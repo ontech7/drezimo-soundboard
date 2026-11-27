@@ -6,7 +6,7 @@ use crate::knob::{KnobSettings, PressAction};
 use crate::macros::{self, Macro, MacrosState, Step};
 use crate::press_again::ByMode;
 use crate::protocol::DisplaySettings;
-use crate::settings::{self, Language, OverlaySettings, Settings, SettingsState};
+use crate::settings::{self, Language, OverlaySettings, ScreenDisplaySettings, Settings, SettingsState};
 use crate::wheel::WheelSettings;
 use crate::{device, errors};
 use chrono::{DateTime, Local, SecondsFormat};
@@ -51,6 +51,7 @@ pub struct SharedSettings {
     pub knob: KnobSettings,
     pub wheel: WheelSettings,
     pub overlay: OverlaySettings,
+    pub screen_display: ScreenDisplaySettings,
 }
 
 impl SharedSettings {
@@ -61,6 +62,7 @@ impl SharedSettings {
             press_again_by_mode: settings.press_again_by_mode,
             knob: settings.knob.clone(),
             wheel: settings.wheel.clone(),
+            screen_display: settings.screen_display.clone(),
             overlay: settings.overlay.clone(),
         }
     }
@@ -73,6 +75,7 @@ impl SharedSettings {
             press_again_by_mode: self.press_again_by_mode,
             knob: self.knob,
             wheel: self.wheel,
+            screen_display: self.screen_display,
             overlay: self.overlay,
             ..settings
         }
@@ -94,6 +97,9 @@ impl SharedSettings {
             knob: field(value, "knob").unwrap_or_default(),
             wheel: field::<WheelSettings>(value, "wheel").unwrap_or_default().checked(),
             overlay: field::<OverlaySettings>(value, "overlay").unwrap_or_default().checked(),
+            screen_display: field::<ScreenDisplaySettings>(value, "screenDisplay")
+                .unwrap_or_default()
+                .checked(),
         }
     }
 }
@@ -753,6 +759,10 @@ mod tests {
                 anchor: Anchor::Top,
                 ..OverlaySettings::default()
             },
+            screen_display: ScreenDisplaySettings {
+                when: crate::settings::ShowDisplay::OnActions,
+                ..ScreenDisplaySettings::default()
+            },
             diagnostics: true,
             tour_seen: true,
             macro_guide_seen: true,
@@ -769,6 +779,7 @@ mod tests {
             content,
             label: String::new(),
             colour: None,
+            animation: Default::default(),
             press_again: None,
             volume: None,
         })
@@ -790,6 +801,7 @@ mod tests {
             id: id.into(),
             name: "Entrance".into(),
             colour: None,
+            animation: Default::default(),
             again: Again::Stop,
             repeat: 1,
             restore: false,

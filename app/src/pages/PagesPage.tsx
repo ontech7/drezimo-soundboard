@@ -605,6 +605,8 @@ function PadGrid(props: GridProps) {
           i === selected ? "selected" : "",
           i === over ? "over" : "",
           shown?.locked || shown?.missing ? "locked" : "",
+          // As it moves at rest on Drezimo
+          pad?.animation && pad.animation !== "solid" ? `rest-${pad.animation}` : "",
         ];
         return (
           <button
@@ -817,7 +819,13 @@ function Inspector({
           onChange={(pressAgain) => onChange({ ...pad, pressAgain })}
         />
       )}
-      <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
+      <ColourPicker
+        colour={pad.colour}
+        shown={shown.colour}
+        onChange={(colour) => onChange({ ...pad, colour })}
+        animation={pad.animation ?? "solid"}
+        onAnimation={(animation) => onChange({ ...pad, animation })}
+      />
       <button type="button" className="button secondary" onClick={onReplace}>
         {texts.change}
       </button>
