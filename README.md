@@ -39,7 +39,7 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 ## The app
 
 <p align="center">
-  <img src="docs/images/app-soundboard.webp" alt="The Drezimo app: the board's current page as 6×6 pads with Voicemod's pictures and LED colours, the display's live picture at the top right" width="720">
+  <img src="docs/images/app-soundboard.webp" alt="The Drezimo app: the board's current page as 6×6 pads with Voicemod's pictures and LED colours, two macro pads among them, the display's live picture and the knob at the top right" width="720">
 </p>
 
 - **Soundboard:** the board's current page in the window, with Voicemod's pictures and the LEDs' live colours, playable from there too, and the display's live picture. Voicemod's soundboards and voices come as pages of 36 pads; a sound outside the Voicemod licence blinks red with "PRO ONLY" when pressed.
@@ -51,16 +51,28 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 - **Support:** a report to copy, without personal paths, and a hardware test for a board just built.
 - In English and Italian.
 
+<p align="center">
+  <img src="docs/images/app-macros.webp" alt="The Macro editor: a macro's sounds as blocks on three tracks along the seconds, the music's block selected with its volume line rising and falling, the actions on a row of their own, and below the box of the selected sound with its volume shapes" width="720">
+  <br>
+  <sub>The Macro editor: sounds on tracks along a time line, the music fading in and out under the others, voices and switches at their times</sub>
+</p>
+
 <table>
   <tr>
-    <td width="58%"><img src="docs/images/app-pages.webp" alt="The page editor: a custom page of sounds, voices and actions, with the LED colour menu open"></td>
-    <td width="42%"><img src="docs/images/overlay.webp" alt="The PC overlay: the page's 36 pads with their names and LED colours"></td>
+    <td width="56%"><img src="docs/images/app-pages.webp" alt="The page editor: a custom page of sounds, voices, actions and macros, a pad selected with its name, volume, mode in Voicemod and LED colour below"></td>
+    <td width="44%"><img src="docs/images/action-wheel.webp" alt="The action wheel on the screen: eight slices of pages, actions and macros around the Drezimo logo, the one turned to lit in amber"></td>
   </tr>
   <tr>
     <td align="center"><sub>The page editor</sub></td>
-    <td align="center"><sub>The PC overlay</sub></td>
+    <td align="center"><sub>The action wheel, picked by turning the knob</sub></td>
   </tr>
 </table>
+
+<p align="center">
+  <img src="docs/images/overlay.webp" alt="The PC overlay: the page's 36 pads with their names and LED colours" width="560">
+  <br>
+  <sub>The PC overlay</sub>
+</p>
 
 ## Installing the app
 
