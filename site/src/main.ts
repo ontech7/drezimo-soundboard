@@ -1,17 +1,23 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "./styles.css";
 import { loadDownloads } from "./download";
-import { applyTexts, language, t } from "./i18n";
+import { applyTexts, isLanguage, onLanguage, setLanguage, t } from "./i18n";
 import { startPage } from "./page";
 import { prefetchSounds } from "./sound";
 import type { Hero } from "./scene";
 
-document.documentElement.lang = language;
 applyTexts();
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-language]")) {
+  button.addEventListener("click", () => {
+    if (isLanguage(button.dataset.language)) setLanguage(button.dataset.language);
+  });
+}
 
 const touch = matchMedia("(pointer: coarse)").matches;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-document.getElementById("hint")!.textContent = t(touch ? "hintTouch" : "hintPointer");
+const hint = () => (document.getElementById("hint")!.textContent = t(touch ? "hintTouch" : "hintPointer"));
+hint();
+onLanguage(hint);
 startPage(reducedMotion);
 prefetchSounds();
 
@@ -20,7 +26,9 @@ loadDownloads().then(({ version, exe, dmg }) => {
   for (const id of ["mac", "mac-again"]) (document.getElementById(id) as HTMLAnchorElement).href = dmg;
   if (!version) return;
   const released = document.getElementById("released")!;
-  released.querySelector("span")!.textContent = t("released", { version });
+  const say = () => (released.querySelector("span")!.textContent = t("released", { version }));
+  say();
+  onLanguage(say);
   released.hidden = false;
 });
 
