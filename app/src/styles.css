@@ -3623,3 +3623,23 @@ input.seconds {
 .mt-inspector .shape-field {
   min-width: 0;
 }
+
+/* A slider inside a field keeps the slider's own height, and shrinks with the field */
+.field input[type="range"] {
+  height: 4px;
+}
+
+.field .slider {
+  min-width: 0;
+}
+
+.field .slider input[type="range"] {
+  flex: 1;
+  width: auto;
+  min-width: 80px;
+}
+
+.volume-field {
+  flex: 1 1 200px;
+  min-width: 0;
+}
