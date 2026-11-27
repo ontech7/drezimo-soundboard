@@ -7,7 +7,7 @@ use super::{Controller, Output};
 use crate::macros::Macro;
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 /// A clip that would stop or mute the macro's other sounds waits this long at most for its options to change, then
@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 pub(super) const OVERRIDE_WAIT: Duration = Duration::from_millis(1500);
 /// Options put back that Voicemod has not confirmed are sent again after this long
 const RESTORE_RETRY: Duration = Duration::from_secs(5);
+/// Sent this many times without Voicemod confirming them, they are given up
+const RESTORE_TRIES: u8 = 3;
 /// Voicemod's soundboards asked for before options were put back may come after: those put back hold over them so long
 const RESTORED_HOLD: Duration = Duration::from_secs(30);
 
@@ -46,6 +48,21 @@ pub(super) struct Override {
     /// As Voicemod had them, to put back
     own: OwnOptions,
     state: State,
+    /// The changes Voicemod has not answered yet, in order: whether each puts them back, and when it went
+    sent: VecDeque<(bool, Instant)>,
+    /// How many times they were put back without Voicemod confirming it
+    tries: u8,
+}
+
+impl Override {
+    fn new(own: OwnOptions, state: State) -> Self {
+        Self {
+            own,
+            state,
+            sent: VecDeque::new(),
+            tries: 0,
+        }
+    }
 }
 
 impl Controller {
@@ -60,12 +77,12 @@ impl Controller {
         let ids: HashSet<String> = timeline.clips.iter().map(|clip| clip.id.clone()).collect();
         let mut changed = false;
         for id in ids {
-            // Being put back, it is turned off again: that answer then counts
+            // Being put back, it is turned off again: the answer to that decides
             if let Some(found) = self.overrides.get_mut(&id) {
                 if matches!(found.state, State::Restoring(_)) {
                     found.state = State::Asked(now);
-                    let own = found.own;
-                    self.send_override(&id, own, false);
+                    found.tries = 0;
+                    self.send_override(&id, false, now);
                     self.quiet_sound(&id);
                 }
                 continue;
@@ -81,14 +98,8 @@ impl Controller {
             if !own.any() {
                 continue;
             }
-            self.send_override(&id, own, false);
-            self.overrides.insert(
-                id.clone(),
-                Override {
-                    own,
-                    state: State::Asked(now),
-                },
-            );
+            self.overrides.insert(id.clone(), Override::new(own, State::Asked(now)));
+            self.send_override(&id, false, now);
             self.quiet_sound(&id);
             changed = true;
         }
@@ -98,7 +109,14 @@ impl Controller {
     }
 
     /// `back`: as Voicemod had them; else turned off
-    fn send_override(&mut self, id: &str, own: OwnOptions, back: bool) {
+    fn send_override(&mut self, id: &str, back: bool, now: Instant) {
+        let Some(found) = self.overrides.get_mut(id) else {
+            return;
+        };
+        // One unanswered for so long never will be
+        found.sent.retain(|(_, at)| now < *at + RESTORE_RETRY);
+        found.sent.push_back((back, now));
+        let own = found.own;
         self.request(Request::OverrideSoundOptions {
             id: id.to_string(),
             stops_others: own.stops_others.then_some(back),
@@ -126,15 +144,26 @@ impl Controller {
         }
     }
 
-    /// Voicemod answered a change, turning off or putting back
+    /// Voicemod answered the oldest change sent for this sound, turning off or putting back
     pub(super) fn override_applied(&mut self, sound: &str, changed: bool, now: Instant) {
         let Some(found) = self.overrides.get_mut(sound) else {
             return;
         };
+        let Some((back, _)) = found.sent.pop_front() else {
+            return;
+        };
+        // A change sent after it is what Voicemod has in the end: its answer decides
+        if !found.sent.is_empty() {
+            return;
+        }
         let own = found.own;
-        match (found.state, changed) {
-            (State::Asked(_), true) => found.state = State::Applied,
-            (State::Asked(_), false) => {
+        match (back, changed) {
+            (false, true) => {
+                if matches!(found.state, State::Asked(_)) {
+                    found.state = State::Applied;
+                }
+            }
+            (false, false) => {
                 self.overrides.remove(sound);
                 self.own_sound(sound, own);
                 self.overrides_changed();
@@ -142,18 +171,17 @@ impl Controller {
                     "Voicemod refused to change {sound} for a macro: it plays with its own options"
                 )));
             }
-            (State::Restoring(_), true) => {
+            (true, true) => {
                 self.overrides.remove(sound);
                 self.restored.insert(sound.to_string(), (own, now));
                 self.overrides_changed();
             }
             // Sent again later
-            (State::Restoring(_), false) => {
+            (true, false) => {
                 self.outputs.push(Output::Log(format!(
                     "Voicemod refused to put back {sound}'s options: trying again"
                 )));
             }
-            (State::Applied, _) => {}
         }
     }
 
@@ -168,6 +196,15 @@ impl Controller {
         self.overrides
             .get(sound)
             .is_some_and(|found| matches!(found.state, State::Asked(_)))
+    }
+
+    /// It mutes the other sounds while it plays, as Voicemod has it still: its change not answered for a while
+    pub(super) fn mute_pending(&self, sound: &str, now: Instant) -> bool {
+        self.override_pending(sound, now) && self.overrides.get(sound).is_some_and(|found| found.own.mutes_others)
+    }
+
+    pub(super) fn mute_asked(&self, sound: &str) -> bool {
+        self.override_asked(sound) && self.overrides.get(sound).is_some_and(|found| found.own.mutes_others)
     }
 
     /// It stops or mutes the other sounds, as Voicemod had it
@@ -204,7 +241,8 @@ impl Controller {
             .min()
     }
 
-    /// The options of the sounds no macro running uses, once quiet, as Voicemod had them; again if not confirmed
+    /// The options of the sounds no macro running uses, once quiet, as Voicemod had them; again if not confirmed, a
+    /// few times at most. One Voicemod no longer lists is given up.
     pub(super) fn restore_sounds(&mut self, now: Instant) {
         if self.overrides.is_empty() || !self.single_stop || self.voicemod != VoicemodStatus::Connected {
             return;
@@ -215,7 +253,7 @@ impl Controller {
             .and_then(|running| running.item.timeline.as_ref())
             .map(|timeline| timeline.clips.iter().map(|clip| clip.id.clone()).collect())
             .unwrap_or_default();
-        let due: Vec<(String, OwnOptions)> = self
+        let due: Vec<(String, OwnOptions, u8)> = self
             .overrides
             .iter()
             .filter(|(id, found)| match found.state {
@@ -223,20 +261,36 @@ impl Controller {
                 State::Restoring(since) => now >= since + RESTORE_RETRY,
                 State::Asked(_) => false,
             })
-            .map(|(id, found)| (id.clone(), found.own))
+            .map(|(id, found)| (id.clone(), found.own, found.tries))
             .collect();
-        for (id, own) in due {
-            self.send_override(&id, own, true);
+        let mut given_up = false;
+        for (id, own, tries) in due {
+            // The soundboards known, a sound they lack is gone from Voicemod
+            let gone = !self.sounds.is_empty() && !self.sounds.contains_key(&id);
+            if gone || tries >= RESTORE_TRIES {
+                self.overrides.remove(&id);
+                given_up = true;
+                self.outputs.push(Output::Log(format!(
+                    "cannot put back {id}'s options in Voicemod: given up"
+                )));
+                continue;
+            }
+            self.send_override(&id, true, now);
             self.own_sound(&id, own);
             if let Some(found) = self.overrides.get_mut(&id) {
                 found.state = State::Restoring(now);
+                found.tries += 1;
             }
+        }
+        if given_up {
+            self.overrides_changed();
         }
     }
 
-    /// The bridge came back: what was being put back is sent again at once
+    /// The bridge came back: what was being put back is sent again at once, and no answer comes for what went before
     pub(super) fn overrides_reconnected(&mut self) {
         for found in self.overrides.values_mut() {
+            found.sent.clear();
             if matches!(found.state, State::Restoring(_)) {
                 found.state = State::Applied;
             }
@@ -244,7 +298,7 @@ impl Controller {
     }
 
     /// Voicemod's soundboards came: a sound a macro changed keeps what the macro gives it, one put back a moment ago
-    /// what Voicemod has again, whenever the read was asked
+    /// what Voicemod has again, until a read shows it so
     pub(super) fn keep_override_flags(&mut self) {
         let changed: Vec<String> = self
             .overrides
@@ -258,17 +312,24 @@ impl Controller {
         let restored: Vec<(String, OwnOptions)> =
             self.restored.iter().map(|(id, (own, _))| (id.clone(), *own)).collect();
         for (id, own) in restored {
-            self.own_sound(&id, own);
+            // Read after Voicemod put them back: from then on, what it tells holds, the user's own changes included
+            let back = self.sounds.get(&id).is_some_and(|sound| {
+                (!own.stops_others || sound.stop_other_sounds)
+                    && (!own.mutes_others || sound.mute_other_sounds)
+                    && (!own.loops || sound.looped)
+            });
+            if back {
+                self.restored.remove(&id);
+            } else {
+                self.own_sound(&id, own);
+            }
         }
     }
 
     /// Changed by an app closed before it put them back, from the file it kept: put back once the bridge is there
     pub fn left_overrides(&mut self, left: HashMap<String, OwnOptions>) {
         for (id, own) in left {
-            self.overrides.entry(id).or_insert(Override {
-                own,
-                state: State::Applied,
-            });
+            self.overrides.entry(id).or_insert(Override::new(own, State::Applied));
         }
     }
 

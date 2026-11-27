@@ -3429,6 +3429,157 @@ fn options_put_back_are_kept_until_voicemod_confirms_them() {
     );
 }
 
+fn refused(controller: &mut Controller, sound: &str, now: Instant) {
+    let event = VoicemodEvent::OptionsApplied {
+        sound: sound.into(),
+        changed: false,
+    };
+    controller.voicemod_event(event, now);
+}
+
+fn kept_in(outputs: &[Output]) -> Option<&HashMap<String, OwnOptions>> {
+    outputs.iter().rev().find_map(|output| match output {
+        Output::Overrides(kept) => Some(kept),
+        _ => None,
+    })
+}
+
+#[test]
+fn options_never_confirmed_put_back_are_given_up() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    applied(&mut controller, "song", at(100));
+    applied(&mut controller, "horn", at(100));
+    press(&mut controller, 0, true, at(200));
+    press(&mut controller, 0, false, at(200));
+    assert!(requests_at(&mut controller, at(5200)).contains(&override_of("song", true)));
+    assert!(requests_at(&mut controller, at(10200)).contains(&override_of("song", true)));
+    controller.update(at(15200));
+    let outputs = controller.take_outputs();
+    assert!(requests(&outputs).is_empty(), "sent three times");
+    assert!(kept_in(&outputs).is_some_and(HashMap::is_empty));
+    assert!(requests_at(&mut controller, at(30000)).is_empty());
+}
+
+#[test]
+fn options_of_a_sound_gone_from_voicemod_are_given_up() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("other")])]);
+    let own = OwnOptions {
+        stops_others: true,
+        mutes_others: false,
+        loops: true,
+    };
+    controller.left_overrides([("song".to_string(), own)].into());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.update(now);
+    let outputs = controller.take_outputs();
+    assert!(!requests(&outputs).contains(&&override_of("song", true)));
+    assert!(kept_in(&outputs).is_some_and(HashMap::is_empty));
+}
+
+#[test]
+fn an_answer_counts_for_the_change_it_answers() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    applied(&mut controller, "song", at(100));
+    applied(&mut controller, "horn", at(100));
+    // Stopped, then started again before the song's options are back
+    press(&mut controller, 0, true, at(200));
+    press(&mut controller, 0, false, at(200));
+    press(&mut controller, 0, true, at(300));
+    press(&mut controller, 0, false, at(300));
+    refused(&mut controller, "song", at(350));
+    assert_eq!(
+        kept_in(&controller.take_outputs()),
+        None,
+        "putting back was refused, turning off is still on its way"
+    );
+    applied(&mut controller, "song", at(400));
+    let outputs = press(&mut controller, 0, true, at(500));
+    assert!(
+        requests(&outputs).contains(&&override_of("song", true)),
+        "still known as changed, it goes back"
+    );
+}
+
+#[test]
+fn a_late_answer_to_turning_off_does_not_confirm_putting_back() {
+    let (mut controller, now) = song_and_horn();
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    let outputs = press(&mut controller, 0, true, at(1600));
+    press(&mut controller, 0, false, at(1600));
+    assert!(requests(&outputs).contains(&&override_of("song", true)));
+    applied(&mut controller, "song", at(1700));
+    assert_eq!(
+        kept_in(&controller.take_outputs()),
+        None,
+        "the answer to turning it off"
+    );
+    applied(&mut controller, "song", at(1800));
+    assert!(kept_in(&controller.take_outputs()).is_some_and(|kept| !kept.contains_key("song")));
+}
+
+#[test]
+fn a_clip_waits_while_a_sound_playing_would_mute_it() {
+    let bell = Sound {
+        mute_other_sounds: true,
+        ..sound("bell")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![bell, sound("voice")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let timeline = Timeline {
+        clips: vec![clip("bell", 0, 0), clip("voice", 1, 300)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-b", Vec::new())
+        },
+    );
+    controller.take_outputs();
+    let at = |millis| now + Duration::from_millis(millis);
+    let outputs = press(&mut controller, 0, true, now);
+    assert!(requests(&outputs).contains(&&play("bell", true)));
+    assert_eq!(requests_at(&mut controller, at(300)), [], "the bell would mute it");
+    applied(&mut controller, "bell", at(400));
+    assert_eq!(requests_at(&mut controller, at(400)), [play("voice", true)]);
+}
+
+#[test]
+fn options_put_back_hold_only_until_a_read_shows_them() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![song()])]);
+    let own = OwnOptions {
+        stops_others: true,
+        mutes_others: false,
+        loops: true,
+    };
+    controller.left_overrides([("song".to_string(), own)].into());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.update(now);
+    applied(&mut controller, "song", now);
+    let read = |controller: &mut Controller, song: Sound| {
+        controller.voicemod_event(VoicemodEvent::Soundboards(vec![soundboard("b", vec![song])]), now);
+        controller.sounds["song"].looped
+    };
+    assert!(
+        read(&mut controller, sound("song")),
+        "a read asked before, its options not back yet"
+    );
+    assert!(read(&mut controller, song()));
+    assert!(
+        !read(&mut controller, sound("song")),
+        "the user then turned the loop off in Voicemod"
+    );
+}
+
 #[test]
 fn the_time_line_keeps_its_distances_after_a_clip_waited() {
     let (mut controller, now) = song_and_horn();

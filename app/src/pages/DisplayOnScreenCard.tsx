@@ -18,7 +18,7 @@ export function DisplayOnScreenCard({ settings }: { settings: SettingsView }) {
   const own = display.ownLook;
   // Following the overlay, it shows where and how big it is then (src-tauri/src/device.rs, screen_look)
   const anchor = own ? display.anchor : settings.overlay.anchor;
-  const size = own || settings.overlay.size < 90 ? display.size : 3;
+  const size = own ? display.size : settings.overlay.size < 90 ? 2 : 3;
   return (
     <Section title={texts.displayOnScreen} text={words.text}>
       <Row label={words.when}>

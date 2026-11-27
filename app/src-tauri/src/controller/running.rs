@@ -298,9 +298,11 @@ impl Controller {
             let Some((due_at, event)) = due else {
                 break;
             };
-            // A sound that would stop or mute the others playing waits for its options to change, a moment at most
+            // A sound that would stop or mute the others playing waits for its options to change, a moment at most, as
+            // does one a sound playing would mute
             let holds = matches!(&event, Event::Start(clip)
-                if self.override_pending(&clip.id, now) && self.others_playing(&clip.id));
+                if (self.override_pending(&clip.id, now) && self.others_playing(&clip.id))
+                    || self.muted_meanwhile(&clip.id, |other| self.mute_pending(other, now)));
             let Some(running) = self.running.as_mut() else {
                 return;
             };
@@ -482,6 +484,16 @@ impl Controller {
             })
     }
 
+    /// Another sound the macro running started still plays that would mute this one, as `muting` tells
+    fn muted_meanwhile(&self, id: &str, muting: impl Fn(&str) -> bool) -> bool {
+        self.running.as_ref().is_some_and(|running| {
+            running
+                .started
+                .iter()
+                .any(|other| other != id && muting(other) && self.playback.state(other).is_some())
+        })
+    }
+
     /// From its file, as Voicemod tells it, else as the log taught it
     fn sound_length(&self, id: &str) -> Option<Duration> {
         self.file_lengths.get(id).copied().or(self.playback.length(id))
@@ -505,7 +517,9 @@ impl Controller {
                 .events
                 .get(played.next)
                 .filter(|(_, event)| {
-                    !matches!(event, Event::Start(clip) if self.override_asked(&clip.id) && self.others_playing(&clip.id))
+                    !matches!(event, Event::Start(clip)
+                        if (self.override_asked(&clip.id) && self.others_playing(&clip.id))
+                            || self.muted_meanwhile(&clip.id, |other| self.mute_asked(other)))
                 })
                 .map(|(at, _)| running.round_started + *at);
             let level = played.shaped.iter().map(|shaped| shaped.sent.1 + LEVEL_EVERY).min();

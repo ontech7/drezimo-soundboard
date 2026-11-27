@@ -532,7 +532,8 @@ fn show_frame(app: &AppHandle, display: &Sender<DisplayUpdate>, hex: String) {
     let _ = display.send(DisplayUpdate::Frame(hex));
 }
 
-/// Drezimo's display on the PC screen: its own place and size, or the overlay's place, beside it, at a size near it
+/// Drezimo's display on the PC screen: its own place and size, or the overlay's place, beside it when the overlay is
+/// on, at a size near it
 fn screen_look(settings: &Settings, shown: bool) -> DisplayLook {
     let own = &settings.screen_display;
     let overlay = &settings.overlay;
@@ -545,7 +546,7 @@ fn screen_look(settings: &Settings, shown: bool) -> DisplayLook {
             (false, false) => 3,
         },
         inputs: own.inputs,
-        beside: (!own.own_look).then(|| f64::from(overlay.size) / 100.0),
+        beside: (!own.own_look && overlay.enabled).then(|| f64::from(overlay.size) / 100.0),
     }
 }
 

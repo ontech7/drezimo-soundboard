@@ -34,8 +34,9 @@ const STOP_ONCE_STARTED: Duration = Duration::from_secs(3);
 const OPTIONS_FRESH: Duration = Duration::from_secs(600);
 /// A change waiting for the options to be read is dropped after that: Voicemod's answers do not say whose read failed
 const READ_WAIT: Duration = Duration::from_secs(10);
-/// A change of a sound's options Voicemod has not answered in this long never will: answers go to those after it
-const ANSWER_WAIT: Duration = Duration::from_secs(3);
+/// A change of a sound's options Voicemod has not answered in this long, since it was sent and since the answer before,
+/// never will: answers go to those after it. Voicemod answers one after the other, the first after a while idle in 1.4 s.
+const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Voicemod's ports, by process, that did not answer as the bridge, and since when
@@ -202,6 +203,8 @@ async fn serve(
     let mut options = SoundOptions::default();
     // The changes sent, in order, as Voicemod answers them without saying which sound: whether each is quiet, and when
     let mut asked: VecDeque<(String, bool, Instant)> = VecDeque::new();
+    // A batch of changes is answered one by one: each waits from the answer before it
+    let mut last_answer = Instant::now();
     // Quiet changes waiting for the options to be read
     let mut quiet_waiting: HashSet<String> = HashSet::new();
     // Values from before this connection may be gone, as after Voicemod restarted
@@ -230,9 +233,10 @@ async fn serve(
                     Some(BridgeMessage::OptionsSet { sound, options: set }) => options.set(sound, set),
                     Some(BridgeMessage::OptionsAnswer { changed }) => {
                         // One never answered would shift every answer after it onto the wrong change
-                        while asked.front().is_some_and(|(_, _, at)| at.elapsed() > ANSWER_WAIT) {
+                        while asked.front().is_some_and(|(_, _, at)| (*at).max(last_answer).elapsed() > ANSWER_WAIT) {
                             asked.pop_front();
                         }
+                        last_answer = Instant::now();
                         let (sound, quiet, _) = asked.pop_front().unwrap_or((String::new(), false, Instant::now()));
                         if !changed {
                             options.refused();
