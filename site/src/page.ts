@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { buildMacroEditor } from "./macro";
 import { playSound } from "./sound";
 
 const hue = (i: number) => (i * 47 + 30) % 360;
@@ -63,6 +64,12 @@ function buildMacro() {
       chip.style.setProperty("--i", String(i));
       macro.append(chip);
     });
+}
+
+/** The Macro editor's keys, as key caps */
+function buildKeys() {
+  const keys = document.getElementById("macro-keys")!;
+  for (const key of t("macroKeys").split("|")) keys.append(element("kbd", "", key));
 }
 
 const ENCORE_SOUNDS = [0, 3, 6, 7, 12, 17];
@@ -174,6 +181,8 @@ export function startPage(reducedMotion: boolean) {
   buildTicker(reducedMotion);
   buildMiniPads();
   buildMacro();
+  buildMacroEditor();
+  buildKeys();
   buildPads();
   reveal(reducedMotion);
   spotlight();

@@ -34,6 +34,8 @@ let context: AudioContext | null = null;
 let output: AudioNode | null = null;
 let voices: AudioBufferSourceNode[] = [];
 let stops = 0;
+// What stops the time lines playing, with every other sound
+const timelines = new Set<() => void>();
 const fetched = new Map<Name, Promise<ArrayBuffer | null>>();
 const decoded = new Map<Name, Promise<AudioBuffer | null>>();
 
@@ -123,6 +125,61 @@ export function playKey(n: number, page: number) {
 
 function stopAll() {
   stops++;
+  for (const stop of timelines) stop();
   for (const voice of voices) voice.stop();
   voices = [];
+}
+
+export interface Clip {
+  sound: (typeof SOUNDS)[number];
+  /** Its start and, when cut, how long it plays, in seconds */
+  at: number;
+  cut?: number;
+  /** Rising over its first third and falling over its last */
+  fade?: boolean;
+}
+
+export interface Playing {
+  /** Seconds since the time line started, on the audio clock */
+  elapsed: () => number;
+  stop: () => void;
+}
+
+/** Plays a macro's clips at their times, over each other; null before the first click, tap or typed key. */
+export function playTimeline(clips: Clip[]): Playing | null {
+  const engine = audio();
+  if (!engine) return null;
+  const { ctx, out } = engine;
+  const started = ctx.currentTime + 0.08;
+  const sources: AudioBufferSourceNode[] = [];
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    timelines.delete(stop);
+    for (const source of sources) source.stop();
+  };
+  timelines.add(stop);
+  for (const clip of clips) {
+    void buffer(clip.sound, ctx).then((sound) => {
+      if (!sound || stopped) return;
+      const start = started + clip.at;
+      const length = Math.min(clip.cut ?? sound.duration, sound.duration);
+      // Decoded late, it starts where it would be by now
+      const when = Math.max(start, ctx.currentTime);
+      if (when - start >= length) return;
+      const gain = ctx.createGain();
+      if (clip.fade) {
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(1, start + length * 0.3);
+        gain.gain.setValueAtTime(1, start + length * 0.7);
+        gain.gain.linearRampToValueAtTime(0, start + length);
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = sound;
+      source.connect(gain).connect(out);
+      source.start(when, when - start, length - (when - start));
+      sources.push(source);
+    });
+  }
+  return { elapsed: () => ctx.currentTime - started, stop };
 }
