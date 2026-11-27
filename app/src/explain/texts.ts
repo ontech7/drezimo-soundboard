@@ -47,6 +47,10 @@ export interface ExplainTexts {
   volumesBack: string;
   overlayShown: string;
   overlayHidden: string;
+  /** The action wheel: the slice turned to, the one done, opened at its centre */
+  wheelOn: (name: string) => string;
+  wheelDone: (name: string) => string;
+  wheelOpen: string;
   /** Why the board does nothing with the macro or the page chosen */
   idle: { noMacro: string; noPage: string; emptyMacro: string };
   /** Drezimo's display */
@@ -117,6 +121,8 @@ const ENGLISH: ExplainTexts = {
         "Each detent turns up or down the sound playing now, only that one; it keeps that volume for its next plays.",
       microphone: "Each detent turns your microphone up or down.",
       voice: "Each detent loads the next voice; turning it left goes back to the one before.",
+      wheel:
+        "Opens the action wheel on the screen and moves through its slices, the centre between the last and the first. Turned while held, letting go does the slice it is on; otherwise a tap does it.",
       nothing: "Turning it does nothing.",
     },
     press: {
@@ -133,6 +139,8 @@ const ENGLISH: ExplainTexts = {
       overlay:
         "Hides the overlay that is always on screen, and shows it again the next time. With a duration, shows it for that long.",
       resetVolumes: "Puts the volumes changed with the knob back as they are in Voicemod.",
+      wheel:
+        "Opens the action wheel on the screen at its centre: turn to a slice and tap to do it. It closes by itself after 8 s.",
       nothing: "Nothing happens.",
     },
   },
@@ -157,6 +165,9 @@ const ENGLISH: ExplainTexts = {
   volumesBack: "Voicemod's volumes",
   overlayShown: "Overlay shown",
   overlayHidden: "Overlay hidden",
+  wheelOn: (name) => `On ${name}`,
+  wheelDone: (name) => `${name}: done`,
+  wheelOpen: "Wheel open",
   idle: {
     noMacro: "No macro chosen yet: until you choose one, nothing happens.",
     noPage: "No page chosen yet: until you choose one, nothing happens.",
@@ -256,6 +267,8 @@ const ITALIAN: ExplainTexts = {
         "Ogni scatto alza o abbassa il volume del suono che sta suonando, solo di quello; lo tiene anche per le volte dopo.",
       microphone: "Ogni scatto alza o abbassa il volume del tuo microfono.",
       voice: "Ogni scatto carica la voce dopo; girandola a sinistra torni a quella prima.",
+      wheel:
+        "Apre la ruota delle azioni sullo schermo e ne scorre gli spicchi, con il centro tra l'ultimo e il primo. Girata tenendola premuta, lasciandola fa lo spicchio su cui sei; altrimenti lo fa un tocco.",
       nothing: "Girandola non succede niente.",
     },
     press: {
@@ -272,6 +285,8 @@ const ITALIAN: ExplainTexts = {
       overlay:
         "Nasconde l'overlay sempre sullo schermo, e la volta dopo lo rimostra. Con una durata, lo mostra per quel tempo.",
       resetVolumes: "Rimette i volumi cambiati con la manopola come sono in Voicemod.",
+      wheel:
+        "Apre la ruota delle azioni sullo schermo, al centro: gira fino a uno spicchio e tocca per farlo. Si chiude da sola dopo 8 s.",
       nothing: "Non succede niente.",
     },
   },
@@ -296,6 +311,9 @@ const ITALIAN: ExplainTexts = {
   volumesBack: "Volumi di Voicemod",
   overlayShown: "Overlay visibile",
   overlayHidden: "Overlay nascosto",
+  wheelOn: (name) => `Su ${name}`,
+  wheelDone: (name) => `${name}: fatto`,
+  wheelOpen: "Ruota aperta",
   idle: {
     noMacro: "Nessuna macro scelta: finché non ne scegli una, non succede niente.",
     noPage: "Nessuna pagina scelta: finché non ne scegli una, non succede niente.",

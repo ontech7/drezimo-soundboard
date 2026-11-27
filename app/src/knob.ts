@@ -34,6 +34,7 @@ export const TURN_ACTIONS: TurnAction["action"][] = [
   "playingSound",
   "microphone",
   "voice",
+  "wheel",
   "nothing",
 ];
 export const PRESS_ACTIONS: PressAction["action"][] = [
@@ -49,8 +50,19 @@ export const PRESS_ACTIONS: PressAction["action"][] = [
   "page",
   "overlay",
   "resetVolumes",
+  "wheel",
   "nothing",
 ];
+
+/** What a slice of the action wheel can do: what a press does, but the wheel itself */
+export const WHEEL_ACTIONS = PRESS_ACTIONS.filter((action) => action !== "wheel" && action !== "nothing");
+export const MIN_SLICES = 2;
+export const MAX_SLICES = 8;
+
+/** Whether one of the knob's gestures opens the action wheel */
+export function usesWheel(knob: KnobSettings): boolean {
+  return [knob.turn, knob.holdTurn, knob.tap, knob.doubleTap, knob.longPress].some((choice) => choice.action === "wheel");
+}
 
 /** What a gesture does, as its select names it */
 export function actionName(texts: Texts, gesture: keyof KnobSettings, knob: KnobSettings): string {

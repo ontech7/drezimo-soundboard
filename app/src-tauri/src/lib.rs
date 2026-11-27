@@ -28,6 +28,7 @@ mod updates;
 mod voicemod;
 mod voicemod_bridge;
 mod voicemod_log;
+mod wheel;
 mod window;
 
 use std::sync::Mutex;
@@ -87,6 +88,7 @@ pub fn run() {
             device::set_display_settings,
             device::preview_led_brightness,
             device::preview_overlay,
+            device::preview_wheel,
             report::report,
             settings::settings,
             settings::set_settings,

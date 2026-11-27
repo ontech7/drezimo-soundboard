@@ -6,6 +6,7 @@ mod knob;
 mod overlay;
 mod running;
 mod screen;
+mod wheel;
 mod window;
 
 pub use running::MacroProgress;
@@ -18,13 +19,14 @@ use crate::display::texts::{ENGLISH, Texts};
 use crate::knob::{Gesture, Gestures, KnobSettings};
 use crate::macros::Macro;
 use crate::mixer::{Channel, Mixer};
-use crate::overlay::Overlay;
+use crate::overlay::Content as OverlayContent;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
 use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
+use crate::wheel::WheelSettings;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, RandomState};
@@ -72,7 +74,7 @@ pub enum Output {
     /// A new picture for the display, whether or not a board shows it
     Display(Frame),
     /// What the PC overlay shows now, or None to hide it
-    Overlay(Option<Overlay>),
+    Overlay(Option<OverlayContent>),
     /// For the error list of the support report
     Log(String),
     /// What the knob just did, for the window's list of key presses
@@ -190,6 +192,9 @@ pub struct Controller {
     releases: Vec<(Instant, HeldSound)>,
     knob: Gestures,
     knob_settings: KnobSettings,
+    wheel_settings: WheelSettings,
+    /// The action wheel, while open
+    wheel: Option<wheel::WheelOpen>,
     shown_pages: ShownPages,
     /// The sounds' volumes the knob set, saved in Voicemod from then
     sound_saves: HashMap<String, (f32, Instant)>,
@@ -228,7 +233,7 @@ pub struct Controller {
     overlay_always: bool,
     overlay_hidden: bool,
     /// What the overlay shows, as sent
-    overlay: Option<Overlay>,
+    overlay: Option<OverlayContent>,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -263,6 +268,8 @@ impl Default for Controller {
             releases: Vec::new(),
             knob: Gestures::default(),
             knob_settings: KnobSettings::default(),
+            wheel_settings: WheelSettings::default(),
+            wheel: None,
             shown_pages: ShownPages::default(),
             sound_saves: HashMap::new(),
             file_lengths: HashMap::new(),
@@ -352,6 +359,7 @@ impl Controller {
         self.leds = [None; LED_COUNT];
         self.display.forget();
         self.knob.reset();
+        self.close_wheel();
         self.row = None;
         if connected {
             self.show_overlay(now);
@@ -386,6 +394,8 @@ impl Controller {
         match event {
             VoicemodEvent::Status(status) => {
                 self.voicemod = status;
+                // Its slices may point at pages that change, and none of them works meanwhile
+                self.close_wheel();
                 // The waiting key-ups can no longer reach what played, and the soundboards may change meanwhile:
                 // Voicemod sends them again once connected. What plays then is in the log, if followed.
                 self.playback.reset();
@@ -521,12 +531,13 @@ impl Controller {
             self.refresh_leds(now);
         }
 
+        self.update_wheel(now);
         let (screen, screen_changes) = self.screen(now);
         if let Some(frame) = self.display.frame(&screen, now) {
             self.outputs.push(Output::Display(frame));
         }
         self.overlay_until = self.overlay_until.filter(|until| *until > now);
-        let overlay = self.overlay(now);
+        let overlay = self.overlay_content(now);
         if overlay != self.overlay {
             self.outputs.push(Output::Overlay(overlay.clone()));
             self.overlay = overlay;
@@ -545,6 +556,7 @@ impl Controller {
             .chain(screen_changes)
             .chain(self.display.next_frame())
             .chain(self.overlay_until)
+            .chain(self.wheel_until())
             .chain(self.macro_wake())
             .chain(self.knob_wake())
             .min();

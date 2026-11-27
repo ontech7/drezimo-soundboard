@@ -45,7 +45,20 @@ export interface Settings {
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
   knob: KnobSettings;
+  wheel: WheelSettings;
   shownPages: ShownPages;
+}
+
+/** The action wheel, for the knob's gestures that open it (src-tauri/src/wheel.rs) */
+export interface WheelSettings {
+  /** Clockwise from the top, 2 to 8 */
+  slices: PressAction[];
+  /** Its own place, size and opacity; otherwise the overlay's */
+  ownLook: boolean;
+  anchor: Anchor;
+  /** In percent */
+  size: number;
+  opacity: number;
 }
 
 /** Which of Voicemod's pages the board shows after the user's own (src-tauri/src/soundboard.rs) */
@@ -73,6 +86,7 @@ export interface TurnAction {
     | "playingSound"
     | "microphone"
     | "voice"
+    | "wheel"
     | "nothing";
 }
 
@@ -90,6 +104,7 @@ export type PressAction =
         | "overlay"
         | "randomVoice"
         | "resetVolumes"
+        | "wheel"
         | "nothing";
     }
   | { action: "macro"; macroId: string }
@@ -144,7 +159,7 @@ export function useSettings(): SettingsView | null {
 export function saveSettings(view: Settings): void {
   // Only the settings themselves: the view's own fields stay out
   const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, macroGuideSeen } = view;
-  const { muteForMeNoticeSeen, knob, shownPages } = view;
+  const { muteForMeNoticeSeen, knob, wheel, shownPages } = view;
   const settings = {
     language,
     ledBrightness,
@@ -155,6 +170,7 @@ export function saveSettings(view: Settings): void {
     macroGuideSeen,
     muteForMeNoticeSeen,
     knob,
+    wheel,
     shownPages,
   };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));

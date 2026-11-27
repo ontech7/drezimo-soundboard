@@ -54,9 +54,28 @@ pub struct Texts {
     pub keys: [&'static str; 6],
     /// The display on the PC screen, before any input
     pub press_something: &'static str,
+    pub wheel: Wheel,
     decimal_separator: char,
     modes: Modes,
     actions: Actions,
+}
+
+/// The action wheel's words, on the display and the PC screen
+pub struct Wheel {
+    pub heading: &'static str,
+    /// At the centre, where nothing happens
+    pub cancel: &'static str,
+    pub page: &'static str,
+    /// The soundboard menu, as a slice
+    pub menu: &'static str,
+    /// A page or a macro deleted since
+    pub missing: &'static str,
+    /// Under the wheel on the PC screen: opened by turning the knob held, or by a press
+    pub let_go: &'static str,
+    pub press: &'static str,
+    /// On the display, at the centre
+    pub let_go_closes: &'static str,
+    pub press_closes: &'static str,
 }
 
 /// The playback modes' names
@@ -169,6 +188,17 @@ pub const ENGLISH: Texts = Texts {
     knob: "Knob",
     keys: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"],
     press_something: "Press a key or turn the knob",
+    wheel: Wheel {
+        heading: "WHEEL",
+        cancel: "Cancel",
+        page: "PAGE",
+        menu: "Soundboards",
+        missing: "Not there",
+        let_go: "Let go to pick · at the centre, nothing happens",
+        press: "Press to pick · at the centre, it closes",
+        let_go_closes: "LET GO TO CLOSE",
+        press_closes: "PRESS TO CLOSE",
+    },
     decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
@@ -226,6 +256,17 @@ pub const ITALIAN: Texts = Texts {
     knob: "Manopola",
     keys: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"],
     press_something: "Premi un tasto o gira la manopola",
+    wheel: Wheel {
+        heading: "RUOTA",
+        cancel: "Annulla",
+        page: "PAGINA",
+        menu: "Soundboard",
+        missing: "Non c'è più",
+        let_go: "Lascia per scegliere · al centro non succede niente",
+        press: "Premi per scegliere · al centro si chiude",
+        let_go_closes: "LASCIA PER CHIUDERE",
+        press_closes: "PREMI PER CHIUDERE",
+    },
     decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",

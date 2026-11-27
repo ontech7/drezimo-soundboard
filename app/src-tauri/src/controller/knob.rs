@@ -38,7 +38,7 @@ impl Controller {
     /// A tap waits for a second one only while a double tap does something, and never in the open menu, where it picks.
     fn knob_waits(&mut self) {
         let settings = &self.knob_settings;
-        let double_tap = settings.double_tap != PressAction::Nothing && self.menu.is_none();
+        let double_tap = settings.double_tap != PressAction::Nothing && self.menu.is_none() && !self.wheel_waits();
         let long_press = settings.long_press != PressAction::Nothing;
         self.knob.set_waits(double_tap, long_press);
     }
@@ -57,7 +57,9 @@ impl Controller {
             self.knob_used = false;
             self.knob.pressed(now)
         } else {
-            if self.knob_used {
+            if self.wheel_held() {
+                self.pick_wheel(now);
+            } else if self.knob_used && self.wheel.is_none() {
                 // The names stay a little after a peek or a row overview
                 self.show_overlay(now);
             }
@@ -114,6 +116,18 @@ impl Controller {
     fn gestures(&mut self, gestures: Vec<Gesture>, now: Instant) {
         for gesture in gestures {
             self.outputs.push(Output::Gesture(gesture));
+            self.drop_wheel_preview();
+            // The wheel waiting for a press takes the turns and the presses, as the menu does
+            if self.wheel_waits() {
+                match gesture {
+                    Gesture::Turn(step) | Gesture::HoldTurn(step) => {
+                        self.knob_used = true;
+                        self.turn_wheel(step, false, now);
+                    }
+                    Gesture::Tap | Gesture::DoubleTap | Gesture::LongPress => self.pick_wheel(now),
+                }
+                continue;
+            }
             let settings = &self.knob_settings;
             match gesture {
                 // The open menu takes the turns and the taps, whatever the settings
@@ -154,13 +168,15 @@ impl Controller {
             TurnAction::Microphone => self.step_gain(Channel::Microphone, texts.microphone, step, now),
             TurnAction::PlayingSound => self.step_playing_sound(step, now),
             TurnAction::Voice => self.step_voice(step, now),
+            TurnAction::Wheel => self.turn_wheel(step, held, now),
             TurnAction::Nothing => {}
         }
     }
 
-    fn press_action(&mut self, action: PressAction, now: Instant) {
+    pub(super) fn press_action(&mut self, action: PressAction, now: Instant) {
         match action {
             PressAction::Menu => {
+                self.close_wheel();
                 self.row = None;
                 self.level = None;
                 self.menu = Some(Menu {
@@ -182,6 +198,7 @@ impl Controller {
             PressAction::Page { page } => self.act(Action::GoToPage, Some(&page), now),
             PressAction::ResetVolumes => self.reset_volumes(now),
             PressAction::Overlay => self.overlay_gesture(now),
+            PressAction::Wheel => self.open_wheel_waiting(now),
             PressAction::Macro { .. } | PressAction::Nothing => {}
         }
     }

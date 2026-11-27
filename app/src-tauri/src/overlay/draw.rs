@@ -214,7 +214,7 @@ impl Image {
     }
 
     /// Paints `color` over the pixel at (x, y), with `alpha` from 0 (nothing) to 1 (covers it).
-    fn blend(&mut self, x: usize, y: usize, color: [u8; 3], alpha: f32) {
+    pub(super) fn blend(&mut self, x: usize, y: usize, color: [u8; 3], alpha: f32) {
         let index = (y * self.width + x) * 4;
         let pixel = &mut self.pixels[index..index + 4];
         let behind = 1.0 - alpha;

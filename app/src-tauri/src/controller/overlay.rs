@@ -1,7 +1,7 @@
 //! What the PC overlay shows: the current page with each pad's sound and LED, while the board is in use.
 
 use super::{Controller, PADS};
-use crate::overlay::{Cell, Overlay};
+use crate::overlay::{Cell, Content, Overlay};
 use crate::voicemod::VoicemodStatus;
 use std::time::{Duration, Instant};
 
@@ -9,6 +9,16 @@ use std::time::{Duration, Instant};
 pub(super) const OVERLAY_TIME: Duration = Duration::from_secs(4);
 
 impl Controller {
+    /// What the overlay's window shows: the action wheel while open, else the page while shown.
+    pub(super) fn overlay_content(&self, now: Instant) -> Option<Content> {
+        if self.voicemod == VoicemodStatus::Connected
+            && let Some(wheel) = self.wheel_content()
+        {
+            return Some(Content::Wheel(wheel));
+        }
+        self.overlay(now).map(Content::Page)
+    }
+
     /// The overlay for `now`, or None while it is hidden.
     pub(super) fn overlay(&self, now: Instant) -> Option<Overlay> {
         let page = self.pages.get(self.page).filter(|_| self.overlay_shown(now))?;

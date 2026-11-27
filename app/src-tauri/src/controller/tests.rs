@@ -762,9 +762,11 @@ fn time_shown(screen: &Screen) -> &str {
     }
 }
 
-fn overlay_in(outputs: &[Output]) -> Option<&Option<Overlay>> {
+/// The page the overlay shows, or None while it is hidden or shows the wheel
+fn overlay_in(outputs: &[Output]) -> Option<Option<crate::overlay::Overlay>> {
     outputs.iter().rev().find_map(|output| match output {
-        Output::Overlay(overlay) => Some(overlay),
+        Output::Overlay(Some(crate::overlay::Content::Page(overlay))) => Some(Some(overlay.clone())),
+        Output::Overlay(_) => Some(None),
         _ => None,
     })
 }
@@ -774,7 +776,7 @@ fn ready_without_overlay(soundboards: Vec<Soundboard>) -> (Controller, Instant) 
     let (mut controller, start) = ready(soundboards);
     let now = start + OVERLAY_TIME;
     controller.update(now);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
     (controller, now)
 }
 
@@ -796,7 +798,7 @@ fn turning_the_page_shows_the_overlay_for_a_while() {
     controller.update(now + Duration::from_millis(200));
     assert_eq!(controller.next_update(), Some(now + OVERLAY_TIME));
     controller.update(now + OVERLAY_TIME);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
 }
 
 #[test]
@@ -881,15 +883,15 @@ fn holding_the_knob_shows_the_overlay_until_a_while_after() {
     assert!(matches!(overlay_in(&knob(&mut controller, true, now)), Some(Some(_))));
     let later = now + Duration::from_secs(10);
     controller.update(later);
-    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(None), "still shown");
 
     press(&mut controller, 0, true, later);
     press(&mut controller, 0, false, later);
     knob(&mut controller, false, later);
     controller.update(later + OVERLAY_TIME - Duration::from_millis(1));
-    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(None), "still shown");
     controller.update(later + OVERLAY_TIME);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
 }
 
 #[test]
@@ -897,7 +899,7 @@ fn no_overlay_without_the_board() {
     let (mut controller, now) = ready(three_soundboards());
     controller.set_board_connected(false, now);
     controller.update(now);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
     controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
     controller.update(now);
     assert_eq!(overlay_in(&controller.take_outputs()), None, "still hidden");
@@ -3038,4 +3040,138 @@ fn the_windows_knob_works_as_the_boards() {
     controller.window_knob_pressed(false, later);
     controller.update(later);
     assert!(controller.menu.is_some(), "a tap opens the menu");
+}
+
+fn wheel_on(hold_turn: TurnAction, tap: PressAction) -> (Controller, Instant) {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    controller.set_knob(
+        KnobSettings {
+            hold_turn,
+            tap,
+            ..KnobSettings::default()
+        },
+        now,
+    );
+    controller.set_wheel(crate::wheel::WheelSettings {
+        slices: vec![
+            PressAction::MuteMic,
+            PressAction::Page { page: "c".into() },
+            PressAction::StopSounds,
+        ],
+        ..crate::wheel::WheelSettings::default()
+    });
+    (controller, now)
+}
+
+fn wheel_in(outputs: &[Output]) -> Option<Option<crate::overlay::Wheel>> {
+    outputs.iter().rev().find_map(|output| match output {
+        Output::Overlay(Some(crate::overlay::Content::Wheel(wheel))) => Some(Some(wheel.clone())),
+        Output::Overlay(_) => Some(None),
+        _ => None,
+    })
+}
+
+#[test]
+fn turning_held_opens_the_wheel_and_letting_go_picks() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    let outputs = turn(&mut controller, 1, now);
+    let Some(Some(wheel)) = wheel_in(&outputs) else {
+        panic!("the wheel");
+    };
+    assert_eq!(wheel.selected, Some(0));
+    assert_eq!(
+        wheel.slices.iter().map(|slice| slice.name.as_str()).collect::<Vec<_>>(),
+        ["Mute mic", "C", "Stop sounds"]
+    );
+    assert_eq!(wheel.centre, "Mute mic");
+    turn(&mut controller, 1, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(controller.page, 2, "the page slice");
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(wheel_in(&outputs), Some(None), "closed");
+}
+
+#[test]
+fn letting_go_at_the_centre_does_nothing() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    let outputs = turn(&mut controller, -1, now);
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(None));
+    let outputs = knob(&mut controller, false, now);
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(controller.page, 0);
+    assert!(controller.menu.is_none(), "no tap either");
+    assert!(overlay_in(&outputs).flatten().is_none(), "nor the page's names");
+}
+
+#[test]
+fn a_tap_opens_the_wheel_the_turns_pick_and_a_tap_does_it() {
+    let (mut controller, now) = wheel_on(TurnAction::Rows, PressAction::Wheel);
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(None));
+    assert!(matches!(controller.screen(now).0, Screen::Wheel { selected: None, .. }));
+    turn(&mut controller, -1, now);
+    let (screen, _) = controller.screen(now);
+    let Screen::Wheel { name, counter, .. } = screen else {
+        panic!("the wheel on the display");
+    };
+    assert_eq!((name.as_str(), counter.as_str()), ("Stop sounds", "3/3"));
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(requests(&outputs), [&Request::StopAllSounds]);
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn a_wheel_opened_by_a_tap_closes_by_itself() {
+    let (mut controller, now) = wheel_on(TurnAction::Rows, PressAction::Wheel);
+    knob(&mut controller, true, now);
+    knob(&mut controller, false, now);
+    turn(&mut controller, 1, now + Duration::from_secs(5));
+    // Its time starts again at each turn
+    controller.update(now + Duration::from_secs(12));
+    assert!(controller.wheel.is_some());
+    controller.update(now + Duration::from_secs(13));
+    assert!(controller.wheel.is_none());
+    assert!(
+        controller
+            .take_outputs()
+            .iter()
+            .all(|output| !matches!(output, Output::Voicemod(_)))
+    );
+}
+
+#[test]
+fn the_settings_preview_takes_no_gesture() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    controller.preview_wheel(now);
+    controller.update(now);
+    let outputs = controller.take_outputs();
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(Some(0)));
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert!(requests(&outputs).is_empty(), "the first slice is not done");
+    assert!(controller.menu.is_some(), "the tap does what it is set to");
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn the_wheel_closes_when_voicemod_goes() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn the_wheel_goes_with_the_board() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    controller.set_board_connected(false, now);
+    assert!(controller.wheel.is_none());
 }

@@ -18,6 +18,7 @@ use crate::soundboard::PlaybackMode;
 use crate::tray;
 use crate::voicemod::{License, Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
+use crate::wheel::WheelSettings;
 use serde::Serialize;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -37,6 +38,8 @@ enum Input {
     LedBrightnessPreview(u8),
     /// Shows the overlay, as it would look with these settings if given
     OverlayPreview(Option<OverlaySettings>),
+    /// Shows the action wheel for a moment, as it would look with these settings if given
+    WheelPreview(Option<WheelSettings>),
     /// The board played from the window
     Pad {
         index: u8,
@@ -223,6 +226,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     let mut controller = Controller::new(settings.language.texts());
     controller.set_press_again(settings.press_again_by_mode);
     controller.set_knob(settings.knob.clone(), Instant::now());
+    controller.set_wheel(settings.wheel.clone());
     controller.set_shown_pages(settings.shown_pages.clone());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
@@ -234,6 +238,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     controller.set_overlay_time(overlay_time(&settings.overlay));
     controller.set_overlay_always(settings.overlay.always);
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
+    let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&settings.wheel, &settings.overlay)));
     let mut status = Status::default();
     let mut published = status.clone();
     let mut updater = Updater::default();
@@ -339,10 +344,12 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 controller.set_texts(new.language.texts());
                 controller.set_press_again(new.press_again_by_mode);
                 controller.set_knob(new.knob.clone(), Instant::now());
+                controller.set_wheel(new.wheel.clone());
                 controller.set_shown_pages(new.shown_pages.clone());
                 controller.set_overlay_time(overlay_time(&new.overlay));
                 controller.set_overlay_always(new.overlay.always);
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
+                let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&new.wheel, &new.overlay)));
                 let _ = display.send(DisplayUpdate::Texts(new.language.texts()));
                 let _ = display.send(DisplayUpdate::Screen(new.overlay.screen.clone()));
                 if !new.diagnostics {
@@ -372,6 +379,13 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                     let _ = overlay.send(OverlayUpdate::Look(look(&overlay_settings)));
                 }
                 controller.preview_overlay(now);
+            }
+            Some(Input::WheelPreview(looking)) => {
+                if let Some(wheel) = looking {
+                    let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&wheel, &settings.overlay)));
+                    controller.set_wheel(wheel);
+                }
+                controller.preview_wheel(now);
             }
             Some(Input::Pad { index, pressed }) => {
                 controller.window_pad(index, pressed, now);
@@ -575,6 +589,16 @@ fn look(overlay: &OverlaySettings) -> Look {
     }
 }
 
+/// The wheel's own look, on the overlay's screen, or None to look as the overlay
+fn wheel_look(wheel: &WheelSettings, overlay: &OverlaySettings) -> Option<Look> {
+    wheel.own_look.then(|| Look {
+        anchor: wheel.anchor,
+        opacity: f32::from(wheel.opacity) / 100.0,
+        size: f64::from(wheel.size) / 100.0,
+        screen: overlay.screen.clone(),
+    })
+}
+
 fn send(app: &AppHandle, input: Input) {
     if let Some(inputs) = app.try_state::<Inputs>() {
         let _ = inputs.0.lock().unwrap().send(input);
@@ -638,6 +662,12 @@ pub fn preview_led_brightness(app: AppHandle, percent: u8) {
 #[tauri::command]
 pub fn preview_overlay(app: AppHandle, overlay: Option<OverlaySettings>) {
     send(&app, Input::OverlayPreview(overlay.map(OverlaySettings::checked)));
+}
+
+/// The action wheel for a moment, as it looks with `wheel` while the settings change, before they are saved
+#[tauri::command]
+pub fn preview_wheel(app: AppHandle, wheel: Option<WheelSettings>) {
+    send(&app, Input::WheelPreview(wheel.map(WheelSettings::checked)));
 }
 
 /// A pad pressed or released in the window

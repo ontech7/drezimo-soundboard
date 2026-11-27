@@ -3781,3 +3781,211 @@ input.seconds {
 .guide-timeline {
   animation: tour-in 0.25s ease;
 }
+
+/* The action wheel, as the PC screen draws it (src-tauri/src/overlay/wheel.rs): its slices' paths under their labels */
+.wheel-picture {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1;
+  container-type: inline-size;
+  user-select: none;
+}
+
+.wheel-picture > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.wheel-disc {
+  fill: rgb(14 14 16 / 94%);
+  stroke: #26262c;
+}
+
+.wheel-slice {
+  fill: #1b1b20;
+  stroke: #2c2c33;
+  stroke-width: 1.2;
+  transition: fill 0.12s ease;
+}
+
+.wheel-slice.on {
+  fill: rgb(255 176 32 / 17%);
+  stroke: var(--amber);
+  stroke-width: 3;
+}
+
+.wheel-picture[role="group"] .wheel-slice {
+  cursor: pointer;
+}
+
+.wheel-picture[role="group"] .wheel-slice:not(.on):hover {
+  fill: #232329;
+}
+
+.wheel-centre {
+  fill: #111114;
+  stroke: #2c2c33;
+  stroke-width: 1.2;
+}
+
+.wheel-centre.on {
+  stroke: var(--amber);
+  stroke-width: 3;
+}
+
+.wheel-logo rect {
+  fill: rgb(244 243 239 / 40%);
+}
+
+.wheel-logo rect.lit {
+  fill: var(--amber);
+}
+
+.wheel-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2cqw;
+  width: 24cqw;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #c9c9cf;
+  font: inherit;
+  font-size: 3.4cqw;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+
+button.wheel-label {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wheel-label .icon {
+  width: 6cqw;
+  height: 6cqw;
+  color: var(--tint);
+}
+
+.wheel-label.on {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.wheel-label:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.wheel-centre-name {
+  position: absolute;
+  top: 58.5%;
+  left: 50%;
+  max-width: 30cqw;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 3.2cqw;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  translate: -50% 0;
+}
+
+.wheel-centre-name.on {
+  color: var(--amber);
+}
+
+/* The Knob tab's wheel: the wheel to click beside the slice it shows */
+.wheel-editor {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.wheel-slice-editor {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+.wheel-slice-editor .segmented {
+  justify-self: start;
+}
+
+.wheel-slice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wheel-slice-head .title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.wheel-move {
+  display: flex;
+  gap: 6px;
+}
+
+.wheel-move .icon,
+.stepper .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper output {
+  min-width: 2ch;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.stepper .icon-button {
+  font-size: 18px;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .wheel-editor {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+/* The wheel in a knob row's explanation: faint until the gesture opens it */
+.explain-wheel {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  opacity: 0.3;
+  transition: opacity 0.15s ease;
+}
+
+.explain-wheel .wheel-picture {
+  max-width: 190px;
+}
+
+.explain-wheel.open {
+  opacity: 1;
+}
