@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Run } from "./loop";
 import { Half } from "./Stage";
 import type { KnobGesture, KnobStory } from "./story";
@@ -40,7 +41,9 @@ const TICKS = Array.from({ length: 24 }, (_, i) => {
   };
 });
 
-export function KnobHalf({ pose, caption, live }: { pose: KnobPose; caption: string; live: boolean }) {
+/** `hold`: the long press's time, in milliseconds, for its ring */
+export function KnobHalf(props: { pose: KnobPose; caption: string; live: boolean; hold: number }) {
+  const { pose, caption, live } = props;
   const knob = ["explain-knob", pose.down && "down", pose.held && "held"].filter(Boolean).join(" ");
   const arrow = ["explain-turn", pose.arrow !== 0 && "on", pose.arrow < 0 && "left"].filter(Boolean).join(" ");
   return (
@@ -51,7 +54,7 @@ export function KnobHalf({ pose, caption, live }: { pose: KnobPose; caption: str
             <line key={i} {...tick} />
           ))}
         </svg>
-        <svg className="explain-ring" viewBox="0 0 140 140">
+        <svg className="explain-ring" viewBox="0 0 140 140" style={{ "--hold": `${props.hold}ms` } as CSSProperties}>
           <circle className={pose.ring ? "filling" : undefined} cx="70" cy="70" r="66" pathLength={100} />
         </svg>
         <span className={knob} style={{ rotate: `${pose.angle}deg` }} />
@@ -89,7 +92,7 @@ export async function playGesture(gesture: KnobGesture, story: KnobStory, run: R
   const act = async () => {
     if (story.waits) {
       show({}, "waits");
-      await run.wait(300);
+      await run.wait(story.doubleTapMs);
     }
     beat(0);
   };
@@ -138,7 +141,7 @@ export async function playGesture(gesture: KnobGesture, story: KnobStory, run: R
     case "longPress":
       await run.wait(900);
       show({ down: true, ring: true }, "holdLong");
-      await run.wait(600);
+      await run.wait(story.longPressMs);
       show({}, "letGo");
       await run.wait(250);
       ripple += 1;

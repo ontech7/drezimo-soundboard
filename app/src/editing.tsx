@@ -1,5 +1,6 @@
 import { type CSSProperties, useRef, useState } from "react";
-import { type Rgb, rgb, SWATCHES } from "./customPages";
+import { ANIMATIONS, type LedAnimation, type Rgb, rgb, SWATCHES } from "./customPages";
+import { Segmented } from "./controls";
 import { useTexts } from "./i18n";
 import { useDismiss } from "./dismiss";
 import { ChevronDown } from "./icons";
@@ -41,10 +42,13 @@ interface ColourProps {
   onChange: (colour: Rgb | null) => void;
   /** Opens below the button rather than above */
   below?: boolean;
+  /** How it moves at rest, to pick when given */
+  animation?: LedAnimation;
+  onAnimation?: (animation: LedAnimation) => void;
 }
 
 /** The LED's colour at rest: a button showing it, and the colours to pick from */
-export function ColourPicker({ colour, shown, onChange, below }: ColourProps) {
+export function ColourPicker({ colour, shown, onChange, below, animation, onAnimation }: ColourProps) {
   const texts = useTexts();
   const [open, setOpen] = useState(false);
   const popover = useDismiss<HTMLDivElement>(open, () => setOpen(false));
@@ -58,13 +62,24 @@ export function ColourPicker({ colour, shown, onChange, below }: ColourProps) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span className="dot" style={{ "--led": rgb(shown) } as CSSProperties} />
+        <span className={`dot ${animation ?? "solid"}`} style={{ "--led": rgb(shown) } as CSSProperties} />
         <ChevronDown />
       </button>
       {open && (
         <div className={below ? "popover below" : "popover"} role="dialog" aria-label={texts.ledAtRest}>
           <p className="muted">{texts.ledAtRest}</p>
           <Swatches colour={colour} onChange={onChange} />
+          {onAnimation && (
+            <>
+              <p className="muted">{texts.ledAnimation}</p>
+              <Segmented
+                label={texts.ledAnimation}
+                options={ANIMATIONS.map((value) => ({ value, label: texts.animations[value] }))}
+                value={animation ?? "solid"}
+                onChange={onAnimation}
+              />
+            </>
+          )}
         </div>
       )}
     </div>

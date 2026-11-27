@@ -21,6 +21,7 @@ mod press_again;
 mod protocol;
 mod report;
 mod settings;
+mod sound_overrides;
 mod soundboard;
 mod tour;
 mod tray;
@@ -57,7 +58,6 @@ pub fn run() {
         .manage(device::DisplayFrame::default())
         .manage(device::BoardViewState::default())
         .manage(device::BoardTestState::default())
-        .manage(device::DisplayLookState::default())
         .manage(device::LastUse::default())
         .manage(custom_pages::LibraryState::default())
         .manage(updates::UpdateStateHolder::default())
@@ -76,8 +76,7 @@ pub fn run() {
             device::close_volume_notice,
             device::turn_knob,
             device::press_knob,
-            device::display_look,
-            device::set_display_look,
+            device::preview_screen_display,
             device::go_to_page,
             device::board_test,
             device::start_board_test,

@@ -9,7 +9,6 @@ use super::{Rect, anchored, free_area, run_on};
 use crate::display::texts::Texts;
 use crate::display::{HEIGHT, WIDTH};
 use crate::settings::{Anchor, OverlayScreen};
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -40,11 +39,12 @@ const FADE_AFTER: Duration = Duration::from_secs(4);
 const TURN_JOIN: Duration = Duration::from_millis(1500);
 /// More than fit: the drawing shows the newest that do
 const KEPT: usize = 8;
+/// Between it and the overlay beside it, in points
+const BESIDE_GAP: f64 = 8.0;
 /// While shown, how often it looks for its screen again: one may have gone, or changed its scale
 const REPLACE_EVERY: Duration = Duration::from_secs(3);
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DisplayLook {
     pub shown: bool,
     pub anchor: Anchor,
@@ -52,6 +52,8 @@ pub struct DisplayLook {
     pub size: u8,
     /// The latest inputs, below the picture
     pub inputs: bool,
+    /// At the overlay's place, beside it rather than over it: the overlay's size, 1 for the full one
+    pub beside: Option<f64>,
 }
 
 impl Default for DisplayLook {
@@ -61,16 +63,7 @@ impl Default for DisplayLook {
             anchor: Anchor::BottomRight,
             size: 2,
             inputs: true,
-        }
-    }
-}
-
-impl DisplayLook {
-    /// As the window may send it: 2 or 3 times
-    pub fn checked(self) -> Self {
-        Self {
-            size: self.size.clamp(2, 3),
-            ..self
+            beside: None,
         }
     }
 }
@@ -431,13 +424,36 @@ fn run(app: &AppHandle, updates: &Receiver<DisplayUpdate>, mut texts: &'static T
             texts,
         };
         let image = painter.draw(&scene, scale as f32, dot, now);
-        let (x, y) = anchored(free, (image.width, image.height), scale, look.anchor);
+        let (x, y) = placed(free, (image.width, image.height), scale, &look);
         run_on(app, &WINDOW, move |window| {
             window.show(&image, x, y, scale, 1.0);
         });
         window_shown = true;
         let replace = area_found + REPLACE_EVERY;
         wake = Some(chips.next_change(now).map_or(replace, |fade| fade.min(replace)));
+    }
+}
+
+/// At its place on the screen; beside the overlay when they share it, away from the screen's edge by the overlay's size
+fn placed(area: Rect, (width, height): (usize, usize), scale: f64, look: &DisplayLook) -> (i32, i32) {
+    let (x, y) = anchored(area, (width, height), scale, look.anchor);
+    let Some(overlay) = look.beside else {
+        return (x, y);
+    };
+    // The page's grid, or the action wheel in its place, whichever is bigger
+    let page = draw::size((scale * overlay) as f32);
+    let wheel = super::wheel::size((scale * overlay) as f32);
+    let (overlay_width, overlay_height) = (page.0.max(wheel.0), page.1.max(wheel.1));
+    let gap = (BESIDE_GAP * scale).round() as i32;
+    let across = overlay_width as i32 + gap;
+    let down = overlay_height as i32 + gap;
+    match look.anchor {
+        Anchor::TopLeft | Anchor::Top | Anchor::TopRight => (x, y + down),
+        Anchor::BottomLeft | Anchor::Bottom | Anchor::BottomRight => (x, y - down),
+        Anchor::Left => (x + across, y),
+        Anchor::Right => (x - across, y),
+        // Above the overlay, both centred
+        Anchor::Center => (x, y - (overlay_height as i32 + height as i32) / 2 - gap),
     }
 }
 

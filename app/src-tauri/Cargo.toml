@@ -1,6 +1,6 @@
 [package]
 name = "drezimo"
-version = "1.1.0"
+version = "1.2.0"
 description = "Drezimo Soundboard: the bridge between the board and Voicemod"
 authors = ["ontech7"]
 license = "MIT"

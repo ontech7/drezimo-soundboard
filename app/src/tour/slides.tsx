@@ -338,6 +338,8 @@ const SAMPLE_KNOB: KnobSettings = {
   tap: { action: "menu" },
   doubleTap: { action: "muteMic" },
   longPress: { action: "stopSounds" },
+  doubleTapMs: 300,
+  longPressMs: 600,
 };
 
 const AS_IN_VOICEMOD = Object.fromEntries(MODE_ROWS.map(([, saved]) => [saved, "voicemod"])) as PressAgainByMode;

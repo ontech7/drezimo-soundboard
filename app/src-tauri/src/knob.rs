@@ -16,8 +16,12 @@ pub enum Gesture {
     LongPress,
 }
 
+/// The defaults: a second press within this of a tap's release is a double tap; a press held this long, a long press
 pub const DOUBLE_TAP: Duration = Duration::from_millis(300);
 pub const LONG_PRESS: Duration = Duration::from_millis(600);
+/// The ranges the window offers, in milliseconds, for hands that are not so quick
+const DOUBLE_TAP_RANGE: (u16, u16) = (200, 1000);
+const LONG_PRESS_RANGE: (u16, u16) = (400, 2000);
 
 /// What turning the knob does, plain or held down
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
@@ -73,6 +77,9 @@ pub struct KnobSettings {
     pub tap: PressAction,
     pub double_tap: PressAction,
     pub long_press: PressAction,
+    /// How soon after a tap a second one makes a double tap, and how long a long press lasts, in milliseconds
+    pub double_tap_ms: u16,
+    pub long_press_ms: u16,
 }
 
 /// The longest page or macro id a gesture keeps, as a pad (`custom_pages.rs`)
@@ -91,8 +98,18 @@ impl KnobSettings {
             tap: kept(self.tap),
             double_tap: kept(self.double_tap),
             long_press: kept(self.long_press),
+            double_tap_ms: self.double_tap_ms.clamp(DOUBLE_TAP_RANGE.0, DOUBLE_TAP_RANGE.1),
+            long_press_ms: self.long_press_ms.clamp(LONG_PRESS_RANGE.0, LONG_PRESS_RANGE.1),
             ..self
         }
+    }
+
+    pub fn double_tap_time(&self) -> Duration {
+        Duration::from_millis(self.double_tap_ms.into())
+    }
+
+    pub fn long_press_time(&self) -> Duration {
+        Duration::from_millis(self.long_press_ms.into())
     }
 }
 
@@ -104,6 +121,8 @@ impl Default for KnobSettings {
             tap: PressAction::Menu,
             double_tap: PressAction::Nothing,
             long_press: PressAction::Nothing,
+            double_tap_ms: DOUBLE_TAP.as_millis() as u16,
+            long_press_ms: LONG_PRESS.as_millis() as u16,
         }
     }
 }
@@ -119,6 +138,8 @@ impl<'de> Deserialize<'de> for KnobSettings {
             tap: field(&value, "tap").unwrap_or(defaults.tap),
             double_tap: field(&value, "doubleTap").unwrap_or(defaults.double_tap),
             long_press: field(&value, "longPress").unwrap_or(defaults.long_press),
+            double_tap_ms: field(&value, "doubleTapMs").unwrap_or(defaults.double_tap_ms),
+            long_press_ms: field(&value, "longPressMs").unwrap_or(defaults.long_press_ms),
         })
     }
 }
@@ -132,6 +153,8 @@ pub struct Gestures {
     /// Whether these have an action: only then a tap waits for a second one, or a long hold is not a tap
     double_tap: bool,
     long_press: bool,
+    /// How soon a second tap comes, how long a long press lasts
+    times: Option<(Duration, Duration)>,
     /// Since when the knob is down
     down: Option<Instant>,
     /// Turned, or held for a peek, since it went down: its release is no gesture
@@ -146,6 +169,18 @@ impl Gestures {
     pub fn set_waits(&mut self, double_tap: bool, long_press: bool) {
         self.double_tap = double_tap;
         self.long_press = long_press;
+    }
+
+    pub fn set_times(&mut self, double_tap: Duration, long_press: Duration) {
+        self.times = Some((double_tap, long_press));
+    }
+
+    fn double_tap_time(&self) -> Duration {
+        self.times.map_or(DOUBLE_TAP, |(double_tap, _)| double_tap)
+    }
+
+    fn long_press_time(&self) -> Duration {
+        self.times.map_or(LONG_PRESS, |(_, long_press)| long_press)
     }
 
     pub fn pressed(&mut self, now: Instant) -> Vec<Gesture> {
@@ -167,7 +202,7 @@ impl Gestures {
         if self.used {
             return Vec::new();
         }
-        let long = now.duration_since(since) >= LONG_PRESS;
+        let long = now.duration_since(since) >= self.long_press_time();
         // A second press held long is no double tap: the first tap goes, and this press counts on its own
         let mut out = if long { self.let_tap_go() } else { Vec::new() };
         if self.long_press && long {
@@ -177,7 +212,7 @@ impl Gestures {
             self.waiting = None;
             vec![Gesture::DoubleTap]
         } else if self.double_tap {
-            self.waiting = Some(now + DOUBLE_TAP);
+            self.waiting = Some(now + self.double_tap_time());
             out
         } else {
             out.push(Gesture::Tap);
@@ -227,6 +262,7 @@ impl Gestures {
         *self = Self {
             double_tap: self.double_tap,
             long_press: self.long_press,
+            times: self.times,
             ..Self::default()
         };
     }
@@ -451,6 +487,39 @@ mod tests {
     }
 
     #[test]
+    fn slower_hands_get_more_time() {
+        let start = Instant::now();
+        let mut gestures = Gestures::default();
+        gestures.set_waits(true, true);
+        gestures.set_times(Duration::from_millis(700), Duration::from_millis(1500));
+        assert_eq!(tap(&mut gestures, start, 0), []);
+        assert_eq!(tap(&mut gestures, start, 600), [DoubleTap], "a second tap 0.55 s later");
+        gestures.pressed(at(start, 3000));
+        assert_eq!(
+            gestures.released(at(start, 3800)),
+            [],
+            "0.8 s is still a tap, waiting for a second one"
+        );
+        assert_eq!(
+            gestures.pressed(at(start, 6000)),
+            [Tap],
+            "its window over, the tap goes"
+        );
+        assert_eq!(gestures.released(at(start, 7500)), [LongPress], "held 1.5 s");
+    }
+
+    #[test]
+    fn the_times_stay_within_the_window_s_ranges() {
+        let knob = KnobSettings {
+            double_tap_ms: 50,
+            long_press_ms: 9000,
+            ..KnobSettings::default()
+        }
+        .checked();
+        assert_eq!((knob.double_tap_ms, knob.long_press_ms), (200, 2000));
+    }
+
+    #[test]
     fn the_defaults_are_todays_knob() {
         let knob = KnobSettings::default();
         assert_eq!((knob.turn, knob.hold_turn), (TurnAction::Page, TurnAction::Rows));
@@ -491,6 +560,8 @@ mod tests {
                 page: "drezimo-page-2".into(),
             },
             long_press: PressAction::ResetVolumes,
+            double_tap_ms: 450,
+            long_press_ms: 1200,
         };
         let json = serde_json::to_value(&knob).unwrap();
         assert_eq!(

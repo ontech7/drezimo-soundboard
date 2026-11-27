@@ -361,6 +361,8 @@ export function MacrosPage({ status, guide, onGuideClose }: { status: Status; gu
             shown={item.colour ?? MACRO_COLOUR}
             below
             onChange={(colour) => saveMacro({ ...item, colour })}
+            animation={item.animation ?? "solid"}
+            onAnimation={(animation) => saveMacro({ ...item, animation })}
           />
           <p className="muted used">{texts.usedOn(places.length, places.join(", "))}</p>
           <button

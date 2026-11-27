@@ -27,11 +27,17 @@ export type Content =
 
 export type Rgb = [number, number, number];
 
+/** An LED's effect at rest, as the board animates it (src-tauri/src/protocol.rs) */
+export type LedAnimation = "solid" | "breathe" | "blink";
+export const ANIMATIONS: LedAnimation[] = ["solid", "breathe", "blink"];
+
 export type CustomPad = Content & {
   /** Shown instead of its own name, when not empty */
   label: string;
   /** The LED at rest, instead of its kind's colour */
   colour: Rgb | null;
+  /** How it moves at rest */
+  animation?: LedAnimation;
   /** A sound's, instead of the one set on the Drezimo page */
   pressAgain?: PressAgain | null;
   /** A sound's volume when started from this pad, in percent: Voicemod's own when none */
@@ -44,6 +50,14 @@ export interface CustomPage {
   name: string;
   /** 36, from the top left */
   pads: (CustomPad | null)[];
+  /** Kept without empty pads between the others: the next ones move up when one is cleared */
+  compact?: boolean;
+}
+
+/** The pads in their order, the empty ones at the end */
+export function closedUp(pads: (CustomPad | null)[]): (CustomPad | null)[] {
+  const filled = pads.filter((pad) => pad !== null);
+  return [...filled, ...Array<null>(pads.length - filled.length).fill(null)];
 }
 
 export interface LibraryItem {
@@ -108,6 +122,11 @@ export const SWATCHES: Rgb[] = [
   [255, 42, 42],
   [255, 60, 160],
   [200, 200, 210],
+  [150, 230, 30],
+  [0, 200, 150],
+  [220, 40, 255],
+  [255, 90, 60],
+  [180, 150, 255],
 ];
 
 export const ACTIONS: Action[] = [

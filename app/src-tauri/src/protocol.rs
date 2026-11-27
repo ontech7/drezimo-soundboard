@@ -16,13 +16,27 @@ pub struct Led {
     pub effect: Effect,
 }
 
-/// Animated by the board, so the effects stay smooth whatever the USB timing
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+/// Animated by the board, so the effects stay smooth whatever the USB timing. The user picks one for a pad or a macro
+/// at rest, too.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Effect {
+    #[default]
     Solid,
     Breathe,
     Blink,
+}
+
+impl Effect {
+    pub fn is_solid(&self) -> bool {
+        *self == Effect::Solid
+    }
+}
+
+/// An effect from another version is no effect, rather than losing the pad or the macro
+pub fn known_effect<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Effect, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(Effect::deserialize(value).unwrap_or_default())
 }
 
 /// A display picture, from the hex of its bytes.
