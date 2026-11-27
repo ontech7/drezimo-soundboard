@@ -215,6 +215,18 @@ export const ResetIcon = () => (
   </Icon>
 );
 
+export const UndoIcon = () => (
+  <Icon>
+    <path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" />
+  </Icon>
+);
+
+export const RedoIcon = () => (
+  <Icon>
+    <path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3" />
+  </Icon>
+);
+
 export const LockIcon = () => (
   <Icon>
     <path d="M7 11V8a5 5 0 0 1 10 0v3" />

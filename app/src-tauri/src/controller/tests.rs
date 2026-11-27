@@ -1268,6 +1268,7 @@ fn the_knob_saves_a_sounds_volume_once_it_rests() {
         id: "song".into(),
         mode: None,
         volume: Some(0.4),
+        stops_others: None,
     };
     assert!(requests(&controller.take_outputs()).contains(&&saved));
 }

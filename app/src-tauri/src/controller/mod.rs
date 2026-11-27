@@ -613,6 +613,19 @@ impl Controller {
                 id: id.to_string(),
                 mode: Some(mode),
                 volume: None,
+                stops_others: None,
+            });
+        }
+    }
+
+    /// Whether a sound stops every other one when it starts, changed for good in Voicemod: through the bridge only.
+    pub fn set_sound_stops_others(&mut self, id: &str, stops_others: bool) {
+        if self.single_stop {
+            self.request(Request::SetSoundOptions {
+                id: id.to_string(),
+                mode: None,
+                volume: None,
+                stops_others: Some(stops_others),
             });
         }
     }

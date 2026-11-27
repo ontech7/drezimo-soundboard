@@ -76,6 +76,8 @@ pub enum Request {
         id: String,
         mode: Option<PlaybackMode>,
         volume: Option<f32>,
+        /// Whether it stops every other sound when it starts
+        stops_others: Option<bool>,
     },
     /// The soundboards again, as after a sound's options changed: Voicemod does not tell the Control API
     ReadSoundboards,
@@ -358,8 +360,13 @@ async fn exchange(
                         bridge.read_sounds();
                         true
                     }
-                    Request::SetSoundOptions { id, mode, volume } => {
-                        bridge.set_sound_options(id, sound_options(*mode, *volume));
+                    Request::SetSoundOptions {
+                        id,
+                        mode,
+                        volume,
+                        stops_others,
+                    } => {
+                        bridge.set_sound_options(id, sound_options(*mode, *volume, *stops_others));
                         true
                     }
                     _ => false,
@@ -373,13 +380,20 @@ async fn exchange(
 }
 
 /// As Voicemod's window names them
-fn sound_options(mode: Option<PlaybackMode>, volume: Option<f32>) -> serde_json::Map<String, Value> {
+fn sound_options(
+    mode: Option<PlaybackMode>,
+    volume: Option<f32>,
+    stops_others: Option<bool>,
+) -> serde_json::Map<String, Value> {
     let mut options = serde_json::Map::new();
     if let Some(mode) = mode.and_then(PlaybackMode::option_name) {
         options.insert("reproductionMode".into(), mode.into());
     }
     if let Some(volume) = volume {
         options.insert("volume".into(), volume.clamp(0.0, 1.0).into());
+    }
+    if let Some(stops_others) = stops_others {
+        options.insert("stopOtherSounds".into(), stops_others.into());
     }
     options
 }
@@ -490,6 +504,15 @@ fn parse(text: &str) -> Option<Incoming> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sounds_options_take_voicemods_names() {
+        let options = sound_options(Some(PlaybackMode::PlayOverlap), Some(1.4), Some(false));
+        assert_eq!(options["reproductionMode"], "playOverlap");
+        assert_eq!(options["volume"], 1.0, "never past Voicemod's top");
+        assert_eq!(options["stopOtherSounds"], false);
+        assert!(sound_options(None, None, None).is_empty(), "only what changes");
+    }
 
     // Shapes recorded from Voicemod 3.17.43
 

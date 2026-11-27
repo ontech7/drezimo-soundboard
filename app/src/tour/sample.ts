@@ -89,6 +89,7 @@ export function sampleMacro(texts: Texts): { steps: Step[]; library: Library } {
     picture: null,
     length,
     mode: null,
+    stopsOthers: false,
   });
   const drumroll = item(DRUMROLL, 3.2);
   const tada = item(TA_DA, 1.8);

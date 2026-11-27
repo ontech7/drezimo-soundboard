@@ -1,4 +1,5 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Segmented, Toggle } from "../controls";
 import {
   ACTION_COLOURS,
@@ -57,16 +58,14 @@ import {
   tryMacro,
   useMacros,
 } from "../macros";
+import { cutsOthers, duplicatedAll, freeTrack, isFree, type Item, removedAll } from "../macroEdit";
 import {
   type ActionChoice,
   AddToTimeline,
   ClipInspector,
-  freeTrack,
-  isFree,
+  GroupInspector,
   MacroTimeline,
   overlapsItself,
-  removed,
-  type Selected,
 } from "./MacroTimeline";
 import { PadPicture } from "../PadPicture";
 import { SearchSelect } from "../SearchSelect";
@@ -74,6 +73,15 @@ import type { Status } from "../status";
 import { Dialog } from "./PadPicker";
 
 const MAX_NAME = 24;
+/** The changes a macro can go back through */
+const MAX_UNDO = 50;
+
+interface History {
+  /** The macro they belong to */
+  id: string;
+  past: Tracks[];
+  future: Tracks[];
+}
 const WAIT_COLOUR: Rgb = [161, 161, 170];
 
 const SWITCH_ICONS: Record<Switch, ReactNode> = {
@@ -176,7 +184,10 @@ export function MacrosPage({ status }: { status: Status }) {
   const [pages] = useCustomPages();
   const library = useLibrary();
   const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<Selected>(null);
+  // One clip or action, or several with Shift+click
+  const [selection, setSelection] = useState<Item[]>([]);
+  // The macro's time lines before and after its changes, for undo and redo, until another macro is shown
+  const [history, setHistory] = useState<History>({ id: "", past: [], future: [] });
   // Where a sound or an action added next goes, in milliseconds
   const [cursor, setCursor] = useState(0);
   // The clip whose sound is being chosen, or "new" for a sound to add
@@ -184,6 +195,20 @@ export function MacrosPage({ status }: { status: Status }) {
   // The track a sound added from the right-click menu goes on, if free there
   const [newTrack, setNewTrack] = useState<number | null>(null);
   const targets = useMemo(() => targetsOf(pages ?? [], library, texts), [pages, library, texts]);
+  // Undo and redo from anywhere on the page, but in a text field, which has its own
+  const undoKeys = useRef<{ undo: () => void; redo: () => void } | null>(null);
+  useEffect(() => {
+    const keys = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (!(event.ctrlKey || event.metaKey) || (key !== "z" && key !== "y")) return;
+      if ((event.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
+      event.preventDefault();
+      if (key === "y" || event.shiftKey) undoKeys.current?.redo();
+      else undoKeys.current?.undo();
+    };
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  }, []);
 
   // The time line draws each sound as long as it is
   useEffect(() => readSoundLengths(), []);
@@ -202,7 +227,7 @@ export function MacrosPage({ status }: { status: Status }) {
   const add = (item: Macro) => {
     save([...macros, item]);
     setCurrent(macros.length);
-    setSelected(null);
+    setSelection([]);
     setCursor(0);
   };
 
@@ -227,12 +252,40 @@ export function MacrosPage({ status }: { status: Status }) {
   const item = macros[index];
   const saveMacro = (next: Macro) => save(macros.map((other, i) => (i === index ? next : other)));
   const timeline = timelineOf(item, library);
+  const kept = history.id === item.id ? history : { id: item.id, past: [], future: [] };
   // Once edited, a macro from before the time line keeps only its time line
-  const setTimeline = (next: Tracks) => saveMacro({ ...item, steps: [], timeline: next });
+  const store = (next: Tracks) => saveMacro({ ...item, steps: [], timeline: next });
+  const setTimeline = (next: Tracks) => {
+    // A change that changes nothing, as an arrow at the start, is no step to undo
+    if (JSON.stringify(next) === JSON.stringify(timeline)) return;
+    setHistory({ id: item.id, past: [...kept.past, timeline].slice(-MAX_UNDO), future: [] });
+    store(next);
+  };
+  const undoable = {
+    canUndo: kept.past.length > 0,
+    canRedo: kept.future.length > 0,
+    undo: () => {
+      const previous = kept.past[kept.past.length - 1];
+      if (!previous) return;
+      setHistory({ id: item.id, past: kept.past.slice(0, -1), future: [timeline, ...kept.future] });
+      store(previous);
+      // The indices may now point at other items
+      setSelection([]);
+    },
+    redo: () => {
+      const following = kept.future[0];
+      if (!following) return;
+      setHistory({ id: item.id, past: [...kept.past, timeline], future: kept.future.slice(1) });
+      store(following);
+      setSelection([]);
+    },
+  };
+  undoKeys.current = undoable;
   const running = status.runningMacro?.id === item.id ? status.runningMacro : null;
   const playable = status.voicemod.state === "connected" && timeline.clips.length + timeline.actions.length > 0;
-  const selectedClip = selected?.kind === "clip" ? timeline.clips[selected.index] : undefined;
-  const selectedAction = selected?.kind === "action" ? timeline.actions[selected.index] : undefined;
+  const only = selection.length === 1 ? selection[0] : null;
+  const selectedClip = only?.kind === "clip" ? timeline.clips[only.index] : undefined;
+  const selectedAction = only?.kind === "action" ? timeline.actions[only.index] : undefined;
 
   const places = (pages ?? []).flatMap((page) =>
     page.pads.flatMap((pad, i) => (pad?.kind === "macro" && pad.id === item.id ? [`${page.name} ${i + 1}`] : []))
@@ -245,7 +298,7 @@ export function MacrosPage({ status }: { status: Status }) {
       const asked = newTrack !== null && isFree(timeline, newTrack, cursor, millis, library);
       clip.track = asked && newTrack !== null ? newTrack : freeTrack(timeline, cursor, millis, library);
       setTimeline({ ...timeline, clips: [...timeline.clips, clip] });
-      setSelected({ kind: "clip", index: timeline.clips.length });
+      setSelection([{ kind: "clip", index: timeline.clips.length }]);
       // The next one after it, as a sequence is most often made
       setCursor(cursor + millis);
     } else if (choosing !== null) {
@@ -267,7 +320,7 @@ export function MacrosPage({ status }: { status: Status }) {
           index={index}
           onSelect={(i) => {
             setCurrent(i);
-            setSelected(null);
+            setSelection([]);
             setCursor(0);
           }}
           onAdd={() => add(blank())}
@@ -280,7 +333,7 @@ export function MacrosPage({ status }: { status: Status }) {
           onDelete={() => {
             save(macros.filter((_, i) => i !== index));
             setCurrent(Math.max(0, index - 1));
-            setSelected(null);
+            setSelection([]);
           }}
         />
 
@@ -310,9 +363,10 @@ export function MacrosPage({ status }: { status: Status }) {
           library={library}
           running={running}
           bridge={status.singleSoundStop}
-          selected={selected}
-          onSelect={setSelected}
+          selection={selection}
+          onSelection={setSelection}
           onChange={setTimeline}
+          history={undoable}
           cursor={cursor}
           onCursor={setCursor}
           describeAction={(action) => describe(action, texts, library, targets)}
@@ -325,23 +379,47 @@ export function MacrosPage({ status }: { status: Status }) {
         />
         {timeline.clips.length + timeline.actions.length === 0 && <p className="muted no-steps">{texts.noClips}</p>}
 
-        {selectedClip && selected && (
+        {selectedClip && only && (
           <ClipInspector
             clip={selectedClip}
             library={library}
             bridge={status.singleSoundStop}
-            warned={overlapsItself(timeline, selected.index, library)}
+            warned={overlapsItself(timeline, only.index, library)}
+            cuts={cutsOthers(timeline, only.index, library)}
             onChange={(clip) =>
-              setTimeline({ ...timeline, clips: timeline.clips.map((other, i) => (i === selected.index ? clip : other)) })
+              setTimeline({ ...timeline, clips: timeline.clips.map((other, i) => (i === only.index ? clip : other)) })
             }
-            onChangeSound={() => setChoosing(selected.index)}
+            onChangeSound={() => setChoosing(only.index)}
+            onKeepOthers={() =>
+              invoke("set_sound_stops_others", { id: selectedClip.id, stopsOthers: false }).catch((error) =>
+                console.error("cannot change the sound in Voicemod", error)
+              )
+            }
             onRemove={() => {
-              setTimeline(removed(timeline, selected));
-              setSelected(null);
+              setTimeline(removedAll(timeline, selection));
+              setSelection([]);
             }}
           />
         )}
-        {selectedAction && selected && (
+        {selection.length > 1 && (
+          <GroupInspector
+            count={selection.length}
+            full={
+              timeline.clips.length + selection.filter((item) => item.kind === "clip").length > MAX_CLIPS ||
+              timeline.actions.length + selection.filter((item) => item.kind === "action").length > MAX_STEPS
+            }
+            onDuplicate={() => {
+              const copied = duplicatedAll(timeline, selection, library);
+              setTimeline(copied.timeline);
+              setSelection(copied.items);
+            }}
+            onRemove={() => {
+              setTimeline(removedAll(timeline, selection));
+              setSelection([]);
+            }}
+          />
+        )}
+        {selectedAction && only && (
           <div className="mt-inspector">
             <div className="identity">
               <Tinted colour={describe(selectedAction, texts, library, targets).colour}>
@@ -360,7 +438,7 @@ export function MacrosPage({ status }: { status: Status }) {
                 setTimeline({
                   ...timeline,
                   actions: timeline.actions.map((other, i) =>
-                    i === selected.index ? ({ ...step, at: other.at } as typeof other) : other
+                    i === only.index ? ({ ...step, at: other.at } as typeof other) : other
                   ),
                 })
               }
@@ -370,11 +448,11 @@ export function MacrosPage({ status }: { status: Status }) {
             <button
               type="button"
               className="icon-button"
-              aria-label={texts.removeStep}
-              title={texts.removeStep}
+              aria-label={texts.deleteItem}
+              title={texts.deleteItem}
               onClick={() => {
-                setTimeline(removed(timeline, selected));
-                setSelected(null);
+                setTimeline(removedAll(timeline, selection));
+                setSelection([]);
               }}
             >
               <TrashIcon />
@@ -396,7 +474,7 @@ export function MacrosPage({ status }: { status: Status }) {
               onAdd={(step) => {
                 if (!step || step.type === "sound" || step.type === "wait") return;
                 setTimeline({ ...timeline, actions: [...timeline.actions, { ...step, at: cursor }] });
-                setSelected({ kind: "action", index: timeline.actions.length });
+                setSelection([{ kind: "action", index: timeline.actions.length }]);
               }}
             />
           }

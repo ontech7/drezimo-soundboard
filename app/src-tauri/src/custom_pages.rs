@@ -134,6 +134,7 @@ struct LibrarySoundboard {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LibraryItem {
     id: String,
     name: String,
@@ -145,6 +146,8 @@ struct LibraryItem {
     length: Option<f32>,
     /// A sound's mode in Voicemod
     mode: Option<PlaybackMode>,
+    /// A sound that stops every other one when it starts, as Voicemod is set
+    stops_others: bool,
 }
 
 impl Library {
@@ -204,6 +207,7 @@ impl Library {
 }
 
 fn item(pad: Pad) -> LibraryItem {
+    let stops_others = matches!(&pad, Pad::Sound(sound) if sound.stop_other_sounds);
     let (id, name, mode) = match &pad {
         Pad::Sound(sound) => (sound.id.clone(), sound.name.clone(), Some(sound.playback_mode)),
         Pad::Voice(voice) => (voice.id.clone(), voice.name.clone(), None),
@@ -216,6 +220,7 @@ fn item(pad: Pad) -> LibraryItem {
         picture: pictures::path(&pad),
         length: None,
         mode,
+        stops_others,
     }
 }
 

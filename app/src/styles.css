@@ -3566,6 +3566,28 @@ input.seconds {
   position: relative;
 }
 
+/* Focused for the keys, without a ring: the selection shows where they act */
+.mt:focus {
+  outline: none;
+}
+
+.mt-clip.cuts {
+  border-color: var(--amber);
+  border-left-width: 3px;
+}
+
+.mt-warning {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  color: #ffc65a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .mt-menu {
   position: absolute;
   width: 220px;

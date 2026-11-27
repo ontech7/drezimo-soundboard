@@ -56,6 +56,8 @@ export interface LibraryItem {
   length: number | null;
   /** A sound's mode in Voicemod */
   mode: PlaybackMode | null;
+  /** A sound that stops every other one when it starts, as Voicemod is set */
+  stopsOthers: boolean;
 }
 
 /** Voicemod's sounds and voices, as it last sent them */

@@ -293,6 +293,7 @@ impl Controller {
                 id,
                 mode: None,
                 volume: Some(volume),
+                stops_others: None,
             });
         }
     }

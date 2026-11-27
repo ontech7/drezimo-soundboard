@@ -297,8 +297,8 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
           library={library}
           running={running}
           bridge
-          selected={null}
-          onSelect={() => {}}
+          selection={[]}
+          onSelection={() => {}}
           onChange={() => {}}
           cursor={0}
           onCursor={() => {}}

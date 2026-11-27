@@ -11,7 +11,20 @@ import {
 import { Segmented, Slider } from "../controls";
 import { type Library, type Rgb, rgb, SOUND_COLOUR } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
-import { PlusIcon, TrashIcon } from "../icons";
+import { PlusIcon, RedoIcon, TrashIcon, UndoIcon } from "../icons";
+import {
+  contains,
+  cutsOthers,
+  duplicatedAll,
+  edgesOf,
+  type Item,
+  movedAll,
+  removedAll,
+  SNAP,
+  snapped,
+  soundOf,
+  toggled,
+} from "../macroEdit";
 import {
   type Clip,
   clipLength,
@@ -31,10 +44,7 @@ import {
 } from "../macros";
 import { useDismiss } from "../dismiss";
 import { PadPicture } from "../PadPicture";
-import type { PlaybackMode } from "../pressAgain";
 
-/** Moves and cuts land on tenths of a second */
-const SNAP = 100;
 const LANE = 58;
 const ACTION_LANE = 44;
 /** The volume curve's height inside a clip, below its name */
@@ -48,10 +58,10 @@ const ZOOMS = [30, 60, 100, 160];
 const MENU_WIDTH = 220;
 /** As tall as its longest list can draw, in pixels (.mt-menu's max-height and a margin) */
 const MENU_HEIGHT = 400;
-/** A copied action comes this much after the one it copies, in milliseconds */
-const ACTION_GAP = 500;
-
-export type Selected = { kind: "clip"; index: number } | { kind: "action"; index: number } | null;
+/** A move lands on an edge this close, in pixels whatever the zoom */
+const SNAP_REACH = 8;
+/** The arrow keys move this much, with Shift ten times as much, in milliseconds */
+const NUDGE = 100;
 
 interface Described {
   title: string;
@@ -74,8 +84,9 @@ interface Props {
   running: MacroProgress | null;
   /** Voicemod's bridge was found: clips can be cut and follow their own volume */
   bridge: boolean;
-  selected: Selected;
-  onSelect: (selected: Selected) => void;
+  /** What is selected: one item, or several with Shift+click */
+  selection: Item[];
+  onSelection: (items: Item[]) => void;
   onChange: (timeline: Timeline) => void;
   /** Where a sound or an action added next goes, in milliseconds */
   cursor: number;
@@ -84,31 +95,16 @@ interface Props {
   /** The right-click menu's: a sound to choose for that time and track, none for the first free one */
   onAddSound?: (at: number, track: number | null) => void;
   actionChoices?: ActionChoice[];
+  /** Undo and redo, where the editor keeps a history */
+  history?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void };
 }
 
-const snap = (millis: number) => Math.round(millis / SNAP) * SNAP;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-function modeOf(library: Library | null, id: string): PlaybackMode | null {
-  for (const soundboard of library?.soundboards ?? []) {
-    const sound = soundboard.sounds.find((item) => item.id === id);
-    if (sound) return sound.mode;
-  }
-  return null;
-}
-
-function pictureOf(library: Library | null, id: string): string | null {
-  for (const soundboard of library?.soundboards ?? []) {
-    const sound = soundboard.sounds.find((item) => item.id === id);
-    if (sound) return sound.picture;
-  }
-  return null;
-}
 
 /** Clips of one sound that play at the same time: Voicemod plays it once, unless its mode stacks copies */
 export function overlapsItself(timeline: Timeline, index: number, library: Library | null): boolean {
   const clip = timeline.clips[index];
-  if (modeOf(library, clip.id) === "PlayOverlap") return false;
+  if (soundOf(library, clip.id)?.mode === "PlayOverlap") return false;
   const end = clip.at + clipLength(clip, library).millis;
   return timeline.clips.some(
     (other, i) =>
@@ -120,34 +116,6 @@ export function overlapsItself(timeline: Timeline, index: number, library: Libra
 export function trackCount(timeline: Timeline): number {
   const used = Math.max(-1, ...timeline.clips.map((clip) => clip.track)) + 1;
   return clamp(used + 1, 2, MAX_TRACKS);
-}
-
-/** Whether nothing plays on that track from `at` for `millis` */
-export function isFree(timeline: Timeline, track: number, at: number, millis: number, library: Library | null): boolean {
-  return !timeline.clips.some(
-    (clip) => clip.track === track && clip.at < at + millis && at < clip.at + clipLength(clip, library).millis
-  );
-}
-
-/** The first track free from `at` for `millis`, else the last */
-export function freeTrack(timeline: Timeline, at: number, millis: number, library: Library | null): number {
-  for (let track = 0; track < MAX_TRACKS; track += 1) {
-    if (isFree(timeline, track, at, millis, library)) return track;
-  }
-  return MAX_TRACKS - 1;
-}
-
-/** A copy of a clip or an action right after it: a clip on its own track if free there, else on the first free one */
-export function duplicated(timeline: Timeline, target: NonNullable<Selected>, library: Library | null): Timeline {
-  if (target.kind === "action") {
-    const action = timeline.actions[target.index];
-    return { ...timeline, actions: [...timeline.actions, { ...action, at: Math.min(MAX_AT, action.at + ACTION_GAP) }] };
-  }
-  const clip = timeline.clips[target.index];
-  const millis = clipLength(clip, library).millis;
-  const at = Math.min(MAX_AT, clip.at + millis);
-  const track = isFree(timeline, clip.track, at, millis, library) ? clip.track : freeTrack(timeline, at, millis, library);
-  return { ...timeline, clips: [...timeline.clips, { ...clip, at, track }] };
 }
 
 /** Where the round under way is, drawn at each frame from when it started */
@@ -167,11 +135,12 @@ function usePlayhead(running: MacroProgress | null): number | null {
 /** The sounds of a macro on their tracks, its actions on a track of their own, along a time line */
 export function MacroTimeline(props: Props) {
   const texts = useTexts();
-  const { library, running, bridge, selected, onSelect, cursor, onCursor } = props;
+  const { library, running, bridge, selection, onSelection, cursor, onCursor, history } = props;
   // While a drag goes on, the time line moves here and is saved once let go
   const [draft, setDraft] = useState<Timeline | null>(null);
   const [zoom, setZoom] = useState(60);
   const timeline = draft ?? props.timeline;
+  const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const playhead = usePlayhead(running);
   const tracks = trackCount(timeline);
@@ -179,6 +148,7 @@ export function MacroTimeline(props: Props) {
   const width = shown * zoom;
   const x = (millis: number) => (millis / 1000) * zoom;
   const millisAt = (pixels: number) => (pixels / zoom) * 1000;
+  const reach = millisAt(SNAP_REACH);
 
   // The playhead stays in sight while the round plays
   useEffect(() => {
@@ -188,10 +158,17 @@ export function MacroTimeline(props: Props) {
     if (at < element.scrollLeft || at > element.scrollLeft + element.clientWidth - 40) element.scrollLeft = at - 40;
   });
 
-  const drag = (event: ReactPointerEvent, move: (dx: number, dy: number, target: Element | null) => Timeline | null) => {
+  /** `still`: let go without moving, as a plain click */
+  const drag = (
+    event: ReactPointerEvent,
+    move: (dx: number, dy: number, target: Element | null) => Timeline | null,
+    still?: () => void
+  ) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    // The keys (Delete, arrows, undo) come to the time line from now on
+    root.current?.focus({ preventScroll: true });
     const start = { x: event.clientX, y: event.clientY };
     let moved = false;
     let latest: Timeline | null = null;
@@ -208,11 +185,46 @@ export function MacroTimeline(props: Props) {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       setDraft(null);
-      if (moved && latest && end.type === "pointerup") props.onChange(latest);
+      if (end.type !== "pointerup") return;
+      if (moved && latest) props.onChange(latest);
+      if (!moved) still?.();
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
+  };
+
+  /**
+   * A clip or an action grabbed: Shift adds it to the selection or takes it out; otherwise it moves, with the others
+   * selected when it is one of them, its start or end landing on the edges near it
+   */
+  const grab = (event: ReactPointerEvent, item: Item) => {
+    if (event.button !== 0) return;
+    if (event.shiftKey) {
+      event.preventDefault();
+      root.current?.focus({ preventScroll: true });
+      onSelection(toggled(selection, item));
+      return;
+    }
+    const group = contains(selection, item) && selection.length > 1 ? selection : [item];
+    if (group.length === 1) onSelection(group);
+    const anchor = item.kind === "clip" ? props.timeline.clips[item.index] : props.timeline.actions[item.index];
+    const millis = item.kind === "clip" ? clipLength(props.timeline.clips[item.index], library).millis : 0;
+    const edges = edgesOf(props.timeline, group, library, cursor);
+    drag(
+      event,
+      (dx, _, target) => {
+        const at = snapped(anchor.at + millisAt(dx), millis, edges, reach);
+        let tracks = 0;
+        if (item.kind === "clip") {
+          const lane = target?.closest<HTMLElement>(".mt-lane[data-track]");
+          if (lane) tracks = Number(lane.dataset.track) - props.timeline.clips[item.index].track;
+        }
+        return movedAll(props.timeline, group, at - anchor.at, tracks);
+      },
+      // One of a group clicked without moving: that one alone
+      () => group.length > 1 && onSelection([item])
+    );
   };
 
   const withClip = (index: number, change: (clip: Clip) => Clip): Timeline => ({
@@ -221,15 +233,35 @@ export function MacroTimeline(props: Props) {
   });
 
   const keys = (event: KeyboardEvent) => {
-    if (!selected || (event.key !== "Delete" && event.key !== "Backspace")) return;
+    if (selection.length === 0) return;
+    if (event.key === "Escape") {
+      onSelection([]);
+      return;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      props.onChange(removedAll(props.timeline, selection));
+      onSelection([]);
+      root.current?.focus({ preventScroll: true });
+      return;
+    }
+    const step = event.shiftKey ? NUDGE * 10 : NUDGE;
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const move = moves[event.key];
+    if (!move) return;
     event.preventDefault();
-    props.onChange(removed(props.timeline, selected));
-    onSelect(null);
+    props.onChange(movedAll(props.timeline, selection, move[0], move[1]));
+    // A clip moved to another track is drawn anew: the keys stay with the time line
+    root.current?.focus({ preventScroll: true });
   };
 
   // The right-click menu: on a clip or an action what can be done to it, elsewhere on a track what can be added there
   const [menu, setMenu] = useState<MenuAt | null>(null);
-  const root = useRef<HTMLDivElement>(null);
   const openMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     const element = event.target as HTMLElement;
@@ -239,14 +271,16 @@ export function MacroTimeline(props: Props) {
     if (!lane || !box || !props.onAddSound) return;
     const clip = element.closest<HTMLElement>(".mt-clip");
     const action = element.closest<HTMLElement>(".mt-action");
-    const target: Selected = clip
+    const item: Item | null = clip
       ? { kind: "clip", index: Number(clip.dataset.index) }
       : action
         ? { kind: "action", index: Number(action.dataset.index) }
         : null;
-    if (target) onSelect(target);
-    const at = clamp(snap(millisAt(event.clientX - event.currentTarget.getBoundingClientRect().left)), 0, MAX_AT);
-    const track = lane.classList.contains("actions") ? null : Number(lane.dataset.track);
+    // On one of several selected, the menu acts on them all
+    const targets = item ? (contains(selection, item) ? selection : [item]) : null;
+    if (targets) onSelection(targets);
+    const at = clamp(snapped(millisAt(event.clientX - event.currentTarget.getBoundingClientRect().left), 0, [], 0), 0, MAX_AT);
+    const track = lane.dataset.track === undefined ? null : Number(lane.dataset.track);
     // Upwards when the window has no room below for the longest menu, the actions' list
     const up = window.innerHeight - event.clientY < MENU_HEIGHT;
     setMenu({
@@ -257,23 +291,63 @@ export function MacroTimeline(props: Props) {
       up,
       at,
       track,
-      target,
+      targets,
     });
   };
-  const full = {
-    clips: props.timeline.clips.length >= MAX_CLIPS,
-    actions: props.timeline.actions.length >= MAX_STEPS,
+  // What can still be added before the macro is full
+  const room = {
+    clips: MAX_CLIPS - props.timeline.clips.length,
+    actions: MAX_STEPS - props.timeline.actions.length,
+  };
+  // A menu left open over a time line changed meanwhile would act on what is no longer there
+  useEffect(() => setMenu(null), [props.timeline]);
+  // A button that disables itself, or a clip that moves to another track, would take the keys' focus with it
+  const keepKeys = (action: () => void) => () => {
+    action();
+    root.current?.focus({ preventScroll: true });
+  };
+  const duplicate = (items: Item[]) => {
+    const copied = duplicatedAll(props.timeline, items, library);
+    props.onChange(copied.timeline);
+    onSelection(copied.items);
   };
 
   return (
-    <div className="mt" onKeyDown={keys} ref={root}>
+    // Focusable, for the keys: the clips themselves take the focus only from the keyboard
+    <div className="mt" onKeyDown={keys} ref={root} tabIndex={-1}>
       <div className="mt-bar">
         <span className="muted">
           {running
             ? texts.stepOf(running.step, running.steps)
-            : texts.timelineLength(texts.secondsOf(timelineLength(timeline, library)))}
+            : selection.length > 1
+              ? texts.selectedCount(selection.length)
+              : texts.timelineLength(texts.secondsOf(timelineLength(timeline, library)))}
         </span>
         <span className="spacer" />
+        {history && (
+          <>
+            <button
+              type="button"
+              className="icon-button small"
+              aria-label={texts.undo}
+              title={texts.undo}
+              disabled={!history.canUndo}
+              onClick={keepKeys(history.undo)}
+            >
+              <UndoIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-button small"
+              aria-label={texts.redo}
+              title={texts.redo}
+              disabled={!history.canRedo}
+              onClick={keepKeys(history.redo)}
+            >
+              <RedoIcon />
+            </button>
+          </>
+        )}
         <Segmented
           label={texts.zoom}
           options={ZOOMS.map((value, i) => ({ value, label: texts.zoomLevels[i] }))}
@@ -300,10 +374,17 @@ export function MacroTimeline(props: Props) {
               zoom={zoom}
               timeline={timeline}
               library={library}
-              onPick={(pixels) => onCursor(clamp(snap(millisAt(pixels)), 0, MAX_AT))}
+              onPick={(pixels) => onCursor(clamp(snapped(millisAt(pixels), 0, [], 0), 0, MAX_AT))}
             />
             {Array.from({ length: tracks }, (_, track) => (
-              <div key={track} className="mt-lane" data-track={track} style={{ height: LANE }}>
+              <div
+                key={track}
+                className="mt-lane"
+                data-track={track}
+                style={{ height: LANE }}
+                // A click on the empty track lets go of the selection
+                onPointerDown={(event) => event.target === event.currentTarget && event.button === 0 && onSelection([])}
+              >
                 {timeline.clips.map((clip, index) =>
                   clip.track === track ? (
                     <ClipBlock
@@ -313,50 +394,47 @@ export function MacroTimeline(props: Props) {
                       library={library}
                       zoom={zoom}
                       bridge={bridge}
-                      selected={selected?.kind === "clip" && selected.index === index}
+                      selected={contains(selection, { kind: "clip", index })}
                       warned={overlapsItself(timeline, index, library)}
+                      cuts={cutsOthers(timeline, index, library)}
                       playing={
                         playhead !== null && clip.at <= playhead && playhead < clip.at + clipLength(clip, library).millis
                       }
-                      onSelect={() => onSelect({ kind: "clip", index })}
-                      onMove={(event) =>
-                        drag(event, (dx, _, target) => {
-                          const lane = target?.closest<HTMLElement>(".mt-lane");
-                          const next = lane ? Number(lane.dataset.track) : clip.track;
-                          return withClip(index, (old) => ({
-                            ...old,
-                            at: clamp(snap(old.at + millisAt(dx)), 0, MAX_AT),
-                            track: Number.isFinite(next) ? next : old.track,
-                          }));
-                        })
-                      }
-                      onCut={(event) =>
+                      onSelect={() => onSelection([{ kind: "clip", index }])}
+                      onGrab={(event) => grab(event, { kind: "clip", index })}
+                      onCut={(event) => {
+                        onSelection([{ kind: "clip", index }]);
+                        const edges = edgesOf(props.timeline, [{ kind: "clip", index }], library, cursor);
                         drag(event, (dx) => {
                           const whole = soundLength(library, clip.id);
                           // A length not known yet is drawn as a guess: the cut stays within what is drawn
                           const full = whole === null ? null : Math.round(whole * 1000);
                           const now = clipLength(clip, library).millis;
-                          const cut = clamp(snap(now + millisAt(dx)), MIN_CUT, full ?? GUESSED_LENGTH * 1000);
+                          const end = snapped(clip.at + now + millisAt(dx), 0, edges, reach);
+                          const cut = clamp(end - clip.at, MIN_CUT, full ?? GUESSED_LENGTH * 1000);
                           return withClip(index, (old) => ({ ...old, cut: full !== null && cut >= full ? null : cut }));
-                        })
-                      }
-                      onLevel={(event, at, level) =>
+                        });
+                      }}
+                      onLevel={(event, at, level) => {
+                        onSelection([{ kind: "clip", index }]);
                         drag(event, (dx, dy) => {
                           const levels = clip.volume ?? [];
                           const before = levels[at - 1]?.at ?? 0;
                           const after = levels[at + 1]?.at ?? clipLength(clip, library).millis;
                           const point: Level = {
-                            at: clamp(snap(level.at + millisAt(dx)), before, after),
+                            at: clamp(snapped(level.at + millisAt(dx), 0, [], 0), before, after),
                             percent: Math.round(clamp(level.percent - (dy / CURVE_HEIGHT) * 100, 0, 100)),
                           };
                           return withClip(index, (old) => ({
                             ...old,
                             volume: (old.volume ?? []).map((other, i) => (i === at ? point : other)),
                           }));
-                        })
-                      }
+                        });
+                      }}
                       onAddLevel={(at, percent) => {
-                        const levels = [...(clip.volume ?? []), { at: snap(at), percent }].sort((a, b) => a.at - b.at);
+                        const levels = [...(clip.volume ?? []), { at: snapped(at, 0, [], 0), percent }].sort(
+                          (a, b) => a.at - b.at
+                        );
                         props.onChange(withClip(index, (old) => ({ ...old, volume: levels })));
                       }}
                       onRemoveLevel={(at) =>
@@ -370,27 +448,25 @@ export function MacroTimeline(props: Props) {
                 )}
               </div>
             ))}
-            <div className="mt-lane actions" style={{ height: ACTION_LANE }}>
+            <div
+              className="mt-lane actions"
+              style={{ height: ACTION_LANE }}
+              onPointerDown={(event) => event.target === event.currentTarget && event.button === 0 && onSelection([])}
+            >
               {timeline.actions.map((action, index) => {
                 const shown = props.describeAction(action);
+                const item: Item = { kind: "action", index };
                 return (
                   <button
                     key={index}
                     type="button"
-                    className={selected?.kind === "action" && selected.index === index ? "mt-action selected" : "mt-action"}
+                    className={contains(selection, item) ? "mt-action selected" : "mt-action"}
                     data-index={index}
                     style={{ left: x(action.at), "--tint": rgb(shown.colour) } as CSSProperties}
                     title={shown.title}
-                    onClick={() => onSelect({ kind: "action", index })}
-                    onPointerDown={(event) => {
-                      onSelect({ kind: "action", index });
-                      drag(event, (dx) => ({
-                        ...props.timeline,
-                        actions: props.timeline.actions.map((other, i) =>
-                          i === index ? { ...other, at: clamp(snap(other.at + millisAt(dx)), 0, MAX_AT) } : other
-                        ),
-                      }));
-                    }}
+                    // From the keyboard only: a pointer is handled when it goes down
+                    onClick={(event) => event.detail === 0 && onSelection([item])}
+                    onPointerDown={(event) => grab(event, item)}
                   >
                     <i className="diamond" />
                     <span>{shown.title}</span>
@@ -406,26 +482,19 @@ export function MacroTimeline(props: Props) {
       {menu && (
         <TimelineMenu
           menu={menu}
-          full={full}
+          room={room}
           actionChoices={props.actionChoices ?? []}
           onClose={() => setMenu(null)}
           onAddSound={() => props.onAddSound?.(menu.at, menu.track)}
           onAddAction={(step) => {
             const actions = [...props.timeline.actions, { ...step, at: menu.at } as TimedStep];
             props.onChange({ ...props.timeline, actions });
-            onSelect({ kind: "action", index: props.timeline.actions.length });
+            onSelection([{ kind: "action", index: props.timeline.actions.length }]);
           }}
-          onDuplicate={(target) => {
-            props.onChange(duplicated(props.timeline, target, library));
-            onSelect(
-              target.kind === "clip"
-                ? { kind: "clip", index: props.timeline.clips.length }
-                : { kind: "action", index: props.timeline.actions.length }
-            );
-          }}
-          onDelete={(target) => {
-            props.onChange(removed(props.timeline, target));
-            onSelect(null);
+          onDuplicate={duplicate}
+          onDelete={(items) => {
+            props.onChange(removedAll(props.timeline, items));
+            onSelection([]);
           }}
         />
       )}
@@ -434,7 +503,7 @@ export function MacroTimeline(props: Props) {
 }
 
 interface MenuAt {
-  /** Where it opens, in the time line's own pixels, and how wide the time line is */
+  /** Where it opens, in the time line's own pixels, and how large the time line is */
   x: number;
   y: number;
   width: number;
@@ -444,22 +513,24 @@ interface MenuAt {
   /** The time and the track clicked: null on the actions' track */
   at: number;
   track: number | null;
-  target: Selected;
+  /** What it acts on: what was clicked, or the selection it is part of; null on an empty spot */
+  targets: Item[] | null;
 }
 
 /** What a right click offers: duplicate or delete what it is on, else add a sound or an action at that point */
 function TimelineMenu(props: {
   menu: MenuAt;
-  full: { clips: boolean; actions: boolean };
+  room: { clips: number; actions: number };
   actionChoices: ActionChoice[];
   onClose: () => void;
   onAddSound: () => void;
   onAddAction: (step: Step) => void;
-  onDuplicate: (target: NonNullable<Selected>) => void;
-  onDelete: (target: NonNullable<Selected>) => void;
+  onDuplicate: (items: Item[]) => void;
+  onDelete: (items: Item[]) => void;
 }) {
   const texts = useTexts();
-  const { menu, full, onClose } = props;
+  const { menu, room, onClose } = props;
+  const full = { clips: room.clips <= 0, actions: room.actions <= 0 };
   const [actions, setActions] = useState(false);
   const element = useDismiss<HTMLDivElement>(true, onClose);
   const first = useRef<HTMLButtonElement>(null);
@@ -468,8 +539,11 @@ function TimelineMenu(props: {
     onClose();
     action();
   };
-  const target = menu.target;
-  const fullFor = target?.kind === "clip" ? full.clips : full.actions;
+  const targets = menu.targets;
+  const clips = targets?.filter((item) => item.kind === "clip").length ?? 0;
+  const actionCount = (targets?.length ?? 0) - clips;
+  const tooManyClips = clips > room.clips;
+  const tooMany = tooManyClips || actionCount > room.actions;
   return (
     <div
       className="menu mt-menu"
@@ -481,20 +555,26 @@ function TimelineMenu(props: {
         ...(menu.up ? { top: "auto", bottom: menu.height - menu.y } : { top: menu.y }),
       }}
       onContextMenu={(event) => event.preventDefault()}
+      // Its keys are its own: the time line under it would move or delete what is selected
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") onClose();
+      }}
     >
-      {target ? (
+      {targets ? (
         <>
+          {targets.length > 1 && <span className="muted heading">{texts.selectedCount(targets.length)}</span>}
           <button
             type="button"
             role="menuitem"
             ref={first}
-            disabled={fullFor}
-            title={fullFor ? (target.kind === "clip" ? texts.tooManyClips : texts.tooManyActions) : undefined}
-            onClick={run(() => props.onDuplicate(target))}
+            disabled={tooMany}
+            title={tooMany ? (tooManyClips ? texts.tooManyClips : texts.tooManyActions) : undefined}
+            onClick={run(() => props.onDuplicate(targets))}
           >
             {texts.duplicate}
           </button>
-          <button type="button" role="menuitem" className="danger" onClick={run(() => props.onDelete(target))}>
+          <button type="button" role="menuitem" className="danger" onClick={run(() => props.onDelete(targets))}>
             {texts.deleteItem}
           </button>
         </>
@@ -602,9 +682,11 @@ interface ClipProps {
   selected: boolean;
   /** Plays over itself: Voicemod starts it again instead */
   warned: boolean;
+  /** The sounds it stops when it starts */
+  cuts: string[];
   playing: boolean;
   onSelect: () => void;
-  onMove: (event: ReactPointerEvent) => void;
+  onGrab: (event: ReactPointerEvent) => void;
   onCut: (event: ReactPointerEvent) => void;
   onLevel: (event: ReactPointerEvent, index: number, level: Level) => void;
   onAddLevel: (at: number, percent: number) => void;
@@ -629,9 +711,10 @@ function ClipBlock(props: ClipProps) {
     "mt-clip",
     props.selected ? "selected" : "",
     props.playing ? "playing" : "",
-    props.warned ? "warned" : "",
+    props.warned ? "warned" : props.cuts.length ? "cuts" : "",
     length.known ? "" : "guessed",
   ];
+  const warning = props.warned ? texts.overlapsItself : props.cuts.length ? texts.cutsOthers(props.cuts) : undefined;
   return (
     <div
       className={classes.join(" ")}
@@ -641,11 +724,8 @@ function ClipBlock(props: ClipProps) {
       data-index={props.index}
       aria-pressed={props.selected}
       aria-label={texts.clipLabel(name, texts.secondsOf(clip.at / 1000))}
-      title={props.warned ? texts.overlapsItself : undefined}
-      onPointerDown={(event) => {
-        props.onSelect();
-        props.onMove(event);
-      }}
+      title={warning}
+      onPointerDown={props.onGrab}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") props.onSelect();
       }}
@@ -658,7 +738,7 @@ function ClipBlock(props: ClipProps) {
       }}
     >
       <span className="label">
-        <PadPicture picture={pictureOf(library, clip.id)} />
+        <PadPicture picture={soundOf(library, clip.id)?.picture} />
         <span className="name">{name}</span>
         <span className="length">{length.known ? texts.secondsOf(length.millis / 1000) : "?"}</span>
       </span>
@@ -672,10 +752,7 @@ function ClipBlock(props: ClipProps) {
               cx={x(level.at)}
               cy={y(level.percent)}
               r={4.5}
-              onPointerDown={(event) => {
-                props.onSelect();
-                props.onLevel(event, i, level);
-              }}
+              onPointerDown={(event) => props.onLevel(event, i, level)}
               onDoubleClick={(event) => event.stopPropagation()}
               onContextMenu={(event) => {
                 event.preventDefault();
@@ -689,25 +766,9 @@ function ClipBlock(props: ClipProps) {
           ))}
         </svg>
       )}
-      {props.bridge && (
-        <span
-          className="cut-handle"
-          title={texts.dragToCut}
-          onPointerDown={(event) => {
-            props.onSelect();
-            props.onCut(event);
-          }}
-        />
-      )}
+      {props.bridge && <span className="cut-handle" title={texts.dragToCut} onPointerDown={props.onCut} />}
     </div>
   );
-}
-
-/** The time line without the selected clip or action */
-export function removed(timeline: Timeline, selected: NonNullable<Selected>): Timeline {
-  return selected.kind === "clip"
-    ? { ...timeline, clips: timeline.clips.filter((_, i) => i !== selected.index) }
-    : { ...timeline, actions: timeline.actions.filter((_, i) => i !== selected.index) };
 }
 
 type Shape = "own" | "steady" | "in" | "out" | "inOut";
@@ -756,8 +817,12 @@ export function ClipInspector(props: {
   library: Library | null;
   bridge: boolean;
   warned: boolean;
+  /** The sounds it stops when it starts */
+  cuts: string[];
   onChange: (clip: Clip) => void;
   onChangeSound: () => void;
+  /** Its sound no longer stops the others, in Voicemod */
+  onKeepOthers: () => void;
   onRemove: () => void;
 }) {
   const texts = useTexts();
@@ -770,7 +835,7 @@ export function ClipInspector(props: {
   return (
     <div className="mt-inspector">
       <div className="identity">
-        <PadPicture picture={pictureOf(library, clip.id)} />
+        <PadPicture picture={soundOf(library, clip.id)?.picture} />
         <div>
           <p className="title">{clip.name || texts.soundMissing}</p>
           <p className="muted">
@@ -794,8 +859,8 @@ export function ClipInspector(props: {
       <button
         type="button"
         className="icon-button"
-        aria-label={texts.removeStep}
-        title={texts.removeStep}
+        aria-label={texts.deleteItem}
+        title={texts.deleteItem}
         onClick={props.onRemove}
       >
         <TrashIcon />
@@ -835,6 +900,16 @@ export function ClipInspector(props: {
           />
         </div>
       )}
+      {props.cuts.length > 0 && (
+        <p className="mt-warning">
+          {texts.cutsOthers(props.cuts)}
+          {bridge && (
+            <button type="button" className="link" onClick={props.onKeepOthers}>
+              {texts.keepOthers}
+            </button>
+          )}
+        </p>
+      )}
       <p className="hint">
         {!bridge
           ? texts.timelineNeedsBridge
@@ -844,6 +919,34 @@ export function ClipInspector(props: {
               ? texts.curveHint
               : texts.clipHint}
       </p>
+    </div>
+  );
+}
+
+/** Several clips and actions selected: what can be done to them all */
+export function GroupInspector(props: { count: number; onDuplicate: () => void; onRemove: () => void; full: boolean }) {
+  const texts = useTexts();
+  return (
+    <div className="mt-inspector">
+      <div className="identity">
+        <div>
+          <p className="title">{texts.selectedCount(props.count)}</p>
+          <p className="muted">{texts.groupHint}</p>
+        </div>
+      </div>
+      <span className="spacer" />
+      <button type="button" className="button secondary" disabled={props.full} onClick={props.onDuplicate}>
+        {texts.duplicate}
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={texts.deleteItem}
+        title={texts.deleteItem}
+        onClick={props.onRemove}
+      >
+        <TrashIcon />
+      </button>
     </div>
   );
 }

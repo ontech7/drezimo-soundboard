@@ -50,6 +50,11 @@ enum Input {
         id: String,
         mode: PlaybackMode,
     },
+    /// Whether a sound stops the others, changed in Voicemod from the Macro editor
+    SoundStopsOthers {
+        id: String,
+        stops_others: bool,
+    },
     /// The notice of the volume at zero closed
     CloseVolumeNotice,
     /// The knob turned in the window: +1 to the right
@@ -380,6 +385,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
             }
             Some(Input::HearAgain) => controller.hear_sounds_again(),
             Some(Input::SoundMode { id, mode }) => controller.set_sound_mode(&id, mode),
+            Some(Input::SoundStopsOthers { id, stops_others }) => controller.set_sound_stops_others(&id, stops_others),
             Some(Input::CloseVolumeNotice) => controller.close_volume_notice(),
             Some(Input::KnobTurn(step)) => {
                 controller.window_knob_turned(step, now);
@@ -647,6 +653,14 @@ pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
 pub fn set_sound_mode(app: AppHandle, id: String, mode: PlaybackMode) {
     if id.len() <= crate::custom_pages::MAX_ID {
         send(&app, Input::SoundMode { id, mode });
+    }
+}
+
+/// Whether a sound stops every other one when it starts, for good, in Voicemod
+#[tauri::command]
+pub fn set_sound_stops_others(app: AppHandle, id: String, stops_others: bool) {
+    if id.len() <= crate::custom_pages::MAX_ID {
+        send(&app, Input::SoundStopsOthers { id, stops_others });
     }
 }
 
