@@ -111,7 +111,72 @@
               <p data-t="feature4Text"></p>
             </div>
           </article>
+          <article class="card" style="--c: #ff5fbf" data-reveal>
+            <div class="visual mini-wheel" aria-hidden="true"><i></i></div>
+            <h3 data-t="feature5Title"></h3>
+            <p data-t="feature5Text"></p>
+          </article>
+          <article class="card" style="--c: #22e05a" data-reveal>
+            <div class="visual mini-leds" aria-hidden="true">
+              <i style="--led: #ffb020"></i><i class="breathe" style="--led: #3fa9ff"></i
+              ><i class="blink" style="--led: #ff5fbf"></i><i class="breathe" style="--led: #22e05a"></i>
+            </div>
+            <h3 data-t="feature6Title"></h3>
+            <p data-t="feature6Text"></p>
+          </article>
+          <article class="card" style="--c: #3fa9ff" data-reveal>
+            <div class="visual mini-screen" aria-hidden="true">
+              <div class="oled-line">SOUNDBOARD<br />VOL 78%<i></i></div>
+              <div class="grid"></div>
+            </div>
+            <h3 data-t="feature7Title"></h3>
+            <p data-t="feature7Text"></p>
+          </article>
         </div>
+      </section>
+
+      <section class="macro">
+        <header data-reveal>
+          <span class="eyebrow" data-t="macroEyebrow"></span>
+          <h2 data-t="macroTitle"></h2>
+          <p class="lead" data-t="macroLead"></p>
+        </header>
+        <div class="editor" id="macro-editor" data-reveal>
+          <div class="editor-bar">
+            <span class="macro-name"><i></i><span data-t="macroName"></span></span>
+            <span class="voice-on" id="macro-voice" hidden></span>
+            <span class="length" id="macro-length"></span>
+            <button class="play" id="macro-play" type="button">
+              <svg class="to-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+              <svg class="to-stop" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6h10v12H7z" /></svg>
+              <span></span>
+            </button>
+          </div>
+          <div class="scroller"><div class="timeline"></div></div>
+          <div class="editor-foot">
+            <button class="macro-pad" id="macro-pad" type="button" data-t="macroPadLabel"></button>
+            <p data-t="macroPadText"></p>
+          </div>
+        </div>
+        <ul class="points">
+          <li data-reveal>
+            <h3 data-t="macroPoint1Title"></h3>
+            <p data-t="macroPoint1Text"></p>
+          </li>
+          <li data-reveal>
+            <h3 data-t="macroPoint2Title"></h3>
+            <p data-t="macroPoint2Text"></p>
+          </li>
+          <li data-reveal>
+            <h3 data-t="macroPoint3Title"></h3>
+            <p data-t="macroPoint3Text"></p>
+          </li>
+          <li data-reveal>
+            <h3 data-t="macroPoint4Title"></h3>
+            <p data-t="macroPoint4Text"></p>
+            <p class="keys" id="macro-keys"></p>
+          </li>
+        </ul>
       </section>
 
       <section class="app">
@@ -131,6 +196,16 @@
           <figure class="shot" data-reveal>
             <img src="/images/overlay.webp" alt="" loading="lazy" />
             <figcaption data-t="app3"></figcaption>
+          </figure>
+        </div>
+        <div class="pair">
+          <figure class="shot" data-reveal>
+            <img src="/images/app-macros.webp" alt="" loading="lazy" />
+            <figcaption data-t="app4"></figcaption>
+          </figure>
+          <figure class="shot wheel-shot" data-reveal>
+            <img src="/images/action-wheel.webp" alt="" loading="lazy" />
+            <figcaption data-t="app5"></figcaption>
           </figure>
         </div>
       </section>
