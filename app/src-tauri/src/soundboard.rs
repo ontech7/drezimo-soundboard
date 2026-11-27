@@ -19,6 +19,9 @@ const VOICES_NAME: &str = "Voices";
 pub struct Soundboard {
     pub id: String,
     pub name: String,
+    /// Made by the user in Voicemod, rather than one of Voicemod's own
+    #[serde(default, rename = "isCustom")]
+    pub custom: bool,
     #[serde(default)]
     pub sounds: Vec<Sound>,
 }
@@ -70,6 +73,18 @@ pub enum PlaybackMode {
 }
 
 impl PlaybackMode {
+    /// As a sound's options name it in Voicemod's bridge
+    pub fn option_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::PlayRestart => "playRestart",
+            Self::PlayOverlap => "playOverlap",
+            Self::PlayStop => "playStop",
+            Self::PlayPause => "playPause",
+            Self::PlayLoopOnPress => "playLoopOnPress",
+            Self::Unknown => return None,
+        })
+    }
+
     /// From its name, as in Voicemod's API.
     pub fn from_name(name: &str) -> Self {
         Self::deserialize(IntoDeserializer::<value::Error>::into_deserializer(name)).unwrap_or(Self::Unknown)
@@ -89,6 +104,43 @@ pub struct Voice {
     pub favorited: bool,
     #[serde(default, rename = "imageURL")]
     pub image_url: String,
+}
+
+/// Which of Voicemod's pages the board shows besides the user's own: all of them unless the user picks
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ShownPages {
+    pub favourites: bool,
+    pub voices: bool,
+    /// Only the soundboards the user made in Voicemod, none of Voicemod's own
+    pub only_mine: bool,
+    /// Soundboards left out, by id
+    pub hidden: Vec<String>,
+}
+
+impl Default for ShownPages {
+    fn default() -> Self {
+        Self {
+            favourites: true,
+            voices: true,
+            only_mine: false,
+            hidden: Vec::new(),
+        }
+    }
+}
+
+/// More ids than any Voicemod has soundboards
+const MAX_HIDDEN: usize = 500;
+
+impl ShownPages {
+    pub fn checked(mut self) -> Self {
+        self.hidden.truncate(MAX_HIDDEN);
+        self
+    }
+
+    pub fn shows(&self, soundboard: &Soundboard) -> bool {
+        (soundboard.custom || !self.only_mine) && !self.hidden.contains(&soundboard.id)
+    }
 }
 
 /// What a pad of the user's own pages does besides sounds and voices: what the function keys do, and more
@@ -181,15 +233,16 @@ impl Page {
 }
 
 /// The user's own pages first, then the favourite sounds, the voices in the licence and every soundboard in Voicemod's
-/// order, 36 pads per page.
+/// order, 36 pads per page, each of Voicemod's as the user chose to show them.
 pub fn pages(
     soundboards: &[Soundboard],
     voices: &[Voice],
     custom: &[CustomPage],
     macros: &[Macro],
+    shown: &ShownPages,
     texts: &Texts,
 ) -> Vec<Page> {
-    let voicemods = voicemod_pages(soundboards, voices);
+    let voicemods = voicemod_pages(soundboards, voices, shown);
     // A pad that opens a page names it as the display does, if the board has it
     let page_name = |id: &str| -> Option<String> {
         if let Some(page) = custom.iter().find(|page| page.id == id) {
@@ -212,7 +265,7 @@ pub fn pages(
 }
 
 /// The favourite sounds, the voices in the licence, then every soundboard in Voicemod's order.
-fn voicemod_pages(soundboards: &[Soundboard], voices: &[Voice]) -> Vec<Page> {
+fn voicemod_pages(soundboards: &[Soundboard], voices: &[Voice], shown: &ShownPages) -> Vec<Page> {
     let mut pages = Vec::new();
     let mut seen = HashSet::new();
     let favourites: Vec<Pad> = soundboards
@@ -222,17 +275,17 @@ fn voicemod_pages(soundboards: &[Soundboard], voices: &[Voice]) -> Vec<Page> {
         .map(|sound| Pad::Sound(sound.clone()))
         .collect();
 
-    if !favourites.is_empty() {
+    if shown.favourites && !favourites.is_empty() {
         add_pages(&mut pages, FAVOURITES_ID, FAVOURITES_NAME, favourites);
     }
     // Only those that can be used: a free licence would fill pages with locked voices. The favourites first.
     let mut usable: Vec<&Voice> = voices.iter().filter(|voice| voice.enabled).collect();
     usable.sort_by_key(|voice| !voice.favorited);
-    if !usable.is_empty() {
+    if shown.voices && !usable.is_empty() {
         let pads = usable.into_iter().map(|voice| Pad::Voice(voice.clone())).collect();
         add_pages(&mut pages, VOICES_ID, VOICES_NAME, pads);
     }
-    for soundboard in soundboards {
+    for soundboard in soundboards.iter().filter(|soundboard| shown.shows(soundboard)) {
         let pads = soundboard.sounds.iter().cloned().map(Pad::Sound).collect();
         add_pages(&mut pages, &soundboard.id, &soundboard.name, pads);
     }
@@ -350,6 +403,7 @@ pub mod tests {
         Soundboard {
             id: id.to_string(),
             name: id.to_uppercase(),
+            custom: false,
             sounds,
         }
     }
@@ -378,6 +432,7 @@ pub mod tests {
             &[],
             &[],
             &[],
+            &ShownPages::default(),
             &ENGLISH,
         );
 
@@ -390,6 +445,46 @@ pub mod tests {
         assert_eq!(pages[1].pads.len(), PADS);
         assert_eq!((pages[2].soundboard_id.as_str(), pages[2].parts), ("empty", 1));
         assert!(pages[2].pads.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn shows_only_the_pages_the_user_chose() {
+        let favourite = Sound {
+            favorited: true,
+            ..sound("fav")
+        };
+        let mine = Soundboard {
+            custom: true,
+            ..soundboard("mine", vec![sound("y")])
+        };
+        let soundboards = [
+            soundboard("a", vec![favourite]),
+            soundboard("b", vec![sound("x")]),
+            mine,
+        ];
+        let ids = |shown: ShownPages| -> Vec<String> {
+            pages(&soundboards, &[voice("dark")], &[], &[], &shown, &ENGLISH)
+                .into_iter()
+                .map(|page| page.soundboard_id)
+                .collect()
+        };
+        assert_eq!(ids(ShownPages::default()), [FAVOURITES_ID, VOICES_ID, "a", "b", "mine"]);
+        let only_mine = ShownPages {
+            only_mine: true,
+            voices: false,
+            ..ShownPages::default()
+        };
+        assert_eq!(
+            ids(only_mine),
+            [FAVOURITES_ID, "mine"],
+            "the favourites keep their own switch"
+        );
+        let picked = ShownPages {
+            favourites: false,
+            hidden: vec!["b".into(), "mine".into()],
+            ..ShownPages::default()
+        };
+        assert_eq!(ids(picked), [VOICES_ID, "a"]);
     }
 
     #[test]
@@ -406,6 +501,7 @@ pub mod tests {
             &[],
             &[],
             &[],
+            &ShownPages::default(),
             &ENGLISH,
         );
 
@@ -439,7 +535,14 @@ pub mod tests {
             favorited: true,
             ..sound("fav")
         };
-        let pages = pages(&[soundboard("a", vec![favourite])], &voices, &[], &[], &ENGLISH);
+        let pages = pages(
+            &[soundboard("a", vec![favourite])],
+            &voices,
+            &[],
+            &[],
+            &ShownPages::default(),
+            &ENGLISH,
+        );
 
         assert_eq!(pages[1].soundboard_id, VOICES_ID);
         let names: Vec<_> = pages[1].pads.iter().flatten().map(Pad::name).collect();
@@ -495,6 +598,7 @@ pub mod tests {
             &[voice("v1")],
             &[own],
             &[],
+            &ShownPages::default(),
             &ITALIAN,
         );
 

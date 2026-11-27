@@ -481,6 +481,41 @@
   transition: width 0.5s cubic-bezier(0.3, 0.8, 0.3, 1);
 }
 
+/* The overlay on the PC's screen */
+
+.explain-screen {
+  position: relative;
+  width: 200px;
+  height: 124px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(160deg, #1d1d24, #121216);
+}
+
+.explain-overlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 8px);
+  gap: 2px;
+  padding: 5px;
+  border-radius: 5px;
+  background: rgb(10 10 12 / 85%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.explain-overlay.shown {
+  opacity: 1;
+}
+
+.explain-overlay i {
+  height: 6px;
+  border-radius: 1.5px;
+  background: #2f6bff;
+}
+
 /* Voices */
 
 .explain-voices {

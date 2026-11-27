@@ -203,6 +203,12 @@ export const TrashIcon = () => (
   </Icon>
 );
 
+export const EditIcon = () => (
+  <Icon>
+    <path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4" />
+  </Icon>
+);
+
 export const LockIcon = () => (
   <Icon>
     <path d="M7 11V8a5 5 0 0 1 10 0v3" />

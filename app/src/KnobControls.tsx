@@ -24,7 +24,7 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
   const [pages] = useCustomPages();
   const [macros] = useMacros();
   const [explained, setExplained] = useState<KnobGesture | null>(null);
-  const targets = pageTargets(pages ?? [], library, texts);
+  const targets = pageTargets(pages ?? [], library, settings.shownPages, texts);
 
   const save = <G extends keyof KnobSettings>(gesture: G, choice: KnobSettings[G]) =>
     saveSettings({ ...settings, knob: { ...knob, [gesture]: choice } });

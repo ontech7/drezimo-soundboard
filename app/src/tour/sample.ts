@@ -102,7 +102,7 @@ export function sampleMacro(texts: Texts): { steps: Step[]; library: Library } {
       { type: "sound", id: tada.id, name: tada.name, waitEnd: true },
     ],
     library: {
-      soundboards: [{ id: "tour", name: texts.tour.page, sounds: [drumroll, tada] }],
+      soundboards: [{ id: "tour", name: texts.tour.page, custom: false, sounds: [drumroll, tada] }],
       voices: [robot],
       favourites: false,
     },

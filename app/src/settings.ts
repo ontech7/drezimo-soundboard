@@ -21,6 +21,8 @@ export interface OverlaySettings {
   /** In percent */
   opacity: number;
   seconds: number;
+  /** Shows all the time, until a knob gesture hides it */
+  always: boolean;
   /** In percent of the full size */
   size: number;
   screen: OverlayScreen;
@@ -41,6 +43,21 @@ export interface Settings {
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
   knob: KnobSettings;
+  shownPages: ShownPages;
+}
+
+/** Which of Voicemod's pages the board shows after the user's own (src-tauri/src/soundboard.rs) */
+export interface ShownPages {
+  favourites: boolean;
+  voices: boolean;
+  /** Only the soundboards the user made in Voicemod */
+  onlyMine: boolean;
+  /** Soundboards left out, by id */
+  hidden: string[];
+}
+
+export function showsSoundboard(shown: ShownPages, soundboard: { id: string; custom: boolean }): boolean {
+  return (soundboard.custom || !shown.onlyMine) && !shown.hidden.includes(soundboard.id);
 }
 
 /** What turning the knob does, plain or held down (src-tauri/src/knob.rs) */
@@ -59,6 +76,7 @@ export type PressAction =
         | "voiceChanger"
         | "hearMyself"
         | "background"
+        | "overlay"
         | "randomVoice"
         | "resetVolumes"
         | "nothing";
@@ -113,8 +131,19 @@ export function useSettings(): SettingsView | null {
 }
 
 export function saveSettings(view: Settings): void {
-  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob } = view;
-  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob };
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob, shownPages } =
+    view;
+  const settings = {
+    language,
+    ledBrightness,
+    pressAgainByMode,
+    overlay,
+    diagnostics,
+    tourSeen,
+    muteForMeNoticeSeen,
+    knob,
+    shownPages,
+  };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

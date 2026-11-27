@@ -175,6 +175,7 @@ impl Controller {
             }
             PressAction::Page { page } => self.act(Action::GoToPage, Some(&page), now),
             PressAction::ResetVolumes => self.reset_volumes(now),
+            PressAction::Overlay => self.overlay_gesture(now),
             PressAction::Macro { .. } | PressAction::Nothing => {}
         }
     }

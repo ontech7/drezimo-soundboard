@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Texts } from "./i18n";
 import type { PlaybackMode } from "./pressAgain";
 import { useSaved } from "./saved";
-import type { PressAgain } from "./settings";
+import { type PressAgain, type ShownPages, showsSoundboard } from "./settings";
 
 /** What an action pad does (src-tauri/src/soundboard.rs) */
 export type Action =
@@ -49,7 +49,8 @@ export interface LibraryItem {
 
 /** Voicemod's sounds and voices, as it last sent them */
 export interface Library {
-  soundboards: { id: string; name: string; sounds: LibraryItem[] }[];
+  /** `custom`: made by the user in Voicemod */
+  soundboards: { id: string; name: string; custom: boolean; sounds: LibraryItem[] }[];
   voices: LibraryItem[];
   /** Whether the board has a Favourites page */
   favourites: boolean;
@@ -115,12 +116,15 @@ export interface PageTarget {
 }
 
 /** The pages a pad or the knob can open, as the board has them */
-export function pageTargets(pages: CustomPage[], library: Library | null, texts: Texts): PageTarget[] {
+export function pageTargets(pages: CustomPage[], library: Library | null, shown: ShownPages, texts: Texts): PageTarget[] {
+  const voices = shown.voices && library?.voices.some((voice) => voice.enabled);
   return [
     ...pages.map((page) => ({ id: page.id, name: page.name })),
-    ...(library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
-    ...(library?.voices.some((voice) => voice.enabled) ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
-    ...(library?.soundboards ?? []).map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
+    ...(shown.favourites && library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
+    ...(voices ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
+    ...(library?.soundboards ?? [])
+      .filter((soundboard) => showsSoundboard(shown, soundboard))
+      .map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
   ];
 }
 

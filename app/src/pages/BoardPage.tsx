@@ -4,6 +4,7 @@ import { Choice, Row, Section, Slider } from "../controls";
 import { useTexts } from "../i18n";
 import { KnobTab } from "../KnobControls";
 import { PadTab } from "../PressAgainControls";
+import { ShownPagesTab } from "../ShownPagesTab";
 import { type DisplaySettings, type SettingsView, saveDisplaySettings, saveSettings } from "../settings";
 import type { Status } from "../status";
 
@@ -11,8 +12,8 @@ const DIM_AFTER = [0, 1, 2, 5, 10, 30];
 const OFF_AFTER = [0, 5, 10, 15, 30, 60];
 const SHIFT_EVERY = [0, 1, 3, 5, 10];
 
-export type BoardTab = "pad" | "knob" | "leds";
-const TABS: BoardTab[] = ["pad", "knob", "leds"];
+export type BoardTab = "pad" | "knob" | "pages" | "leds";
+const TABS: BoardTab[] = ["pad", "knob", "pages", "leds"];
 
 interface Props {
   settings: SettingsView;
@@ -66,6 +67,7 @@ export function BoardPage(props: Props) {
           <PadTab settings={props.settings} singleStop={props.status.singleSoundStop} onOpenPages={props.onOpenPages} />
         )}
         {tab === "knob" && <KnobTab settings={props.settings} status={props.status} />}
+        {tab === "pages" && <ShownPagesTab settings={props.settings} onOpenPages={props.onOpenPages} />}
         {tab === "leds" && <LedsTab settings={props.settings} status={props.status} />}
       </div>
     </>

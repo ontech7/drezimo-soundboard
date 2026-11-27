@@ -23,7 +23,7 @@ const MAX_PAGES: usize = 50;
 const MAX_NAME: usize = 24;
 const MAX_LABEL: usize = 20;
 /// Voicemod's ids are 36 characters, the editor's about 40
-const MAX_ID: usize = 64;
+pub const MAX_ID: usize = 64;
 /// A sound's or a voice's name, kept for when Voicemod is away
 const MAX_ITEM_NAME: usize = 100;
 
@@ -113,6 +113,8 @@ pub struct Library {
 struct LibrarySoundboard {
     id: String,
     name: String,
+    /// Made by the user in Voicemod
+    custom: bool,
     sounds: Vec<LibraryItem>,
 }
 
@@ -140,6 +142,7 @@ impl Library {
             .map(|soundboard| LibrarySoundboard {
                 id: soundboard.id.clone(),
                 name: soundboard.name.clone(),
+                custom: soundboard.custom,
                 sounds: soundboard
                     .sounds
                     .iter()

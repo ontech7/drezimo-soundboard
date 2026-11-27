@@ -28,6 +28,8 @@ export default function App() {
   const view = useBoardView();
   const [page, setPage] = useState<PageId>("soundboard");
   const [boardTab, setBoardTab] = useState<BoardTab>("pad");
+  // A page of the user's own to open in the Pages editor, from the Soundboard page
+  const [editing, setEditing] = useState<string | null>(null);
   // Until opened or closed here, the tour shows while not seen yet: at the first start, in the first frame
   const [tour, setTour] = useState<boolean | null>(null);
   // Where to find the tour again, once it is skipped
@@ -70,11 +72,16 @@ export default function App() {
   if (settings.diagnostics) pages.push("diagnostics");
   // Diagnostics turned off while shown
   const shown = page === "settings" || pages.includes(page) ? page : "soundboard";
+  const boardOwnPage = view && view.page < view.own ? view.ids[view.page] : null;
+  const open = (next: PageId) => {
+    setEditing(null);
+    setPage(next);
+  };
 
   return (
     <TextsContext.Provider value={texts}>
       <div className="app">
-        <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={setPage} />
+        <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={open} />
         <main>
           <header className="page-header">
             {shown === "soundboard" ? <SoundboardTitle status={status} playable={!!view} /> : <h1>{texts.nav[shown]}</h1>}
@@ -86,13 +93,25 @@ export default function App() {
             )}
           </header>
           {shown === "soundboard" && (
-            <SoundboardPage status={status} settings={settings} view={view} onMakePage={() => setPage("pages")} />
+            <SoundboardPage
+              status={status}
+              settings={settings}
+              view={view}
+              onMakePage={() => open("pages")}
+              onEditPage={(id) => {
+                setEditing(id);
+                setPage("pages");
+              }}
+            />
           )}
           {shown === "pages" && (
             <PagesPage
+              view={view ?? null}
+              open={editing ?? boardOwnPage}
+              shownPages={settings.shownPages}
               pressAgainByMode={settings.pressAgainByMode}
               singleStop={status.singleSoundStop}
-              onOpenMacros={() => setPage("macros")}
+              onOpenMacros={() => open("macros")}
             />
           )}
           {shown === "macros" && <MacrosPage status={status} />}
@@ -102,7 +121,7 @@ export default function App() {
               status={status}
               tab={boardTab}
               onTab={setBoardTab}
-              onOpenPages={() => setPage("pages")}
+              onOpenPages={() => open("pages")}
             />
           )}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}

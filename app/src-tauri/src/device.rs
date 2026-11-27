@@ -14,6 +14,7 @@ use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
 use crate::settings::{OverlaySettings, Settings, SettingsState};
+use crate::soundboard::PlaybackMode;
 use crate::tray;
 use crate::voicemod::{License, Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
@@ -44,6 +45,11 @@ enum Input {
     Key(u8),
     /// The notice's Hear them again
     HearAgain,
+    /// A sound's mode changed in Voicemod from the Pages editor
+    SoundMode {
+        id: String,
+        mode: PlaybackMode,
+    },
     /// The notice of the volume at zero closed
     CloseVolumeNotice,
     /// The knob turned in the window: +1 to the right
@@ -210,6 +216,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     let mut controller = Controller::new(settings.language.texts());
     controller.set_press_again(settings.press_again_by_mode);
     controller.set_knob(settings.knob.clone(), Instant::now());
+    controller.set_shown_pages(settings.shown_pages.clone());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
     let mut kept_page = last_page::load(app);
@@ -218,6 +225,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     }
     let mut shown_lengths = None;
     controller.set_overlay_time(overlay_time(&settings.overlay));
+    controller.set_overlay_always(settings.overlay.always);
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
     let mut status = Status::default();
     let mut published = status.clone();
@@ -321,7 +329,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 controller.set_texts(new.language.texts());
                 controller.set_press_again(new.press_again_by_mode);
                 controller.set_knob(new.knob.clone(), Instant::now());
+                controller.set_shown_pages(new.shown_pages.clone());
                 controller.set_overlay_time(overlay_time(&new.overlay));
+                controller.set_overlay_always(new.overlay.always);
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
                 let _ = display.send(DisplayUpdate::Texts(new.language.texts()));
                 let _ = display.send(DisplayUpdate::Screen(new.overlay.screen.clone()));
@@ -364,6 +374,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 window_touch(display, Touch::Press(Control::Key(index), false));
             }
             Some(Input::HearAgain) => controller.hear_sounds_again(),
+            Some(Input::SoundMode { id, mode }) => controller.set_sound_mode(&id, mode),
             Some(Input::CloseVolumeNotice) => controller.close_volume_notice(),
             Some(Input::KnobTurn(step)) => {
                 controller.window_knob_turned(step, now);
@@ -616,6 +627,14 @@ pub fn preview_overlay(app: AppHandle, overlay: Option<OverlaySettings>) {
 pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
     if index < PAD_COUNT {
         send(&app, Input::Pad { index, pressed });
+    }
+}
+
+/// For good, in Voicemod, as its own window changes it
+#[tauri::command]
+pub fn set_sound_mode(app: AppHandle, id: String, mode: PlaybackMode) {
+    if id.len() <= crate::custom_pages::MAX_ID {
+        send(&app, Input::SoundMode { id, mode });
     }
 }
 

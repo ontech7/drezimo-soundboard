@@ -1,11 +1,12 @@
 //! Voicemod's own bridge between its window and its engine: a WebSocket on this computer, on a port that changes at
 //! each start of Voicemod, outside the Control API and undocumented. The app uses it for what the Control API cannot
-//! do: stop a single sound, and read and set the mixer's and a playing sound's volumes. While it is not found, a pad
-//! falls back to stopping every sound and the volumes do nothing (docs/project.md, section 8).
+//! do: stop a single sound, read and set the mixer's and a playing sound's volumes, and change a sound's own options in
+//! Voicemod (its mode, its saved volume). While it is not found, a pad falls back to stopping every sound and the
+//! volumes do nothing (docs/project.md, section 8).
 
 use crate::mixer::Channel;
 use futures_util::{SinkExt, StreamExt};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,6 +29,11 @@ const ANSWER_TIME: Duration = Duration::from_secs(1);
 /// A sound Voicemod is still loading cannot be stopped yet (a first play takes up to 0.7 s): it is stopped once it
 /// starts, if it does by then
 const STOP_ONCE_STARTED: Duration = Duration::from_secs(3);
+/// The sounds' options read from Voicemod are trusted for a while: Voicemod's window tells its own changes, but a
+/// change made while the app was away would be undone by an older copy
+const OPTIONS_FRESH: Duration = Duration::from_secs(600);
+/// A change waiting for the options to be read is dropped after that: Voicemod's answers do not say whose read failed
+const READ_WAIT: Duration = Duration::from_secs(10);
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Voicemod's ports, by process, that did not answer as the bridge, and since when
@@ -51,6 +57,11 @@ enum Job {
     },
     /// The sounds' saved volumes again, as after Voicemod's soundboards changed
     ReadSounds,
+    /// Some of a sound's own options, kept by Voicemod: Voicemod takes them only all together
+    SetSoundOptions {
+        sound: String,
+        changes: Map<String, Value>,
+    },
 }
 
 #[derive(Clone)]
@@ -111,6 +122,14 @@ impl Bridge {
         self.send(Job::ReadSounds);
     }
 
+    /// Changes some of a sound's options in Voicemod for good, as its own window does (`reproductionMode`, `volume`…)
+    pub fn set_sound_options(&self, sound: &str, changes: Map<String, Value>) {
+        self.send(Job::SetSoundOptions {
+            sound: sound.to_string(),
+            changes,
+        });
+    }
+
     /// Dropped while the bridge is not there
     fn send(&self, job: Job) {
         if self.connected.load(Ordering::Relaxed) {
@@ -161,6 +180,7 @@ async fn serve(
     on_event: &impl Fn(BridgeEvent),
 ) -> Result<(), tungstenite::Error> {
     let mut stops = Stops::default();
+    let mut options = SoundOptions::default();
     // Values from before this connection may be gone, as after Voicemod restarted
     for channel in Channel::ALL {
         socket.send(gain_request(&stops.next_id(), channel)).await?;
@@ -172,7 +192,21 @@ async fn serve(
                     Some(BridgeMessage::Gain { channel, gain, enabled, ours }) => {
                         on_event(BridgeEvent::Gain { channel, gain, enabled, ours });
                     }
-                    Some(BridgeMessage::SoundVolumes(volumes)) => on_event(BridgeEvent::SoundVolumes(volumes)),
+                    Some(BridgeMessage::Resources(resources)) => {
+                        on_event(BridgeEvent::SoundVolumes(sound_volumes(&resources)));
+                        for (sound, changed) in options.read(&resources, Instant::now()) {
+                            socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
+                        }
+                    }
+                    Some(BridgeMessage::OptionsSet { sound, options: set }) => options.set(sound, set),
+                    Some(BridgeMessage::OptionsAnswer { changed }) => {
+                        if changed {
+                            on_event(BridgeEvent::SoundChanged);
+                        } else {
+                            options.refused();
+                            crate::errors::log("Voicemod refused to change a sound's options");
+                        }
+                    }
                     Some(other) => {
                         if let Some(sound) = stops.read(other) {
                             stops.send(&mut socket, sound, None).await?;
@@ -194,8 +228,90 @@ async fn serve(
                     socket.send(sound_volume_request(&stops.next_id(), &sound, volume)).await?;
                 }
                 Some(Job::ReadSounds) => socket.send(resources_request(&stops.next_id())).await?,
+                Some(Job::SetSoundOptions { sound, changes }) => match options.change(sound, changes, Instant::now()) {
+                    Change::Send(sound, changed) => {
+                        socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
+                    }
+                    Change::Read => socket.send(resources_request(&stops.next_id())).await?,
+                    Change::Wait => {}
+                },
                 None => return Ok(()),
             },
+        }
+    }
+}
+
+/// Each sound's options as Voicemod last told them, and the changes waiting for them to be known
+#[derive(Default)]
+struct SoundOptions {
+    known: HashMap<String, Map<String, Value>>,
+    read: Option<Instant>,
+    /// When a read was asked for the changes waiting
+    reading: Option<Instant>,
+    /// With when each was asked
+    waiting: HashMap<String, (Map<String, Value>, Instant)>,
+}
+
+#[derive(Debug, PartialEq)]
+enum Change {
+    /// The sound's options, all of them, with the change
+    Send(String, Map<String, Value>),
+    /// The options must be read first
+    Read,
+    /// A read is on its way
+    Wait,
+}
+
+impl SoundOptions {
+    fn change(&mut self, sound: String, changes: Map<String, Value>, now: Instant) -> Change {
+        let fresh = self.read.is_some_and(|read| now < read + OPTIONS_FRESH);
+        if fresh && let Some(known) = self.known.get_mut(&sound) {
+            known.extend(changes);
+            return Change::Send(sound, known.clone());
+        }
+        let (waiting, asked) = self.waiting.entry(sound).or_insert_with(|| (Map::new(), now));
+        waiting.extend(changes);
+        *asked = now;
+        if self.reading.is_some_and(|reading| now < reading + READ_WAIT) {
+            return Change::Wait;
+        }
+        self.reading = Some(now);
+        Change::Read
+    }
+
+    /// A read came: the changes waiting, now with all the sounds' options. One waiting too long, as after a failed
+    /// read, is dropped rather than made at a moment nobody expects.
+    fn read(&mut self, resources: &Value, now: Instant) -> Vec<(String, Map<String, Value>)> {
+        self.known = all_options(resources);
+        self.read = Some(now);
+        self.reading = None;
+        let waiting: Vec<_> = self.waiting.drain().collect();
+        let mut ready = Vec::new();
+        for (sound, (changes, asked)) in waiting {
+            if now >= asked + READ_WAIT {
+                crate::errors::log("cannot change a sound's options: Voicemod did not send them in time");
+                continue;
+            }
+            match self.known.get_mut(&sound) {
+                Some(known) => {
+                    known.extend(changes);
+                    ready.push((sound, known.clone()));
+                }
+                None => crate::errors::log("cannot change a sound Voicemod does not list"),
+            }
+        }
+        ready
+    }
+
+    /// Voicemod refused a change, whose answer does not say which: every sound is read again before the next one
+    fn refused(&mut self) {
+        self.known.clear();
+    }
+
+    /// Voicemod's window changed a sound, or the app did
+    fn set(&mut self, sound: String, options: Map<String, Value>) {
+        if self.known.contains_key(&sound) {
+            self.known.insert(sound, options);
         }
     }
 }
@@ -257,7 +373,10 @@ impl Stops {
                 }
                 None
             }
-            BridgeMessage::Gain { .. } | BridgeMessage::SoundVolumes(_) => None,
+            BridgeMessage::Gain { .. }
+            | BridgeMessage::Resources(_)
+            | BridgeMessage::OptionsSet { .. }
+            | BridgeMessage::OptionsAnswer { .. } => None,
             BridgeMessage::SoundState { sound, state } => {
                 if !matches!(state.as_str(), "created" | "ready") {
                     self.loading.remove(&sound);
@@ -309,6 +428,13 @@ fn sound_volume_request(message_id: &str, sound: &str, volume: f32) -> Message {
     )
 }
 
+/// Voicemod's window sends a sound's options all together, with its id among them
+fn options_request(message_id: &str, sound: &str, options: Map<String, Value>) -> Message {
+    let mut object = options;
+    object.insert("id".into(), sound.into());
+    request(message_id, "appMessage", "ModifySoundOptions", Value::Object(object))
+}
+
 /// Every resource of Voicemod's, with its options: about 2 MB
 fn resources_request(message_id: &str) -> Message {
     request(message_id, "appMessage", "GetAllResources", json!({}))
@@ -326,6 +452,8 @@ pub enum BridgeEvent {
     },
     /// Each sound's volume saved in Voicemod, 0 to 1
     SoundVolumes(HashMap<String, f32>),
+    /// A sound's own options changed in Voicemod, as the app asked: its soundboards tell them
+    SoundChanged,
 }
 
 #[derive(Debug, PartialEq)]
@@ -345,7 +473,17 @@ enum BridgeMessage {
         enabled: Option<bool>,
         ours: bool,
     },
-    SoundVolumes(HashMap<String, f32>),
+    /// Every resource Voicemod has, with their options
+    Resources(Value),
+    /// A sound's options sent to the engine, by Voicemod's window or the app
+    OptionsSet {
+        sound: String,
+        options: Map<String, Value>,
+    },
+    /// The engine's answer to a change of options
+    OptionsAnswer {
+        changed: bool,
+    },
 }
 
 fn message(text: &str) -> Option<BridgeMessage> {
@@ -378,20 +516,43 @@ fn message(text: &str) -> Option<BridgeMessage> {
         }
         // Voicemod asks its servers: a failed answer is no empty library
         "GetAllResources" if data["error"].is_null() && object["collections"].is_array() => {
-            Some(BridgeMessage::SoundVolumes(sound_volumes(object)))
+            Some(BridgeMessage::Resources(object.clone()))
         }
+        "ModifySoundOptions" => match object {
+            Value::Object(options) if options.contains_key("reproductionMode") => {
+                let mut options = options.clone();
+                let sound = options.remove("id")?.as_str()?.to_string();
+                Some(BridgeMessage::OptionsSet { sound, options })
+            }
+            _ => Some(BridgeMessage::OptionsAnswer {
+                changed: data["error"].is_null(),
+            }),
+        },
         _ => None,
     }
 }
 
-fn sound_volumes(resources: &Value) -> HashMap<String, f32> {
+fn sounds(resources: &Value) -> impl Iterator<Item = &Value> {
     let collections = resources["collections"].as_array().into_iter().flatten();
     collections
         .flat_map(|collection| collection["resources"].as_array().into_iter().flatten())
         .filter(|resource| resource["type"] == "sound")
+}
+
+fn sound_volumes(resources: &Value) -> HashMap<String, f32> {
+    sounds(resources)
         .filter_map(|resource| {
             let volume = resource["options"]["volume"].as_f64()?;
             Some((resource["id"].as_str()?.to_string(), volume as f32))
+        })
+        .collect()
+}
+
+fn all_options(resources: &Value) -> HashMap<String, Map<String, Value>> {
+    sounds(resources)
+        .filter_map(|resource| {
+            let options = resource["options"].as_object()?;
+            Some((resource["id"].as_str()?.to_string(), options.clone()))
         })
         .collect()
 }
@@ -831,7 +992,10 @@ mod tests {
         let empty = answer(json!({"type": "GetAllResources", "object": {}}));
         assert_eq!(message(&empty), None);
         let read = answer(json!({"type": "GetAllResources", "object": {"collections": []}}));
-        assert_eq!(message(&read), Some(BridgeMessage::SoundVolumes(HashMap::new())));
+        assert_eq!(
+            message(&read),
+            Some(BridgeMessage::Resources(json!({"collections": []})))
+        );
     }
 
     #[test]
@@ -878,8 +1042,113 @@ mod tests {
                 {"id":"s3","type":"sound","options":{"volume":1}},
                 {"id":"s4","type":"sound","options":{"volume":"loud"}}]},
             {"id":"c3"}]},"type":"GetAllResources"},"type":"appMessage"}}"#;
+        let Some(BridgeMessage::Resources(read)) = message(resources) else {
+            panic!("the resources");
+        };
         let volumes = HashMap::from([("s1".to_string(), 0.5), ("s3".to_string(), 1.0)]);
-        assert_eq!(message(resources), Some(BridgeMessage::SoundVolumes(volumes)));
+        assert_eq!(sound_volumes(&read), volumes);
+        let options = all_options(&read);
+        assert_eq!(options.len(), 3, "every sound with options");
+        assert_eq!(options["s1"]["loop"], false);
+    }
+
+    fn resources(mode: &str) -> Value {
+        json!({"collections": [{"resources": [
+            {"id": "s1", "type": "sound", "options": {"reproductionMode": mode, "volume": 0.5, "fadeInDuration": 0}}
+        ]}]})
+    }
+
+    fn changes(pairs: &[(&str, Value)]) -> Map<String, Value> {
+        pairs
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn a_sounds_options_go_all_together() {
+        let now = Instant::now();
+        let mut options = SoundOptions::default();
+        let mode = changes(&[("reproductionMode", json!("playOverlap"))]);
+        assert_eq!(options.change("s1".into(), mode, now), Change::Read, "read first");
+        let volume = changes(&[("volume", json!(0.2))]);
+        assert_eq!(
+            options.change("s1".into(), volume, now),
+            Change::Wait,
+            "one read for both"
+        );
+        let ready = options.read(&resources("playRestart"), now);
+        let expected = changes(&[
+            ("reproductionMode", json!("playOverlap")),
+            ("volume", json!(0.2)),
+            ("fadeInDuration", json!(0)),
+        ]);
+        assert_eq!(ready, [("s1".to_string(), expected)]);
+
+        let back = changes(&[("reproductionMode", json!("playRestart"))]);
+        let Change::Send(sound, sent) = options.change("s1".into(), back, now) else {
+            panic!("known: sent at once");
+        };
+        assert_eq!(
+            (sound.as_str(), &sent["volume"], &sent["reproductionMode"]),
+            ("s1", &json!(0.2), &json!("playRestart"))
+        );
+        assert_eq!(options.change("gone".into(), Map::new(), now), Change::Read);
+        assert!(
+            options.read(&resources("playRestart"), now).is_empty(),
+            "not listed: dropped"
+        );
+
+        options.refused();
+        assert_eq!(
+            options.change("s1".into(), Map::new(), now),
+            Change::Read,
+            "read again after a refusal"
+        );
+    }
+
+    #[test]
+    fn a_change_waiting_too_long_is_dropped() {
+        let now = Instant::now();
+        let mut options = SoundOptions::default();
+        options.change("s1".into(), changes(&[("volume", json!(0.1))]), now);
+        let later = now + READ_WAIT;
+        assert_eq!(
+            options.change("s2".into(), Map::new(), later),
+            Change::Read,
+            "the first read never came"
+        );
+        assert!(
+            options.read(&resources("playStop"), later).is_empty(),
+            "s1 too old, s2 not listed"
+        );
+    }
+
+    #[test]
+    fn follows_the_options_voicemods_window_sends() {
+        let now = Instant::now();
+        let mut options = SoundOptions::default();
+        options.read(&resources("playRestart"), now);
+        let window = r#"{"bridgeData":{"data":{"id":"","object":{"id":"s1","reproductionMode":"playPause","volume":0.9},
+            "type":"ModifySoundOptions"},"type":"appMessage"}}"#;
+        let Some(BridgeMessage::OptionsSet { sound, options: set }) = message(window) else {
+            panic!("the window's change");
+        };
+        options.set(sound, set);
+        let Change::Send(_, sent) = options.change("s1".into(), Map::new(), now) else {
+            panic!("known");
+        };
+        assert_eq!(
+            (&sent["reproductionMode"], &sent["volume"]),
+            (&json!("playPause"), &json!(0.9))
+        );
+
+        let answer =
+            r#"{"bridgeData":{"data":{"id":"","object":null,"type":"ModifySoundOptions"},"type":"appMessage"}}"#;
+        assert_eq!(message(answer), Some(BridgeMessage::OptionsAnswer { changed: true }));
+        let refused = r#"{"bridgeData":{"data":{"error":{"code":"UnableModifySoundOptions"},"id":"","object":null,
+            "type":"ModifySoundOptions"},"type":"appMessage"}}"#;
+        assert_eq!(message(refused), Some(BridgeMessage::OptionsAnswer { changed: false }));
     }
 
     #[test]

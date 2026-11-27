@@ -723,6 +723,10 @@ mod tests {
             diagnostics: true,
             tour_seen: true,
             mute_for_me_notice_seen: true,
+            shown_pages: crate::soundboard::ShownPages {
+                only_mine: true,
+                ..Default::default()
+            },
         }
     }
 

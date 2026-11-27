@@ -46,6 +46,7 @@ export const PRESS_ACTIONS: PressAction["action"][] = [
   "randomVoice",
   "macro",
   "page",
+  "overlay",
   "resetVolumes",
   "nothing",
 ];

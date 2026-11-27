@@ -87,6 +87,10 @@ export function ActionHalf(props: Props) {
     }
     case "resetVolumes":
       return half(acted ? words.volumesBack : null, <ResetVolumes words={words} back={acted} />);
+    case "overlay": {
+      const shownNow = beats.total % 2 === 0;
+      return half(acted ? (shownNow ? words.overlayShown : words.overlayHidden) : null, <OverlayOnScreen shown={shownNow} />);
+    }
     case "nothing":
       return half(null, <Nothing words={words} />);
   }
@@ -342,6 +346,19 @@ function ResetVolumes({ words, back }: { words: ExplainTexts; back: boolean }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** The PC's screen, with the overlay's grid in its corner */
+function OverlayOnScreen({ shown }: { shown: boolean }) {
+  return (
+    <div className="explain-screen">
+      <div className={shown ? "explain-overlay shown" : "explain-overlay"}>
+        {Array.from({ length: 36 }, (_, i) => (
+          <i key={i} />
+        ))}
+      </div>
     </div>
   );
 }

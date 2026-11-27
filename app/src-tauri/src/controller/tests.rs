@@ -800,6 +800,67 @@ fn turning_the_page_shows_the_overlay_for_a_while() {
 }
 
 #[test]
+fn the_overlay_can_show_always_and_the_knob_hides_it() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            tap: PressAction::Overlay,
+            ..KnobSettings::default()
+        },
+    );
+    controller.set_overlay_always(true);
+    let later = now + OVERLAY_TIME * 3;
+    assert!(controller.overlay(later).is_some(), "shown with no input");
+
+    tap(&mut controller, later);
+    let hidden = later + Duration::from_millis(100);
+    controller.update(hidden);
+    assert!(controller.overlay(hidden).is_none(), "hidden by the tap");
+    let turned = hidden + Duration::from_millis(100);
+    turn(&mut controller, 1, turned);
+    assert!(
+        controller.overlay(turned).is_some(),
+        "a page change shows it for a while"
+    );
+    assert!(controller.overlay(turned + OVERLAY_TIME).is_none());
+
+    let again = turned + OVERLAY_TIME * 2;
+    tap(&mut controller, again);
+    controller.update(again + Duration::from_millis(100));
+    assert!(
+        controller.overlay(again + OVERLAY_TIME * 5).is_some(),
+        "shown again, for good"
+    );
+    controller.set_overlay_always(false);
+    assert!(controller.overlay(again + OVERLAY_TIME * 5).is_none());
+}
+
+#[test]
+fn the_knobs_overlay_gesture_shows_it_for_its_time() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            long_press: PressAction::Overlay,
+            ..KnobSettings::default()
+        },
+    );
+    knob(&mut controller, true, now);
+    let let_go = now + Duration::from_millis(700);
+    knob(&mut controller, false, let_go);
+    controller.update(let_go + Duration::from_millis(10));
+    controller.update(let_go + OVERLAY_TIME - Duration::from_millis(10));
+    assert!(
+        controller
+            .overlay(let_go + OVERLAY_TIME - Duration::from_millis(10))
+            .is_some()
+    );
+    controller.update(let_go + OVERLAY_TIME);
+    assert!(controller.overlay(let_go + OVERLAY_TIME).is_none());
+}
+
+#[test]
 fn the_overlay_shows_the_leds() {
     let locked = Sound {
         enabled: false,
@@ -879,7 +940,9 @@ fn a_page_picked_in_the_window_shows_no_overlay() {
     let (mut controller, now) = ready_without_overlay(three_soundboards());
     controller.go_to_page(2);
     controller.update(now);
-    assert_eq!(controller.board_view(now).unwrap().page, 2);
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(view.page, 2);
+    assert_eq!(view.ids, ["a", "b", "c"], "for the window to find a page by its id");
     assert_eq!(overlay_in(&controller.take_outputs()), None);
 
     controller.go_to_page(3);
@@ -1031,7 +1094,7 @@ fn own_page(id: &str, pads: Vec<Option<CustomPad>>) -> CustomPage {
 
 #[test]
 fn the_users_own_pages_come_first_and_follow_the_editor() {
-    let (mut controller, _) = ready(three_soundboards());
+    let (mut controller, now) = ready(three_soundboards());
     controller.go_to_page(1);
     let page = own_page("mine", vec![custom_pad(action(Action::StopSounds))]);
     controller.set_custom_pages(vec![page]);
@@ -1039,6 +1102,12 @@ fn the_users_own_pages_come_first_and_follow_the_editor() {
 
     controller.go_to_page(0);
     assert_eq!(controller.page().unwrap().name, "MINE");
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(
+        (view.ids[0].as_str(), view.own),
+        ("mine", 1),
+        "the window links it to the editor"
+    );
     controller.set_custom_pages(Vec::new());
     assert_eq!(
         controller.page().unwrap().name,

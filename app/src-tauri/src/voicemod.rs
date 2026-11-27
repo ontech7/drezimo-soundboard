@@ -2,7 +2,7 @@
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
 use crate::mixer::Channel;
-use crate::soundboard::{Soundboard, Voice};
+use crate::soundboard::{PlaybackMode, Soundboard, Voice};
 use crate::voicemod_bridge::{Bridge, BridgeEvent};
 use base64::prelude::{BASE64_STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
@@ -71,6 +71,14 @@ pub enum Request {
     },
     /// The sounds' saved volumes, through the bridge only: Voicemod asks its servers for them
     ReadSoundVolumes,
+    /// A sound's own mode or saved volume in Voicemod, for good, through the bridge only
+    SetSoundOptions {
+        id: String,
+        mode: Option<PlaybackMode>,
+        volume: Option<f32>,
+    },
+    /// The soundboards again, as after a sound's options changed: Voicemod does not tell the Control API
+    ReadSoundboards,
 }
 
 /// The picture of a sound or a voice, by its id
@@ -94,7 +102,13 @@ impl Request {
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
             Self::ToggleMuteMic => ("toggleMuteMic", json!({})),
             Self::ToggleBackground => ("toggleBackground", json!({})),
-            Self::SetGain { .. } | Self::SetSoundVolume { .. } | Self::ReadSoundVolumes => return None,
+            Self::ReadSoundboards => ("getAllSoundboard", json!({})),
+            Self::SetGain { .. }
+            | Self::SetSoundVolume { .. }
+            | Self::ReadSoundVolumes
+            | Self::SetSoundOptions { .. } => {
+                return None;
+            }
         })
     }
 }
@@ -137,6 +151,8 @@ pub enum VoicemodEvent {
     },
     /// Each sound's volume saved in Voicemod, 0 to 1, from the bridge
     SoundVolumes(HashMap<String, f32>),
+    /// A sound's own options changed as the app asked, through the bridge
+    SoundChanged,
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -173,6 +189,7 @@ impl Voicemod {
                     ours,
                 },
                 BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
+                BridgeEvent::SoundChanged => VoicemodEvent::SoundChanged,
             })
         });
         tauri::async_runtime::spawn(keep_connected(outgoing, move |event| on_event(event), bridge));
@@ -338,6 +355,10 @@ async fn exchange(
                         bridge.read_sounds();
                         true
                     }
+                    Request::SetSoundOptions { id, mode, volume } => {
+                        bridge.set_sound_options(id, sound_options(*mode, *volume));
+                        true
+                    }
                     _ => false,
                 };
                 if !stopped_alone && let Some((action, payload)) = request.action() {
@@ -346,6 +367,18 @@ async fn exchange(
             }
         }
     }
+}
+
+/// As Voicemod's window names them
+fn sound_options(mode: Option<PlaybackMode>, volume: Option<f32>) -> serde_json::Map<String, Value> {
+    let mut options = serde_json::Map::new();
+    if let Some(mode) = mode.and_then(PlaybackMode::option_name) {
+        options.insert("reproductionMode".into(), mode.into());
+    }
+    if let Some(volume) = volume {
+        options.insert("volume".into(), volume.clamp(0.0, 1.0).into());
+    }
+    options
 }
 
 fn frame(action: &str, payload: Value) -> Message {

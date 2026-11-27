@@ -53,6 +53,8 @@ pub enum PressAction {
     Page {
         page: String,
     },
+    /// Hides or shows the overlay while it shows always, else shows it for its time
+    Overlay,
     ResetVolumes,
     Nothing,
 }

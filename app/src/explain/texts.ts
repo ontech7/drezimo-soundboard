@@ -45,6 +45,8 @@ export interface ExplainTexts {
   macroDone: string;
   macroStopped: string;
   volumesBack: string;
+  overlayShown: string;
+  overlayHidden: string;
   /** Why the board does nothing with the macro or the page chosen */
   idle: { noMacro: string; noPage: string; emptyMacro: string };
   /** Drezimo's display */
@@ -125,6 +127,8 @@ const ENGLISH: ExplainTexts = {
       randomVoice: "Loads a random voice among yours.",
       macro: "Runs the chosen macro, one step after the other.",
       page: "Goes straight to the chosen page, from whichever page you are on.",
+      overlay:
+        "Hides the overlay that is always on screen, and shows it again the next time. With a duration, shows it for that long.",
       resetVolumes: "Puts the volumes changed with the knob back as they are in Voicemod.",
       nothing: "Nothing happens.",
     },
@@ -148,6 +152,8 @@ const ENGLISH: ExplainTexts = {
   macroDone: "Macro done",
   macroStopped: "Macro stopped",
   volumesBack: "Voicemod's volumes",
+  overlayShown: "Overlay shown",
+  overlayHidden: "Overlay hidden",
   idle: {
     noMacro: "No macro chosen yet: until you choose one, nothing happens.",
     noPage: "No page chosen yet: until you choose one, nothing happens.",
@@ -252,6 +258,8 @@ const ITALIAN: ExplainTexts = {
       randomVoice: "Carica una voce a caso tra le tue.",
       macro: "Esegue la macro scelta, un passo dopo l'altro.",
       page: "Va dritta alla pagina scelta, da qualunque pagina tu sia.",
+      overlay:
+        "Nasconde l'overlay sempre sullo schermo, e la volta dopo lo rimostra. Con una durata, lo mostra per quel tempo.",
       resetVolumes: "Rimette i volumi cambiati con la manopola come sono in Voicemod.",
       nothing: "Non succede niente.",
     },
@@ -275,6 +283,8 @@ const ITALIAN: ExplainTexts = {
   macroDone: "Macro finita",
   macroStopped: "Macro fermata",
   volumesBack: "Volumi di Voicemod",
+  overlayShown: "Overlay visibile",
+  overlayHidden: "Overlay nascosto",
   idle: {
     noMacro: "Nessuna macro scelta: finché non ne scegli una, non succede niente.",
     noPage: "Nessuna pagina scelta: finché non ne scegli una, non succede niente.",

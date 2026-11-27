@@ -6,6 +6,7 @@ import { type OverlayScreen, type OverlaySettings, type SettingsView, saveSettin
 import type { Status } from "../status";
 
 const DURATIONS = [2, 4, 6, 10];
+const ALWAYS = 0;
 
 /** A screen connected (src-tauri/src/overlay/mod.rs), in pixels */
 interface Screen {
@@ -153,13 +154,21 @@ export function OverlayPage({ settings, status }: { settings: SettingsView; stat
             onCommit={(opacity) => change({ opacity })}
           />
         </Row>
-        <Row label={texts.duration} text={texts.durationText} disabled={!overlay.enabled}>
+        <Row
+          label={texts.duration}
+          text={overlay.always ? texts.durationAlwaysText : texts.durationText}
+          disabled={!overlay.enabled}
+        >
+          {/* Always keeps the seconds, for the page changes while the knob has hidden it */}
           <Segmented
             label={texts.duration}
-            options={durations.map((value) => ({ value, label: texts.seconds(value) }))}
-            value={overlay.seconds}
+            options={[
+              ...durations.map((value) => ({ value, label: texts.seconds(value) })),
+              { value: ALWAYS, label: texts.always },
+            ]}
+            value={overlay.always ? ALWAYS : overlay.seconds}
             disabled={!overlay.enabled}
-            onChange={(seconds) => change({ seconds })}
+            onChange={(value) => change(value === ALWAYS ? { always: true } : { always: false, seconds: value })}
           />
         </Row>
       </Section>

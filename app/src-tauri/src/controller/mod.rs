@@ -22,7 +22,7 @@ use crate::overlay::Overlay;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
-use crate::soundboard::{self, Action, Pad, Page, Sound, Soundboard, Voice};
+use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use serde::Serialize;
@@ -189,6 +189,7 @@ pub struct Controller {
     releases: Vec<(Instant, HeldSound)>,
     knob: Gestures,
     knob_settings: KnobSettings,
+    shown_pages: ShownPages,
     /// Turned, or held for a peek, since it went down: the overlay stays a little after it is let go
     knob_used: bool,
     row: Option<RowShown>,
@@ -218,6 +219,9 @@ pub struct Controller {
     overlay_until: Option<Instant>,
     /// How long it shows; None when turned off
     overlay_time: Option<Duration>,
+    /// The overlay shows all the time, unless the knob hid it
+    overlay_always: bool,
+    overlay_hidden: bool,
     /// What the overlay shows, as sent
     overlay: Option<Overlay>,
     /// When `update` has something to do without any input
@@ -254,6 +258,7 @@ impl Default for Controller {
             releases: Vec::new(),
             knob: Gestures::default(),
             knob_settings: KnobSettings::default(),
+            shown_pages: ShownPages::default(),
             knob_used: false,
             row: None,
             level: None,
@@ -272,6 +277,8 @@ impl Default for Controller {
             display: Animator::default(),
             overlay_until: None,
             overlay_time: Some(overlay::OVERLAY_TIME),
+            overlay_always: false,
+            overlay_hidden: false,
             overlay: None,
             next_update: None,
             outputs: Vec::new(),
@@ -308,6 +315,17 @@ impl Controller {
     /// The user's own pages, as the editor saved them. Shown once Voicemod sends what is on them.
     pub fn set_custom_pages(&mut self, pages: Vec<CustomPage>) {
         self.custom = pages;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
+    }
+
+    /// Which of Voicemod's pages the board shows besides the user's own.
+    pub fn set_shown_pages(&mut self, shown: ShownPages) {
+        if shown == self.shown_pages {
+            return;
+        }
+        self.shown_pages = shown;
         if self.has_lists() {
             self.rebuild_pages(false);
         }
@@ -457,6 +475,7 @@ impl Controller {
                 self.follow_muted_play();
             }
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
+            VoicemodEvent::SoundChanged => self.request(Request::ReadSoundboards),
             // Only for the window (src/pictures.rs) and the status
             VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
@@ -563,6 +582,17 @@ impl Controller {
     /// Why a sound that played was not heard by the user, while it is still so.
     pub fn played_while_muted(&self) -> Option<MutedBy> {
         self.muted_play
+    }
+
+    /// A sound's mode in Voicemod, changed for good as in Voicemod's own window: through the bridge only.
+    pub fn set_sound_mode(&mut self, id: &str, mode: PlaybackMode) {
+        if self.single_stop && mode != PlaybackMode::Unknown {
+            self.request(Request::SetSoundOptions {
+                id: id.to_string(),
+                mode: Some(mode),
+                volume: None,
+            });
+        }
     }
 
     /// Brings the sounds back to the user. The soundboard's volume for them at zero: up to 100 % and on, through the
@@ -902,7 +932,14 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, &self.macros, self.texts);
+        self.pages = soundboard::pages(
+            &self.soundboards,
+            &self.voices,
+            &self.custom,
+            &self.macros,
+            &self.shown_pages,
+            self.texts,
+        );
         self.page = current
             .and_then(|id| self.find_page(&id))
             .unwrap_or_else(|| self.first_page());
