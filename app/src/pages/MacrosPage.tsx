@@ -67,6 +67,7 @@ import {
   MacroTimeline,
   overlapsItself,
 } from "./MacroTimeline";
+import { MacroGuide } from "./MacroGuide";
 import { PadPicture } from "../PadPicture";
 import { SearchSelect } from "../SearchSelect";
 import type { Status } from "../status";
@@ -178,7 +179,8 @@ export function Tinted({ colour, children }: { colour: Rgb; children: ReactNode 
   );
 }
 
-export function MacrosPage({ status }: { status: Status }) {
+/** `guide`: the guide to how the section works is open */
+export function MacrosPage({ status, guide, onGuideClose }: { status: Status; guide: boolean; onGuideClose: () => void }) {
   const texts = useTexts();
   const [macros, save, saveError, flush] = useMacros();
   const [pages] = useCustomPages();
@@ -202,6 +204,8 @@ export function MacrosPage({ status }: { status: Status }) {
       const key = event.key.toLowerCase();
       if (!(event.ctrlKey || event.metaKey) || (key !== "z" && key !== "y")) return;
       if ((event.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
+      // The guide's time line has its own, and the macro under it is out of sight
+      if (document.querySelector("dialog[open]")) return;
       event.preventDefault();
       if (key === "y" || event.shiftKey) undoKeys.current?.redo();
       else undoKeys.current?.undo();
@@ -213,7 +217,16 @@ export function MacrosPage({ status }: { status: Status }) {
   // The time line draws each sound as long as it is
   useEffect(() => readSoundLengths(), []);
 
-  if (!macros) return null;
+  const choices = actionChoices(texts, targets[0]?.id ?? VOICES_ID);
+  const guideDialog = guide && (
+    <MacroGuide
+      actionChoices={choices}
+      describeAction={(action) => describe(action, texts, library, targets)}
+      onClose={onGuideClose}
+    />
+  );
+
+  if (!macros) return <>{guideDialog}</>;
 
   const blank = (): Macro => ({
     id: newMacroId(),
@@ -232,19 +245,23 @@ export function MacrosPage({ status }: { status: Status }) {
   };
 
   if (macros.length === 0) {
+    // The guide in the same place in every case, so it is not opened again as the macros arrive
     return (
-      <section className="card empty-pages">
-        <Tinted colour={MACRO_COLOUR}>
-          <MacroIcon />
-        </Tinted>
-        <h2>{texts.macrosEmptyTitle}</h2>
-        <p className="muted">{texts.macrosEmptyText}</p>
-        <div className="actions">
-          <button type="button" className="button" onClick={() => add(blank())}>
-            {texts.newMacro}
-          </button>
-        </div>
-      </section>
+      <>
+        {guideDialog}
+        <section className="card empty-pages">
+          <Tinted colour={MACRO_COLOUR}>
+            <MacroIcon />
+          </Tinted>
+          <h2>{texts.macrosEmptyTitle}</h2>
+          <p className="muted">{texts.macrosEmptyText}</p>
+          <div className="actions">
+            <button type="button" className="button" onClick={() => add(blank())}>
+              {texts.newMacro}
+            </button>
+          </div>
+        </section>
+      </>
     );
   }
 
@@ -313,6 +330,7 @@ export function MacrosPage({ status }: { status: Status }) {
 
   return (
     <>
+      {guideDialog}
       {saveError && <p className="note">{texts.macrosSaveFailed(saveError)}</p>}
       <section className="card macro-editor" aria-label={item.name}>
         <MacroTabs
@@ -370,7 +388,7 @@ export function MacrosPage({ status }: { status: Status }) {
           cursor={cursor}
           onCursor={setCursor}
           describeAction={(action) => describe(action, texts, library, targets)}
-          actionChoices={actionChoices(texts, targets[0]?.id ?? VOICES_ID)}
+          actionChoices={choices}
           onAddSound={(at, track) => {
             setCursor(at);
             setNewTrack(track);
@@ -479,7 +497,6 @@ export function MacrosPage({ status }: { status: Status }) {
             />
           }
         />
-        <p className="hint mt-hint">{texts.timelineHint}</p>
 
         <div className="macro-options">
           <div className="option">

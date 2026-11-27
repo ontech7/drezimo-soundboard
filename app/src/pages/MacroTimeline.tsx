@@ -281,14 +281,19 @@ export function MacroTimeline(props: Props) {
     if (targets) onSelection(targets);
     const at = clamp(snapped(millisAt(event.clientX - event.currentTarget.getBoundingClientRect().left), 0, [], 0), 0, MAX_AT);
     const track = lane.dataset.track === undefined ? null : Number(lane.dataset.track);
-    // Upwards when the window has no room below for the longest menu, the actions' list
-    const up = window.innerHeight - event.clientY < MENU_HEIGHT;
+    // Upwards when there is no room below for the longest menu, the actions' list, within the window or the frame
+    // that clips the time line, as the guide's; as tall as the room on that side allows
+    const frame = root.current?.closest("[data-menu-frame]")?.getBoundingClientRect();
+    const below = (frame?.bottom ?? window.innerHeight) - event.clientY;
+    const above = event.clientY - (frame?.top ?? 0);
+    const up = below < MENU_HEIGHT && above > below;
     setMenu({
       x: event.clientX - box.left,
       y: event.clientY - box.top,
       width: box.width,
       height: box.height,
       up,
+      room: (up ? above : below) - 8,
       at,
       track,
       targets,
@@ -508,8 +513,9 @@ interface MenuAt {
   y: number;
   width: number;
   height: number;
-  /** Opens upwards from the point */
+  /** Opens upwards from the point, with this many pixels of room */
   up: boolean;
+  room: number;
   /** The time and the track clicked: null on the actions' track */
   at: number;
   track: number | null;
@@ -553,6 +559,7 @@ function TimelineMenu(props: {
       style={{
         ...(menu.x > menu.width - MENU_WIDTH ? { left: "auto", right: menu.width - menu.x } : { left: menu.x }),
         ...(menu.up ? { top: "auto", bottom: menu.height - menu.y } : { top: menu.y }),
+        maxHeight: Math.min(MENU_HEIGHT - 20, menu.room),
       }}
       onContextMenu={(event) => event.preventDefault()}
       // Its keys are its own: the time line under it would move or delete what is selected
@@ -715,6 +722,11 @@ function ClipBlock(props: ClipProps) {
     length.known ? "" : "guessed",
   ];
   const warning = props.warned ? texts.overlapsItself : props.cuts.length ? texts.cutsOthers(props.cuts) : undefined;
+  const seconds = length.known ? texts.secondsOf(length.millis / 1000) : "?";
+  // A short clip gives its room to the name: the length goes to its tooltip
+  const roomy = width >= 60 + name.length * 7;
+  // A very short one, its picture too
+  const tiny = width < 80;
   return (
     <div
       className={classes.join(" ")}
@@ -724,7 +736,7 @@ function ClipBlock(props: ClipProps) {
       data-index={props.index}
       aria-pressed={props.selected}
       aria-label={texts.clipLabel(name, texts.secondsOf(clip.at / 1000))}
-      title={warning}
+      title={warning ?? (roomy ? undefined : `${name} · ${seconds}`)}
       onPointerDown={props.onGrab}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") props.onSelect();
@@ -738,9 +750,9 @@ function ClipBlock(props: ClipProps) {
       }}
     >
       <span className="label">
-        <PadPicture picture={soundOf(library, clip.id)?.picture} />
+        {!tiny && <PadPicture picture={soundOf(library, clip.id)?.picture} />}
         <span className="name">{name}</span>
-        <span className="length">{length.known ? texts.secondsOf(length.millis / 1000) : "?"}</span>
+        {roomy && <span className="length">{seconds}</span>}
       </span>
       {clip.cut != null && <span className="cut-mark" title={texts.cutAt(texts.secondsOf(clip.cut / 1000))} />}
       {line.length > 0 && (
@@ -910,7 +922,8 @@ export function ClipInspector(props: {
           )}
         </p>
       )}
-      <p className="hint">
+      {/* How to use it is the guide's own text there: a warning stays */}
+      <p className={!bridge || props.warned ? "hint" : "hint how-to"}>
         {!bridge
           ? texts.timelineNeedsBridge
           : props.warned

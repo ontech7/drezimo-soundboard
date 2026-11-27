@@ -40,6 +40,8 @@ export interface Settings {
   diagnostics: boolean;
   /** The welcome tour was seen through or skipped */
   tourSeen: boolean;
+  /** The Macro section's guide was seen */
+  macroGuideSeen: boolean;
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
   knob: KnobSettings;
@@ -140,8 +142,9 @@ export function useSettings(): SettingsView | null {
 }
 
 export function saveSettings(view: Settings): void {
-  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob, shownPages } =
-    view;
+  // Only the settings themselves: the view's own fields stay out
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, macroGuideSeen } = view;
+  const { muteForMeNoticeSeen, knob, shownPages } = view;
   const settings = {
     language,
     ledBrightness,
@@ -149,6 +152,7 @@ export function saveSettings(view: Settings): void {
     overlay,
     diagnostics,
     tourSeen,
+    macroGuideSeen,
     muteForMeNoticeSeen,
     knob,
     shownPages,

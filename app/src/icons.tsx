@@ -203,6 +203,13 @@ export const TrashIcon = () => (
   </Icon>
 );
 
+export const HelpIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
+  </Icon>
+);
+
 export const EditIcon = () => (
   <Icon>
     <path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4" />

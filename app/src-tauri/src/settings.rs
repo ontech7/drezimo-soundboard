@@ -135,6 +135,8 @@ pub struct Settings {
     pub diagnostics: bool,
     /// The welcome tour was seen through or skipped: until then the app opens its window at start, the tour on top
     pub tour_seen: bool,
+    /// The Macro section's guide was seen: until then it opens with the section
+    pub macro_guide_seen: bool,
     /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
     pub mute_for_me_notice_seen: bool,
     pub knob: KnobSettings,
@@ -151,6 +153,7 @@ impl Default for Settings {
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
+            macro_guide_seen: false,
             mute_for_me_notice_seen: false,
             knob: KnobSettings::default(),
             shown_pages: ShownPages::default(),

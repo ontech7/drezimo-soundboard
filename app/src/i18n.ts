@@ -516,7 +516,6 @@ const ENGLISH = {
   addSound: "Add a sound",
   addAction: "Add an action",
   actionAt: (at: string) => `At ${at}`,
-  timelineHint: `A sound and an action go where the amber line is: click the seconds to move it. Drag a sound along its track, or onto another one to play over the others; drag its right edge to cut it; double-click it to shape its volume. Right-click a track to add there, or a sound or an action to duplicate or delete it. Shift+click selects several; the arrows move what is selected, Shift ten times as far; a move lands on the edges of the others. ${MAC ? "⌘Z" : "Ctrl+Z"} undoes.`,
   timelineLength: (length: string) => `Lasts ${length}`,
   zoom: "Zoom",
   zoomLevels: ["−", "1×", "+", "++"],
@@ -631,6 +630,75 @@ const ENGLISH = {
     overlay: "Shows or hides the overlay on the computer",
     resetVolumes: "Puts back the volumes changed with the knob",
   },
+  macroGuideOpen: "How it works",
+  macroGuide: {
+    label: "How Macro works",
+    close: "Close the guide",
+    done: "Got it",
+    sounds: { music: "Music", horn: "Horn", applause: "Applause", news: "Announcement" },
+    slides: [
+      {
+        title: "A macro is a time line",
+        points: [
+          "Each track plays its sounds from left to right, along the seconds at the top.",
+          "Sounds on different tracks play together: here the Music goes on under the Horn and the Applause.",
+          "The Actions row changes things while the macro plays: a voice, the microphone, the sounds stopped, a page on Drezimo.",
+          "Try, at the top of the editor, plays the macro; on Drezimo its pad, or a knob gesture, starts it.",
+        ],
+        tryIt: "Try it: drag the Horn somewhere else.",
+      },
+      {
+        title: "Adding sounds and actions",
+        points: [
+          "The amber line is where the next one goes: click the seconds at the top to move it.",
+          "Add a sound and Add an action, under the tracks in the editor, put one on the amber line.",
+          "Or right-click a track at a point: the sound or the action goes right there, on that track if it is free.",
+          "A macro holds up to 6 tracks, 50 sounds and 50 actions.",
+        ],
+        tryIt: "Try it: right-click the second track, under the Music's end, and add a sound.",
+      },
+      {
+        title: "Moving them",
+        points: [
+          "Drag a sound along its track to change when it starts, or onto another track to play it over the others.",
+          "As it moves, it lands on the start, on the amber line and on the edges of the others, so one can follow another exactly.",
+          "Click a sound or an action to select it: the left and right arrow keys move it a tenth of a second, with Shift a whole second; up and down move a sound to another track.",
+          "Delete removes what is selected, Esc lets go of it.",
+        ],
+        tryIt: "Try it: click the Horn, then use the arrow keys.",
+      },
+      {
+        title: "Cut and volume",
+        points: [
+          "Drag a sound's right edge to cut it: it stops there instead of at its end.",
+          "Its box, below, picks how its volume goes: steady, fading in, fading out or both.",
+          "The line over the sound is its volume: drag a point, double-click to add one, right-click one to remove it.",
+          "Cuts and volumes need Voicemod's bridge, which the app finds by itself while Voicemod is open.",
+        ],
+        tryIt: "Try it: drag a point of the Music's line, then its right edge.",
+      },
+      {
+        title: "Several at once",
+        points: [
+          "Shift+click adds a sound or an action to what is selected, or takes it out.",
+          "Drag one of them and they all move together; the arrow keys move them all too.",
+          "Right-click one of them: Duplicate copies them all, Delete removes them all. The box below does the same.",
+          "A click on one of them, without dragging, keeps that one alone.",
+        ],
+        tryIt: "Try it: the two sounds are selected, drag one of them.",
+      },
+      {
+        title: "Undo, and what to look out for",
+        points: [
+          `${MAC ? "⌘Z" : "Ctrl+Z"} undoes and ${MAC ? "⇧⌘Z" : "Ctrl+Y"} redoes, as the two arrows above the tracks do.`,
+          "Red: the sound plays over itself. Voicemod plays it once at a time, so the second Horn starts it again, unless its mode is Overlapping copies.",
+          "Amber: the sound stops the others when it starts, as Voicemod is set for it: here the Announcement cuts the Music. Let the others play on, in its box, changes that.",
+          "Under the tracks: what a second press does, the repeats, and the voice and the switches put back at the end.",
+        ],
+        tryIt: "Try it: click the Announcement and look at its box.",
+      },
+    ],
+  },
   tour: {
     label: "Welcome tour",
     skip: "Skip the tour",
@@ -665,7 +733,7 @@ const ENGLISH = {
       },
       {
         title: "Macros",
-        text: "Sounds on tracks along a time line, on a single pad: one after the other or over each other, cut where you want, with their own volume, and voices, the microphone and more. At the end it can put everything back. Press Try.",
+        text: "Sounds on tracks along a time line, on a single pad: one after the other or over each other, cut where you want, with their own volume, and voices, the microphone and more. At the end it can put everything back. Press Try; How it works, at the top of the section, shows it all step by step.",
       },
       {
         title: "Drezimo, your way",
@@ -1242,7 +1310,6 @@ const ITALIAN: Texts = {
   addSound: "Aggiungi un suono",
   addAction: "Aggiungi un'azione",
   actionAt: (at) => `A ${at}`,
-  timelineHint: `Suoni e azioni vanno dove c'è la linea ambra: clicca sui secondi per spostarla. Trascina un suono lungo la sua traccia, o su un'altra per farlo suonare sopra gli altri; trascina il bordo destro per tagliarlo; doppio clic per dargli una curva di volume. Tasto destro su una traccia per aggiungere lì, o su un suono o un'azione per duplicarlo o eliminarlo. Maiusc+clic ne seleziona più d'uno; le frecce spostano la selezione, con Maiusc dieci volte tanto; spostando, si aggancia ai bordi degli altri. ${MAC ? "⌘Z" : "Ctrl+Z"} annulla.`,
   timelineLength: (length) => `Dura ${length}`,
   zoom: "Zoom",
   zoomLevels: ["−", "1×", "+", "++"],
@@ -1357,6 +1424,75 @@ const ITALIAN: Texts = {
     overlay: "Mostra o nasconde l'overlay sul computer",
     resetVolumes: "Rimette i volumi cambiati con la manopola",
   },
+  macroGuideOpen: "Come funziona",
+  macroGuide: {
+    label: "Come funziona Macro",
+    close: "Chiudi la guida",
+    done: "Ho capito",
+    sounds: { music: "Musica", horn: "Tromba", applause: "Applauso", news: "Annuncio" },
+    slides: [
+      {
+        title: "Una macro è una linea del tempo",
+        points: [
+          "Ogni traccia suona i suoi suoni da sinistra a destra, lungo i secondi in alto.",
+          "I suoni su tracce diverse suonano insieme: qui la Musica va avanti sotto la Tromba e l'Applauso.",
+          "La riga Azioni cambia qualcosa mentre la macro suona: una voce, il microfono, i suoni fermati, una pagina su Drezimo.",
+          "Prova, in cima all'editor, fa partire la macro; su Drezimo la avvia il suo pad, o un gesto della manopola.",
+        ],
+        tryIt: "Prova: trascina la Tromba da un'altra parte.",
+      },
+      {
+        title: "Aggiungere suoni e azioni",
+        points: [
+          "La linea ambra è dove va il prossimo: clicca sui secondi in alto per spostarla.",
+          "Aggiungi un suono e Aggiungi un'azione, sotto le tracce nell'editor, lo mettono sulla linea ambra.",
+          "Oppure clicca col destro su una traccia in un punto: il suono o l'azione va proprio lì, su quella traccia se è libera.",
+          "Una macro tiene fino a 6 tracce, 50 suoni e 50 azioni.",
+        ],
+        tryIt: "Prova: clicca col destro sulla seconda traccia, sotto la fine della Musica, e aggiungi un suono.",
+      },
+      {
+        title: "Spostarli",
+        points: [
+          "Trascina un suono lungo la sua traccia per cambiare quando parte, o su un'altra traccia per farlo suonare sopra gli altri.",
+          "Mentre si sposta, si aggancia all'inizio, alla linea ambra e ai bordi degli altri, così uno può seguire l'altro esattamente.",
+          "Clicca su un suono o un'azione per selezionarlo: le frecce sinistra e destra lo spostano di un decimo di secondo, con Shift di un secondo intero; su e giù portano un suono su un'altra traccia.",
+          "Canc toglie quello che è selezionato, Esc lo lascia.",
+        ],
+        tryIt: "Prova: clicca sulla Tromba, poi usa le frecce.",
+      },
+      {
+        title: "Taglio e volume",
+        points: [
+          "Trascina il bordo destro di un suono per tagliarlo: si ferma lì invece che alla fine.",
+          "Il suo riquadro, qui sotto, sceglie come va il volume: fisso, che entra piano, che esce piano o entrambi.",
+          "La linea sopra il suono è il suo volume: trascina un punto, doppio clic per aggiungerne uno, clic destro su un punto per toglierlo.",
+          "Tagli e volumi hanno bisogno del bridge di Voicemod, che l'app trova da sola mentre Voicemod è aperto.",
+        ],
+        tryIt: "Prova: trascina un punto della linea della Musica, poi il suo bordo destro.",
+      },
+      {
+        title: "Più di uno alla volta",
+        points: [
+          "Shift+clic aggiunge un suono o un'azione a quello che è selezionato, o lo toglie.",
+          "Trascinane uno e si spostano tutti insieme; anche le frecce li spostano tutti.",
+          "Clic destro su uno di loro: Duplica li copia tutti, Elimina li toglie tutti. Il riquadro sotto fa lo stesso.",
+          "Un clic su uno di loro, senza trascinare, tiene solo quello.",
+        ],
+        tryIt: "Prova: i due suoni sono selezionati, trascinane uno.",
+      },
+      {
+        title: "Annullare, e a cosa fare attenzione",
+        points: [
+          `${MAC ? "⌘Z" : "Ctrl+Z"} annulla e ${MAC ? "⇧⌘Z" : "Ctrl+Y"} ripete, come le due frecce sopra le tracce.`,
+          "Rosso: il suono suona sopra se stesso. Voicemod lo suona una volta alla volta, quindi la seconda Tromba lo fa ripartire, a meno che la sua modalità sia Copie sovrapposte.",
+          "Ambra: il suono ferma gli altri quando parte, come è impostato in Voicemod: qui l'Annuncio taglia la Musica. Lascia suonare gli altri, nel suo riquadro, lo cambia.",
+          "Sotto le tracce: cosa fa una seconda pressione, le ripetizioni, e voce e interruttori rimessi com'erano alla fine.",
+        ],
+        tryIt: "Prova: clicca sull'Annuncio e guarda il suo riquadro.",
+      },
+    ],
+  },
   tour: {
     label: "Tour di benvenuto",
     skip: "Salta il tour",
@@ -1391,7 +1527,7 @@ const ITALIAN: Texts = {
       },
       {
         title: "Macro",
-        text: "Suoni su tracce lungo una linea del tempo, su un solo tasto: uno dopo l'altro o uno sopra l'altro, tagliati dove vuoi, col loro volume, e poi voci, microfono e altro. Alla fine può rimettere tutto com'era. Premi Prova.",
+        text: "Suoni su tracce lungo una linea del tempo, su un solo tasto: uno dopo l'altro o uno sopra l'altro, tagliati dove vuoi, col loro volume, e poi voci, microfono e altro. Alla fine può rimettere tutto com'era. Premi Prova; Come funziona, in cima alla sezione, spiega tutto passo per passo.",
       },
       {
         title: "Drezimo, a modo tuo",

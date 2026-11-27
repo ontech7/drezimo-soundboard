@@ -11,6 +11,7 @@ import { OverlayPage } from "./pages/OverlayPage";
 import { PagesPage } from "./pages/PagesPage";
 import { SoundboardPage, SoundboardTitle } from "./pages/SoundboardPage";
 import { DisplayButton } from "./DisplayPreview";
+import { HelpIcon } from "./icons";
 import { VirtualKnob } from "./VirtualKnob";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
@@ -34,6 +35,8 @@ export default function App() {
   const [tour, setTour] = useState<boolean | null>(null);
   // Where to find the tour again, once it is skipped
   const [hint, setHint] = useState(false);
+  // As the tour: until opened or closed here, the Macro guide shows with the section while not seen yet
+  const [macroGuide, setMacroGuide] = useState<boolean | null>(null);
   const ready = status !== null && settings !== null;
   const language = settings?.shownLanguage ?? "english";
 
@@ -73,6 +76,7 @@ export default function App() {
   // Diagnostics turned off while shown
   const shown = page === "settings" || pages.includes(page) ? page : "soundboard";
   const boardOwnPage = view && view.page < view.own ? view.ids[view.page] : null;
+  const macroGuideShown = shown === "macros" && !tourShown && (macroGuide ?? !settings.macroGuideSeen);
   const open = (next: PageId) => {
     setEditing(null);
     setPage(next);
@@ -90,6 +94,12 @@ export default function App() {
                 <DisplayButton />
                 <VirtualKnob />
               </div>
+            )}
+            {shown === "macros" && (
+              <button type="button" className="button ghost help-button" onClick={() => setMacroGuide(true)}>
+                <HelpIcon />
+                {texts.macroGuideOpen}
+              </button>
             )}
           </header>
           {shown === "soundboard" && (
@@ -114,7 +124,16 @@ export default function App() {
               onOpenMacros={() => open("macros")}
             />
           )}
-          {shown === "macros" && <MacrosPage status={status} />}
+          {shown === "macros" && (
+            <MacrosPage
+              status={status}
+              guide={macroGuideShown}
+              onGuideClose={() => {
+                setMacroGuide(false);
+                if (!settings.macroGuideSeen) saveSettings({ ...settings, macroGuideSeen: true });
+              }}
+            />
+          )}
           {shown === "board" && (
             <BoardPage
               settings={settings}

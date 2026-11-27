@@ -3658,10 +3658,6 @@ input.seconds {
   line-height: 1.5;
 }
 
-.mt-hint {
-  margin: 8px 0 12px;
-}
-
 .mt-inspector .row-break {
   flex-basis: 100%;
   height: 0;
@@ -3693,4 +3689,95 @@ input.seconds {
 .volume-field {
   flex: 1 1 200px;
   min-width: 0;
+}
+
+/* The Macro section's guide: the tour's dialog, with what to know and a time line to try under it */
+.help-button {
+  height: 34px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--line);
+}
+
+.help-button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.macro-guide {
+  width: min(1080px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 24px));
+}
+
+.macro-guide header {
+  padding-top: 10px;
+}
+
+.macro-guide footer {
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+/* What to know on the left, the time line to try on the right with all the height */
+.guide-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(240px, 31%) 1fr;
+  gap: 20px;
+  min-height: 0;
+  padding: 6px 24px 0;
+}
+
+.guide-text {
+  min-height: 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+}
+
+.guide-text h2 {
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.guide-text ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #a3a3ab;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.guide-text li::marker {
+  color: var(--amber);
+}
+
+.guide-stage {
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px 0;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0b0b0d;
+}
+
+.guide-try {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  background: rgb(255 176 32 / 8%);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.guide-stage .how-to {
+  display: none;
+}
+
+.guide-timeline {
+  animation: tour-in 0.25s ease;
 }

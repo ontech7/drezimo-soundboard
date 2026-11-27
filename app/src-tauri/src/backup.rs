@@ -39,7 +39,8 @@ struct Exported<'a> {
     display: Option<DisplaySettings>,
 }
 
-/// The settings that travel; the others belong to one PC: the tour seen, the notices answered, Diagnostics shown
+/// The settings that travel; the others belong to one PC: the tour and the Macro guide seen, the notices answered,
+/// Diagnostics shown
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SharedSettings {
@@ -729,6 +730,7 @@ mod tests {
             },
             diagnostics: true,
             tour_seen: true,
+            macro_guide_seen: true,
             mute_for_me_notice_seen: true,
             shown_pages: crate::soundboard::ShownPages {
                 only_mine: true,
