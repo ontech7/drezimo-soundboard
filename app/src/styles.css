@@ -3562,6 +3562,35 @@ input.seconds {
   box-shadow: 0 0 8px rgb(34 224 90 / 60%);
 }
 
+.mt {
+  position: relative;
+}
+
+.mt-menu {
+  position: absolute;
+  width: 220px;
+  min-width: 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.mt-menu .heading {
+  padding: 4px 10px 2px;
+  font-size: 11.5px;
+}
+
+.mt-menu .with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mt-menu .with-icon .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
 .mt-inspector {
   display: flex;
   flex-wrap: wrap;

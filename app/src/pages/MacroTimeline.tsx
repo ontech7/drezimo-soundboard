@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
@@ -17,14 +18,18 @@ import {
   GUESSED_LENGTH,
   type Level,
   MAX_AT,
+  MAX_CLIPS,
+  MAX_STEPS,
   MAX_TRACKS,
   MIN_CUT,
   type MacroProgress,
+  type Step,
   soundLength,
   type TimedStep,
   type Timeline,
   timelineLength,
 } from "../macros";
+import { useDismiss } from "../dismiss";
 import { PadPicture } from "../PadPicture";
 import type { PlaybackMode } from "../pressAgain";
 
@@ -39,6 +44,12 @@ const CURVE_HEIGHT = 30;
 const MIN_SHOWN = 10;
 const PAST_END = 2;
 const ZOOMS = [30, 60, 100, 160];
+/** As wide as the right-click menu draws, in pixels */
+const MENU_WIDTH = 220;
+/** As tall as its longest list can draw, in pixels (.mt-menu's max-height and a margin) */
+const MENU_HEIGHT = 400;
+/** A copied action comes this much after the one it copies, in milliseconds */
+const ACTION_GAP = 500;
 
 export type Selected = { kind: "clip"; index: number } | { kind: "action"; index: number } | null;
 
@@ -46,6 +57,15 @@ interface Described {
   title: string;
   icon: ReactNode;
   colour: Rgb;
+}
+
+/** An action the menus offer to add, made ready */
+export interface ActionChoice {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  colour: Rgb;
+  step: Step;
 }
 
 interface Props {
@@ -61,6 +81,9 @@ interface Props {
   cursor: number;
   onCursor: (at: number) => void;
   describeAction: (action: TimedStep) => Described;
+  /** The right-click menu's: a sound to choose for that time and track, none for the first free one */
+  onAddSound?: (at: number, track: number | null) => void;
+  actionChoices?: ActionChoice[];
 }
 
 const snap = (millis: number) => Math.round(millis / SNAP) * SNAP;
@@ -99,15 +122,32 @@ export function trackCount(timeline: Timeline): number {
   return clamp(used + 1, 2, MAX_TRACKS);
 }
 
+/** Whether nothing plays on that track from `at` for `millis` */
+export function isFree(timeline: Timeline, track: number, at: number, millis: number, library: Library | null): boolean {
+  return !timeline.clips.some(
+    (clip) => clip.track === track && clip.at < at + millis && at < clip.at + clipLength(clip, library).millis
+  );
+}
+
 /** The first track free from `at` for `millis`, else the last */
 export function freeTrack(timeline: Timeline, at: number, millis: number, library: Library | null): number {
   for (let track = 0; track < MAX_TRACKS; track += 1) {
-    const busy = timeline.clips.some(
-      (clip) => clip.track === track && clip.at < at + millis && at < clip.at + clipLength(clip, library).millis
-    );
-    if (!busy) return track;
+    if (isFree(timeline, track, at, millis, library)) return track;
   }
   return MAX_TRACKS - 1;
+}
+
+/** A copy of a clip or an action right after it: a clip on its own track if free there, else on the first free one */
+export function duplicated(timeline: Timeline, target: NonNullable<Selected>, library: Library | null): Timeline {
+  if (target.kind === "action") {
+    const action = timeline.actions[target.index];
+    return { ...timeline, actions: [...timeline.actions, { ...action, at: Math.min(MAX_AT, action.at + ACTION_GAP) }] };
+  }
+  const clip = timeline.clips[target.index];
+  const millis = clipLength(clip, library).millis;
+  const at = Math.min(MAX_AT, clip.at + millis);
+  const track = isFree(timeline, clip.track, at, millis, library) ? clip.track : freeTrack(timeline, at, millis, library);
+  return { ...timeline, clips: [...timeline.clips, { ...clip, at, track }] };
 }
 
 /** Where the round under way is, drawn at each frame from when it started */
@@ -187,8 +227,46 @@ export function MacroTimeline(props: Props) {
     onSelect(null);
   };
 
+  // The right-click menu: on a clip or an action what can be done to it, elsewhere on a track what can be added there
+  const [menu, setMenu] = useState<MenuAt | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const openMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const element = event.target as HTMLElement;
+    const lane = element.closest<HTMLElement>(".mt-lane");
+    const box = root.current?.getBoundingClientRect();
+    // Shown only, as in the tour: no menu
+    if (!lane || !box || !props.onAddSound) return;
+    const clip = element.closest<HTMLElement>(".mt-clip");
+    const action = element.closest<HTMLElement>(".mt-action");
+    const target: Selected = clip
+      ? { kind: "clip", index: Number(clip.dataset.index) }
+      : action
+        ? { kind: "action", index: Number(action.dataset.index) }
+        : null;
+    if (target) onSelect(target);
+    const at = clamp(snap(millisAt(event.clientX - event.currentTarget.getBoundingClientRect().left)), 0, MAX_AT);
+    const track = lane.classList.contains("actions") ? null : Number(lane.dataset.track);
+    // Upwards when the window has no room below for the longest menu, the actions' list
+    const up = window.innerHeight - event.clientY < MENU_HEIGHT;
+    setMenu({
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+      width: box.width,
+      height: box.height,
+      up,
+      at,
+      track,
+      target,
+    });
+  };
+  const full = {
+    clips: props.timeline.clips.length >= MAX_CLIPS,
+    actions: props.timeline.actions.length >= MAX_STEPS,
+  };
+
   return (
-    <div className="mt" onKeyDown={keys}>
+    <div className="mt" onKeyDown={keys} ref={root}>
       <div className="mt-bar">
         <span className="muted">
           {running
@@ -216,7 +294,7 @@ export function MacroTimeline(props: Props) {
           </div>
         </div>
         <div className="mt-scroller" ref={scroller}>
-          <div className="mt-canvas" style={{ width }}>
+          <div className="mt-canvas" style={{ width }} onContextMenu={openMenu}>
             <Ruler
               shown={shown}
               zoom={zoom}
@@ -230,6 +308,7 @@ export function MacroTimeline(props: Props) {
                   clip.track === track ? (
                     <ClipBlock
                       key={index}
+                      index={index}
                       clip={clip}
                       library={library}
                       zoom={zoom}
@@ -299,6 +378,7 @@ export function MacroTimeline(props: Props) {
                     key={index}
                     type="button"
                     className={selected?.kind === "action" && selected.index === index ? "mt-action selected" : "mt-action"}
+                    data-index={index}
                     style={{ left: x(action.at), "--tint": rgb(shown.colour) } as CSSProperties}
                     title={shown.title}
                     onClick={() => onSelect({ kind: "action", index })}
@@ -323,6 +403,142 @@ export function MacroTimeline(props: Props) {
           </div>
         </div>
       </div>
+      {menu && (
+        <TimelineMenu
+          menu={menu}
+          full={full}
+          actionChoices={props.actionChoices ?? []}
+          onClose={() => setMenu(null)}
+          onAddSound={() => props.onAddSound?.(menu.at, menu.track)}
+          onAddAction={(step) => {
+            const actions = [...props.timeline.actions, { ...step, at: menu.at } as TimedStep];
+            props.onChange({ ...props.timeline, actions });
+            onSelect({ kind: "action", index: props.timeline.actions.length });
+          }}
+          onDuplicate={(target) => {
+            props.onChange(duplicated(props.timeline, target, library));
+            onSelect(
+              target.kind === "clip"
+                ? { kind: "clip", index: props.timeline.clips.length }
+                : { kind: "action", index: props.timeline.actions.length }
+            );
+          }}
+          onDelete={(target) => {
+            props.onChange(removed(props.timeline, target));
+            onSelect(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface MenuAt {
+  /** Where it opens, in the time line's own pixels, and how wide the time line is */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Opens upwards from the point */
+  up: boolean;
+  /** The time and the track clicked: null on the actions' track */
+  at: number;
+  track: number | null;
+  target: Selected;
+}
+
+/** What a right click offers: duplicate or delete what it is on, else add a sound or an action at that point */
+function TimelineMenu(props: {
+  menu: MenuAt;
+  full: { clips: boolean; actions: boolean };
+  actionChoices: ActionChoice[];
+  onClose: () => void;
+  onAddSound: () => void;
+  onAddAction: (step: Step) => void;
+  onDuplicate: (target: NonNullable<Selected>) => void;
+  onDelete: (target: NonNullable<Selected>) => void;
+}) {
+  const texts = useTexts();
+  const { menu, full, onClose } = props;
+  const [actions, setActions] = useState(false);
+  const element = useDismiss<HTMLDivElement>(true, onClose);
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => first.current?.focus(), [actions]);
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+  const target = menu.target;
+  const fullFor = target?.kind === "clip" ? full.clips : full.actions;
+  return (
+    <div
+      className="menu mt-menu"
+      role="menu"
+      ref={element}
+      // Towards the side with room, never past the time line's edge; .menu's own top and left give way
+      style={{
+        ...(menu.x > menu.width - MENU_WIDTH ? { left: "auto", right: menu.width - menu.x } : { left: menu.x }),
+        ...(menu.up ? { top: "auto", bottom: menu.height - menu.y } : { top: menu.y }),
+      }}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      {target ? (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            ref={first}
+            disabled={fullFor}
+            title={fullFor ? (target.kind === "clip" ? texts.tooManyClips : texts.tooManyActions) : undefined}
+            onClick={run(() => props.onDuplicate(target))}
+          >
+            {texts.duplicate}
+          </button>
+          <button type="button" role="menuitem" className="danger" onClick={run(() => props.onDelete(target))}>
+            {texts.deleteItem}
+          </button>
+        </>
+      ) : actions ? (
+        <>
+          <span className="muted heading">{texts.addActionAt(texts.secondsOf(menu.at / 1000))}</span>
+          {props.actionChoices.map((choice, i) => (
+            <button
+              key={choice.key}
+              type="button"
+              role="menuitem"
+              ref={i === 0 ? first : undefined}
+              className="with-icon"
+              onClick={run(() => props.onAddAction(choice.step))}
+            >
+              <i className="dot" style={{ background: rgb(choice.colour) }} />
+              {choice.label}
+            </button>
+          ))}
+        </>
+      ) : (
+        <>
+          <span className="muted heading">{texts.atSecond(texts.secondsOf(menu.at / 1000))}</span>
+          <button
+            type="button"
+            role="menuitem"
+            ref={first}
+            disabled={full.clips}
+            title={full.clips ? texts.tooManyClips : undefined}
+            onClick={run(props.onAddSound)}
+          >
+            {texts.addSoundHere}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={full.actions}
+            title={full.actions ? texts.tooManyActions : undefined}
+            onClick={() => setActions(true)}
+          >
+            {texts.addActionHere}…
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -378,6 +594,7 @@ export function together(timeline: Timeline, library: Library | null): { start: 
 }
 
 interface ClipProps {
+  index: number;
   clip: Clip;
   library: Library | null;
   zoom: number;
@@ -421,6 +638,7 @@ function ClipBlock(props: ClipProps) {
       style={{ left: x(clip.at), width, "--tint": rgb(SOUND_COLOUR) } as CSSProperties}
       role="button"
       tabIndex={0}
+      data-index={props.index}
       aria-pressed={props.selected}
       aria-label={texts.clipLabel(name, texts.secondsOf(clip.at / 1000))}
       title={props.warned ? texts.overlapsItself : undefined}
@@ -461,6 +679,8 @@ function ClipBlock(props: ClipProps) {
               onDoubleClick={(event) => event.stopPropagation()}
               onContextMenu={(event) => {
                 event.preventDefault();
+                // A point's own menu: it goes, and the clip's menu does not open
+                event.stopPropagation();
                 props.onRemoveLevel(i);
               }}
             >

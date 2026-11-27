@@ -58,9 +58,11 @@ import {
   useMacros,
 } from "../macros";
 import {
+  type ActionChoice,
   AddToTimeline,
   ClipInspector,
   freeTrack,
+  isFree,
   MacroTimeline,
   overlapsItself,
   removed,
@@ -179,6 +181,8 @@ export function MacrosPage({ status }: { status: Status }) {
   const [cursor, setCursor] = useState(0);
   // The clip whose sound is being chosen, or "new" for a sound to add
   const [choosing, setChoosing] = useState<number | "new" | null>(null);
+  // The track a sound added from the right-click menu goes on, if free there
+  const [newTrack, setNewTrack] = useState<number | null>(null);
   const targets = useMemo(() => targetsOf(pages ?? [], library, texts), [pages, library, texts]);
 
   // The time line draws each sound as long as it is
@@ -238,7 +242,8 @@ export function MacrosPage({ status }: { status: Status }) {
     if (choosing === "new") {
       const clip = { id: sound.id, name: sound.name, track: 0, at: cursor };
       const millis = clipLength(clip, library).millis;
-      clip.track = freeTrack(timeline, cursor, millis, library);
+      const asked = newTrack !== null && isFree(timeline, newTrack, cursor, millis, library);
+      clip.track = asked && newTrack !== null ? newTrack : freeTrack(timeline, cursor, millis, library);
       setTimeline({ ...timeline, clips: [...timeline.clips, clip] });
       setSelected({ kind: "clip", index: timeline.clips.length });
       // The next one after it, as a sequence is most often made
@@ -250,6 +255,7 @@ export function MacrosPage({ status }: { status: Status }) {
       setTimeline({ ...timeline, clips });
     }
     setChoosing(null);
+    setNewTrack(null);
   };
 
   return (
@@ -310,6 +316,12 @@ export function MacrosPage({ status }: { status: Status }) {
           cursor={cursor}
           onCursor={setCursor}
           describeAction={(action) => describe(action, texts, library, targets)}
+          actionChoices={actionChoices(texts, targets[0]?.id ?? VOICES_ID)}
+          onAddSound={(at, track) => {
+            setCursor(at);
+            setNewTrack(track);
+            setChoosing("new");
+          }}
         />
         {timeline.clips.length + timeline.actions.length === 0 && <p className="muted no-steps">{texts.noClips}</p>}
 
@@ -372,7 +384,10 @@ export function MacrosPage({ status }: { status: Status }) {
 
         <AddToTimeline
           full={{ clips: timeline.clips.length >= MAX_CLIPS, actions: timeline.actions.length >= MAX_STEPS }}
-          onSound={() => setChoosing("new")}
+          onSound={() => {
+            setNewTrack(null);
+            setChoosing("new");
+          }}
           actionMenu={
             <AddStep
               actionsOnly
@@ -689,28 +704,40 @@ function SecondsField(props: { label: string; seconds: number; onDone: (seconds:
 
 type Kind = keyof Texts["stepKinds"];
 
+const STEP_KINDS: { kind: Kind; icon: ReactNode; colour: Rgb }[] = [
+  { kind: "sound", icon: <SoundIcon />, colour: SOUND_COLOUR },
+  { kind: "wait", icon: <ClockIcon />, colour: WAIT_COLOUR },
+  { kind: "voice", icon: <VoiceIcon />, colour: VOICE_COLOUR },
+  ...SWITCHES.map((kind) => ({ kind, icon: SWITCH_ICONS[kind], colour: ACTION_COLOURS[kind] })),
+  { kind: "stopSounds", icon: <StopIcon />, colour: ACTION_COLOURS.stopSounds },
+  { kind: "goToPage", icon: <GoToIcon />, colour: ACTION_COLOURS.goToPage },
+];
+
+/** A new step of that kind; a sound is chosen first */
+function stepOf(kind: Kind, firstTarget: string): Step | null {
+  if (kind === "sound") return null;
+  if (kind === "wait") return { type: "wait", millis: 1000 };
+  if (kind === "voice") return { type: "randomVoice" };
+  if (kind === "stopSounds") return { type: "stopSounds" };
+  if (kind === "goToPage") return { type: "goToPage", page: firstTarget };
+  return { type: "switch", switch: kind, state: "on" };
+}
+
+/** The actions the time line's menus add */
+function actionChoices(texts: Texts, firstTarget: string): ActionChoice[] {
+  return STEP_KINDS.flatMap(({ kind, icon, colour }) => {
+    const step = stepOf(kind, firstTarget);
+    return step && step.type !== "wait" ? [{ key: kind, label: texts.stepKinds[kind][0], icon, colour, step }] : [];
+  });
+}
+
 /** The steps to add; a sound is chosen first. On the time line, only the actions: sounds have their own button. */
 function AddStep(props: { disabled: boolean; firstTarget: string; actionsOnly?: boolean; onAdd: (step: Step | null) => void }) {
   const texts = useTexts();
   const [open, setOpen] = useState(false);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
-  const make = (kind: Kind): Step | null => {
-    if (kind === "sound") return null;
-    if (kind === "wait") return { type: "wait", millis: 1000 };
-    if (kind === "voice") return { type: "randomVoice" };
-    if (kind === "stopSounds") return { type: "stopSounds" };
-    if (kind === "goToPage") return { type: "goToPage", page: props.firstTarget };
-    return { type: "switch", switch: kind, state: "on" };
-  };
-  const all: { kind: Kind; icon: ReactNode; colour: Rgb }[] = [
-    { kind: "sound", icon: <SoundIcon />, colour: SOUND_COLOUR },
-    { kind: "wait", icon: <ClockIcon />, colour: WAIT_COLOUR },
-    { kind: "voice", icon: <VoiceIcon />, colour: VOICE_COLOUR },
-    ...SWITCHES.map((kind) => ({ kind, icon: SWITCH_ICONS[kind], colour: ACTION_COLOURS[kind] })),
-    { kind: "stopSounds", icon: <StopIcon />, colour: ACTION_COLOURS.stopSounds },
-    { kind: "goToPage", icon: <GoToIcon />, colour: ACTION_COLOURS.goToPage },
-  ];
-  const kinds = props.actionsOnly ? all.filter(({ kind }) => kind !== "sound" && kind !== "wait") : all;
+  const make = (kind: Kind) => stepOf(kind, props.firstTarget);
+  const kinds = props.actionsOnly ? STEP_KINDS.filter(({ kind }) => kind !== "sound" && kind !== "wait") : STEP_KINDS;
   return (
     <div className="anchor add-step" ref={menu}>
       <button
