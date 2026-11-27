@@ -68,6 +68,17 @@ pub enum Screen {
         counter: String,
         names: Vec<Option<String>>,
     },
+    /// The action wheel open: the slice turned to, what it is, and where it is among them
+    Wheel {
+        heading: String,
+        counter: String,
+        name: String,
+        /// What the slice is, or what the centre does
+        kind: String,
+        slices: usize,
+        /// None at the centre
+        selected: Option<usize>,
+    },
     /// A volume the knob changes: what, and how far along its slider
     Level {
         heading: String,
@@ -82,7 +93,7 @@ impl Screen {
     /// The name shown big, which scrolls by when too long.
     pub fn name(&self) -> Option<&str> {
         match self {
-            Self::Home { name, .. } | Self::Peek { name, .. } => Some(name),
+            Self::Home { name, .. } | Self::Peek { name, .. } | Self::Wheel { name, .. } => Some(name),
             Self::Level { label, .. } => Some(label),
             _ => None,
         }
@@ -226,6 +237,20 @@ pub fn draw(screen: &Screen, motion: Motion) -> (Canvas, Option<Duration>) {
                 canvas.text(&fit(name, 114, Size::Small), 11, y, Size::Small, true);
             }
             None
+        }
+        Screen::Wheel {
+            heading,
+            counter,
+            name,
+            kind,
+            slices,
+            selected,
+        } => {
+            inverted_header(&mut canvas, heading, counter);
+            let scrolling = scroll(&mut canvas, name, 15, Size::Big, motion.name_for);
+            canvas.text_centered(&fit(kind, LINE, Size::Small), WIDTH / 2, 34, Size::Small, true);
+            wheel_dots(&mut canvas, *slices, *selected);
+            scrolling
         }
         Screen::Level {
             heading,
@@ -429,6 +454,25 @@ fn menu(canvas: &mut Canvas, heading: &str, items: &[String], selected: usize, c
         let thumb = (track * MENU_ROWS as i32 / items.len() as i32).max(6);
         let scrolled = (track - thumb) * first as i32 / (items.len() - MENU_ROWS) as i32;
         canvas.fill_rect(124, top + scrolled, 3, thumb, true);
+    }
+}
+
+/// The wheel's places in a row: the centre as a ring, then each slice as a dot; the one turned to is a full square
+fn wheel_dots(canvas: &mut Canvas, slices: usize, selected: Option<usize>) {
+    const STEP: i32 = 9;
+    const Y: i32 = 52;
+    let first = WIDTH / 2 - STEP * slices as i32 / 2;
+    canvas.fill_rect(first - 2, Y - 2, 5, 5, true);
+    if selected.is_some() {
+        canvas.fill_rect(first - 1, Y - 1, 3, 3, false);
+    }
+    for slice in 0..slices {
+        let x = first + STEP * (slice as i32 + 1);
+        if selected == Some(slice) {
+            canvas.fill_rect(x - 2, Y - 2, 5, 5, true);
+        } else {
+            canvas.fill_rect(x, Y, 1, 1, true);
+        }
     }
 }
 

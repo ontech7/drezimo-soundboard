@@ -89,6 +89,7 @@ export function sampleMacro(texts: Texts): { steps: Step[]; library: Library } {
     picture: null,
     length,
     mode: null,
+    stopsOthers: false,
   });
   const drumroll = item(DRUMROLL, 3.2);
   const tada = item(TA_DA, 1.8);
@@ -102,7 +103,7 @@ export function sampleMacro(texts: Texts): { steps: Step[]; library: Library } {
       { type: "sound", id: tada.id, name: tada.name, waitEnd: true },
     ],
     library: {
-      soundboards: [{ id: "tour", name: texts.tour.page, sounds: [drumroll, tada] }],
+      soundboards: [{ id: "tour", name: texts.tour.page, custom: false, sounds: [drumroll, tada] }],
       voices: [robot],
       favourites: false,
     },

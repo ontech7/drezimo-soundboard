@@ -30,6 +30,9 @@ impl Controller {
             return (screen, None);
         }
 
+        if let Some(screen) = self.wheel_screen() {
+            return (screen, None);
+        }
         let counter = self.counter();
         if let Some(row) = &self.row {
             return (self.row_screen(row.row, counter), None);

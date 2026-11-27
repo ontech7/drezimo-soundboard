@@ -41,6 +41,7 @@ pub struct Texts {
     pub volume: &'static str,
     pub soundboard_others: &'static str,
     pub soundboard_you: &'static str,
+    pub soundboard_all: &'static str,
     pub microphone: &'static str,
     /// The knob would change the volume of the sound playing, and none plays
     pub nothing_playing: &'static str,
@@ -53,9 +54,28 @@ pub struct Texts {
     pub keys: [&'static str; 6],
     /// The display on the PC screen, before any input
     pub press_something: &'static str,
+    pub wheel: Wheel,
     decimal_separator: char,
     modes: Modes,
     actions: Actions,
+}
+
+/// The action wheel's words, on the display and the PC screen
+pub struct Wheel {
+    pub heading: &'static str,
+    /// At the centre, where nothing happens
+    pub cancel: &'static str,
+    pub page: &'static str,
+    /// The soundboard menu, as a slice
+    pub menu: &'static str,
+    /// A page or a macro deleted since
+    pub missing: &'static str,
+    /// Under the wheel on the PC screen: opened by turning the knob held, or by a press
+    pub let_go: &'static str,
+    pub press: &'static str,
+    /// On the display, at the centre
+    pub let_go_closes: &'static str,
+    pub press_closes: &'static str,
 }
 
 /// The playback modes' names
@@ -79,6 +99,8 @@ struct Actions {
     mute_for_me: &'static str,
     background: &'static str,
     go_to_page: &'static str,
+    overlay: &'static str,
+    reset_volumes: &'static str,
 }
 
 impl Texts {
@@ -93,6 +115,8 @@ impl Texts {
             Action::MuteForMe => names.mute_for_me,
             Action::Background => names.background,
             Action::GoToPage => names.go_to_page,
+            Action::Overlay => names.overlay,
+            Action::ResetVolumes => names.reset_volumes,
         }
     }
 
@@ -156,6 +180,7 @@ pub const ENGLISH: Texts = Texts {
     volume: "VOLUME",
     soundboard_others: "SOUNDBOARD OTHERS",
     soundboard_you: "SOUNDBOARD YOU",
+    soundboard_all: "SOUNDBOARD ALL",
     microphone: "MICROPHONE",
     nothing_playing: "NO SOUND",
     not_available: "NOT AVAILABLE",
@@ -163,6 +188,17 @@ pub const ENGLISH: Texts = Texts {
     knob: "Knob",
     keys: ["◀ PAGE", "PAGE ▶", "STOP", "MUTE ME", "VOICE", "HEAR ME"],
     press_something: "Press a key or turn the knob",
+    wheel: Wheel {
+        heading: "WHEEL",
+        cancel: "Cancel",
+        page: "PAGE",
+        menu: "Soundboards",
+        missing: "Not there",
+        let_go: "Let go to pick · at the centre, nothing happens",
+        press: "Press to pick · at the centre, it closes",
+        let_go_closes: "LET GO TO CLOSE",
+        press_closes: "PRESS TO CLOSE",
+    },
     decimal_separator: '.',
     modes: Modes {
         restart: "ONE-SHOT",
@@ -181,6 +217,8 @@ pub const ENGLISH: Texts = Texts {
         mute_for_me: "Mute for me",
         background: "Background",
         go_to_page: "Go to page",
+        overlay: "Overlay",
+        reset_volumes: "Volumes back",
     },
 };
 
@@ -210,6 +248,7 @@ pub const ITALIAN: Texts = Texts {
     volume: "VOLUME",
     soundboard_others: "SOUNDBOARD ALTRI",
     soundboard_you: "SOUNDBOARD TU",
+    soundboard_all: "SOUNDBOARD TUTTI",
     microphone: "MICROFONO",
     nothing_playing: "NESSUN SUONO",
     not_available: "NON DISPONIBILE",
@@ -217,6 +256,17 @@ pub const ITALIAN: Texts = Texts {
     knob: "Manopola",
     keys: ["◀ PAG", "PAG ▶", "STOP", "MUTO", "VOCE", "SENTI"],
     press_something: "Premi un tasto o gira la manopola",
+    wheel: Wheel {
+        heading: "RUOTA",
+        cancel: "Annulla",
+        page: "PAGINA",
+        menu: "Soundboard",
+        missing: "Non c'è più",
+        let_go: "Lascia per scegliere · al centro non succede niente",
+        press: "Premi per scegliere · al centro si chiude",
+        let_go_closes: "LASCIA PER CHIUDERE",
+        press_closes: "PREMI PER CHIUDERE",
+    },
     decimal_separator: ',',
     modes: Modes {
         restart: "SINGOLO",
@@ -235,6 +285,8 @@ pub const ITALIAN: Texts = Texts {
         mute_for_me: "Non sentire",
         background: "Sottofondo",
         go_to_page: "Vai a pagina",
+        overlay: "Overlay",
+        reset_volumes: "Rimetti volumi",
     },
 };
 

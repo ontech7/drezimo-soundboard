@@ -18,7 +18,9 @@ import type { KnobGesture } from "../explain/story";
 import { useTexts } from "../i18n";
 import { MacroIcon, MuteMeIcon, PlayIcon, PlusIcon, SoundIcon, StopIcon, VoiceIcon } from "../icons";
 import { actionName, PRESS_ACTIONS, TURN_ACTIONS } from "../knob";
-import { describe, Timeline, Tinted } from "../pages/MacrosPage";
+import { describe, Tinted } from "../pages/MacrosPage";
+import { MacroTimeline } from "../pages/MacroTimeline";
+import { timelineOf } from "../macros";
 import { choiceLabel, choicesFor, MODE_ROWS, usePressOutcomes } from "../pressAgain";
 import { SearchSelect } from "../SearchSelect";
 import type { KnobSettings, PressAction, PressAgainByMode } from "../settings";
@@ -254,9 +256,14 @@ const STEP_TIMES = [700, 1700, 800, 700, 1300];
 export function Macro({ pictures }: { pictures: Pictures | null }) {
   const texts = useTexts();
   const { steps, library } = useMemo(() => sampleMacro(texts), [texts]);
+  const timeline = useMemo(
+    () => timelineOf({ id: "tour", name: "", colour: null, again: "stop", repeat: 1, restore: true, steps }, library),
+    [steps, library]
+  );
   // From 1 while it runs
   const [step, setStep] = useState(0);
-  const running = step > 0 ? { id: "tour", step, steps: steps.length } : null;
+  const [started, setStarted] = useState(0);
+  const running = step > 0 ? { id: "tour", step, steps: steps.length, roundStarted: started } : null;
 
   useEffect(() => {
     if (step === 0) return;
@@ -272,31 +279,31 @@ export function Macro({ pictures }: { pictures: Pictures | null }) {
             <span className="dot" style={{ "--led": rgb(MACRO_COLOUR) } as CSSProperties} />
             {padName(texts, MACRO_PAD)}
           </span>
-          <button type="button" className={running ? "button" : "button outline"} onClick={() => setStep(running ? 0 : 1)}>
+          <button
+            type="button"
+            className={running ? "button" : "button outline"}
+            onClick={() => {
+              setStarted(Date.now());
+              setStep(running ? 0 : 1);
+            }}
+          >
             {running ? <StopIcon /> : <PlayIcon />}
             {running ? texts.stopMacro : texts.tryMacro}
           </button>
         </div>
-        <Timeline steps={steps} library={library} running={running} />
-        <ol className="steps" aria-label={texts.stepsLabel}>
-          {steps.map((item, i) => {
-            const shown = describe(item, texts, library, []);
-            const state = running ? (i + 1 < step ? "done" : i + 1 === step ? "now" : "") : "";
-            return (
-              <li key={i} className={`step ${state}`}>
-                <div className="step-row">
-                  <span className="number">{i + 1}</span>
-                  <Tinted colour={shown.colour}>{shown.icon}</Tinted>
-                  <span className="summary">
-                    <span className="title">{shown.title}</span>
-                    {shown.detail && <span className="muted">{shown.detail}</span>}
-                  </span>
-                  {state === "now" && <span className="badge now">{texts.runningNow}</span>}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+        {/* Nothing here is saved: a drag goes back when let go */}
+        <MacroTimeline
+          timeline={timeline}
+          library={library}
+          running={running}
+          bridge
+          selection={[]}
+          onSelection={() => {}}
+          onChange={() => {}}
+          cursor={0}
+          onCursor={() => {}}
+          describeAction={(action) => describe(action, texts, library, [])}
+        />
       </div>
 
       <div className="tour-macro-side">

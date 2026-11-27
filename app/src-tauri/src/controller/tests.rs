@@ -3,7 +3,7 @@ use super::*;
 use crate::custom_pages::{Content, CustomPad};
 use crate::display::screens::{self, FRAME, Progress, Screen, SoundState};
 use crate::knob::{self, Gesture, KnobSettings, PressAction, TurnAction};
-use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::macros::{Again, Clip, Level, Macro, Step, Switch, SwitchState, TimedStep, Timeline};
 use crate::mixer::{Channel, gain};
 use crate::playback::GUESSED_LENGTH;
 use crate::press_again::PressAgain;
@@ -762,9 +762,11 @@ fn time_shown(screen: &Screen) -> &str {
     }
 }
 
-fn overlay_in(outputs: &[Output]) -> Option<&Option<Overlay>> {
+/// The page the overlay shows, or None while it is hidden or shows the wheel
+fn overlay_in(outputs: &[Output]) -> Option<Option<crate::overlay::Overlay>> {
     outputs.iter().rev().find_map(|output| match output {
-        Output::Overlay(overlay) => Some(overlay),
+        Output::Overlay(Some(crate::overlay::Content::Page(overlay))) => Some(Some(overlay.clone())),
+        Output::Overlay(_) => Some(None),
         _ => None,
     })
 }
@@ -774,7 +776,7 @@ fn ready_without_overlay(soundboards: Vec<Soundboard>) -> (Controller, Instant) 
     let (mut controller, start) = ready(soundboards);
     let now = start + OVERLAY_TIME;
     controller.update(now);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
     (controller, now)
 }
 
@@ -796,7 +798,68 @@ fn turning_the_page_shows_the_overlay_for_a_while() {
     controller.update(now + Duration::from_millis(200));
     assert_eq!(controller.next_update(), Some(now + OVERLAY_TIME));
     controller.update(now + OVERLAY_TIME);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
+}
+
+#[test]
+fn the_overlay_can_show_always_and_the_knob_hides_it() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            tap: PressAction::Overlay,
+            ..KnobSettings::default()
+        },
+    );
+    controller.set_overlay_always(true);
+    let later = now + OVERLAY_TIME * 3;
+    assert!(controller.overlay(later).is_some(), "shown with no input");
+
+    tap(&mut controller, later);
+    let hidden = later + Duration::from_millis(100);
+    controller.update(hidden);
+    assert!(controller.overlay(hidden).is_none(), "hidden by the tap");
+    let turned = hidden + Duration::from_millis(100);
+    turn(&mut controller, 1, turned);
+    assert!(
+        controller.overlay(turned).is_some(),
+        "a page change shows it for a while"
+    );
+    assert!(controller.overlay(turned + OVERLAY_TIME).is_none());
+
+    let again = turned + OVERLAY_TIME * 2;
+    tap(&mut controller, again);
+    controller.update(again + Duration::from_millis(100));
+    assert!(
+        controller.overlay(again + OVERLAY_TIME * 5).is_some(),
+        "shown again, for good"
+    );
+    controller.set_overlay_always(false);
+    assert!(controller.overlay(again + OVERLAY_TIME * 5).is_none());
+}
+
+#[test]
+fn the_knobs_overlay_gesture_shows_it_for_its_time() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            long_press: PressAction::Overlay,
+            ..KnobSettings::default()
+        },
+    );
+    knob(&mut controller, true, now);
+    let let_go = now + Duration::from_millis(700);
+    knob(&mut controller, false, let_go);
+    controller.update(let_go + Duration::from_millis(10));
+    controller.update(let_go + OVERLAY_TIME - Duration::from_millis(10));
+    assert!(
+        controller
+            .overlay(let_go + OVERLAY_TIME - Duration::from_millis(10))
+            .is_some()
+    );
+    controller.update(let_go + OVERLAY_TIME);
+    assert!(controller.overlay(let_go + OVERLAY_TIME).is_none());
 }
 
 #[test]
@@ -820,15 +883,15 @@ fn holding_the_knob_shows_the_overlay_until_a_while_after() {
     assert!(matches!(overlay_in(&knob(&mut controller, true, now)), Some(Some(_))));
     let later = now + Duration::from_secs(10);
     controller.update(later);
-    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(None), "still shown");
 
     press(&mut controller, 0, true, later);
     press(&mut controller, 0, false, later);
     knob(&mut controller, false, later);
     controller.update(later + OVERLAY_TIME - Duration::from_millis(1));
-    assert_ne!(overlay_in(&controller.take_outputs()), Some(&None), "still shown");
+    assert_ne!(overlay_in(&controller.take_outputs()), Some(None), "still shown");
     controller.update(later + OVERLAY_TIME);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
 }
 
 #[test]
@@ -836,7 +899,7 @@ fn no_overlay_without_the_board() {
     let (mut controller, now) = ready(three_soundboards());
     controller.set_board_connected(false, now);
     controller.update(now);
-    assert_eq!(overlay_in(&controller.take_outputs()), Some(&None));
+    assert_eq!(overlay_in(&controller.take_outputs()), Some(None));
     controller.voicemod_event(VoicemodEvent::ActiveSoundboard("b".into()), now);
     controller.update(now);
     assert_eq!(overlay_in(&controller.take_outputs()), None, "still hidden");
@@ -879,7 +942,9 @@ fn a_page_picked_in_the_window_shows_no_overlay() {
     let (mut controller, now) = ready_without_overlay(three_soundboards());
     controller.go_to_page(2);
     controller.update(now);
-    assert_eq!(controller.board_view(now).unwrap().page, 2);
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(view.page, 2);
+    assert_eq!(view.ids, ["a", "b", "c"], "for the window to find a page by its id");
     assert_eq!(overlay_in(&controller.take_outputs()), None);
 
     controller.go_to_page(3);
@@ -1031,7 +1096,7 @@ fn own_page(id: &str, pads: Vec<Option<CustomPad>>) -> CustomPage {
 
 #[test]
 fn the_users_own_pages_come_first_and_follow_the_editor() {
-    let (mut controller, _) = ready(three_soundboards());
+    let (mut controller, now) = ready(three_soundboards());
     controller.go_to_page(1);
     let page = own_page("mine", vec![custom_pad(action(Action::StopSounds))]);
     controller.set_custom_pages(vec![page]);
@@ -1039,12 +1104,175 @@ fn the_users_own_pages_come_first_and_follow_the_editor() {
 
     controller.go_to_page(0);
     assert_eq!(controller.page().unwrap().name, "MINE");
+    let view = controller.board_view(now).unwrap();
+    assert_eq!(
+        (view.ids[0].as_str(), view.own),
+        ("mine", 1),
+        "the window links it to the editor"
+    );
     controller.set_custom_pages(Vec::new());
     assert_eq!(
         controller.page().unwrap().name,
         "A",
         "a page deleted gives way to the first"
     );
+}
+
+#[test]
+fn a_pad_with_its_own_volume_starts_its_sound_there() {
+    let (mut controller, now) = ready(three_soundboards());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let quiet = CustomPad {
+        volume: Some(30),
+        ..custom_pad(Content::Sound {
+            id: "a1".into(),
+            name: String::new(),
+        })
+        .unwrap()
+    };
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(quiet)])]);
+    controller.go_to_page(0);
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(
+        requests(&outputs),
+        [
+            &play("a1", true),
+            &Request::SetSoundVolume {
+                id: "a1".into(),
+                volume: 0.3
+            }
+        ]
+    );
+}
+
+#[test]
+fn a_pads_own_volume_leaves_a_pause_alone() {
+    let song = Sound {
+        playback_mode: PlaybackMode::PlayPause,
+        ..sound("song")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![song])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let quiet = CustomPad {
+        volume: Some(30),
+        ..custom_pad(Content::Sound {
+            id: "song".into(),
+            name: String::new(),
+        })
+        .unwrap()
+    };
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(quiet)])]);
+    controller.go_to_page(0);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    let later = now + Duration::from_secs(1);
+    let outputs = press(&mut controller, 0, true, later);
+    assert_eq!(
+        requests(&outputs),
+        [&play("song", true)],
+        "paused, at the volume it had"
+    );
+}
+
+#[test]
+fn putting_the_volumes_back_drops_a_save_on_its_way() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::PlayingSound,
+            tap: PressAction::ResetVolumes,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.voicemod_event(VoicemodEvent::SoundVolumes(HashMap::from([("song".into(), 0.5)])), now);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    turn(&mut controller, -2, now);
+    tap(&mut controller, now + Duration::from_millis(200));
+    controller.take_outputs();
+    controller.update(now + Duration::from_secs(2));
+    let saved = requests(&controller.take_outputs())
+        .into_iter()
+        .any(|request| matches!(request, Request::SetSoundOptions { .. }));
+    assert!(!saved, "the volume put back is not saved");
+}
+
+#[test]
+fn the_overlay_and_reset_pads_do_what_the_knob_does() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let pads = [Action::Overlay, Action::ResetVolumes].map(|kind| custom_pad(action(kind)));
+    controller.set_custom_pages(vec![own_page("mine", pads.to_vec())]);
+    controller.go_to_page(0);
+    controller.update(now);
+    controller.take_outputs();
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert!(controller.overlay(now).is_some(), "shown for its time");
+    let flashed = now + Duration::from_millis(300);
+    controller.update(flashed);
+    assert_eq!(
+        controller.board_view(flashed).unwrap().pads[0].led,
+        Led::solid([255, 60, 160]),
+        "lit while shown"
+    );
+    press(&mut controller, 1, true, now);
+    assert_eq!(home_name(&controller, now), "VOLUMES RESET");
+}
+
+#[test]
+fn the_knob_on_everyones_soundboard_moves_both_channels() {
+    let (mut controller, now) = ready(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::SoundboardForEveryone,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 0.25, 1.0], now);
+    let outputs = turn(&mut controller, -2, now);
+    assert_eq!(
+        requests(&outputs),
+        [
+            &set_gain(Channel::SoundboardForOthers, gain(90)),
+            &set_gain(Channel::SoundboardForMe, gain(40))
+        ]
+    );
+    let Screen::Level { label, percent, .. } = controller.screen(now).0 else {
+        panic!("the level");
+    };
+    assert_eq!((label.as_str(), percent), ("SOUNDBOARD ALL", 90));
+}
+
+#[test]
+fn the_knob_saves_a_sounds_volume_once_it_rests() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::PlayingSound,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.voicemod_event(VoicemodEvent::SoundVolumes(HashMap::from([("song".into(), 0.5)])), now);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    controller.take_outputs();
+    turn(&mut controller, -2, now);
+    let rested = now + Duration::from_secs(1);
+    assert_eq!(controller.next_update().map(|at| at <= rested), Some(true));
+    controller.update(rested);
+    let saved = Request::SetSoundOptions {
+        id: "song".into(),
+        mode: None,
+        volume: Some(0.4),
+        stops_others: None,
+    };
+    assert!(requests(&controller.take_outputs()).contains(&&saved));
 }
 
 #[test]
@@ -1164,6 +1392,7 @@ fn macro_item(id: &str, steps: Vec<Step>) -> Macro {
         repeat: 1,
         restore: false,
         steps,
+        timeline: None,
     }
 }
 
@@ -1178,6 +1407,227 @@ fn on_a_pad(controller: &mut Controller, item: Macro) {
 fn requests_at(controller: &mut Controller, at: Instant) -> Vec<Request> {
     controller.update(at);
     requests(&controller.take_outputs()).into_iter().cloned().collect()
+}
+
+fn clip(id: &str, track: u8, at: u32) -> Clip {
+    Clip {
+        id: id.into(),
+        name: String::new(),
+        track,
+        at,
+        cut: None,
+        volume: Vec::new(),
+    }
+}
+
+#[test]
+fn a_macro_on_its_time_line_starts_each_sound_at_its_time() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a"), sound("b")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.playback.learn_length("a", Duration::from_secs(4));
+    controller.playback.learn_length("b", Duration::from_secs(1));
+    let timeline = Timeline {
+        clips: vec![
+            Clip {
+                cut: Some(2500),
+                volume: vec![Level { at: 0, percent: 0 }, Level { at: 1000, percent: 100 }],
+                ..clip("a", 0, 0)
+            },
+            clip("b", 1, 1000),
+        ],
+        actions: vec![TimedStep {
+            at: 500,
+            step: Step::Switch {
+                switch: Switch::MuteMic,
+                state: SwitchState::On,
+            },
+        }],
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let at = |millis| now + Duration::from_millis(millis);
+    let volume = |percent: f32| Request::SetSoundVolume {
+        id: "a".into(),
+        volume: percent / 100.0,
+    };
+
+    let outputs = press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert_eq!(
+        requests(&outputs),
+        [&play("a", true), &volume(0.0)],
+        "starts silent, by its curve"
+    );
+    assert_eq!(requests_at(&mut controller, at(100)), [volume(10.0)], "and rises");
+    assert_eq!(
+        requests_at(&mut controller, at(500)),
+        [Request::ToggleMuteMic, volume(50.0)]
+    );
+    assert_eq!(
+        requests_at(&mut controller, at(1000)),
+        [play("b", true), volume(100.0)],
+        "the second track's sound over the first"
+    );
+    assert_eq!(
+        controller
+            .macro_progress()
+            .map(|progress| (progress.step, progress.steps)),
+        Some((3, 3))
+    );
+    assert!(
+        requests_at(&mut controller, at(1100)).is_empty(),
+        "at its top, nothing more to send"
+    );
+    assert_eq!(
+        requests_at(&mut controller, at(2500)),
+        [Request::StopSound("a".into())],
+        "cut"
+    );
+    assert_eq!(
+        controller.macro_progress(),
+        None,
+        "over once its sounds are: b ended at 2 s, a was cut"
+    );
+}
+
+#[test]
+fn a_flat_volume_does_not_keep_the_controller_awake() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.playback.learn_length("a", Duration::from_secs(10));
+    let timeline = Timeline {
+        clips: vec![Clip {
+            volume: vec![Level { at: 0, percent: 50 }],
+            ..clip("a", 0, 0)
+        }],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    press(&mut controller, 0, true, now);
+    let later = now + Duration::from_millis(300);
+    controller.update(later);
+    assert!(
+        controller.next_update().is_none_or(|at| at > later),
+        "no wake-up in the past"
+    );
+}
+
+#[test]
+fn a_long_sound_keeps_its_macro_going_past_30_s() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    controller.voicemod_event(VoicemodEvent::SoundLengths(HashMap::from([("song".into(), 45.0)])), now);
+    controller.playback.learn_length("song", Duration::from_secs(45));
+    let timeline = Timeline {
+        clips: vec![clip("song", 0, 0)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    press(&mut controller, 0, true, now);
+    controller.update(now + Duration::from_secs(31));
+    assert!(controller.macro_progress().is_some(), "the song still plays");
+    controller.update(now + Duration::from_secs(46));
+    assert_eq!(controller.macro_progress(), None);
+}
+
+#[test]
+fn at_the_same_time_a_stop_comes_before_a_sound() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    let timeline = Timeline {
+        clips: vec![clip("a", 0, 0)],
+        actions: vec![TimedStep {
+            at: 0,
+            step: Step::StopSounds,
+        }],
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(
+        requests(&outputs).last(),
+        Some(&&play("a", true)),
+        "the sound after the stop"
+    );
+}
+
+#[test]
+fn a_time_line_without_the_bridge_plays_its_sounds_whole() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.playback.learn_length("a", Duration::from_secs(2));
+    let timeline = Timeline {
+        clips: vec![Clip {
+            cut: Some(500),
+            volume: vec![Level { at: 0, percent: 30 }],
+            ..clip("a", 0, 0)
+        }],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(requests(&outputs), [&play("a", true)], "no volume of its own");
+    assert!(
+        requests_at(&mut controller, now + Duration::from_millis(500)).is_empty(),
+        "no cut: it would stop every sound"
+    );
+}
+
+#[test]
+fn a_time_line_repeats_and_restarts_from_its_start() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.playback.learn_length("a", Duration::from_secs(1));
+    let timeline = Timeline {
+        clips: vec![clip("a", 0, 200)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            repeat: 2,
+            again: Again::Restart,
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert_eq!(requests_at(&mut controller, at(200)), [play("a", true)]);
+    controller.update(at(1300));
+    assert!(controller.macro_progress().is_some(), "a second round");
+    assert_eq!(
+        requests_at(&mut controller, at(1500)),
+        [play("a", true)],
+        "200 ms into it"
+    );
+    controller.update(at(2600));
+    assert_eq!(controller.macro_progress(), None, "two rounds");
 }
 
 #[test]
@@ -2590,4 +3040,138 @@ fn the_windows_knob_works_as_the_boards() {
     controller.window_knob_pressed(false, later);
     controller.update(later);
     assert!(controller.menu.is_some(), "a tap opens the menu");
+}
+
+fn wheel_on(hold_turn: TurnAction, tap: PressAction) -> (Controller, Instant) {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    controller.set_knob(
+        KnobSettings {
+            hold_turn,
+            tap,
+            ..KnobSettings::default()
+        },
+        now,
+    );
+    controller.set_wheel(crate::wheel::WheelSettings {
+        slices: vec![
+            PressAction::MuteMic,
+            PressAction::Page { page: "c".into() },
+            PressAction::StopSounds,
+        ],
+        ..crate::wheel::WheelSettings::default()
+    });
+    (controller, now)
+}
+
+fn wheel_in(outputs: &[Output]) -> Option<Option<crate::overlay::Wheel>> {
+    outputs.iter().rev().find_map(|output| match output {
+        Output::Overlay(Some(crate::overlay::Content::Wheel(wheel))) => Some(Some(wheel.clone())),
+        Output::Overlay(_) => Some(None),
+        _ => None,
+    })
+}
+
+#[test]
+fn turning_held_opens_the_wheel_and_letting_go_picks() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    let outputs = turn(&mut controller, 1, now);
+    let Some(Some(wheel)) = wheel_in(&outputs) else {
+        panic!("the wheel");
+    };
+    assert_eq!(wheel.selected, Some(0));
+    assert_eq!(
+        wheel.slices.iter().map(|slice| slice.name.as_str()).collect::<Vec<_>>(),
+        ["Mute mic", "C", "Stop sounds"]
+    );
+    assert_eq!(wheel.centre, "Mute mic");
+    turn(&mut controller, 1, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(controller.page, 2, "the page slice");
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(wheel_in(&outputs), Some(None), "closed");
+}
+
+#[test]
+fn letting_go_at_the_centre_does_nothing() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    let outputs = turn(&mut controller, -1, now);
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(None));
+    let outputs = knob(&mut controller, false, now);
+    assert!(requests(&outputs).is_empty());
+    assert_eq!(controller.page, 0);
+    assert!(controller.menu.is_none(), "no tap either");
+    assert!(overlay_in(&outputs).flatten().is_none(), "nor the page's names");
+}
+
+#[test]
+fn a_tap_opens_the_wheel_the_turns_pick_and_a_tap_does_it() {
+    let (mut controller, now) = wheel_on(TurnAction::Rows, PressAction::Wheel);
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(None));
+    assert!(matches!(controller.screen(now).0, Screen::Wheel { selected: None, .. }));
+    turn(&mut controller, -1, now);
+    let (screen, _) = controller.screen(now);
+    let Screen::Wheel { name, counter, .. } = screen else {
+        panic!("the wheel on the display");
+    };
+    assert_eq!((name.as_str(), counter.as_str()), ("Stop sounds", "3/3"));
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert_eq!(requests(&outputs), [&Request::StopAllSounds]);
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn a_wheel_opened_by_a_tap_closes_by_itself() {
+    let (mut controller, now) = wheel_on(TurnAction::Rows, PressAction::Wheel);
+    knob(&mut controller, true, now);
+    knob(&mut controller, false, now);
+    turn(&mut controller, 1, now + Duration::from_secs(5));
+    // Its time starts again at each turn
+    controller.update(now + Duration::from_secs(12));
+    assert!(controller.wheel.is_some());
+    controller.update(now + Duration::from_secs(13));
+    assert!(controller.wheel.is_none());
+    assert!(
+        controller
+            .take_outputs()
+            .iter()
+            .all(|output| !matches!(output, Output::Voicemod(_)))
+    );
+}
+
+#[test]
+fn the_settings_preview_takes_no_gesture() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    controller.preview_wheel(now);
+    controller.update(now);
+    let outputs = controller.take_outputs();
+    assert_eq!(wheel_in(&outputs).flatten().map(|wheel| wheel.selected), Some(Some(0)));
+    knob(&mut controller, true, now);
+    let outputs = knob(&mut controller, false, now);
+    assert!(requests(&outputs).is_empty(), "the first slice is not done");
+    assert!(controller.menu.is_some(), "the tap does what it is set to");
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn the_wheel_closes_when_voicemod_goes() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    controller.voicemod_event(VoicemodEvent::Status(VoicemodStatus::Unreachable), now);
+    assert!(controller.wheel.is_none());
+}
+
+#[test]
+fn the_wheel_goes_with_the_board() {
+    let (mut controller, now) = wheel_on(TurnAction::Wheel, PressAction::Menu);
+    knob(&mut controller, true, now);
+    turn(&mut controller, 1, now);
+    controller.set_board_connected(false, now);
+    assert!(controller.wheel.is_none());
 }

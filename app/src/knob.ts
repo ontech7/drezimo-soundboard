@@ -30,9 +30,11 @@ export const TURN_ACTIONS: TurnAction["action"][] = [
   "rows",
   "soundboardForOthers",
   "soundboardForMe",
+  "soundboardForEveryone",
   "playingSound",
   "microphone",
   "voice",
+  "wheel",
   "nothing",
 ];
 export const PRESS_ACTIONS: PressAction["action"][] = [
@@ -46,9 +48,21 @@ export const PRESS_ACTIONS: PressAction["action"][] = [
   "randomVoice",
   "macro",
   "page",
+  "overlay",
   "resetVolumes",
+  "wheel",
   "nothing",
 ];
+
+/** What a slice of the action wheel can do: what a press does, but the wheel itself */
+export const WHEEL_ACTIONS = PRESS_ACTIONS.filter((action) => action !== "wheel" && action !== "nothing");
+export const MIN_SLICES = 2;
+export const MAX_SLICES = 8;
+
+/** Whether one of the knob's gestures opens the action wheel */
+export function usesWheel(knob: KnobSettings): boolean {
+  return [knob.turn, knob.holdTurn, knob.tap, knob.doubleTap, knob.longPress].some((choice) => choice.action === "wheel");
+}
 
 /** What a gesture does, as its select names it */
 export function actionName(texts: Texts, gesture: keyof KnobSettings, knob: KnobSettings): string {
@@ -58,7 +72,14 @@ export function actionName(texts: Texts, gesture: keyof KnobSettings, knob: Knob
 }
 
 /** What goes through Voicemod's bridge (src-tauri/src/voicemod_bridge.rs) */
-export const BRIDGE_ACTIONS = new Set(["soundboardForOthers", "soundboardForMe", "playingSound", "microphone", "resetVolumes"]);
+export const BRIDGE_ACTIONS = new Set([
+  "soundboardForOthers",
+  "soundboardForMe",
+  "soundboardForEveryone",
+  "playingSound",
+  "microphone",
+  "resetVolumes",
+]);
 
 /** Why a press's macro or page does nothing: it was deleted since */
 export function goneTarget(

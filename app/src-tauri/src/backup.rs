@@ -7,6 +7,7 @@ use crate::macros::{self, Macro, MacrosState, Step};
 use crate::press_again::ByMode;
 use crate::protocol::DisplaySettings;
 use crate::settings::{self, Language, OverlaySettings, Settings, SettingsState};
+use crate::wheel::WheelSettings;
 use crate::{device, errors};
 use chrono::{DateTime, Local, SecondsFormat};
 use serde::de::DeserializeOwned;
@@ -39,7 +40,8 @@ struct Exported<'a> {
     display: Option<DisplaySettings>,
 }
 
-/// The settings that travel; the others belong to one PC: the tour seen, the notices answered, Diagnostics shown
+/// The settings that travel (the knob with its wheel among them); the others belong to one PC: the tour and the Macro guide seen, the notices answered,
+/// Diagnostics shown
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SharedSettings {
@@ -47,6 +49,7 @@ pub struct SharedSettings {
     pub led_brightness: u8,
     pub press_again_by_mode: ByMode,
     pub knob: KnobSettings,
+    pub wheel: WheelSettings,
     pub overlay: OverlaySettings,
 }
 
@@ -57,6 +60,7 @@ impl SharedSettings {
             led_brightness: settings.led_brightness,
             press_again_by_mode: settings.press_again_by_mode,
             knob: settings.knob.clone(),
+            wheel: settings.wheel.clone(),
             overlay: settings.overlay.clone(),
         }
     }
@@ -68,6 +72,7 @@ impl SharedSettings {
             led_brightness: self.led_brightness,
             press_again_by_mode: self.press_again_by_mode,
             knob: self.knob,
+            wheel: self.wheel,
             overlay: self.overlay,
             ..settings
         }
@@ -87,6 +92,7 @@ impl SharedSettings {
                 .unwrap_or_default()
                 .normalized(),
             knob: field(value, "knob").unwrap_or_default(),
+            wheel: field::<WheelSettings>(value, "wheel").unwrap_or_default().checked(),
             overlay: field::<OverlaySettings>(value, "overlay").unwrap_or_default().checked(),
         }
     }
@@ -285,6 +291,7 @@ pub fn merge(checked: &Checked, parts: Parts, current: (&Settings, &[CustomPage]
     let before = Ids::of(pages, macros);
     let cut = cut_missing(
         &mut new_settings.knob,
+        &mut new_settings.wheel,
         &mut new_pages,
         &mut new_macros,
         &before,
@@ -319,6 +326,7 @@ impl Ids {
 /// before; a soundboard of Voicemod's is on the PC or not, as for any page, so it stays.
 fn cut_missing(
     knob: &mut KnobSettings,
+    wheel: &mut WheelSettings,
     pages: &mut [CustomPage],
     macros: &mut [Macro],
     before: &Ids,
@@ -344,6 +352,14 @@ fn cut_missing(
             cut += 1;
         }
     }
+    let slices = wheel.slices.len();
+    wheel.slices.retain(|slice| match slice {
+        PressAction::Page { page } => !page_breaks(page, imported.settings),
+        PressAction::Macro { macro_id } => !macro_breaks(macro_id, imported.settings),
+        _ => true,
+    });
+    cut += slices - wheel.slices.len();
+    *wheel = wheel.clone().checked();
     for pad in pages.iter_mut().flat_map(|page| page.pads.iter_mut()) {
         let broken = match pad.as_ref().map(|pad| &pad.content) {
             Some(Content::Macro { id }) => macro_breaks(id, imported.pages),
@@ -360,6 +376,13 @@ fn cut_missing(
         item.steps
             .retain(|step| !matches!(step, Step::GoToPage { page } if page_breaks(page, imported.macros)));
         cut += steps - item.steps.len();
+        if let Some(timeline) = &mut item.timeline {
+            let actions = timeline.actions.len();
+            timeline.actions.retain(
+                |action| !matches!(&action.step, Step::GoToPage { page } if page_breaks(page, imported.macros)),
+            );
+            cut += actions - timeline.actions.len();
+        }
     }
     cut
 }
@@ -716,13 +739,28 @@ mod tests {
                 },
                 ..KnobSettings::default()
             },
+            wheel: WheelSettings {
+                slices: vec![
+                    PressAction::MuteMic,
+                    PressAction::Page {
+                        page: "drezimo-page-1".into(),
+                    },
+                ],
+                own_look: true,
+                ..WheelSettings::default()
+            },
             overlay: OverlaySettings {
                 anchor: Anchor::Top,
                 ..OverlaySettings::default()
             },
             diagnostics: true,
             tour_seen: true,
+            macro_guide_seen: true,
             mute_for_me_notice_seen: true,
+            shown_pages: crate::soundboard::ShownPages {
+                only_mine: true,
+                ..Default::default()
+            },
         }
     }
 
@@ -732,6 +770,7 @@ mod tests {
             label: String::new(),
             colour: None,
             press_again: None,
+            volume: None,
         })
     }
 
@@ -754,6 +793,7 @@ mod tests {
             repeat: 1,
             restore: false,
             steps,
+            timeline: None,
         }
     }
 
@@ -922,6 +962,29 @@ mod tests {
         );
         assert_eq!(merged.cut, 1);
         assert_eq!(merged.settings.language, current.language, "settings not imported");
+    }
+
+    #[test]
+    fn importing_pages_cuts_the_wheel_s_page_that_goes() {
+        let mut current = settings();
+        current.wheel.slices = vec![
+            PressAction::MuteMic,
+            PressAction::Page { page: "page-9".into() },
+            PressAction::StopSounds,
+        ];
+        let pages = [page("page-9", Vec::new())];
+        let content = json!({"drezimo": "configuration", "format": 1, "macros": [], "pages": []});
+        let checked = check(&file(content)).unwrap();
+        let parts = Parts {
+            pages: true,
+            ..Parts::default()
+        };
+        let merged = merge(&checked, parts, (&current, &pages, &[]));
+        assert_eq!(
+            merged.settings.wheel.slices,
+            [PressAction::MuteMic, PressAction::StopSounds]
+        );
+        assert_eq!(merged.cut, 1);
     }
 
     #[test]

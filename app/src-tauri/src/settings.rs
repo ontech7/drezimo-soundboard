@@ -4,6 +4,8 @@
 use crate::display::texts::{ENGLISH, ITALIAN, Texts};
 use crate::knob::KnobSettings;
 use crate::press_again::{ByMode, PressAgain};
+use crate::soundboard::ShownPages;
+use crate::wheel::WheelSettings;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -81,6 +83,8 @@ pub struct OverlaySettings {
     pub opacity: u8,
     /// How long it stays after a page change or the knob let go
     pub seconds: u8,
+    /// Shows all the time, until a knob gesture hides it
+    pub always: bool,
     /// In percent of the full size
     pub size: u8,
     pub screen: OverlayScreen,
@@ -110,6 +114,7 @@ impl Default for OverlaySettings {
             anchor: Anchor::default(),
             opacity: 100,
             seconds: 4,
+            always: false,
             size: 100,
             screen: OverlayScreen::default(),
         }
@@ -131,9 +136,15 @@ pub struct Settings {
     pub diagnostics: bool,
     /// The welcome tour was seen through or skipped: until then the app opens its window at start, the tour on top
     pub tour_seen: bool,
+    /// The Macro section's guide was seen: until then it opens with the section
+    pub macro_guide_seen: bool,
     /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
     pub mute_for_me_notice_seen: bool,
     pub knob: KnobSettings,
+    /// The action wheel's slices and look, for the knob's gestures that open it
+    pub wheel: WheelSettings,
+    /// Which of Voicemod's pages the board shows
+    pub shown_pages: ShownPages,
 }
 
 impl Default for Settings {
@@ -145,8 +156,11 @@ impl Default for Settings {
             overlay: OverlaySettings::default(),
             diagnostics: false,
             tour_seen: false,
+            macro_guide_seen: false,
             mute_for_me_notice_seen: false,
             knob: KnobSettings::default(),
+            wheel: WheelSettings::default(),
+            shown_pages: ShownPages::default(),
         }
     }
 }
@@ -157,6 +171,8 @@ impl Settings {
         self.led_brightness = self.led_brightness.clamp(10, 100);
         self.overlay = self.overlay.checked();
         self.knob = self.knob.checked();
+        self.wheel = self.wheel.checked();
+        self.shown_pages = self.shown_pages.checked();
         self
     }
 }

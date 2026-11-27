@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { type BoardView, goToPage, isLit, ledColor, type PadView, pressKey, pressPad } from "../boardView";
-import { ChevronLeft, ChevronRight, CloseIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
+import { ChevronLeft, ChevronRight, CloseIcon, EditIcon, HearMeIcon, MuteMeIcon, StopIcon, VoiceChangerIcon } from "../icons";
 import { PadPicture } from "../PadPicture";
 import { type Texts, useTexts } from "../i18n";
 import { PAD_COUNT, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
@@ -261,9 +261,10 @@ function Keys({ view }: { view: BoardView }) {
   );
 }
 
-function Pads({ view }: { view: BoardView }) {
+function Pads({ view, onEditPage }: { view: BoardView; onEditPage: (id: string) => void }) {
   const texts = useTexts();
   const count = view.pages.length;
+  const own = view.page < view.own;
   return (
     <section className="card soundboard">
       <div className="pages">
@@ -296,6 +297,17 @@ function Pads({ view }: { view: BoardView }) {
         <span className="muted counter">
           {view.page + 1}/{count}
         </span>
+        {own && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={texts.editPage}
+            title={texts.editPage}
+            onClick={() => onEditPage(view.ids[view.page])}
+          >
+            <EditIcon />
+          </button>
+        )}
         <Keys view={view} />
       </div>
       <div className="pads">
@@ -312,16 +324,18 @@ interface Props {
   settings: Settings;
   view: BoardView | null | undefined;
   onMakePage: () => void;
+  /** Opens a page of the user's own in the Pages editor */
+  onEditPage: (id: string) => void;
 }
 
-export function SoundboardPage({ status, settings, view, onMakePage }: Props) {
+export function SoundboardPage({ status, settings, view, onMakePage, onEditPage }: Props) {
   // The pads not known yet, or not there yet while the status already has a page: nothing, rather than a wrong state
   const settling = view === undefined || (view === null && status.voicemod.state === "connected" && status.page !== null);
   return (
     <>
       <WhatIsNew />
       {status.mutedPlay && <MutedForMe settings={settings} cause={status.mutedPlay} />}
-      {view ? <Pads view={view} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
+      {view ? <Pads view={view} onEditPage={onEditPage} /> : !settling && <Waiting status={status} onMakePage={onMakePage} />}
     </>
   );
 }

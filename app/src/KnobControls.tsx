@@ -2,12 +2,13 @@ import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Row, Section } from "./controls";
 import { pageTargets, useCustomPages, useLibrary } from "./customPages";
 import { useTexts } from "./i18n";
-import { BRIDGE_ACTIONS, goneTarget, PRESS_ACTIONS, TURN_ACTIONS } from "./knob";
+import { BRIDGE_ACTIONS, goneTarget, PRESS_ACTIONS, TURN_ACTIONS, usesWheel } from "./knob";
 import { useMacros } from "./macros";
 import { SearchSelect } from "./SearchSelect";
 import { type KnobSettings, type PressAction, type SettingsView, saveSettings } from "./settings";
 import type { Status } from "./status";
 import type { KnobGesture } from "./explain/story";
+import { WheelSection } from "./WheelSection";
 
 type TurnGesture = "turn" | "holdTurn";
 type PressGesture = "tap" | "doubleTap" | "longPress";
@@ -24,7 +25,7 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
   const [pages] = useCustomPages();
   const [macros] = useMacros();
   const [explained, setExplained] = useState<KnobGesture | null>(null);
-  const targets = pageTargets(pages ?? [], library, texts);
+  const targets = pageTargets(pages ?? [], library, settings.shownPages, texts);
 
   const save = <G extends keyof KnobSettings>(gesture: G, choice: KnobSettings[G]) =>
     saveSettings({ ...settings, knob: { ...knob, [gesture]: choice } });
@@ -108,8 +109,12 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
     return { control, gone };
   };
 
+  // A gesture that opens the wheel says how to pick on it
+  const wheelHint = (gesture: KnobGesture) =>
+    knob[gesture].action === "wheel" ? (gesture === "holdTurn" ? knobTexts.wheelHeld : knobTexts.wheelPress) : undefined;
+
   const turnRow = (gesture: TurnGesture) => (
-    <Row key={gesture} label={knobTexts.gestures[gesture]} onExplain={() => setExplained(gesture)}>
+    <Row key={gesture} label={knobTexts.gestures[gesture]} text={wheelHint(gesture)} onExplain={() => setExplained(gesture)}>
       {turnControl(gesture, false)}
     </Row>
   );
@@ -117,7 +122,12 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
   const pressRow = (gesture: PressGesture, hint?: string) => {
     const { control, gone } = pressControl(gesture, false);
     return (
-      <Row key={gesture} label={knobTexts.gestures[gesture]} text={gone ?? hint} onExplain={() => setExplained(gesture)}>
+      <Row
+        key={gesture}
+        label={knobTexts.gestures[gesture]}
+        text={gone ?? wheelHint(gesture) ?? hint}
+        onExplain={() => setExplained(gesture)}
+      >
         {control}
       </Row>
     );
@@ -135,8 +145,12 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
           {usesVolumes && !bridge && <p className="warning">{knobTexts.bridgeMissing}</p>}
           {usesVolumes && <p>{knobTexts.volumesNote}</p>}
           <p>{knobTexts.peekHint}</p>
+          {!usesWheel(knob) && <p>{knobTexts.wheelOff}</p>}
         </div>
       </Section>
+      {usesWheel(knob) && (
+        <WheelSection settings={settings} status={status} targets={targets} macros={macros} library={library} />
+      )}
       {explained && (
         <Suspense fallback={null}>
           <KnobExplainer

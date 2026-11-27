@@ -6,6 +6,7 @@ mod knob;
 mod overlay;
 mod running;
 mod screen;
+mod wheel;
 mod window;
 
 pub use running::MacroProgress;
@@ -18,13 +19,14 @@ use crate::display::texts::{ENGLISH, Texts};
 use crate::knob::{Gesture, Gestures, KnobSettings};
 use crate::macros::Macro;
 use crate::mixer::{Channel, Mixer};
-use crate::overlay::Overlay;
+use crate::overlay::Content as OverlayContent;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
-use crate::soundboard::{self, Action, Pad, Page, Sound, Soundboard, Voice};
+use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
+use crate::wheel::WheelSettings;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, RandomState};
@@ -61,6 +63,7 @@ const RED: [u8; 3] = [255, 42, 42];
 const WHITE: [u8; 3] = [120, 120, 130];
 const AMBER: [u8; 3] = [255, 140, 0];
 const CYAN: [u8; 3] = [0, 200, 220];
+const PINK: [u8; 3] = [255, 60, 160];
 /// The peeked pad and the row the overview shows
 const HIGHLIGHT: [u8; 3] = [200, 200, 210];
 
@@ -71,7 +74,7 @@ pub enum Output {
     /// A new picture for the display, whether or not a board shows it
     Display(Frame),
     /// What the PC overlay shows now, or None to hide it
-    Overlay(Option<Overlay>),
+    Overlay(Option<OverlayContent>),
     /// For the error list of the support report
     Log(String),
     /// What the knob just did, for the window's list of key presses
@@ -189,6 +192,14 @@ pub struct Controller {
     releases: Vec<(Instant, HeldSound)>,
     knob: Gestures,
     knob_settings: KnobSettings,
+    wheel_settings: WheelSettings,
+    /// The action wheel, while open
+    wheel: Option<wheel::WheelOpen>,
+    shown_pages: ShownPages,
+    /// The sounds' volumes the knob set, saved in Voicemod from then
+    sound_saves: HashMap<String, (f32, Instant)>,
+    /// Each sound's length from its file, as Voicemod told it
+    file_lengths: HashMap<String, Duration>,
     /// Turned, or held for a peek, since it went down: the overlay stays a little after it is let go
     knob_used: bool,
     row: Option<RowShown>,
@@ -218,8 +229,11 @@ pub struct Controller {
     overlay_until: Option<Instant>,
     /// How long it shows; None when turned off
     overlay_time: Option<Duration>,
+    /// The overlay shows all the time, unless the knob hid it
+    overlay_always: bool,
+    overlay_hidden: bool,
     /// What the overlay shows, as sent
-    overlay: Option<Overlay>,
+    overlay: Option<OverlayContent>,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -254,6 +268,11 @@ impl Default for Controller {
             releases: Vec::new(),
             knob: Gestures::default(),
             knob_settings: KnobSettings::default(),
+            wheel_settings: WheelSettings::default(),
+            wheel: None,
+            shown_pages: ShownPages::default(),
+            sound_saves: HashMap::new(),
+            file_lengths: HashMap::new(),
             knob_used: false,
             row: None,
             level: None,
@@ -272,6 +291,8 @@ impl Default for Controller {
             display: Animator::default(),
             overlay_until: None,
             overlay_time: Some(overlay::OVERLAY_TIME),
+            overlay_always: false,
+            overlay_hidden: false,
             overlay: None,
             next_update: None,
             outputs: Vec::new(),
@@ -313,6 +334,17 @@ impl Controller {
         }
     }
 
+    /// Which of Voicemod's pages the board shows besides the user's own.
+    pub fn set_shown_pages(&mut self, shown: ShownPages) {
+        if shown == self.shown_pages {
+            return;
+        }
+        self.shown_pages = shown;
+        if self.has_lists() {
+            self.rebuild_pages(false);
+        }
+    }
+
     /// What a pad does when pressed again, unless the user picked it for that pad.
     pub fn set_press_again(&mut self, by_mode: ByMode) {
         self.press_again = by_mode;
@@ -327,6 +359,7 @@ impl Controller {
         self.leds = [None; LED_COUNT];
         self.display.forget();
         self.knob.reset();
+        self.close_wheel();
         self.row = None;
         if connected {
             self.show_overlay(now);
@@ -361,6 +394,8 @@ impl Controller {
         match event {
             VoicemodEvent::Status(status) => {
                 self.voicemod = status;
+                // Its slices may point at pages that change, and none of them works meanwhile
+                self.close_wheel();
                 // The waiting key-ups can no longer reach what played, and the soundboards may change meanwhile:
                 // Voicemod sends them again once connected. What plays then is in the log, if followed.
                 self.playback.reset();
@@ -457,7 +492,14 @@ impl Controller {
                 self.follow_muted_play();
             }
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
+            VoicemodEvent::SoundChanged => self.request(Request::ReadSoundboards),
             // Only for the window (src/pictures.rs) and the status
+            VoicemodEvent::SoundLengths(lengths) => {
+                self.file_lengths = lengths
+                    .into_iter()
+                    .map(|(id, seconds)| (id, Duration::from_secs_f32(seconds)))
+                    .collect();
+            }
             VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
     }
@@ -489,12 +531,13 @@ impl Controller {
             self.refresh_leds(now);
         }
 
+        self.update_wheel(now);
         let (screen, screen_changes) = self.screen(now);
         if let Some(frame) = self.display.frame(&screen, now) {
             self.outputs.push(Output::Display(frame));
         }
         self.overlay_until = self.overlay_until.filter(|until| *until > now);
-        let overlay = self.overlay(now);
+        let overlay = self.overlay_content(now);
         if overlay != self.overlay {
             self.outputs.push(Output::Overlay(overlay.clone()));
             self.overlay = overlay;
@@ -513,6 +556,7 @@ impl Controller {
             .chain(screen_changes)
             .chain(self.display.next_frame())
             .chain(self.overlay_until)
+            .chain(self.wheel_until())
             .chain(self.macro_wake())
             .chain(self.knob_wake())
             .min();
@@ -563,6 +607,39 @@ impl Controller {
     /// Why a sound that played was not heard by the user, while it is still so.
     pub fn played_while_muted(&self) -> Option<MutedBy> {
         self.muted_play
+    }
+
+    /// The sounds' lengths and saved volumes from Voicemod, for the Macro editor's time line: at most once a minute,
+    /// as Voicemod asks its servers for them.
+    pub fn read_sound_lengths(&mut self, now: Instant) {
+        if self.single_stop && self.volumes_read.is_none_or(|read| now >= read + knob::READ_EVERY) {
+            self.volumes_read = Some(now);
+            self.request(Request::ReadSoundVolumes);
+        }
+    }
+
+    /// A sound's mode in Voicemod, changed for good as in Voicemod's own window: through the bridge only.
+    pub fn set_sound_mode(&mut self, id: &str, mode: PlaybackMode) {
+        if self.single_stop && mode != PlaybackMode::Unknown {
+            self.request(Request::SetSoundOptions {
+                id: id.to_string(),
+                mode: Some(mode),
+                volume: None,
+                stops_others: None,
+            });
+        }
+    }
+
+    /// Whether a sound stops every other one when it starts, changed for good in Voicemod: through the bridge only.
+    pub fn set_sound_stops_others(&mut self, id: &str, stops_others: bool) {
+        if self.single_stop {
+            self.request(Request::SetSoundOptions {
+                id: id.to_string(),
+                mode: None,
+                volume: None,
+                stops_others: Some(stops_others),
+            });
+        }
     }
 
     /// Brings the sounds back to the user. The soundboard's volume for them at zero: up to 100 % and on, through the
@@ -665,7 +742,13 @@ impl Controller {
             self.held.insert(pad, None);
             if self.voicemod == VoicemodStatus::Connected {
                 self.act(action, page.as_deref(), now);
-                if !matches!(action, Action::StopSounds | Action::RandomVoice | Action::GoToPage) {
+                let tells_itself = [
+                    Action::StopSounds,
+                    Action::RandomVoice,
+                    Action::GoToPage,
+                    Action::ResetVolumes,
+                ];
+                if !tells_itself.contains(&action) {
                     self.last = Some((name, now));
                 }
             }
@@ -705,8 +788,24 @@ impl Controller {
 
         let outcome = self.outcome_at(pad, &sound);
         let active = self.playback.state(&sound.id).is_some();
-        for &command in press_again::on_press(outcome.does, sound.playback_mode, active, self.single_stop) {
+        let commands = press_again::on_press(outcome.does, sound.playback_mode, active, self.single_stop);
+        for &command in commands {
             self.command(command, &sound, now);
+        }
+        // Only a press that starts the sound, or a copy of it: not one that pauses, resumes or stops it
+        let restarts = matches!(
+            sound.playback_mode,
+            PlaybackMode::PlayRestart | PlaybackMode::PlayOverlap
+        );
+        let starts = commands.last() == Some(&Command::KeyDown) && (!active || commands.len() > 1 || restarts);
+        let own_volume = self.pages.get(self.page).and_then(|page| page.volume(pad));
+        if let Some(percent) = own_volume.filter(|_| self.single_stop && starts) {
+            let volume = f32::from(percent) / 100.0;
+            self.request(Request::SetSoundVolume {
+                id: sound.id.clone(),
+                volume,
+            });
+            self.mixer.play_at(&sound.id, volume);
         }
         self.sound_started();
         self.last = Some((sound.name.clone(), now));
@@ -795,6 +894,8 @@ impl Controller {
                     self.set_page(target, now);
                 }
             }
+            Action::Overlay => self.overlay_gesture(now),
+            Action::ResetVolumes => self.reset_volumes(now),
         }
     }
 
@@ -902,7 +1003,14 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
-        self.pages = soundboard::pages(&self.soundboards, &self.voices, &self.custom, &self.macros, self.texts);
+        self.pages = soundboard::pages(
+            &self.soundboards,
+            &self.voices,
+            &self.custom,
+            &self.macros,
+            &self.shown_pages,
+            self.texts,
+        );
         self.page = current
             .and_then(|id| self.find_page(&id))
             .unwrap_or_else(|| self.first_page());
@@ -1073,7 +1181,7 @@ impl Controller {
             if usize::from(pad) / COLUMNS == row {
                 return Led::solid(HIGHLIGHT);
             }
-            let led = self.content_led(pad);
+            let led = self.content_led(pad, now);
             let dimmed = led.color.map(|level| (f32::from(level) * 0.2).round() as u8);
             return Led { color: dimmed, ..led };
         }
@@ -1096,12 +1204,12 @@ impl Controller {
         if self.flashes.contains_key(&pad) {
             return Led::solid(YELLOW);
         }
-        self.content_led(pad)
+        self.content_led(pad, now)
     }
 
     /// A sound blue, green while it plays; a voice purple, green while loaded; an action in its own colour, dim while
     /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
-    fn content_led(&self, pad: u8) -> Led {
+    fn content_led(&self, pad: u8, now: Instant) -> Led {
         let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
         let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
         match self.pad_at(pad) {
@@ -1141,6 +1249,8 @@ impl Controller {
                     Action::GoToPage => page
                         .as_ref()
                         .is_some_and(|id| self.pages.iter().any(|page| page.soundboard_id == *id)),
+                    Action::Overlay => self.overlay_shown(now),
+                    Action::ResetVolumes => self.single_stop,
                 };
                 let color = colour.unwrap_or(action_colour(*action));
                 Led::solid(if on { color } else { color.map(|level| level / 4) })
@@ -1169,7 +1279,8 @@ fn action_colour(action: Action) -> [u8; 3] {
         Action::RandomVoice => PURPLE,
         Action::MuteForMe => AMBER,
         Action::Background => CYAN,
-        Action::GoToPage => WHITE,
+        Action::GoToPage | Action::ResetVolumes => WHITE,
+        Action::Overlay => PINK,
     }
 }
 
