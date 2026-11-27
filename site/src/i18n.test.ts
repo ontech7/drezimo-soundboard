@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickLanguage } from "./i18n";
+import { isLanguage, pickLanguage } from "./i18n";
 
 describe("pickLanguage", () => {
   it.each([
@@ -10,5 +10,17 @@ describe("pickLanguage", () => {
     [[], "en"],
   ])("%j → %s", (languages, expected) => {
     expect(pickLanguage(languages)).toBe(expected);
+  });
+});
+
+describe("isLanguage", () => {
+  it.each([
+    ["it", true],
+    ["en", true],
+    ["IT", false],
+    ["de", false],
+    [null, false],
+  ])("%s → %s", (value, expected) => {
+    expect(isLanguage(value)).toBe(expected);
   });
 });

@@ -1,6 +1,10 @@
 export type Language = "en" | "it";
 
 const en = {
+  metaDescription: "Drezimo Soundboard: 36 pads, 6 function keys, a knob and a display for Voicemod.",
+  sceneLabel: "The Drezimo in 3D",
+  caseAlt: "The Drezimo's enclosure",
+  languageLabel: "Language",
   released: "Version {version} is out",
   tagline: "42 keys that light up, a knob and a display. Voicemod, finally at your fingertips.",
   download: "Download for Windows",
@@ -105,6 +109,10 @@ const en = {
 export type Key = keyof typeof en;
 
 const it: Record<Key, string> = {
+  metaDescription: "Drezimo Soundboard: 36 pad, 6 tasti funzione, una manopola e un display per Voicemod.",
+  sceneLabel: "Il Drezimo in 3D",
+  caseAlt: "Il case del Drezimo",
+  languageLabel: "Lingua",
   released: "È uscita la versione {version}",
   tagline: "42 tasti che si accendono, una manopola e un display. Voicemod, finalmente sotto le dita.",
   download: "Scarica per Windows",
@@ -216,15 +224,73 @@ export function pickLanguage(languages: readonly string[]): Language {
   return "en";
 }
 
-export const language = pickLanguage(typeof navigator === "undefined" ? [] : navigator.languages);
-const texts = language === "it" ? it : en;
+const STORED = "drezimo-language";
+
+export function isLanguage(value: string | null | undefined): value is Language {
+  return value === "en" || value === "it";
+}
+
+/** A link's ?lang= first, then the one picked here before, then the browser's */
+function startLanguage(): Language {
+  if (typeof location === "undefined") return "en";
+  const linked = new URLSearchParams(location.search).get("lang");
+  if (isLanguage(linked)) return linked;
+  try {
+    const stored = localStorage.getItem(STORED);
+    if (isLanguage(stored)) return stored;
+  } catch {
+    // Storage blocked: the browser's language
+  }
+  return pickLanguage(navigator.languages);
+}
+
+let current: Language = startLanguage();
+const listeners: (() => void)[] = [];
+
+export function language(): Language {
+  return current;
+}
+
+/** What is drawn from the texts in code draws again */
+export function onLanguage(listener: () => void) {
+  listeners.push(listener);
+}
+
+/** Picked on the page: kept for the next visit, and in the address, so a link opens in it */
+export function setLanguage(next: Language) {
+  if (next === current) return;
+  current = next;
+  try {
+    localStorage.setItem(STORED, next);
+  } catch {
+    // Not kept: the address still says it
+  }
+  const url = new URL(location.href);
+  url.searchParams.set("lang", next);
+  history.replaceState(history.state, "", url);
+  applyTexts();
+  for (const listener of listeners) listener();
+}
 
 export function t(key: Key, values: Record<string, string> = {}): string {
+  const texts = current === "it" ? it : en;
   return texts[key].replace(/\{(\w+)\}/g, (_, name: string) => values[name] ?? "");
 }
 
+/** Every text the markup holds: content, labels and the pictures' descriptions, and the page's own language */
 export function applyTexts(root: ParentNode = document) {
   for (const element of root.querySelectorAll<HTMLElement>("[data-t]")) {
     element.textContent = t(element.dataset.t as Key);
+  }
+  for (const element of root.querySelectorAll<HTMLElement>("[data-t-label]")) {
+    element.setAttribute("aria-label", t(element.dataset.tLabel as Key));
+  }
+  for (const element of root.querySelectorAll<HTMLImageElement>("[data-t-alt]")) {
+    element.alt = t(element.dataset.tAlt as Key);
+  }
+  document.documentElement.lang = current;
+  document.querySelector("meta[name=description]")?.setAttribute("content", t("metaDescription"));
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-language]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.language === current));
   }
 }
