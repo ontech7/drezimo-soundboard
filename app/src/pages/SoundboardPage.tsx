@@ -8,6 +8,7 @@ import { PAD_COUNT, type Rgb, UNAVAILABLE_COLOUR } from "../customPages";
 import { MiniBoard } from "../MiniBoard";
 import { saveSettings, type Settings } from "../settings";
 import type { Status } from "../status";
+import { hasChangelog } from "../news/changelog";
 import { useNews } from "../updates";
 import { SearchSelect } from "../SearchSelect";
 import { holdWithShift } from "../VirtualKnob";
@@ -57,7 +58,8 @@ export function SoundboardTitle({ status, playable }: { status: Status; playable
 function WhatIsNew() {
   const texts = useTexts();
   const [news, dismiss] = useNews();
-  if (!news) return null;
+  // A version with news of its own shows them in a dialog instead (news/WhatsNew.tsx)
+  if (!news || hasChangelog(news.version)) return null;
   return (
     <div className="notice news">
       <span className="dot ok" />

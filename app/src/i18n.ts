@@ -339,6 +339,13 @@ const ENGLISH = {
     installNow: "Restart and update",
   },
   updatedTo: (version: string) => `Updated to version ${version}`,
+  news: {
+    updatedTo: (version: string) => `Updated to ${version}`,
+    done: "Got it",
+    label: "What's new",
+    settingText: "This version's news, as shown after the update.",
+    open: "See again",
+  },
   showDiagnostics: "Show diagnostics",
   diagnosticsText: "A page of technical details, to help solve a problem.",
   backup: {
@@ -1201,6 +1208,13 @@ const ITALIAN: Texts = {
     installNow: "Riavvia e aggiorna",
   },
   updatedTo: (version: string) => `Aggiornata alla versione ${version}`,
+  news: {
+    updatedTo: (version: string) => `Aggiornata alla ${version}`,
+    done: "Ho capito",
+    label: "Novità",
+    settingText: "Le novità di questa versione, come dopo l'aggiornamento.",
+    open: "Rivedi",
+  },
   showDiagnostics: "Mostra la diagnostica",
   diagnosticsText: "Una pagina di dettagli tecnici, utile per risolvere un problema.",
   backup: {

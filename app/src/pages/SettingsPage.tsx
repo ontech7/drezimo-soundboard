@@ -4,6 +4,7 @@ import { BackupCard } from "../BackupCard";
 import { Row, Section, Segmented, Toggle } from "../controls";
 import { type Texts, useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
+import { changelog } from "../news/changelog";
 import type { Status } from "../status";
 import { type UpdateState, useUpdateState } from "../updates";
 
@@ -84,9 +85,11 @@ interface Props {
   settings: SettingsView;
   status: Status;
   onTour: () => void;
+  /** Shows this version's news again, for a version that has some */
+  onNews: (version: string) => void;
 }
 
-export function SettingsPage({ settings, status, onTour }: Props) {
+export function SettingsPage({ settings, status, onTour, onNews }: Props) {
   const texts = useTexts();
   // Undefined until known; null where the app cannot change it
   const [startAtLogin, setStartAtLogin] = useState<boolean | null>();
@@ -142,6 +145,13 @@ export function SettingsPage({ settings, status, onTour }: Props) {
           <Row label={texts.version}>
             <span className="value">{about.version}</span>
           </Row>
+          {changelog(about.version, settings.shownLanguage) && (
+            <Row label={texts.news.label} text={texts.news.settingText}>
+              <button type="button" className="button secondary" onClick={() => onNews(about.version)}>
+                {texts.news.open}
+              </button>
+            </Row>
+          )}
           <Row label={texts.boardFirmware}>
             <span className="value">{about.firmware}</span>
           </Row>
