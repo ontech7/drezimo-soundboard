@@ -3231,6 +3231,7 @@ fn override_of(id: &str, on: bool) -> Request {
         stops_others: Some(on),
         mutes_others: None,
         loops: (id == "song").then_some(on),
+        mode: None,
         restore: on,
     }
 }
@@ -3333,6 +3334,7 @@ fn options_left_changed_go_back_once_the_bridge_is_there() {
         stops_others: true,
         mutes_others: false,
         loops: true,
+        mode: None,
     };
     controller.left_overrides([("song".to_string(), own)].into());
     assert_eq!(requests_at(&mut controller, now), [], "not without the bridge");
@@ -3429,6 +3431,48 @@ fn options_put_back_are_kept_until_voicemod_confirms_them() {
     );
 }
 
+#[test]
+fn a_sound_the_time_line_plays_twice_overlaps_itself() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("trombone")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let timeline = Timeline {
+        clips: vec![clip("trombone", 0, 0), clip("trombone", 1, 1000)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    controller.take_outputs();
+    let at = |millis| now + Duration::from_millis(millis);
+    let mode = |mode| Request::OverrideSoundOptions {
+        id: "trombone".into(),
+        stops_others: None,
+        mutes_others: None,
+        loops: None,
+        mode: Some(mode),
+        restore: mode != PlaybackMode::PlayOverlap,
+    };
+    let outputs = press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert!(requests(&outputs).contains(&&mode(PlaybackMode::PlayOverlap)));
+    applied(&mut controller, "trombone", at(100));
+    assert_eq!(
+        requests_at(&mut controller, at(1000)),
+        [play("trombone", true)],
+        "played again over the first"
+    );
+
+    let outputs = press(&mut controller, 0, true, at(1500));
+    assert!(
+        requests(&outputs).contains(&&mode(PlaybackMode::PlayRestart)),
+        "its own mode back"
+    );
+}
+
 fn refused(controller: &mut Controller, sound: &str, now: Instant) {
     let event = VoicemodEvent::OptionsApplied {
         sound: sound.into(),
@@ -3470,6 +3514,7 @@ fn options_of_a_sound_gone_from_voicemod_are_given_up() {
         stops_others: true,
         mutes_others: false,
         loops: true,
+        mode: None,
     };
     controller.left_overrides([("song".to_string(), own)].into());
     bridge(&mut controller, [1.0, 1.0, 1.0], now);
@@ -3560,6 +3605,7 @@ fn options_put_back_hold_only_until_a_read_shows_them() {
         stops_others: true,
         mutes_others: false,
         loops: true,
+        mode: None,
     };
     controller.left_overrides([("song".to_string(), own)].into());
     bridge(&mut controller, [1.0, 1.0, 1.0], now);

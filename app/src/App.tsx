@@ -16,7 +16,7 @@ import { VirtualKnob } from "./VirtualKnob";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
 import { useStatus } from "./status";
-import { changelog, hasChangelog } from "./news/changelog";
+import { newsOfLine, newsSince } from "./news/changelog";
 import { WhatsNew } from "./news/WhatsNew";
 import { Tour } from "./tour/Tour";
 import { useNews } from "./updates";
@@ -52,8 +52,11 @@ export default function App() {
   }, [ready]);
 
   const tourShown = settings !== null && (tour ?? !settings.tourSeen);
-  const newsVersion = newsAgain ?? (news && hasChangelog(news.version) ? news.version : null);
-  const newsShown = newsVersion && !tourShown ? changelog(newsVersion, language) : null;
+  // After an update, the news of every version since those last shown
+  const fresh = news && settings ? newsSince(settings.newsSeen, news.version, language) : null;
+  const newsVersion = newsAgain ?? (fresh && news ? news.version : null);
+  let newsShown = null;
+  if (newsVersion && !tourShown) newsShown = newsAgain ? newsOfLine(newsAgain, language) : fresh;
 
   // The hint waits for the news to close, so it is seen
   const hintShown = hint && !newsShown;
@@ -172,10 +175,13 @@ export default function App() {
       {newsVersion && newsShown && (
         <WhatsNew
           version={newsVersion}
-          changelog={newsShown}
+          news={newsShown}
           onClose={() => {
+            if (!newsAgain && news) {
+              dismissNews();
+              saveSettings({ ...settings, newsSeen: news.version });
+            }
             setNewsAgain(null);
-            if (news) dismissNews();
           }}
         />
       )}

@@ -89,6 +89,8 @@ pub enum Request {
         /// Whether it mutes the other sounds while it plays
         mutes_others: Option<bool>,
         loops: Option<bool>,
+        /// What a press does while it plays
+        mode: Option<PlaybackMode>,
         /// Putting them back as they were, which can wait for a fresh read of the options
         restore: bool,
     },
@@ -392,9 +394,10 @@ async fn exchange(
                         stops_others,
                         mutes_others,
                         loops,
+                        mode,
                         restore,
                     } => {
-                        let mut changes = sound_options(None, None, *stops_others);
+                        let mut changes = sound_options(*mode, None, *stops_others);
                         if let Some(mutes_others) = mutes_others {
                             changes.insert("muteOtherSounds".into(), (*mutes_others).into());
                         }

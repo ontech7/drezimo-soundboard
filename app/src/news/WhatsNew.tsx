@@ -2,10 +2,10 @@ import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } f
 import { useTexts } from "../i18n";
 import { CheckIcon, ChevronLeft, ChevronRight } from "../icons";
 import { Stage } from "../tour/Tour";
-import type { Changelog, Scene, SceneWords } from "./changelog";
+import type { News, Scene, SceneWords } from "./changelog";
 
 /** What is new in the version just installed, page by page as the tour, the fixes last */
-export function WhatsNew({ version, changelog, onClose }: { version: string; changelog: Changelog; onClose: () => void }) {
+export function WhatsNew({ version, news: changelog, onClose }: { version: string; news: News; onClose: () => void }) {
   const texts = useTexts();
   const words = texts.news;
   const pages = changelog.highlights.length + (changelog.fixes.length > 0 ? 1 : 0);
@@ -76,7 +76,7 @@ export function WhatsNew({ version, changelog, onClose }: { version: string; cha
       {highlight ? (
         <Stage>
           <div key={page} className="tour-scene">
-            <SceneOf scene={highlight.scene} words={changelog.words} />
+            <SceneOf scene={highlight.scene} words={highlight.words} />
           </div>
         </Stage>
       ) : (
@@ -88,7 +88,7 @@ export function WhatsNew({ version, changelog, onClose }: { version: string; cha
 
       <div className="tour-text" aria-live="polite">
         <p className="tour-counter">{texts.tour.counter(page + 1, pages)}</p>
-        <h2 id="news-title">{highlight ? highlight.title : changelog.fixesTitle}</h2>
+        <h2 id="news-title">{highlight ? highlight.title : changelog.highlights.length > 0 ? words.andFixes : words.fixes}</h2>
         {highlight && <p className="muted">{highlight.text}</p>}
       </div>
 
@@ -293,7 +293,7 @@ function PagesNoGaps({ words }: { words: SceneWords }) {
   );
 }
 
-function Fixes({ fixes }: { fixes: Changelog["fixes"] }) {
+function Fixes({ fixes }: { fixes: News["fixes"] }) {
   return (
     <ul className="news-fixes">
       {fixes.map((fix, i) => (

@@ -11,12 +11,17 @@ export interface Highlight {
 }
 
 /** What is new in a version, as the window tells it once the app updated itself */
-export interface Changelog {
+interface Changelog {
   highlights: Highlight[];
-  fixesTitle: string;
   fixes: ReactNode[];
-  /** The words drawn in the scenes */
-  words: SceneWords;
+  /** The words drawn in its scenes, for a version with highlights */
+  words?: SceneWords;
+}
+
+/** The news of one version or more, the newest first, as the dialog shows them */
+export interface News {
+  highlights: (Highlight & { words: SceneWords })[];
+  fixes: ReactNode[];
 }
 
 export interface SceneWords {
@@ -100,7 +105,6 @@ const V1_2_0: Record<Shown, Changelog> = {
         ),
       },
     ],
-    fixesTitle: "And these fixes",
     fixes: [
       <>
         A volume point at <strong>0 %</strong> on a clip can be grabbed again.
@@ -195,7 +199,6 @@ const V1_2_0: Record<Shown, Changelog> = {
         ),
       },
     ],
-    fixesTitle: "E queste correzioni",
     fixes: [
       <>
         Un punto del volume a <strong>0 %</strong> su una clip si può di nuovo afferrare.
@@ -232,13 +235,62 @@ const V1_2_0: Record<Shown, Changelog> = {
   },
 };
 
+const V1_2_1: Record<Shown, Changelog> = {
+  english: {
+    highlights: [],
+    fixes: [
+      <>
+        A sound on more than one clip of a macro now <strong>plays over itself</strong>: its second play no longer stops the
+        first, whatever its mode in Voicemod, which comes back after the macro.
+      </>,
+    ],
+  },
+  italian: {
+    highlights: [],
+    fixes: [
+      <>
+        Un suono su più clip di una macro ora <strong>si sovrappone a sé stesso</strong>: la seconda volta non ferma più la
+        prima, qualunque sia la sua modalità in Voicemod, che torna com'era dopo la macro.
+      </>,
+    ],
+  },
+};
+
 /** By version, in each language the window speaks: a version without news shows only the line of its release */
-const CHANGELOGS: Record<string, Record<Shown, Changelog>> = { "1.2.0": V1_2_0 };
+const CHANGELOGS: Record<string, Record<Shown, Changelog>> = { "1.2.0": V1_2_0, "1.2.1": V1_2_1 };
 
 export function hasChangelog(version: string): boolean {
   return version in CHANGELOGS;
 }
 
-export function changelog(version: string, language: Shown): Changelog | null {
-  return CHANGELOGS[version]?.[language] ?? null;
+/** Newer than the other, by their numbers */
+function newer(version: string, than: string): boolean {
+  const parts = (text: string) => text.split(".").map(Number);
+  const [a, b] = [parts(version), parts(than)];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return false;
+}
+
+/**
+ * The news of the versions after `seen` up to `version`, the newest first: an app that skipped a version tells its news
+ * too. Without `seen`, those of every version.
+ */
+export function newsSince(seen: string | null, version: string, language: Shown): News | null {
+  const versions = Object.keys(CHANGELOGS)
+    .filter((other) => !newer(other, version) && (seen === null || newer(other, seen)))
+    .sort((a, b) => (newer(a, b) ? -1 : 1));
+  const logs = versions.map((other) => CHANGELOGS[other][language]);
+  const news: News = {
+    highlights: logs.flatMap((log) => (log.words ? log.highlights.map((item) => ({ ...item, words: log.words! })) : [])),
+    fixes: logs.flatMap((log) => log.fixes),
+  };
+  return news.highlights.length + news.fixes.length > 0 ? news : null;
+}
+
+/** The news of this version and of the others with the same first two numbers, as Settings shows them again */
+export function newsOfLine(version: string, language: Shown): News | null {
+  const [major, minor] = version.split(".");
+  return newsSince(`${major}.${Number(minor) - 1}.999`, version, language);
 }
