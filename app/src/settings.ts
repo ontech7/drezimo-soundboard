@@ -21,6 +21,8 @@ export interface OverlaySettings {
   /** In percent */
   opacity: number;
   seconds: number;
+  /** Shows all the time, until a knob gesture hides it */
+  always: boolean;
   /** In percent of the full size */
   size: number;
   screen: OverlayScreen;
@@ -38,14 +40,54 @@ export interface Settings {
   diagnostics: boolean;
   /** The welcome tour was seen through or skipped */
   tourSeen: boolean;
+  /** The Macro section's guide was seen */
+  macroGuideSeen: boolean;
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
   knob: KnobSettings;
+  wheel: WheelSettings;
+  shownPages: ShownPages;
+}
+
+/** The action wheel, for the knob's gestures that open it (src-tauri/src/wheel.rs) */
+export interface WheelSettings {
+  /** Clockwise from the top, 2 to 8 */
+  slices: PressAction[];
+  /** Its own place, size and opacity; otherwise the overlay's */
+  ownLook: boolean;
+  anchor: Anchor;
+  /** In percent */
+  size: number;
+  opacity: number;
+}
+
+/** Which of Voicemod's pages the board shows after the user's own (src-tauri/src/soundboard.rs) */
+export interface ShownPages {
+  favourites: boolean;
+  voices: boolean;
+  /** Only the soundboards the user made in Voicemod */
+  onlyMine: boolean;
+  /** Soundboards left out, by id */
+  hidden: string[];
+}
+
+export function showsSoundboard(shown: ShownPages, soundboard: { id: string; custom: boolean }): boolean {
+  return (soundboard.custom || !shown.onlyMine) && !shown.hidden.includes(soundboard.id);
 }
 
 /** What turning the knob does, plain or held down (src-tauri/src/knob.rs) */
 export interface TurnAction {
-  action: "page" | "rows" | "soundboardForOthers" | "soundboardForMe" | "playingSound" | "microphone" | "voice" | "nothing";
+  action:
+    | "page"
+    | "rows"
+    | "soundboardForOthers"
+    | "soundboardForMe"
+    | "soundboardForEveryone"
+    | "playingSound"
+    | "microphone"
+    | "voice"
+    | "wheel"
+    | "nothing";
 }
 
 /** What a tap, a double tap or a long press does */
@@ -59,8 +101,10 @@ export type PressAction =
         | "voiceChanger"
         | "hearMyself"
         | "background"
+        | "overlay"
         | "randomVoice"
         | "resetVolumes"
+        | "wheel"
         | "nothing";
     }
   | { action: "macro"; macroId: string }
@@ -113,8 +157,22 @@ export function useSettings(): SettingsView | null {
 }
 
 export function saveSettings(view: Settings): void {
-  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob } = view;
-  const settings = { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, muteForMeNoticeSeen, knob };
+  // Only the settings themselves: the view's own fields stay out
+  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, macroGuideSeen } = view;
+  const { muteForMeNoticeSeen, knob, wheel, shownPages } = view;
+  const settings = {
+    language,
+    ledBrightness,
+    pressAgainByMode,
+    overlay,
+    diagnostics,
+    tourSeen,
+    macroGuideSeen,
+    muteForMeNoticeSeen,
+    knob,
+    wheel,
+    shownPages,
+  };
   invoke("set_settings", { settings }).catch((error) => console.error("cannot save the settings", error));
 }
 

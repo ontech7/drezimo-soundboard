@@ -4,11 +4,20 @@ import { useEffect, useState } from "react";
 import type { Texts } from "./i18n";
 import type { PlaybackMode } from "./pressAgain";
 import { useSaved } from "./saved";
-import type { PressAgain } from "./settings";
+import { type PressAgain, type ShownPages, showsSoundboard } from "./settings";
 
 /** What an action pad does (src-tauri/src/soundboard.rs) */
 export type Action =
-  "stopSounds" | "muteMic" | "voiceChanger" | "randomVoice" | "hearMyself" | "muteForMe" | "background" | "goToPage";
+  | "stopSounds"
+  | "muteMic"
+  | "voiceChanger"
+  | "randomVoice"
+  | "hearMyself"
+  | "muteForMe"
+  | "background"
+  | "goToPage"
+  | "overlay"
+  | "resetVolumes";
 
 export type Content =
   | { kind: "sound"; id: string; name: string }
@@ -25,6 +34,8 @@ export type CustomPad = Content & {
   colour: Rgb | null;
   /** A sound's, instead of the one set on the Drezimo page */
   pressAgain?: PressAgain | null;
+  /** A sound's volume when started from this pad, in percent: Voicemod's own when none */
+  volume?: number | null;
 };
 
 /** A page of the user's own (src-tauri/src/custom_pages.rs) */
@@ -45,11 +56,14 @@ export interface LibraryItem {
   length: number | null;
   /** A sound's mode in Voicemod */
   mode: PlaybackMode | null;
+  /** A sound that stops every other one when it starts, as Voicemod is set */
+  stopsOthers: boolean;
 }
 
 /** Voicemod's sounds and voices, as it last sent them */
 export interface Library {
-  soundboards: { id: string; name: string; sounds: LibraryItem[] }[];
+  /** `custom`: made by the user in Voicemod */
+  soundboards: { id: string; name: string; custom: boolean; sounds: LibraryItem[] }[];
   voices: LibraryItem[];
   /** Whether the board has a Favourites page */
   favourites: boolean;
@@ -69,6 +83,8 @@ export const ACTION_COLOURS: Record<Action, Rgb> = {
   muteForMe: [255, 140, 0],
   background: [0, 200, 220],
   goToPage: [120, 120, 130],
+  overlay: [255, 60, 160],
+  resetVolumes: [120, 120, 130],
 };
 
 export const MACRO_COLOUR: Rgb = [255, 140, 0];
@@ -103,6 +119,8 @@ export const ACTIONS: Action[] = [
   "muteForMe",
   "background",
   "goToPage",
+  "overlay",
+  "resetVolumes",
 ];
 
 // The Favourites and Voices pages' ids (src-tauri/src/soundboard.rs)
@@ -115,12 +133,15 @@ export interface PageTarget {
 }
 
 /** The pages a pad or the knob can open, as the board has them */
-export function pageTargets(pages: CustomPage[], library: Library | null, texts: Texts): PageTarget[] {
+export function pageTargets(pages: CustomPage[], library: Library | null, shown: ShownPages, texts: Texts): PageTarget[] {
+  const voices = shown.voices && library?.voices.some((voice) => voice.enabled);
   return [
     ...pages.map((page) => ({ id: page.id, name: page.name })),
-    ...(library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
-    ...(library?.voices.some((voice) => voice.enabled) ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
-    ...(library?.soundboards ?? []).map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
+    ...(shown.favourites && library?.favourites ? [{ id: FAVOURITES_ID, name: texts.favouritesPage }] : []),
+    ...(voices ? [{ id: VOICES_ID, name: texts.voicesPage }] : []),
+    ...(library?.soundboards ?? [])
+      .filter((soundboard) => showsSoundboard(shown, soundboard))
+      .map((soundboard) => ({ id: soundboard.id, name: soundboard.name })),
   ];
 }
 

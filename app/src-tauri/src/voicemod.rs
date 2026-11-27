@@ -2,7 +2,7 @@
 //! Voicemod app, that plays the sounds and reports the soundboards and Voicemod's switches.
 
 use crate::mixer::Channel;
-use crate::soundboard::{Soundboard, Voice};
+use crate::soundboard::{PlaybackMode, Soundboard, Voice};
 use crate::voicemod_bridge::{Bridge, BridgeEvent};
 use base64::prelude::{BASE64_STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
@@ -71,6 +71,16 @@ pub enum Request {
     },
     /// The sounds' saved volumes, through the bridge only: Voicemod asks its servers for them
     ReadSoundVolumes,
+    /// A sound's own mode or saved volume in Voicemod, for good, through the bridge only
+    SetSoundOptions {
+        id: String,
+        mode: Option<PlaybackMode>,
+        volume: Option<f32>,
+        /// Whether it stops every other sound when it starts
+        stops_others: Option<bool>,
+    },
+    /// The soundboards again, as after a sound's options changed: Voicemod does not tell the Control API
+    ReadSoundboards,
 }
 
 /// The picture of a sound or a voice, by its id
@@ -94,7 +104,13 @@ impl Request {
             Self::ToggleHearMyself => ("toggleHearMyVoice", json!({})),
             Self::ToggleMuteMic => ("toggleMuteMic", json!({})),
             Self::ToggleBackground => ("toggleBackground", json!({})),
-            Self::SetGain { .. } | Self::SetSoundVolume { .. } | Self::ReadSoundVolumes => return None,
+            Self::ReadSoundboards => ("getAllSoundboard", json!({})),
+            Self::SetGain { .. }
+            | Self::SetSoundVolume { .. }
+            | Self::ReadSoundVolumes
+            | Self::SetSoundOptions { .. } => {
+                return None;
+            }
         })
     }
 }
@@ -137,6 +153,10 @@ pub enum VoicemodEvent {
     },
     /// Each sound's volume saved in Voicemod, 0 to 1, from the bridge
     SoundVolumes(HashMap<String, f32>),
+    /// A sound's own options changed as the app asked, through the bridge
+    SoundChanged,
+    /// Each sound's length from its file, through the bridge, in seconds
+    SoundLengths(HashMap<String, f32>),
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -173,6 +193,8 @@ impl Voicemod {
                     ours,
                 },
                 BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
+                BridgeEvent::SoundChanged => VoicemodEvent::SoundChanged,
+                BridgeEvent::SoundLengths(lengths) => VoicemodEvent::SoundLengths(lengths),
             })
         });
         tauri::async_runtime::spawn(keep_connected(outgoing, move |event| on_event(event), bridge));
@@ -338,6 +360,15 @@ async fn exchange(
                         bridge.read_sounds();
                         true
                     }
+                    Request::SetSoundOptions {
+                        id,
+                        mode,
+                        volume,
+                        stops_others,
+                    } => {
+                        bridge.set_sound_options(id, sound_options(*mode, *volume, *stops_others));
+                        true
+                    }
                     _ => false,
                 };
                 if !stopped_alone && let Some((action, payload)) = request.action() {
@@ -346,6 +377,25 @@ async fn exchange(
             }
         }
     }
+}
+
+/// As Voicemod's window names them
+fn sound_options(
+    mode: Option<PlaybackMode>,
+    volume: Option<f32>,
+    stops_others: Option<bool>,
+) -> serde_json::Map<String, Value> {
+    let mut options = serde_json::Map::new();
+    if let Some(mode) = mode.and_then(PlaybackMode::option_name) {
+        options.insert("reproductionMode".into(), mode.into());
+    }
+    if let Some(volume) = volume {
+        options.insert("volume".into(), volume.clamp(0.0, 1.0).into());
+    }
+    if let Some(stops_others) = stops_others {
+        options.insert("stopOtherSounds".into(), stops_others.into());
+    }
+    options
 }
 
 fn frame(action: &str, payload: Value) -> Message {
@@ -454,6 +504,15 @@ fn parse(text: &str) -> Option<Incoming> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sounds_options_take_voicemods_names() {
+        let options = sound_options(Some(PlaybackMode::PlayOverlap), Some(1.4), Some(false));
+        assert_eq!(options["reproductionMode"], "playOverlap");
+        assert_eq!(options["volume"], 1.0, "never past Voicemod's top");
+        assert_eq!(options["stopOtherSounds"], false);
+        assert!(sound_options(None, None, None).is_empty(), "only what changes");
+    }
 
     // Shapes recorded from Voicemod 3.17.43
 

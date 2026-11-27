@@ -5,6 +5,7 @@
 pub mod display;
 mod draw;
 mod text;
+mod wheel;
 
 #[cfg_attr(target_os = "macos", path = "macos.rs")]
 #[cfg_attr(windows, path = "windows.rs")]
@@ -22,6 +23,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::{self, LocalKey};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Monitor};
+use wheel::WheelPainter;
+pub use wheel::{Slice, SliceIcon, Wheel};
 
 /// The space between the overlay and the edges of the screen's free area, in points
 const MARGIN: f64 = 16.0;
@@ -51,10 +54,35 @@ pub struct Cell {
     pub locked: bool,
 }
 
+/// What the overlay's window shows: the page, or the action wheel in its place
+#[derive(Clone, Debug, PartialEq)]
+pub enum Content {
+    Page(Overlay),
+    Wheel(Wheel),
+}
+
+impl Content {
+    fn size(&self, scale: f32) -> (usize, usize) {
+        match self {
+            Content::Page(_) => draw::size(scale),
+            Content::Wheel(_) => wheel::size(scale),
+        }
+    }
+
+    fn same_kind(&self, other: &Content) -> bool {
+        matches!(
+            (self, other),
+            (Content::Page(_), Content::Page(_)) | (Content::Wheel(_), Content::Wheel(_))
+        )
+    }
+}
+
 pub enum OverlayUpdate {
     /// What to show, or None to hide
-    Content(Option<Overlay>),
+    Content(Option<Content>),
     Look(Look),
+    /// The wheel's own look, or None for the page's
+    WheelLook(Option<Look>),
 }
 
 /// Where the overlay sits, how opaque and how big it is, as set in the window
@@ -209,8 +237,9 @@ pub fn picture(overlay: &Overlay, width: usize) -> (usize, usize, Vec<u8>) {
 fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
     let clock = Instant::now();
     let mut painter = Painter::new();
+    let mut wheel_painter = WheelPainter::new();
     // What the window shows, kept while it fades out
-    let mut shown: Option<Overlay> = None;
+    let mut shown: Option<Content> = None;
     let mut visible = false;
     let mut fade = Fade {
         from: 0.0,
@@ -224,6 +253,7 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
         size: 1.0,
         screen: OverlayScreen::default(),
     };
+    let mut wheel_look: Option<Look> = None;
     let mut redraw = false;
     // The half period of the blinks last drawn, and whether the window shows something
     let mut drawn_blink = None;
@@ -243,31 +273,44 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
         };
         received.extend(updates.try_iter());
         let now = Instant::now();
+        let mut looks_changed = false;
         for update in received {
             match update {
                 OverlayUpdate::Content(newer) => content = Some(newer),
                 OverlayUpdate::Look(newer) if newer != look => {
                     look = newer;
-                    // A hidden overlay is placed again when it shows
-                    if visible {
-                        placement = None;
-                        redraw = true;
-                        fade = fade.toward(look.opacity, now);
-                    }
+                    looks_changed = true;
                 }
-                OverlayUpdate::Look(_) => {}
+                OverlayUpdate::WheelLook(newer) if newer != wheel_look => {
+                    wheel_look = newer;
+                    looks_changed = true;
+                }
+                OverlayUpdate::Look(_) | OverlayUpdate::WheelLook(_) => {}
             }
+        }
+        // A hidden overlay is placed again when it shows
+        if looks_changed && visible {
+            placement = None;
+            redraw = true;
+            fade = fade.toward(current_look(shown.as_ref(), &look, wheel_look.as_ref()).opacity, now);
         }
 
         match content {
-            Some(Some(overlay)) => {
-                if !visible {
-                    visible = true;
-                    // Placed again: the screens may have changed while hidden
+            Some(Some(newer)) => {
+                // Placed again when it shows, as the screens may have changed while hidden, and when the wheel takes
+                // the page's place, as each has its own size and look
+                let other_kind = shown.as_ref().is_none_or(|old| !old.same_kind(&newer));
+                if !visible || other_kind {
                     placement = None;
-                    fade = fade.toward(look.opacity, now);
+                    let opacity = current_look(Some(&newer), &look, wheel_look.as_ref()).opacity;
+                    fade = if visible {
+                        Fade::at(opacity, now)
+                    } else {
+                        fade.toward(opacity, now)
+                    };
+                    visible = true;
                 }
-                shown = Some(overlay);
+                shown = Some(newer);
                 redraw = true;
             }
             Some(None) if visible => {
@@ -276,23 +319,34 @@ fn run(app: &AppHandle, updates: &Receiver<OverlayUpdate>) {
             }
             _ => {}
         }
-        if visible && placement.is_none() {
-            placement = place(app, &look);
+        if visible
+            && placement.is_none()
+            && let Some(content) = &shown
+        {
+            placement = place(app, current_look(Some(content), &look, wheel_look.as_ref()), content);
         }
 
         let shows = |effect| {
             shown
                 .iter()
-                .flat_map(|overlay| &overlay.cells)
+                .flat_map(|content| match content {
+                    Content::Page(overlay) => overlay.cells.as_slice(),
+                    Content::Wheel(_) => &[],
+                })
                 .any(|cell| cell.led.effect == effect)
         };
         let (breathes, blinks) = (shows(Effect::Breathe), shows(Effect::Blink));
         let time = now - clock;
         let blink = time.as_millis() / BLINK_HALF;
         let new_opacity = fade.opacity(now);
-        if let (Some(overlay), Some(at)) = (&shown, placement) {
+        if let (Some(content), Some(at)) = (&shown, placement) {
             if redraw || breathes || (blinks && drawn_blink != Some(blink)) {
-                let image = painter.draw(overlay, at.drawn as f32, |cell| level(cell.led.effect, time));
+                let image = match content {
+                    Content::Page(overlay) => {
+                        painter.draw(overlay, at.drawn as f32, |cell| level(cell.led.effect, time))
+                    }
+                    Content::Wheel(wheel) => wheel_painter.draw(wheel, at.drawn as f32),
+                };
                 on_window(app, move |window| {
                     if window.show(&image, at.x, at.y, at.scale, new_opacity) {
                         display::raise();
@@ -354,10 +408,18 @@ fn run_on(
     });
 }
 
+/// The look of what shows: the wheel has its own, unless it follows the page's
+fn current_look<'a>(content: Option<&Content>, look: &'a Look, wheel_look: Option<&'a Look>) -> &'a Look {
+    match (content, wheel_look) {
+        (Some(Content::Wheel(_)), Some(own)) => own,
+        _ => look,
+    }
+}
+
 /// Where the overlay goes on the screen chosen, clear of the taskbar or the Dock, and at what size.
-fn place(app: &AppHandle, look: &Look) -> Option<Placement> {
+fn place(app: &AppHandle, look: &Look, content: &Content) -> Option<Placement> {
     let (area, scale) = free_area(app, &look.screen)?;
-    Some(placement(area, scale, look))
+    Some(placement(area, scale, look, |drawn| content.size(drawn)))
 }
 
 /// The free area of the screen chosen, clear of the taskbar or the Dock, and its scale.
@@ -394,9 +456,9 @@ fn mouse_screen(app: &AppHandle) -> Option<Monitor> {
     app.monitor_from_point(mouse.x, mouse.y).ok()?
 }
 
-fn placement(area: Rect, scale: f64, look: &Look) -> Placement {
+fn placement(area: Rect, scale: f64, look: &Look, size: impl Fn(f32) -> (usize, usize)) -> Placement {
     let drawn = scale * look.size;
-    let (x, y) = anchored(area, draw::size(drawn as f32), scale, look.anchor);
+    let (x, y) = anchored(area, size(drawn as f32), scale, look.anchor);
     Placement { x, y, scale, drawn }
 }
 
@@ -438,6 +500,15 @@ impl Fade {
         }
         let progress = (now - self.since).as_secs_f32() / self.length().as_secs_f32();
         self.from + (self.to - self.from) * progress
+    }
+
+    /// At `opacity` already, as when the wheel takes the page's place in a window that shows
+    fn at(opacity: f32, now: Instant) -> Self {
+        Self {
+            from: opacity,
+            to: opacity,
+            since: now.checked_sub(FADE_OUT).unwrap_or(now),
+        }
     }
 
     fn toward(self, to: f32, now: Instant) -> Self {
@@ -516,7 +587,7 @@ mod tests {
             height: 1040,
         };
         for anchor in ANCHORS {
-            let at = placement(area, 1.0, &look(anchor, 1.0));
+            let at = placement(area, 1.0, &look(anchor, 1.0), draw::size);
             let (width, height) = draw::size(at.drawn as f32);
             assert!(at.x >= -1920 && at.x + width as i32 <= 0, "{anchor:?} at x {}", at.x);
             assert!(at.y >= 0 && at.y + height as i32 <= 1040, "{anchor:?} at y {}", at.y);
@@ -531,7 +602,7 @@ mod tests {
             width: 2880,
             height: 1620,
         };
-        let at = placement(area, 1.5, &look(Anchor::TopLeft, 0.7));
+        let at = placement(area, 1.5, &look(Anchor::TopLeft, 0.7), draw::size);
         assert!((at.drawn - 1.05).abs() < 1e-9);
         assert_eq!((at.x, at.y), (2560 + 24, 100 + 24));
         assert_eq!(at.scale, 1.5);

@@ -28,9 +28,13 @@ pub enum TurnAction {
     Rows,
     SoundboardForOthers,
     SoundboardForMe,
+    /// Both soundboard channels together, as one fader
+    SoundboardForEveryone,
     PlayingSound,
     Microphone,
     Voice,
+    /// The action wheel, while held: let go on a slice to do it
+    Wheel,
     Nothing,
 }
 
@@ -53,7 +57,11 @@ pub enum PressAction {
     Page {
         page: String,
     },
+    /// Hides or shows the overlay while it shows always, else shows it for its time
+    Overlay,
     ResetVolumes,
+    /// Opens the action wheel, which stays until a press picks or the time runs out
+    Wheel,
     Nothing,
 }
 

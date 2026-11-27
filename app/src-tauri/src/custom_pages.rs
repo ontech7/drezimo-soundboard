@@ -23,7 +23,7 @@ const MAX_PAGES: usize = 50;
 const MAX_NAME: usize = 24;
 const MAX_LABEL: usize = 20;
 /// Voicemod's ids are 36 characters, the editor's about 40
-const MAX_ID: usize = 64;
+pub const MAX_ID: usize = 64;
 /// A sound's or a voice's name, kept for when Voicemod is away
 const MAX_ITEM_NAME: usize = 100;
 
@@ -62,6 +62,18 @@ pub struct CustomPad {
         skip_serializing_if = "Option::is_none"
     )]
     pub press_again: Option<PressAgain>,
+    /// A sound's volume when started from this pad, in percent: Voicemod's own when none, or when unreadable
+    #[serde(default, deserialize_with = "percent", skip_serializing_if = "Option::is_none")]
+    pub volume: Option<u8>,
+}
+
+/// A volume this app cannot read leaves the pad as it is, at Voicemod's own volume
+fn percent<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<u8>, D::Error> {
+    let value = Option::<Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| value.as_u64())
+        .filter(|percent| *percent <= 100)
+        .map(|percent| percent as u8))
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -107,16 +119,22 @@ pub struct Library {
     /// The sounds' lengths known so far, in seconds
     #[serde(skip)]
     lengths: HashMap<String, f32>,
+    /// As Voicemod knows them from their files, which comes first
+    #[serde(skip)]
+    file_lengths: HashMap<String, f32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct LibrarySoundboard {
     id: String,
     name: String,
+    /// Made by the user in Voicemod
+    custom: bool,
     sounds: Vec<LibraryItem>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LibraryItem {
     id: String,
     name: String,
@@ -128,6 +146,8 @@ struct LibraryItem {
     length: Option<f32>,
     /// A sound's mode in Voicemod
     mode: Option<PlaybackMode>,
+    /// A sound that stops every other one when it starts, as Voicemod is set
+    stops_others: bool,
 }
 
 impl Library {
@@ -140,11 +160,12 @@ impl Library {
             .map(|soundboard| LibrarySoundboard {
                 id: soundboard.id.clone(),
                 name: soundboard.name.clone(),
+                custom: soundboard.custom,
                 sounds: soundboard
                     .sounds
                     .iter()
                     .map(|sound| LibraryItem {
-                        length: self.lengths.get(&sound.id).copied(),
+                        length: self.length(&sound.id),
                         ..item(Pad::Sound(sound.clone()))
                     })
                     .collect(),
@@ -157,13 +178,27 @@ impl Library {
             .iter()
             .map(|(id, length)| (id.clone(), length.as_secs_f32()))
             .collect();
-        for sound in self
-            .soundboards
-            .iter_mut()
-            .flat_map(|soundboard| &mut soundboard.sounds)
-        {
-            sound.length = self.lengths.get(&sound.id).copied();
+        self.show_lengths();
+    }
+
+    pub fn set_file_lengths(&mut self, lengths: &HashMap<String, f32>) {
+        self.file_lengths.clone_from(lengths);
+        self.show_lengths();
+    }
+
+    fn length(&self, sound: &str) -> Option<f32> {
+        self.file_lengths
+            .get(sound)
+            .or_else(|| self.lengths.get(sound))
+            .copied()
+    }
+
+    fn show_lengths(&mut self) {
+        let mut soundboards = std::mem::take(&mut self.soundboards);
+        for sound in soundboards.iter_mut().flat_map(|soundboard| &mut soundboard.sounds) {
+            sound.length = self.length(&sound.id);
         }
+        self.soundboards = soundboards;
     }
 
     pub fn set_voices(&mut self, voices: &[Voice]) {
@@ -172,6 +207,7 @@ impl Library {
 }
 
 fn item(pad: Pad) -> LibraryItem {
+    let stops_others = matches!(&pad, Pad::Sound(sound) if sound.stop_other_sounds);
     let (id, name, mode) = match &pad {
         Pad::Sound(sound) => (sound.id.clone(), sound.name.clone(), Some(sound.playback_mode)),
         Pad::Voice(voice) => (voice.id.clone(), voice.name.clone(), None),
@@ -184,6 +220,7 @@ fn item(pad: Pad) -> LibraryItem {
         picture: pictures::path(&pad),
         length: None,
         mode,
+        stops_others,
     }
 }
 
@@ -213,10 +250,12 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
                 if let Content::Sound { name, .. } | Content::Voice { name, .. } = &mut pad.content {
                     *name = shortened(name, MAX_ITEM_NAME);
                 }
-                // Only a sound plays again
+                // Only a sound plays again, and has a volume
                 if !matches!(pad.content, Content::Sound { .. }) {
                     pad.press_again = None;
+                    pad.volume = None;
                 }
+                pad.volume = pad.volume.map(|volume| volume.min(100));
             }
             page
         })
@@ -356,8 +395,8 @@ mod tests {
     fn reads_and_writes_the_pages_file() {
         let json = r#"[{"id": "page-1", "name": "Gaming", "pads": [
             {"kind": "sound", "id": "s1", "name": "Honk", "label": "Fail", "colour": [255, 140, 40],
-                "pressAgain": "pause"},
-            null,
+                "pressAgain": "pause", "volume": 30},
+            {"kind": "sound", "id": "s2", "volume": 300},
             {"kind": "voice", "id": "v1", "pressAgain": "bounce"},
             {"kind": "action", "action": "muteMic"},
             {"kind": "action", "action": "goToPage", "page": "page-2"},
@@ -375,9 +414,13 @@ mod tests {
                 label: "Fail".into(),
                 colour: Some([255, 140, 40]),
                 press_again: Some(PressAgain::Pause),
+                volume: Some(30),
             })
         );
-        assert_eq!(pads[1], None);
+        assert!(
+            matches!(&pads[1], Some(CustomPad { volume: None, .. })),
+            "a volume it cannot read leaves the pad"
+        );
         assert!(
             matches!(&pads[2], Some(CustomPad { content: Content::Voice { id, .. }, press_again: None, .. }) if id == "v1")
         );
@@ -404,6 +447,7 @@ mod tests {
                 label: "  a label far too long for the display  ".into(),
                 colour: None,
                 press_again: Some(PressAgain::Stop),
+                volume: None,
             })],
         };
         let pages = checked(vec![

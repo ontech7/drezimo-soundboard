@@ -5,6 +5,7 @@ import { Half } from "./Stage";
 import { held, type Lane, SoundLanes } from "./SoundLanes";
 import type { Shown } from "./story";
 import type { ExplainTexts, SwitchAction } from "./texts";
+import { WheelPicture, type WheelSlice } from "../WheelPicture";
 
 interface Props {
   shown: Shown;
@@ -16,6 +17,8 @@ interface Props {
   pageName: string | null;
   /** A hold-turn's knob let go: what it showed while held goes */
   released: boolean;
+  /** The action wheel's slices, as set */
+  wheel: WheelSlice[];
 }
 
 /** The right half of a knob explanation; mounted again for each loop */
@@ -41,6 +44,7 @@ export function ActionHalf(props: Props) {
       }
       case "soundboardForOthers":
       case "soundboardForMe":
+      case "soundboardForEveryone":
       case "microphone":
         return half(null, <Volume icon={shown.action} label={words.volumes[shown.action]} level={60 + 5 * beats.sum} />);
       case "playingSound":
@@ -48,6 +52,15 @@ export function ActionHalf(props: Props) {
       case "voice": {
         const at = clamp(1 + beats.sum, 0, words.sample.voices.length - 1);
         return half(acted ? words.onVoice(words.sample.voices[at]) : null, <Voices voices={words.sample.voices} at={at} />);
+      }
+      case "wheel": {
+        // The first detent opens it on the first slice that way, the centre between the last and the first
+        const places = props.wheel.length + 1;
+        const place = acted ? ((beats.sum % places) + places) % places : 0;
+        const selected = place === 0 ? null : place - 1;
+        const name = selected === null ? null : props.wheel[selected]?.name;
+        const caption = !acted || !name ? null : props.released ? words.wheelDone(name) : words.wheelOn(name);
+        return half(caption, <WheelScene slices={props.wheel} selected={selected} open={acted && !props.released} />);
       }
       case "nothing":
         return half(null, <Nothing words={words} />);
@@ -87,9 +100,24 @@ export function ActionHalf(props: Props) {
     }
     case "resetVolumes":
       return half(acted ? words.volumesBack : null, <ResetVolumes words={words} back={acted} />);
+    case "wheel":
+      return half(acted ? words.wheelOpen : null, <WheelScene slices={props.wheel} selected={null} open={acted} />);
+    case "overlay": {
+      const shownNow = beats.total % 2 === 0;
+      return half(acted ? (shownNow ? words.overlayShown : words.overlayHidden) : null, <OverlayOnScreen shown={shownNow} />);
+    }
     case "nothing":
       return half(null, <Nothing words={words} />);
   }
+}
+
+/** The action wheel on the screen: faint until it opens */
+function WheelScene(props: { slices: WheelSlice[]; selected: number | null; open: boolean }) {
+  return (
+    <div className={props.open ? "explain-wheel open" : "explain-wheel"}>
+      <WheelPicture slices={props.slices} selected={props.selected} label="" centre=" " />
+    </div>
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -165,6 +193,14 @@ const ICONS = {
       <path d="M9 18V6l11-2v12" />
       <circle cx="6.5" cy="18" r="2.5" />
       <circle cx="17.5" cy="16" r="2.5" />
+    </>
+  ),
+  soundboardForEveryone: (
+    <>
+      <path d="M6 4v16M12 4v16M18 4v16" />
+      <rect x="4" y="13" width="4" height="3" rx="1" />
+      <rect x="10" y="7" width="4" height="3" rx="1" />
+      <rect x="16" y="11" width="4" height="3" rx="1" />
     </>
   ),
   microphone: (
@@ -342,6 +378,19 @@ function ResetVolumes({ words, back }: { words: ExplainTexts; back: boolean }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** The PC's screen, with the overlay's grid in its corner */
+function OverlayOnScreen({ shown }: { shown: boolean }) {
+  return (
+    <div className="explain-screen">
+      <div className={shown ? "explain-overlay shown" : "explain-overlay"}>
+        {Array.from({ length: 36 }, (_, i) => (
+          <i key={i} />
+        ))}
+      </div>
     </div>
   );
 }

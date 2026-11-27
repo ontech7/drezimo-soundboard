@@ -45,12 +45,18 @@ export interface ExplainTexts {
   macroDone: string;
   macroStopped: string;
   volumesBack: string;
+  overlayShown: string;
+  overlayHidden: string;
+  /** The action wheel: the slice turned to, the one done, opened at its centre */
+  wheelOn: (name: string) => string;
+  wheelDone: (name: string) => string;
+  wheelOpen: string;
   /** Why the board does nothing with the macro or the page chosen */
   idle: { noMacro: string; noPage: string; emptyMacro: string };
   /** Drezimo's display */
   pageCounter: (page: number, pages: number) => string;
   menuTitle: string;
-  volumes: { soundboardForOthers: string; soundboardForMe: string; microphone: string };
+  volumes: { soundboardForOthers: string; soundboardForMe: string; soundboardForEveryone: string; microphone: string };
   switches: Record<"muteMic" | "muteForMe" | "voiceChanger" | "hearMyself" | "background", [on: string, off: string]>;
   resetLabels: [string, string, string];
   sample: {
@@ -109,9 +115,14 @@ const ENGLISH: ExplainTexts = {
       rows: "Each detent lights the next row of pads white, or the one before: you read row by row which sounds are there.",
       soundboardForOthers: "Each detent turns up or down the sounds the others hear.",
       soundboardForMe: "Each detent turns up or down the sounds you hear, in your headphones.",
-      playingSound: "Each detent turns up or down the sound playing now, only that one.",
+      soundboardForEveryone:
+        "Each detent turns up or down the sounds for you and for the others together: the next sound starts where you left it.",
+      playingSound:
+        "Each detent turns up or down the sound playing now, only that one; it keeps that volume for its next plays.",
       microphone: "Each detent turns your microphone up or down.",
       voice: "Each detent loads the next voice; turning it left goes back to the one before.",
+      wheel:
+        "Opens the action wheel on the screen and moves through its slices, the centre between the last and the first. Turned while held, letting go does the slice it is on; otherwise a tap does it.",
       nothing: "Turning it does nothing.",
     },
     press: {
@@ -125,7 +136,11 @@ const ENGLISH: ExplainTexts = {
       randomVoice: "Loads a random voice among yours.",
       macro: "Runs the chosen macro, one step after the other.",
       page: "Goes straight to the chosen page, from whichever page you are on.",
+      overlay:
+        "Hides the overlay that is always on screen, and shows it again the next time. With a duration, shows it for that long.",
       resetVolumes: "Puts the volumes changed with the knob back as they are in Voicemod.",
+      wheel:
+        "Opens the action wheel on the screen at its centre: turn to a slice and tap to do it. It closes by itself after 8 s.",
       nothing: "Nothing happens.",
     },
   },
@@ -148,6 +163,11 @@ const ENGLISH: ExplainTexts = {
   macroDone: "Macro done",
   macroStopped: "Macro stopped",
   volumesBack: "Voicemod's volumes",
+  overlayShown: "Overlay shown",
+  overlayHidden: "Overlay hidden",
+  wheelOn: (name) => `On ${name}`,
+  wheelDone: (name) => `${name}: done`,
+  wheelOpen: "Wheel open",
   idle: {
     noMacro: "No macro chosen yet: until you choose one, nothing happens.",
     noPage: "No page chosen yet: until you choose one, nothing happens.",
@@ -155,7 +175,12 @@ const ENGLISH: ExplainTexts = {
   },
   pageCounter: (page, pages) => `PAGE ${page}/${pages}`,
   menuTitle: "SOUNDBOARDS",
-  volumes: { soundboardForOthers: "Soundboard, for others", soundboardForMe: "Soundboard, for you", microphone: "Microphone" },
+  volumes: {
+    soundboardForOthers: "Soundboard, for others",
+    soundboardForMe: "Soundboard, for you",
+    soundboardForEveryone: "Soundboard, for everyone",
+    microphone: "Microphone",
+  },
   switches: {
     muteMic: ["Microphone on", "Microphone muted"],
     muteForMe: ["You hear the sounds", "You don't hear the sounds"],
@@ -236,9 +261,14 @@ const ITALIAN: ExplainTexts = {
       rows: "Ogni scatto accende di bianco la riga di pad dopo, o quella prima: così leggi riga per riga quali suoni ci sono.",
       soundboardForOthers: "Ogni scatto alza o abbassa il volume dei suoni che sentono gli altri.",
       soundboardForMe: "Ogni scatto alza o abbassa il volume dei suoni che senti tu, in cuffia.",
-      playingSound: "Ogni scatto alza o abbassa il volume del suono che sta suonando, solo di quello.",
+      soundboardForEveryone:
+        "Ogni scatto alza o abbassa insieme i suoni per te e per gli altri: il suono dopo parte da dove l'hai lasciato.",
+      playingSound:
+        "Ogni scatto alza o abbassa il volume del suono che sta suonando, solo di quello; lo tiene anche per le volte dopo.",
       microphone: "Ogni scatto alza o abbassa il volume del tuo microfono.",
       voice: "Ogni scatto carica la voce dopo; girandola a sinistra torni a quella prima.",
+      wheel:
+        "Apre la ruota delle azioni sullo schermo e ne scorre gli spicchi, con il centro tra l'ultimo e il primo. Girata tenendola premuta, lasciandola fa lo spicchio su cui sei; altrimenti lo fa un tocco.",
       nothing: "Girandola non succede niente.",
     },
     press: {
@@ -252,7 +282,11 @@ const ITALIAN: ExplainTexts = {
       randomVoice: "Carica una voce a caso tra le tue.",
       macro: "Esegue la macro scelta, un passo dopo l'altro.",
       page: "Va dritta alla pagina scelta, da qualunque pagina tu sia.",
+      overlay:
+        "Nasconde l'overlay sempre sullo schermo, e la volta dopo lo rimostra. Con una durata, lo mostra per quel tempo.",
       resetVolumes: "Rimette i volumi cambiati con la manopola come sono in Voicemod.",
+      wheel:
+        "Apre la ruota delle azioni sullo schermo, al centro: gira fino a uno spicchio e tocca per farlo. Si chiude da sola dopo 8 s.",
       nothing: "Non succede niente.",
     },
   },
@@ -275,6 +309,11 @@ const ITALIAN: ExplainTexts = {
   macroDone: "Macro finita",
   macroStopped: "Macro fermata",
   volumesBack: "Volumi di Voicemod",
+  overlayShown: "Overlay visibile",
+  overlayHidden: "Overlay nascosto",
+  wheelOn: (name) => `Su ${name}`,
+  wheelDone: (name) => `${name}: fatto`,
+  wheelOpen: "Ruota aperta",
   idle: {
     noMacro: "Nessuna macro scelta: finché non ne scegli una, non succede niente.",
     noPage: "Nessuna pagina scelta: finché non ne scegli una, non succede niente.",
@@ -282,7 +321,12 @@ const ITALIAN: ExplainTexts = {
   },
   pageCounter: (page, pages) => `PAGINA ${page}/${pages}`,
   menuTitle: "SOUNDBOARD",
-  volumes: { soundboardForOthers: "Soundboard, per gli altri", soundboardForMe: "Soundboard, per te", microphone: "Microfono" },
+  volumes: {
+    soundboardForOthers: "Soundboard, per gli altri",
+    soundboardForMe: "Soundboard, per te",
+    soundboardForEveryone: "Soundboard, per tutti",
+    microphone: "Microfono",
+  },
   switches: {
     muteMic: ["Microfono attivo", "Microfono muto"],
     muteForMe: ["Senti i suoni", "Non senti i suoni"],

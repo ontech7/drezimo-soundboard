@@ -2,10 +2,11 @@ import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
 import { useTexts } from "../i18n";
 import { actionName, BRIDGE_ACTIONS, goneTarget } from "../knob";
-import { type Macro, stepLength } from "../macros";
+import { type Macro, macroLength, stepLength, stepsOf } from "../macros";
 import { describe } from "../pages/MacrosPage";
 import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
 import type { KnobSettings, PressAction, PressAgain, SettingsView } from "../settings";
+import { type WheelSlice, wheelSlice } from "../WheelPicture";
 import { ActionHalf } from "./ActionHalf";
 import "./explain.css";
 import { type Beats, KNOB_AT_REST, KnobHalf, type KnobPose, playGesture } from "./KnobHalf";
@@ -29,6 +30,16 @@ import { type ExplainTexts, type GestureCaption, useExplainTexts } from "./texts
 const STILL: GestureCaption[] = ["still", "released"];
 
 type MacroShown = { name: string; steps: string[]; again: "stop" | "restart" } | null;
+
+/** The tour's wheel: the app's own first slices (src-tauri/src/wheel.rs) */
+const SAMPLE_WHEEL: PressAction[] = [
+  { action: "stopSounds" },
+  { action: "muteMic" },
+  { action: "randomVoice" },
+  { action: "voiceChanger" },
+  { action: "hearMyself" },
+  { action: "overlay" },
+];
 
 /** What a knob gesture's explanation says under the stage */
 function knobSentence(
@@ -62,7 +73,7 @@ function padSentence(story: PadStory, words: ExplainTexts): string {
 /** Why a press does nothing with no macro or page chosen, or with a macro that has no steps */
 function unsetTarget(press: PressAction, macro: Macro | undefined, words: ExplainTexts): string | undefined {
   if (press.action === "macro" && press.macroId === "") return words.idle.noMacro;
-  if (press.action === "macro" && macro?.steps.length === 0) return words.idle.emptyMacro;
+  if (press.action === "macro" && (macro ? stepsOf(macro).length === 0 : false)) return words.idle.emptyMacro;
   if (press.action === "page" && press.page === "") return words.idle.noPage;
   return undefined;
 }
@@ -75,10 +86,11 @@ interface KnobSceneProps {
   words: ExplainTexts;
   macro: MacroShown;
   pageName: string | null;
+  wheel: WheelSlice[];
 }
 
 /** The knob making the gesture, then what it does; given a new key for each new choice, so that it starts from rest */
-function KnobScene({ gesture, story, shown, name, words, macro, pageName }: KnobSceneProps) {
+function KnobScene({ gesture, story, shown, name, words, macro, pageName, wheel }: KnobSceneProps) {
   const [pose, setPose] = useState<KnobPose>(KNOB_AT_REST);
   const [caption, setCaption] = useState<GestureCaption>("still");
   const [beats, setBeats] = useState<Beats>({ count: 0, sum: 0, total: 0 });
@@ -121,6 +133,7 @@ function KnobScene({ gesture, story, shown, name, words, macro, pageName }: Knob
         macro={macro}
         pageName={pageName}
         released={gesture === "holdTurn" && !pose.held}
+        wheel={wheel}
       />
     </>
   );
@@ -197,12 +210,14 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
     chosenMacro !== undefined &&
     overAtOnce(
       chosenMacro.repeat,
-      chosenMacro.steps.map((step) => stepLength(step, library))
+      chosenMacro.timeline ? [macroLength(chosenMacro, library)] : chosenMacro.steps.map((step) => stepLength(step, library))
     );
   const macro = chosenMacro
     ? {
         name: chosenMacro.name,
-        steps: chosenMacro.steps.slice(0, 4).map((step) => describe(step, texts, library, targets).title),
+        steps: stepsOf(chosenMacro)
+          .slice(0, 4)
+          .map((step) => describe(step, texts, library, targets).title),
         again: twice ? ("restart" as const) : chosenMacro.again,
       }
     : null;
@@ -224,6 +239,7 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
           words={words}
           macro={macro}
           pageName={pageName}
+          wheel={settings.wheel.slices.map((slice) => wheelSlice(slice, texts, targets, macros))}
         />
       }
       sentence={knobSentence(gesture, story, name, macro, twice, words)}
@@ -300,6 +316,7 @@ export function KnobDemo({ gesture, knob }: { gesture: KnobGesture; knob: KnobSe
           words={words}
           macro={null}
           pageName={null}
+          wheel={SAMPLE_WHEEL.map((slice) => wheelSlice(slice, texts, [], null))}
         />
       }
       sentence={knobSentence(gesture, story, name, null, false, words)}

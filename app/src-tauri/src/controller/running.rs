@@ -1,18 +1,24 @@
-//! The user's macros as they run: one at a time, step after step, as the controller's updates come.
+//! The user's macros as they run: one at a time, as the controller's updates come. A macro on a time line starts each
+//! sound at its time, stops it where it is cut and follows its volume; one from before the time line runs its steps one
+//! after the other.
 
 use super::{Controller, HeldSound, MIN_HOLD};
-use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::macros::{Again, Clip, Macro, Step, Switch, SwitchState, Timeline};
 use crate::mixer::Channel;
 use crate::press_again::Command;
 use crate::soundboard::{PlaybackMode, Voice};
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// A sound waited for that never ends, as a loop, holds the macro this long at most
 const MAX_SOUND_WAIT: Duration = Duration::from_secs(30);
 /// A round of steps that take no time is not run again sooner
 const MIN_ROUND: Duration = Duration::from_millis(500);
+/// A sound's volume along its curve goes to Voicemod at most that often
+const LEVEL_EVERY: Duration = Duration::from_millis(100);
+/// A sound of known length may end that much later than its length says, as the log tells it a moment late
+const END_SLACK: Duration = Duration::from_secs(2);
 
 pub(super) struct Running {
     pub(super) item: Macro,
@@ -28,6 +34,64 @@ pub(super) struct Running {
     voice_changed: bool,
     /// The switches a step set, as they were before
     switches_before: Vec<(Switch, bool)>,
+    /// When the round started, for the window, which shows where the time line is
+    round_wall: SystemTime,
+    /// On a time line: what is left to do in this round
+    played: Option<Played>,
+}
+
+/// A round of a macro on its time line
+struct Played {
+    /// What happens when, from the round's start, in order
+    events: Vec<(Duration, Event)>,
+    next: usize,
+    /// The clips and actions started, for the display
+    done: usize,
+    /// The clips with a volume of their own that play
+    shaped: Vec<Shaped>,
+}
+
+#[derive(Clone)]
+enum Event {
+    Start(Clip),
+    Cut(String),
+    Action(Step),
+}
+
+struct Shaped {
+    clip: Clip,
+    started: Instant,
+    /// The level last sent, and when
+    sent: (u8, Instant),
+}
+
+impl Played {
+    fn of(timeline: &Timeline) -> Self {
+        let millis = |at: u32| Duration::from_millis(at.into());
+        let mut events: Vec<(Duration, Event)> = Vec::new();
+        for clip in &timeline.clips {
+            events.push((millis(clip.at), Event::Start(clip.clone())));
+            if let Some(cut) = clip.cut {
+                events.push((millis(clip.at.saturating_add(cut)), Event::Cut(clip.id.clone())));
+            }
+        }
+        for action in &timeline.actions {
+            events.push((millis(action.at), Event::Action(action.step.clone())));
+        }
+        // At the same time, a cut and an action come before a start: a stop then a sound plays the sound
+        let rank = |event: &Event| match event {
+            Event::Cut(_) => 0,
+            Event::Action(_) => 1,
+            Event::Start(_) => 2,
+        };
+        events.sort_by_key(|(at, event)| (*at, rank(event)));
+        Self {
+            events,
+            next: 0,
+            done: 0,
+            shaped: Vec::new(),
+        }
+    }
 }
 
 /// Where the macro that runs is, for the window
@@ -38,6 +102,8 @@ pub struct MacroProgress {
     /// The step running, from 1
     pub step: usize,
     pub steps: usize,
+    /// When the round under way started, in milliseconds since 1970: the window draws where the time line is
+    pub round_started: u64,
 }
 
 impl Controller {
@@ -70,11 +136,17 @@ impl Controller {
 
     pub fn macro_progress(&self) -> Option<MacroProgress> {
         let running = self.running.as_ref()?;
+        let since = running.round_wall.duration_since(UNIX_EPOCH).unwrap_or_default();
+        let (step, steps) = match (&running.played, &running.item.timeline) {
+            (Some(played), Some(timeline)) => (played.done, timeline.clips.len() + timeline.actions.len()),
+            _ => (running.step, running.item.steps.len()),
+        };
         Some(MacroProgress {
             id: running.item.id.clone(),
             // Between two rounds, the first step is next
-            step: running.step.max(1),
-            steps: running.item.steps.len(),
+            step: step.max(1),
+            steps,
+            round_started: since.as_millis() as u64,
         })
     }
 
@@ -95,8 +167,10 @@ impl Controller {
                     running.step = 0;
                     running.rounds = 0;
                     running.round_started = now;
+                    running.round_wall = SystemTime::now();
                     running.next_at = now;
                     running.waiting = None;
+                    running.played = running.item.timeline.as_ref().map(Played::of);
                 }
             }
             None => {
@@ -105,6 +179,7 @@ impl Controller {
                     return;
                 };
                 self.finish_macro();
+                let played = item.timeline.as_ref().map(Played::of);
                 self.running = Some(Running {
                     item,
                     step: 0,
@@ -115,6 +190,8 @@ impl Controller {
                     voice_before: self.voice_loaded().cloned(),
                     voice_changed: false,
                     switches_before: Vec::new(),
+                    round_wall: SystemTime::now(),
+                    played,
                 });
             }
         }
@@ -123,6 +200,9 @@ impl Controller {
 
     /// Runs the steps due by `now`.
     pub(super) fn advance_macro(&mut self, now: Instant) {
+        if self.running.as_ref().is_some_and(|running| running.played.is_some()) {
+            return self.advance_timeline(now);
+        }
         loop {
             let Some(running) = self.running.as_ref() else {
                 return;
@@ -152,12 +232,196 @@ impl Controller {
             running.step = 0;
             running.next_at = (running.round_started + MIN_ROUND).max(now);
             running.round_started = running.next_at;
+            running.round_wall = SystemTime::now() + (running.next_at - now);
         }
+    }
+
+    /// Runs what is due on the time line by `now`, follows the volumes, and ends the round once its sounds end.
+    fn advance_timeline(&mut self, now: Instant) {
+        loop {
+            let Some(running) = self.running.as_mut() else {
+                return;
+            };
+            let start = running.round_started;
+            let Some(played) = running.played.as_mut() else {
+                return;
+            };
+            let due = played
+                .events
+                .get(played.next)
+                .filter(|(at, _)| start + *at <= now)
+                .map(|(_, event)| event.clone());
+            let Some(event) = due else {
+                break;
+            };
+            played.next += 1;
+            if !matches!(event, Event::Cut(_)) {
+                played.done += 1;
+            }
+            self.run_event(event, now);
+        }
+        self.follow_levels(now);
+
+        let Some(running) = self.running.as_ref() else {
+            return;
+        };
+        let Some(played) = running.played.as_ref() else {
+            return;
+        };
+        if played.next < played.events.len() {
+            return;
+        }
+        let deadline = self.round_deadline(running.round_started, played);
+        let sounds: Vec<String> = played
+            .events
+            .iter()
+            .filter_map(|(_, event)| match event {
+                Event::Start(clip) => Some(clip.id.clone()),
+                _ => None,
+            })
+            .collect();
+        let playing = sounds.iter().any(|id| self.playback.state(id).is_some());
+        if playing && now < deadline {
+            return;
+        }
+        let Some(running) = self.running.as_mut() else {
+            return;
+        };
+        running.rounds = running.rounds.saturating_add(1);
+        let repeat = running.item.repeat;
+        let empty = running.played.as_ref().is_some_and(|played| played.events.is_empty());
+        if empty || (repeat != 0 && running.rounds >= repeat) {
+            self.finish_macro();
+            return;
+        }
+        running.round_started = (running.round_started + MIN_ROUND).max(now);
+        running.round_wall = SystemTime::now() + (running.round_started - now);
+        running.played = running.item.timeline.as_ref().map(Played::of);
+        self.advance_timeline(now);
+    }
+
+    fn run_event(&mut self, event: Event, now: Instant) {
+        match event {
+            Event::Start(clip) => {
+                let Some(sound) = self.sounds.get(&clip.id).filter(|sound| sound.enabled).cloned() else {
+                    return;
+                };
+                self.command(Command::KeyDown, &sound, now);
+                self.sound_started();
+                if sound.playback_mode == PlaybackMode::PlayLoopOnPress {
+                    let length = clip.cut.map(|cut| Duration::from_millis(cut.into()));
+                    let hold = length.or(self.sound_length(&clip.id)).unwrap_or(MIN_HOLD).max(MIN_HOLD);
+                    let held = HeldSound {
+                        sound,
+                        since: now,
+                        release: Command::KeyUp,
+                    };
+                    self.releases.push((now + hold, held));
+                }
+                // Its curve needs the bridge, as the knob's volumes do
+                let Some(level) = clip.level_at(0).filter(|_| self.single_stop) else {
+                    return;
+                };
+                self.send_level(&clip.id, level);
+                if let Some(played) = self.running.as_mut().and_then(|running| running.played.as_mut()) {
+                    played.shaped.retain(|shaped| shaped.clip.id != clip.id);
+                    played.shaped.push(Shaped {
+                        clip,
+                        started: now,
+                        sent: (level, now),
+                    });
+                }
+            }
+            // Without the bridge it would stop every sound: the sound plays to its end instead
+            Event::Cut(id) => {
+                if self.single_stop && self.playback.state(&id).is_some() {
+                    self.request(Request::StopSound(id.clone()));
+                    self.playback.stop(&id, now);
+                }
+            }
+            Event::Action(step) => self.run_step(step, now),
+        }
+    }
+
+    /// Each sound with a curve of its own at its level now, at most every 100 ms
+    fn follow_levels(&mut self, now: Instant) {
+        let Some(played) = self.running.as_mut().and_then(|running| running.played.as_mut()) else {
+            return;
+        };
+        let mut shaped = std::mem::take(&mut played.shaped);
+        shaped.retain(|shaped| self.playback.state(&shaped.clip.id).is_some());
+        let mut finished = Vec::new();
+        for (index, shaped) in shaped.iter_mut().enumerate() {
+            if now < shaped.sent.1 + LEVEL_EVERY {
+                continue;
+            }
+            let at = now
+                .saturating_duration_since(shaped.started)
+                .as_millis()
+                .min(u32::MAX.into()) as u32;
+            let Some(level) = shaped.clip.level_at(at) else {
+                continue;
+            };
+            if level != shaped.sent.0 {
+                self.send_level(&shaped.clip.id, level);
+            }
+            // Looked at again in 100 ms, even on a flat stretch
+            shaped.sent = (level, now);
+            // Past its last level, it stays there: nothing more to follow
+            if shaped.clip.volume.last().is_some_and(|last| at >= last.at) {
+                finished.push(index);
+            }
+        }
+        for index in finished.into_iter().rev() {
+            shaped.remove(index);
+        }
+        if let Some(played) = self.running.as_mut().and_then(|running| running.played.as_mut()) {
+            played.shaped = shaped;
+        }
+    }
+
+    /// When a round ends at the latest though its sounds still play: once every sound of known length has played
+    /// through, or 30 s after its last event for one that loops or whose length is not known
+    fn round_deadline(&self, started: Instant, played: &Played) -> Instant {
+        let last = played.events.last().map_or(Duration::ZERO, |(at, _)| *at);
+        let ends = played.events.iter().filter_map(|(at, event)| match event {
+            Event::Start(clip) => {
+                let cut = clip.cut.map(|cut| Duration::from_millis(cut.into()));
+                Some(*at + cut.or(self.sound_length(&clip.id))?)
+            }
+            _ => None,
+        });
+        let known = ends.max().map_or(Duration::ZERO, |end| end + END_SLACK);
+        started + (last + MAX_SOUND_WAIT).max(known)
+    }
+
+    /// From its file, as Voicemod tells it, else as the log taught it
+    fn sound_length(&self, id: &str) -> Option<Duration> {
+        self.file_lengths.get(id).copied().or(self.playback.length(id))
+    }
+
+    fn send_level(&mut self, id: &str, percent: u8) {
+        let volume = f32::from(percent) / 100.0;
+        self.request(Request::SetSoundVolume {
+            id: id.to_string(),
+            volume,
+        });
+        self.mixer.play_at(id, volume);
     }
 
     /// When the macro running has its next step due.
     pub(super) fn macro_wake(&self) -> Option<Instant> {
         let running = self.running.as_ref()?;
+        if let Some(played) = &running.played {
+            let next = played
+                .events
+                .get(played.next)
+                .map(|(at, _)| running.round_started + *at);
+            let level = played.shaped.iter().map(|shaped| shaped.sent.1 + LEVEL_EVERY).min();
+            // The round's end, should its last sound never end
+            let end = self.round_deadline(running.round_started, played);
+            return [next, level, Some(end)].into_iter().flatten().min();
+        }
         Some(running.waiting.as_ref().map_or(running.next_at, |(_, until)| *until))
     }
 

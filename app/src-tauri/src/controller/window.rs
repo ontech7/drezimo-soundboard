@@ -14,6 +14,10 @@ use std::time::Instant;
 pub struct BoardView {
     /// The pages' titles, as the soundboard menu lists them
     pub pages: Vec<String>,
+    /// Each page's soundboard id, or the id of the user's own page it is
+    pub ids: Vec<String>,
+    /// How many of the pages, from the first, are the user's own
+    pub own: usize,
     pub page: usize,
     pub pads: Vec<PadView>,
     /// The function keys' LEDs, from the left
@@ -63,6 +67,8 @@ impl Controller {
             .collect();
         Some(BoardView {
             pages: self.pages.iter().map(|page| self.page_title(page)).collect(),
+            ids: self.pages.iter().map(|page| page.soundboard_id.clone()).collect(),
+            own: self.custom.len(),
             page: self.page,
             pads,
             keys: (0..usize::from(BUTTON_COUNT))

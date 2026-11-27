@@ -14,9 +14,11 @@ use crate::overlay::{self, Look, OverlayUpdate};
 use crate::pictures::Pictures;
 use crate::protocol::{self, BUTTON_COUNT, BoardMessage, DisplaySettings, PAD_COUNT};
 use crate::settings::{OverlaySettings, Settings, SettingsState};
+use crate::soundboard::PlaybackMode;
 use crate::tray;
 use crate::voicemod::{License, Voicemod, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogInput};
+use crate::wheel::WheelSettings;
 use serde::Serialize;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -36,6 +38,8 @@ enum Input {
     LedBrightnessPreview(u8),
     /// Shows the overlay, as it would look with these settings if given
     OverlayPreview(Option<OverlaySettings>),
+    /// Shows the action wheel for a moment, as it would look with these settings if given
+    WheelPreview(Option<WheelSettings>),
     /// The board played from the window
     Pad {
         index: u8,
@@ -44,6 +48,16 @@ enum Input {
     Key(u8),
     /// The notice's Hear them again
     HearAgain,
+    /// A sound's mode changed in Voicemod from the Pages editor
+    SoundMode {
+        id: String,
+        mode: PlaybackMode,
+    },
+    /// Whether a sound stops the others, changed in Voicemod from the Macro editor
+    SoundStopsOthers {
+        id: String,
+        stops_others: bool,
+    },
     /// The notice of the volume at zero closed
     CloseVolumeNotice,
     /// The knob turned in the window: +1 to the right
@@ -55,6 +69,8 @@ enum Input {
     /// The Macro section's Try and Stop
     TryMacro(String),
     StopMacro,
+    /// The Macro section opened: its time line wants the sounds' lengths
+    ReadSoundLengths,
     Test(TestInput),
     /// The display on the PC screen, as Diagnostics sets it
     DisplayLook(DisplayLook),
@@ -210,6 +226,8 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     let mut controller = Controller::new(settings.language.texts());
     controller.set_press_again(settings.press_again_by_mode);
     controller.set_knob(settings.knob.clone(), Instant::now());
+    controller.set_wheel(settings.wheel.clone());
+    controller.set_shown_pages(settings.shown_pages.clone());
     controller.set_custom_pages(app.state::<CustomPagesState>().get());
     controller.set_macros(app.state::<MacrosState>().get());
     let mut kept_page = last_page::load(app);
@@ -218,7 +236,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
     }
     let mut shown_lengths = None;
     controller.set_overlay_time(overlay_time(&settings.overlay));
+    controller.set_overlay_always(settings.overlay.always);
     let _ = overlay.send(OverlayUpdate::Look(look(&settings.overlay)));
+    let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&settings.wheel, &settings.overlay)));
     let mut status = Status::default();
     let mut published = status.clone();
     let mut updater = Updater::default();
@@ -306,6 +326,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                         update_library(app, |library| library.set_soundboards(soundboards));
                     }
                     VoicemodEvent::Voices { voices, .. } => update_library(app, |library| library.set_voices(voices)),
+                    VoicemodEvent::SoundLengths(lengths) => {
+                        update_library(app, |library| library.set_file_lengths(lengths));
+                    }
                     _ => {}
                 }
                 controller.voicemod_event(event, now);
@@ -321,8 +344,12 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 controller.set_texts(new.language.texts());
                 controller.set_press_again(new.press_again_by_mode);
                 controller.set_knob(new.knob.clone(), Instant::now());
+                controller.set_wheel(new.wheel.clone());
+                controller.set_shown_pages(new.shown_pages.clone());
                 controller.set_overlay_time(overlay_time(&new.overlay));
+                controller.set_overlay_always(new.overlay.always);
                 let _ = overlay.send(OverlayUpdate::Look(look(&new.overlay)));
+                let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&new.wheel, &new.overlay)));
                 let _ = display.send(DisplayUpdate::Texts(new.language.texts()));
                 let _ = display.send(DisplayUpdate::Screen(new.overlay.screen.clone()));
                 if !new.diagnostics {
@@ -353,6 +380,13 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 }
                 controller.preview_overlay(now);
             }
+            Some(Input::WheelPreview(looking)) => {
+                if let Some(wheel) = looking {
+                    let _ = overlay.send(OverlayUpdate::WheelLook(wheel_look(&wheel, &settings.overlay)));
+                    controller.set_wheel(wheel);
+                }
+                controller.preview_wheel(now);
+            }
             Some(Input::Pad { index, pressed }) => {
                 controller.window_pad(index, pressed, now);
                 window_touch(display, Touch::Press(Control::Pad(index), pressed));
@@ -364,6 +398,8 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                 window_touch(display, Touch::Press(Control::Key(index), false));
             }
             Some(Input::HearAgain) => controller.hear_sounds_again(),
+            Some(Input::SoundMode { id, mode }) => controller.set_sound_mode(&id, mode),
+            Some(Input::SoundStopsOthers { id, stops_others }) => controller.set_sound_stops_others(&id, stops_others),
             Some(Input::CloseVolumeNotice) => controller.close_volume_notice(),
             Some(Input::KnobTurn(step)) => {
                 controller.window_knob_turned(step, now);
@@ -378,6 +414,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
             Some(Input::Macros(macros)) => controller.set_macros(macros),
             Some(Input::TryMacro(id)) => controller.try_macro(&id, now),
             Some(Input::StopMacro) => controller.stop_macro(),
+            Some(Input::ReadSoundLengths) => controller.read_sound_lengths(now),
             Some(Input::Test(input)) => match (input, &mut tester) {
                 (TestInput::Start, None) => {
                     // Nothing plays meanwhile, a macro tried on the Macros page included
@@ -552,6 +589,16 @@ fn look(overlay: &OverlaySettings) -> Look {
     }
 }
 
+/// The wheel's own look, on the overlay's screen, or None to look as the overlay
+fn wheel_look(wheel: &WheelSettings, overlay: &OverlaySettings) -> Option<Look> {
+    wheel.own_look.then(|| Look {
+        anchor: wheel.anchor,
+        opacity: f32::from(wheel.opacity) / 100.0,
+        size: f64::from(wheel.size) / 100.0,
+        screen: overlay.screen.clone(),
+    })
+}
+
 fn send(app: &AppHandle, input: Input) {
     if let Some(inputs) = app.try_state::<Inputs>() {
         let _ = inputs.0.lock().unwrap().send(input);
@@ -576,6 +623,12 @@ pub fn try_macro(app: &AppHandle, id: String) {
 
 pub fn stop_macro(app: &AppHandle) {
     send(app, Input::StopMacro);
+}
+
+/// The sounds' lengths from Voicemod's files, for the Macro section's time line
+#[tauri::command]
+pub fn read_sound_lengths(app: AppHandle) {
+    send(&app, Input::ReadSoundLengths);
 }
 
 #[tauri::command]
@@ -611,11 +664,33 @@ pub fn preview_overlay(app: AppHandle, overlay: Option<OverlaySettings>) {
     send(&app, Input::OverlayPreview(overlay.map(OverlaySettings::checked)));
 }
 
+/// The action wheel for a moment, as it looks with `wheel` while the settings change, before they are saved
+#[tauri::command]
+pub fn preview_wheel(app: AppHandle, wheel: Option<WheelSettings>) {
+    send(&app, Input::WheelPreview(wheel.map(WheelSettings::checked)));
+}
+
 /// A pad pressed or released in the window
 #[tauri::command]
 pub fn press_pad(app: AppHandle, index: u8, pressed: bool) {
     if index < PAD_COUNT {
         send(&app, Input::Pad { index, pressed });
+    }
+}
+
+/// For good, in Voicemod, as its own window changes it
+#[tauri::command]
+pub fn set_sound_mode(app: AppHandle, id: String, mode: PlaybackMode) {
+    if id.len() <= crate::custom_pages::MAX_ID {
+        send(&app, Input::SoundMode { id, mode });
+    }
+}
+
+/// Whether a sound stops every other one when it starts, for good, in Voicemod
+#[tauri::command]
+pub fn set_sound_stops_others(app: AppHandle, id: String, stops_others: bool) {
+    if id.len() <= crate::custom_pages::MAX_ID {
+        send(&app, Input::SoundStopsOthers { id, stops_others });
     }
 }
 

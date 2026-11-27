@@ -146,6 +146,16 @@ impl Mixer {
         Some(next)
     }
 
+    /// The volume a sound starts at, for this play, as a pad of the user's own gives it
+    pub fn play_at(&mut self, sound: &str, volume: f32) {
+        self.playing.insert(sound.to_string(), volume);
+    }
+
+    /// A sound's volume, now saved in Voicemod as its own
+    pub fn save_sound(&mut self, sound: &str, volume: f32) {
+        self.saved.insert(sound.to_string(), volume);
+    }
+
     /// The sounds that ended start from their saved volume at their next play
     pub fn keep_playing(&mut self, playing: impl Fn(&str) -> bool) {
         self.playing.retain(|sound, _| playing(sound));
@@ -282,6 +292,18 @@ mod tests {
             [("honk".to_string(), 1.0), ("song".to_string(), 0.3)]
         );
         assert_eq!(mixer.step_sound("song", -1), Some(25));
+    }
+
+    #[test]
+    fn a_saved_volume_is_where_the_next_play_starts() {
+        let mut mixer = mixer();
+        mixer.step_sound("song", -2);
+        mixer.save_sound("song", 0.2);
+        mixer.keep_playing(|_| false);
+        assert_eq!(mixer.step_sound("song", 1), Some(25));
+        mixer.keep_playing(|_| false);
+        mixer.play_at("song", 0.6);
+        assert_eq!(mixer.step_sound("song", 1), Some(65), "from the pad's volume");
     }
 
     #[test]

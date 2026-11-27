@@ -27,6 +27,10 @@ export interface PadView {
 /** The board as the app drives it (src-tauri/src/controller/window.rs) */
 export interface BoardView {
   pages: string[];
+  /** Each page's soundboard id, or the id of the user's own page it is */
+  ids: string[];
+  /** How many of the pages, from the first, are the user's own */
+  own: number;
   page: number;
   pads: PadView[];
   /** The function keys' LEDs, from the left */
@@ -67,6 +71,12 @@ export function pressKey(index: number): void {
 
 export function goToPage(index: number): void {
   invoke("go_to_page", { index }).catch((error) => console.error("cannot change the page", error));
+}
+
+/** Shows the page with that id on the board, if it has it */
+export function showPage(view: BoardView, id: string): void {
+  const index = view.ids.indexOf(id);
+  if (index >= 0 && index !== view.page) goToPage(index);
 }
 
 export function pictureUrl(path: string): string {

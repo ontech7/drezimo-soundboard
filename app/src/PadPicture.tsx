@@ -8,6 +8,8 @@ import {
   MacroIcon,
   MicMuteIcon,
   MuteMeIcon,
+  OverlayIcon,
+  ResetIcon,
   ShuffleIcon,
   SoundIcon,
   StopIcon,
@@ -24,6 +26,8 @@ const ACTION_ICONS: Record<Action, ReactNode> = {
   muteForMe: <MuteMeIcon />,
   background: <BackgroundIcon />,
   goToPage: <GoToIcon />,
+  overlay: <OverlayIcon />,
+  resetVolumes: <ResetIcon />,
 };
 
 interface Props {
