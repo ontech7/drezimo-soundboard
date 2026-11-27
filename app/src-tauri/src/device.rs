@@ -61,6 +61,8 @@ enum Input {
     /// The Macro section's Try and Stop
     TryMacro(String),
     StopMacro,
+    /// The Macro section opened: its time line wants the sounds' lengths
+    ReadSoundLengths,
     Test(TestInput),
     /// The display on the PC screen, as Diagnostics sets it
     DisplayLook(DisplayLook),
@@ -314,6 +316,9 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
                         update_library(app, |library| library.set_soundboards(soundboards));
                     }
                     VoicemodEvent::Voices { voices, .. } => update_library(app, |library| library.set_voices(voices)),
+                    VoicemodEvent::SoundLengths(lengths) => {
+                        update_library(app, |library| library.set_file_lengths(lengths));
+                    }
                     _ => {}
                 }
                 controller.voicemod_event(event, now);
@@ -389,6 +394,7 @@ fn run(app: &AppHandle, inputs: &Receiver<Input>, firmware_inputs: &Sender<Input
             Some(Input::Macros(macros)) => controller.set_macros(macros),
             Some(Input::TryMacro(id)) => controller.try_macro(&id, now),
             Some(Input::StopMacro) => controller.stop_macro(),
+            Some(Input::ReadSoundLengths) => controller.read_sound_lengths(now),
             Some(Input::Test(input)) => match (input, &mut tester) {
                 (TestInput::Start, None) => {
                     // Nothing plays meanwhile, a macro tried on the Macros page included
@@ -587,6 +593,12 @@ pub fn try_macro(app: &AppHandle, id: String) {
 
 pub fn stop_macro(app: &AppHandle) {
     send(app, Input::StopMacro);
+}
+
+/// The sounds' lengths from Voicemod's files, for the Macro section's time line
+#[tauri::command]
+pub fn read_sound_lengths(app: AppHandle) {
+    send(&app, Input::ReadSoundLengths);
 }
 
 #[tauri::command]

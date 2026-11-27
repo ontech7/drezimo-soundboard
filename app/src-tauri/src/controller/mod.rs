@@ -193,6 +193,8 @@ pub struct Controller {
     shown_pages: ShownPages,
     /// The sounds' volumes the knob set, saved in Voicemod from then
     sound_saves: HashMap<String, (f32, Instant)>,
+    /// Each sound's length from its file, as Voicemod told it
+    file_lengths: HashMap<String, Duration>,
     /// Turned, or held for a peek, since it went down: the overlay stays a little after it is let go
     knob_used: bool,
     row: Option<RowShown>,
@@ -263,6 +265,7 @@ impl Default for Controller {
             knob_settings: KnobSettings::default(),
             shown_pages: ShownPages::default(),
             sound_saves: HashMap::new(),
+            file_lengths: HashMap::new(),
             knob_used: false,
             row: None,
             level: None,
@@ -481,6 +484,12 @@ impl Controller {
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
             VoicemodEvent::SoundChanged => self.request(Request::ReadSoundboards),
             // Only for the window (src/pictures.rs) and the status
+            VoicemodEvent::SoundLengths(lengths) => {
+                self.file_lengths = lengths
+                    .into_iter()
+                    .map(|(id, seconds)| (id, Duration::from_secs_f32(seconds)))
+                    .collect();
+            }
             VoicemodEvent::Picture { .. } | VoicemodEvent::Version(_) => {}
         }
     }
@@ -586,6 +595,15 @@ impl Controller {
     /// Why a sound that played was not heard by the user, while it is still so.
     pub fn played_while_muted(&self) -> Option<MutedBy> {
         self.muted_play
+    }
+
+    /// The sounds' lengths and saved volumes from Voicemod, for the Macro editor's time line: at most once a minute,
+    /// as Voicemod asks its servers for them.
+    pub fn read_sound_lengths(&mut self, now: Instant) {
+        if self.single_stop && self.volumes_read.is_none_or(|read| now >= read + knob::READ_EVERY) {
+            self.volumes_read = Some(now);
+            self.request(Request::ReadSoundVolumes);
+        }
     }
 
     /// A sound's mode in Voicemod, changed for good as in Voicemod's own window: through the bridge only.

@@ -11,7 +11,7 @@ import {
 } from "../customPages";
 import { useTexts } from "../i18n";
 import { CheckIcon, CloseIcon, LockIcon, PlusIcon, SearchIcon } from "../icons";
-import { type Macro, stepLength } from "../macros";
+import { type Macro, macroLength, stepsOf } from "../macros";
 import { PadPicture } from "../PadPicture";
 import { SearchSelect } from "../SearchSelect";
 import type { Lookup } from "./PagesPage";
@@ -161,13 +161,12 @@ export function Picker({ page, start, library, lookup, macros, onOpenMacros, onP
         }));
       case "macros":
         return macros.map((item) => {
-          const lengths = item.steps.map((step) => stepLength(step, library) ?? 0);
-          const length = lengths.reduce((sum, next) => sum + next, 0);
+          const length = macroLength(item, library) ?? 0;
           return {
             key: `macro:${item.id}`,
             id: item.id,
             name: item.name,
-            sub: texts.macroSteps(item.steps.length, texts.secondsOf(length)),
+            sub: texts.macroSteps(stepsOf(item).length, texts.secondsOf(length)),
             macro: true,
             tint: item.colour ?? MACRO_COLOUR,
             locked: false,

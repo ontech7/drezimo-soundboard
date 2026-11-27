@@ -1,5 +1,6 @@
-//! The user's macros, made in the window's Macro section and kept in a JSON file in the app's config folder: sequences
-//! of steps a pad of their own pages runs (docs/project.md, section 8). `controller/macros.rs` runs them.
+//! The user's macros, made in the window's Macro section and kept in a JSON file in the app's config folder: sounds on
+//! tracks along a time line, with actions at their own times, that a pad of their own pages runs; macros from before
+//! the time line keep their sequence of steps (docs/project.md, section 8). `controller/running.rs` runs them.
 
 use crate::custom_pages::{colour_into_range, into_range};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -24,6 +25,13 @@ const MAX_REPEAT: u8 = 3;
 const MAX_ID: usize = 64;
 /// A sound's or a voice's name, kept for when Voicemod is away
 const MAX_ITEM_NAME: usize = 100;
+pub const MAX_TRACKS: u8 = 6;
+const MAX_CLIPS: usize = 50;
+/// Ten minutes, in milliseconds: the time line's end
+const MAX_AT: u32 = 600_000;
+/// The shortest a cut sound plays
+const MIN_CUT: u32 = 100;
+const MAX_LEVELS: usize = 20;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,8 +50,78 @@ pub struct Macro {
     /// At the end, the voice and the switches it changed go back as they were
     #[serde(default)]
     pub restore: bool,
-    #[serde(deserialize_with = "steps_known")]
+    /// Before the time line, and for the macros not edited since: run one after the other
+    #[serde(default, deserialize_with = "steps_known")]
     pub steps: Vec<Step>,
+    /// Run instead of the steps, once the editor has made it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeline: Option<Timeline>,
+}
+
+/// Sounds on tracks, each from its own time, and the other steps at theirs
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Timeline {
+    #[serde(deserialize_with = "known")]
+    pub clips: Vec<Clip>,
+    #[serde(deserialize_with = "known")]
+    pub actions: Vec<TimedStep>,
+}
+
+/// A sound on the time line, by Voicemod's id, with its name for when Voicemod is away
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Clip {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub track: u8,
+    /// When it starts, in milliseconds from the macro's start
+    #[serde(default)]
+    pub at: u32,
+    /// How long it plays before it is stopped, in milliseconds: to its end when none
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cut: Option<u32>,
+    /// Its volume along the way, from its start: Voicemod's own when empty
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub volume: Vec<Level>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct Level {
+    /// Milliseconds from the clip's start
+    pub at: u32,
+    pub percent: u8,
+}
+
+impl Clip {
+    /// The volume at `at` milliseconds from its start, in percent, straight between the levels
+    pub fn level_at(&self, at: u32) -> Option<u8> {
+        let (first, last) = (self.volume.first()?, self.volume.last()?);
+        if at <= first.at {
+            return Some(first.percent);
+        }
+        if at >= last.at {
+            return Some(last.percent);
+        }
+        let pair = self.volume.windows(2).find(|pair| at <= pair[1].at)?;
+        let (from, to) = (pair[0], pair[1]);
+        let span = to.at.saturating_sub(from.at).max(1) as f32;
+        let share = (at - from.at) as f32 / span;
+        let level = f32::from(from.percent) + share * (f32::from(to.percent) - f32::from(from.percent));
+        Some(level.round() as u8)
+    }
+}
+
+/// One of the steps that is not a sound or a wait, at its time
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TimedStep {
+    /// Milliseconds from the macro's start
+    #[serde(default)]
+    pub at: u32,
+    #[serde(flatten)]
+    pub step: Step,
 }
 
 fn once() -> u8 {
@@ -115,11 +193,13 @@ pub enum SwitchState {
 
 /// A step this app does not know, from another version, is left out rather than losing the macro.
 fn steps_known<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Step>, D::Error> {
-    let steps = Vec::<Value>::deserialize(deserializer)?;
-    Ok(steps
-        .into_iter()
-        .filter_map(|step| Step::deserialize(step).ok())
-        .collect())
+    known(deserializer)
+}
+
+/// Each item read on its own: one this app cannot read is left out alone
+fn known<'de, D: Deserializer<'de>, T: serde::de::DeserializeOwned>(deserializer: D) -> Result<Vec<T>, D::Error> {
+    let items = Vec::<Value>::deserialize(deserializer)?;
+    Ok(items.into_iter().filter_map(|item| T::deserialize(item).ok()).collect())
 }
 
 pub struct MacrosState(Mutex<Vec<Macro>>);
@@ -147,17 +227,51 @@ pub fn checked(macros: Vec<Macro>) -> Vec<Macro> {
             item.steps.retain(step_kept);
             item.steps.truncate(MAX_STEPS);
             for step in &mut item.steps {
-                match step {
-                    Step::Wait { millis } => *millis = (*millis).clamp(MIN_WAIT, MAX_WAIT),
-                    Step::Sound { name, .. } | Step::Voice { name, .. } => {
-                        *name = name.trim().chars().take(MAX_ITEM_NAME).collect();
-                    }
-                    _ => {}
-                }
+                step_checked(step);
+            }
+            if let Some(timeline) = &mut item.timeline {
+                timeline_checked(timeline);
             }
             item
         })
         .collect()
+}
+
+fn step_checked(step: &mut Step) {
+    match step {
+        Step::Wait { millis } => *millis = (*millis).clamp(MIN_WAIT, MAX_WAIT),
+        Step::Sound { name, .. } | Step::Voice { name, .. } => {
+            *name = name.trim().chars().take(MAX_ITEM_NAME).collect();
+        }
+        _ => {}
+    }
+}
+
+/// Within what the editor offers: at most 50 sounds on 6 tracks and 50 actions, in the first ten minutes
+fn timeline_checked(timeline: &mut Timeline) {
+    timeline.clips.retain(|clip| clip.id.len() <= MAX_ID);
+    timeline.clips.truncate(MAX_CLIPS);
+    for clip in &mut timeline.clips {
+        clip.name = clip.name.trim().chars().take(MAX_ITEM_NAME).collect();
+        clip.track = clip.track.min(MAX_TRACKS - 1);
+        clip.at = clip.at.min(MAX_AT);
+        clip.cut = clip.cut.map(|cut| cut.clamp(MIN_CUT, MAX_AT));
+        clip.volume.sort_by_key(|level| level.at);
+        clip.volume.truncate(MAX_LEVELS);
+        for level in &mut clip.volume {
+            level.at = level.at.min(MAX_AT);
+            level.percent = level.percent.min(100);
+        }
+    }
+    // A sound or a wait has no place among the actions
+    timeline
+        .actions
+        .retain(|action| step_kept(&action.step) && !matches!(action.step, Step::Sound { .. } | Step::Wait { .. }));
+    timeline.actions.truncate(MAX_STEPS);
+    for action in &mut timeline.actions {
+        action.at = action.at.min(MAX_AT);
+        step_checked(&mut action.step);
+    }
 }
 
 /// Macro by macro and step by step, so that what cannot be read is left out alone: the macros kept, and how many
@@ -333,6 +447,7 @@ mod tests {
             repeat: 9,
             restore: false,
             steps: vec![Step::Wait { millis }],
+            timeline: None,
         };
         let macros = checked(vec![
             item("macro-a", "  Entrance  ", 10),
@@ -346,6 +461,48 @@ mod tests {
         assert_eq!(macros[0].repeat, MAX_REPEAT);
         assert_eq!(macros[0].steps, [Step::Wait { millis: MIN_WAIT }]);
         assert_eq!(macros[1].steps, [Step::Wait { millis: MAX_WAIT }]);
+    }
+
+    #[test]
+    fn reads_and_keeps_a_time_line_within_what_the_editor_offers() {
+        let value = serde_json::json!([{"id": "macro-1", "name": "Live", "steps": [], "timeline": {
+            "clips": [
+                {"id": "s1", "name": "Night Call", "track": 0, "at": 0, "volume": [
+                    {"at": 1000, "percent": 80}, {"at": 0, "percent": 0}, {"at": 9000, "percent": 0}]},
+                {"id": "s2", "track": 9, "at": 900000, "cut": 20},
+                {"id": "s3", "at": -5},
+                {"flying": true}
+            ],
+            "actions": [
+                {"at": 5400, "type": "voice", "id": "v1", "name": "Robot"},
+                {"at": 100, "type": "sound", "id": "s1"},
+                {"at": 200, "type": "wait", "millis": 100},
+                {"at": 300, "type": "somethingNew"}
+            ]
+        }}]);
+        let (macros, _, _) = from_values(serde_json::from_value(value).unwrap());
+        let timeline = macros[0].timeline.as_ref().expect("the time line");
+        assert_eq!(timeline.clips.len(), 2, "unreadable clips left out alone");
+        let night = &timeline.clips[0];
+        assert_eq!(night.volume[0], Level { at: 0, percent: 0 }, "levels in their order");
+        assert_eq!(
+            (night.level_at(500), night.level_at(5000), night.level_at(20_000)),
+            (Some(40), Some(40), Some(0))
+        );
+        let far = &timeline.clips[1];
+        assert_eq!((far.track, far.at, far.cut), (MAX_TRACKS - 1, MAX_AT, Some(MIN_CUT)));
+        assert_eq!(far.level_at(0), None, "Voicemod's own volume");
+        assert_eq!(timeline.actions.len(), 1, "only the steps that are no sound or wait");
+        assert!(matches!(
+            &timeline.actions[0],
+            TimedStep {
+                at: 5400,
+                step: Step::Voice { .. }
+            }
+        ));
+
+        let written = serde_json::to_string(&macros).unwrap();
+        assert_eq!(serde_json::from_str::<Vec<Macro>>(&written).unwrap(), macros);
     }
 
     #[test]

@@ -44,7 +44,7 @@ A physical soundboard for [Voicemod](https://www.voicemod.net/): 36 pads, 6 func
 
 - **Soundboard:** the board's current page in the window, with Voicemod's pictures and the LEDs' live colours, playable from there too, and the display's live picture. Voicemod's soundboards and voices come as pages of 36 pads; a sound outside the Voicemod licence blinks red with "PRO ONLY" when pressed.
 - **Your own pages:** sounds, voices and actions (stop the sounds, mute the microphone, the voice changer, a random voice, hear myself, mute for me, background effects, go to a page, the overlay, the volumes back) in the order you want, with your own names, LED colours and sound volumes, before Voicemod's soundboards on the board.
-- **Macros:** one pad playing a sequence of sounds, waits, voices and switches.
+- **Macros:** one pad playing sounds on tracks along a time line, one after the other or over each other, cut where you want and with their own volume, with voices and switches at their times.
 - **PC overlay:** the page's sounds on top of the other windows when the page changes or the knob is held, on the screen and in the corner you choose.
 - **Updates:** the app updates itself and the board's firmware, and says what is new.
 - **Support:** a report to copy, without personal paths, and a hardware test for a board just built.

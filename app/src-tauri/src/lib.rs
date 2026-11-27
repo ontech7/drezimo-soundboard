@@ -70,6 +70,7 @@ pub fn run() {
             device::press_key,
             device::hear_sounds_again,
             device::set_sound_mode,
+            device::read_sound_lengths,
             device::close_volume_notice,
             device::turn_knob,
             device::press_knob,

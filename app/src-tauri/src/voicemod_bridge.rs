@@ -196,6 +196,7 @@ async fn serve(
                         let ready = options.read(&resources, Instant::now());
                         // With the changes that waited for them: the volumes the knob just saved among them
                         on_event(BridgeEvent::SoundVolumes(volumes(&options.known)));
+                        on_event(BridgeEvent::SoundLengths(lengths(&resources)));
                         for (sound, changed) in ready {
                             socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
                         }
@@ -456,6 +457,8 @@ pub enum BridgeEvent {
     SoundVolumes(HashMap<String, f32>),
     /// A sound's own options changed in Voicemod, as the app asked: its soundboards tell them
     SoundChanged,
+    /// Each sound's length, in seconds, as Voicemod knows it from its file
+    SoundLengths(HashMap<String, f32>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -545,6 +548,15 @@ fn volumes(options: &HashMap<String, Map<String, Value>>) -> HashMap<String, f32
     options
         .iter()
         .filter_map(|(sound, options)| Some((sound.clone(), options.get("volume")?.as_f64()? as f32)))
+        .collect()
+}
+
+fn lengths(resources: &Value) -> HashMap<String, f32> {
+    sounds(resources)
+        .filter_map(|resource| {
+            let seconds = resource["duration"].as_f64().filter(|seconds| *seconds > 0.0)?;
+            Some((resource["id"].as_str()?.to_string(), seconds as f32))
+        })
         .collect()
 }
 
@@ -1048,6 +1060,11 @@ mod tests {
         let volumes = HashMap::from([("s1".to_string(), 0.5), ("s3".to_string(), 1.0)]);
         let options = all_options(&read);
         assert_eq!(super::volumes(&options), volumes);
+        let with_length = json!({"collections": [{"resources": [
+            {"id": "s1", "type": "sound", "duration": 0.83},
+            {"id": "s2", "type": "sound", "duration": 0},
+            {"id": "v1", "type": "voice", "duration": 3}]}]});
+        assert_eq!(lengths(&with_length), HashMap::from([("s1".to_string(), 0.83)]));
         assert_eq!(options.len(), 3, "every sound with options");
         assert_eq!(options["s1"]["loop"], false);
     }

@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import type { Library, PageTarget } from "../customPages";
 import { useTexts } from "../i18n";
 import { actionName, BRIDGE_ACTIONS, goneTarget } from "../knob";
-import { type Macro, stepLength } from "../macros";
+import { type Macro, macroLength, stepLength, stepsOf } from "../macros";
 import { describe } from "../pages/MacrosPage";
 import { type KindMode, type Outcome, voicemodsOwn } from "../pressAgain";
 import type { KnobSettings, PressAction, PressAgain, SettingsView } from "../settings";
@@ -62,7 +62,7 @@ function padSentence(story: PadStory, words: ExplainTexts): string {
 /** Why a press does nothing with no macro or page chosen, or with a macro that has no steps */
 function unsetTarget(press: PressAction, macro: Macro | undefined, words: ExplainTexts): string | undefined {
   if (press.action === "macro" && press.macroId === "") return words.idle.noMacro;
-  if (press.action === "macro" && macro?.steps.length === 0) return words.idle.emptyMacro;
+  if (press.action === "macro" && (macro ? stepsOf(macro).length === 0 : false)) return words.idle.emptyMacro;
   if (press.action === "page" && press.page === "") return words.idle.noPage;
   return undefined;
 }
@@ -197,12 +197,14 @@ export function KnobExplainer({ gesture, settings, bridge, macros, targets, libr
     chosenMacro !== undefined &&
     overAtOnce(
       chosenMacro.repeat,
-      chosenMacro.steps.map((step) => stepLength(step, library))
+      chosenMacro.timeline ? [macroLength(chosenMacro, library)] : chosenMacro.steps.map((step) => stepLength(step, library))
     );
   const macro = chosenMacro
     ? {
         name: chosenMacro.name,
-        steps: chosenMacro.steps.slice(0, 4).map((step) => describe(step, texts, library, targets).title),
+        steps: stepsOf(chosenMacro)
+          .slice(0, 4)
+          .map((step) => describe(step, texts, library, targets).title),
         again: twice ? ("restart" as const) : chosenMacro.again,
       }
     : null;

@@ -119,6 +119,9 @@ pub struct Library {
     /// The sounds' lengths known so far, in seconds
     #[serde(skip)]
     lengths: HashMap<String, f32>,
+    /// As Voicemod knows them from their files, which comes first
+    #[serde(skip)]
+    file_lengths: HashMap<String, f32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -159,7 +162,7 @@ impl Library {
                     .sounds
                     .iter()
                     .map(|sound| LibraryItem {
-                        length: self.lengths.get(&sound.id).copied(),
+                        length: self.length(&sound.id),
                         ..item(Pad::Sound(sound.clone()))
                     })
                     .collect(),
@@ -172,13 +175,27 @@ impl Library {
             .iter()
             .map(|(id, length)| (id.clone(), length.as_secs_f32()))
             .collect();
-        for sound in self
-            .soundboards
-            .iter_mut()
-            .flat_map(|soundboard| &mut soundboard.sounds)
-        {
-            sound.length = self.lengths.get(&sound.id).copied();
+        self.show_lengths();
+    }
+
+    pub fn set_file_lengths(&mut self, lengths: &HashMap<String, f32>) {
+        self.file_lengths.clone_from(lengths);
+        self.show_lengths();
+    }
+
+    fn length(&self, sound: &str) -> Option<f32> {
+        self.file_lengths
+            .get(sound)
+            .or_else(|| self.lengths.get(sound))
+            .copied()
+    }
+
+    fn show_lengths(&mut self) {
+        let mut soundboards = std::mem::take(&mut self.soundboards);
+        for sound in soundboards.iter_mut().flat_map(|soundboard| &mut soundboard.sounds) {
+            sound.length = self.length(&sound.id);
         }
+        self.soundboards = soundboards;
     }
 
     pub fn set_voices(&mut self, voices: &[Voice]) {

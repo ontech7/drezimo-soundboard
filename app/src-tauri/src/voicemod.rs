@@ -153,6 +153,8 @@ pub enum VoicemodEvent {
     SoundVolumes(HashMap<String, f32>),
     /// A sound's own options changed as the app asked, through the bridge
     SoundChanged,
+    /// Each sound's length from its file, through the bridge, in seconds
+    SoundLengths(HashMap<String, f32>),
 }
 
 /// The user's Voicemod licence: Pro includes every sound and voice
@@ -190,6 +192,7 @@ impl Voicemod {
                 },
                 BridgeEvent::SoundVolumes(volumes) => VoicemodEvent::SoundVolumes(volumes),
                 BridgeEvent::SoundChanged => VoicemodEvent::SoundChanged,
+                BridgeEvent::SoundLengths(lengths) => VoicemodEvent::SoundLengths(lengths),
             })
         });
         tauri::async_runtime::spawn(keep_connected(outgoing, move |event| on_event(event), bridge));

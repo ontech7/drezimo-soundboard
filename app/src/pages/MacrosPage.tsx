@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Segmented, Toggle } from "../controls";
 import {
   ACTION_COLOURS,
@@ -21,10 +21,7 @@ import { ColourPicker, RenameField } from "../editing";
 import { type Texts, useTexts } from "../i18n";
 import {
   BackgroundIcon,
-  ChevronDown,
-  ChevronUp,
   ClockIcon,
-  CloseIcon,
   DotsIcon,
   GoToIcon,
   HearMeIcon,
@@ -37,25 +34,38 @@ import {
   ShuffleIcon,
   SoundIcon,
   StopIcon,
+  TrashIcon,
   VoiceChangerIcon,
   VoiceIcon,
 } from "../icons";
 import {
+  clipLength,
   type Macro,
-  type MacroProgress,
+  MAX_CLIPS,
   MAX_MACROS,
   MAX_STEPS,
   MAX_WAIT,
   MIN_WAIT,
   newMacroId,
+  readSoundLengths,
   type Step,
-  stepLength,
   type Switch,
   SWITCHES,
   stopMacro,
+  type Timeline as Tracks,
+  timelineOf,
   tryMacro,
   useMacros,
 } from "../macros";
+import {
+  AddToTimeline,
+  ClipInspector,
+  freeTrack,
+  MacroTimeline,
+  overlapsItself,
+  removed,
+  type Selected,
+} from "./MacroTimeline";
 import { PadPicture } from "../PadPicture";
 import { SearchSelect } from "../SearchSelect";
 import type { Status } from "../status";
@@ -164,10 +174,15 @@ export function MacrosPage({ status }: { status: Status }) {
   const [pages] = useCustomPages();
   const library = useLibrary();
   const [current, setCurrent] = useState(0);
-  const [open, setOpen] = useState<number | null>(null);
-  // The step whose sound is being chosen, or "new" for a sound step to add
+  const [selected, setSelected] = useState<Selected>(null);
+  // Where a sound or an action added next goes, in milliseconds
+  const [cursor, setCursor] = useState(0);
+  // The clip whose sound is being chosen, or "new" for a sound to add
   const [choosing, setChoosing] = useState<number | "new" | null>(null);
   const targets = useMemo(() => targetsOf(pages ?? [], library, texts), [pages, library, texts]);
+
+  // The time line draws each sound as long as it is
+  useEffect(() => readSoundLengths(), []);
 
   if (!macros) return null;
 
@@ -183,7 +198,8 @@ export function MacrosPage({ status }: { status: Status }) {
   const add = (item: Macro) => {
     save([...macros, item]);
     setCurrent(macros.length);
-    setOpen(null);
+    setSelected(null);
+    setCursor(0);
   };
 
   if (macros.length === 0) {
@@ -206,30 +222,32 @@ export function MacrosPage({ status }: { status: Status }) {
   const index = Math.min(current, macros.length - 1);
   const item = macros[index];
   const saveMacro = (next: Macro) => save(macros.map((other, i) => (i === index ? next : other)));
-  const setSteps = (steps: Step[]) => saveMacro({ ...item, steps });
-  const setStep = (at: number, step: Step) => setSteps(item.steps.map((other, i) => (i === at ? step : other)));
+  const timeline = timelineOf(item, library);
+  // Once edited, a macro from before the time line keeps only its time line
+  const setTimeline = (next: Tracks) => saveMacro({ ...item, steps: [], timeline: next });
   const running = status.runningMacro?.id === item.id ? status.runningMacro : null;
-  const playable = status.voicemod.state === "connected" && item.steps.length > 0;
+  const playable = status.voicemod.state === "connected" && timeline.clips.length + timeline.actions.length > 0;
+  const selectedClip = selected?.kind === "clip" ? timeline.clips[selected.index] : undefined;
+  const selectedAction = selected?.kind === "action" ? timeline.actions[selected.index] : undefined;
 
   const places = (pages ?? []).flatMap((page) =>
     page.pads.flatMap((pad, i) => (pad?.kind === "macro" && pad.id === item.id ? [`${page.name} ${i + 1}`] : []))
   );
 
-  const moveStep = (from: number, to: number) => {
-    if (to < 0 || to >= item.steps.length) return;
-    const steps = [...item.steps];
-    [steps[from], steps[to]] = [steps[to], steps[from]];
-    setSteps(steps);
-    setOpen((shown) => (shown === from ? to : shown === to ? from : shown));
-  };
-
   const pickSound = (sound: LibraryItem) => {
     if (choosing === "new") {
-      setSteps([...item.steps, { type: "sound", id: sound.id, name: sound.name, waitEnd: true }]);
-      setOpen(item.steps.length);
+      const clip = { id: sound.id, name: sound.name, track: 0, at: cursor };
+      const millis = clipLength(clip, library).millis;
+      clip.track = freeTrack(timeline, cursor, millis, library);
+      setTimeline({ ...timeline, clips: [...timeline.clips, clip] });
+      setSelected({ kind: "clip", index: timeline.clips.length });
+      // The next one after it, as a sequence is most often made
+      setCursor(cursor + millis);
     } else if (choosing !== null) {
-      const step = item.steps[choosing];
-      if (step.type === "sound") setStep(choosing, { ...step, id: sound.id, name: sound.name });
+      const clips = timeline.clips.map((clip, i) =>
+        i === choosing ? { ...clip, id: sound.id, name: sound.name, cut: null, volume: [] } : clip
+      );
+      setTimeline({ ...timeline, clips });
     }
     setChoosing(null);
   };
@@ -243,7 +261,8 @@ export function MacrosPage({ status }: { status: Status }) {
           index={index}
           onSelect={(i) => {
             setCurrent(i);
-            setOpen(null);
+            setSelected(null);
+            setCursor(0);
           }}
           onAdd={() => add(blank())}
           onRename={(name) => saveMacro({ ...item, name })}
@@ -255,7 +274,7 @@ export function MacrosPage({ status }: { status: Status }) {
           onDelete={() => {
             save(macros.filter((_, i) => i !== index));
             setCurrent(Math.max(0, index - 1));
-            setOpen(null);
+            setSelected(null);
           }}
         />
 
@@ -279,47 +298,95 @@ export function MacrosPage({ status }: { status: Status }) {
           </button>
         </div>
 
-        <Timeline steps={item.steps} library={library} running={running} />
+        <MacroTimeline
+          key={item.id}
+          timeline={timeline}
+          library={library}
+          running={running}
+          bridge={status.singleSoundStop}
+          selected={selected}
+          onSelect={setSelected}
+          onChange={setTimeline}
+          cursor={cursor}
+          onCursor={setCursor}
+          describeAction={(action) => describe(action, texts, library, targets)}
+        />
+        {timeline.clips.length + timeline.actions.length === 0 && <p className="muted no-steps">{texts.noClips}</p>}
 
-        {item.steps.length === 0 ? (
-          <p className="muted no-steps">{texts.noSteps}</p>
-        ) : (
-          <ol className="steps" aria-label={texts.stepsLabel}>
-            {item.steps.map((step, i) => (
-              <StepRow
-                key={i}
-                step={step}
-                number={i + 1}
-                count={item.steps.length}
-                open={open === i}
-                state={running ? (i + 1 < running.step ? "done" : i + 1 === running.step ? "now" : "") : ""}
-                library={library}
-                targets={targets}
-                onToggle={() => setOpen(open === i ? null : i)}
-                onChange={(next) => setStep(i, next)}
-                onMove={(step) => moveStep(i, i + step)}
-                onRemove={() => {
-                  setSteps(item.steps.filter((_, other) => other !== i));
-                  setOpen(null);
-                }}
-                onChooseSound={() => setChoosing(i)}
-              />
-            ))}
-          </ol>
+        {selectedClip && selected && (
+          <ClipInspector
+            clip={selectedClip}
+            library={library}
+            bridge={status.singleSoundStop}
+            warned={overlapsItself(timeline, selected.index, library)}
+            onChange={(clip) =>
+              setTimeline({ ...timeline, clips: timeline.clips.map((other, i) => (i === selected.index ? clip : other)) })
+            }
+            onChangeSound={() => setChoosing(selected.index)}
+            onRemove={() => {
+              setTimeline(removed(timeline, selected));
+              setSelected(null);
+            }}
+          />
+        )}
+        {selectedAction && selected && (
+          <div className="mt-inspector">
+            <div className="identity">
+              <Tinted colour={describe(selectedAction, texts, library, targets).colour}>
+                {describe(selectedAction, texts, library, targets).icon}
+              </Tinted>
+              <div>
+                <p className="title">{describe(selectedAction, texts, library, targets).title}</p>
+                <p className="muted">{texts.actionAt(texts.secondsOf(selectedAction.at / 1000))}</p>
+              </div>
+            </div>
+            <StepEditor
+              step={selectedAction}
+              library={library}
+              targets={targets}
+              onChange={(step) =>
+                setTimeline({
+                  ...timeline,
+                  actions: timeline.actions.map((other, i) =>
+                    i === selected.index ? ({ ...step, at: other.at } as typeof other) : other
+                  ),
+                })
+              }
+              onChooseSound={() => {}}
+            />
+            <span className="spacer" />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={texts.removeStep}
+              title={texts.removeStep}
+              onClick={() => {
+                setTimeline(removed(timeline, selected));
+                setSelected(null);
+              }}
+            >
+              <TrashIcon />
+            </button>
+          </div>
         )}
 
-        <AddStep
-          disabled={item.steps.length >= MAX_STEPS}
-          firstTarget={targets[0]?.id ?? VOICES_ID}
-          onAdd={(step) => {
-            if (step) {
-              setSteps([...item.steps, step]);
-              setOpen(item.steps.length);
-            } else {
-              setChoosing("new");
-            }
-          }}
+        <AddToTimeline
+          full={{ clips: timeline.clips.length >= MAX_CLIPS, actions: timeline.actions.length >= MAX_STEPS }}
+          onSound={() => setChoosing("new")}
+          actionMenu={
+            <AddStep
+              actionsOnly
+              disabled={timeline.actions.length >= MAX_STEPS}
+              firstTarget={targets[0]?.id ?? VOICES_ID}
+              onAdd={(step) => {
+                if (!step || step.type === "sound" || step.type === "wait") return;
+                setTimeline({ ...timeline, actions: [...timeline.actions, { ...step, at: cursor }] });
+                setSelected({ kind: "action", index: timeline.actions.length });
+              }}
+            />
+          }
         />
+        <p className="hint mt-hint">{texts.timelineHint}</p>
 
         <div className="macro-options">
           <div className="option">
@@ -454,128 +521,6 @@ function MacroTabs(props: TabsProps) {
         )}
       </div>
     </div>
-  );
-}
-
-export function Timeline({
-  steps,
-  library,
-  running,
-}: {
-  steps: Step[];
-  library: Library | null;
-  running: MacroProgress | null;
-}) {
-  const texts = useTexts();
-  const lengths = steps.map((step) => stepLength(step, library));
-  const total = lengths.reduce<number>((sum, length) => sum + (length ?? 0), 0);
-  const unknown = lengths.some((length) => length === null);
-  const length = texts.secondsOf(total) + (unknown ? " + ?" : "");
-  return (
-    <div className="timeline">
-      <div className="timeline-label">
-        <span className="muted">{running ? texts.stepOf(running.step, running.steps) : texts.estimatedLength}</span>
-        <span>{length}</span>
-      </div>
-      <div className="timeline-bar" aria-hidden="true">
-        {steps.map((step, i) => {
-          const length = lengths[i];
-          const colour = describe(step, texts, library, []).colour;
-          const classes = [length === null ? "unknown" : "", step.type === "wait" ? "wait" : ""];
-          if (running && i + 1 < running.step) classes.push("done");
-          if (running && i + 1 === running.step) classes.push("now");
-          return (
-            <span
-              key={i}
-              className={classes.join(" ")}
-              style={
-                {
-                  "--tint": rgb(colour),
-                  flex: length === 0 ? "0 0 6px" : `${length ?? 1} 1 0`,
-                } as CSSProperties
-              }
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface StepProps {
-  step: Step;
-  number: number;
-  count: number;
-  open: boolean;
-  /** While the macro runs */
-  state: "done" | "now" | "";
-  library: Library | null;
-  targets: Target[];
-  onToggle: () => void;
-  onChange: (step: Step) => void;
-  onMove: (step: number) => void;
-  onRemove: () => void;
-  onChooseSound: () => void;
-}
-
-function StepRow({
-  step,
-  number,
-  count,
-  open,
-  state,
-  library,
-  targets,
-  onToggle,
-  onChange,
-  onMove,
-  onRemove,
-  onChooseSound,
-}: StepProps) {
-  const texts = useTexts();
-  const shown = describe(step, texts, library, targets);
-  return (
-    <li className={["step", open ? "open" : "", state].join(" ")}>
-      <div className="step-row">
-        <span className="number">{number}</span>
-        <Tinted colour={shown.colour}>{shown.icon}</Tinted>
-        <button type="button" className="summary" aria-expanded={open} onClick={onToggle}>
-          <span className="title">{shown.title}</span>
-          {shown.detail && <span className="muted">{shown.detail}</span>}
-        </button>
-        {state === "now" && <span className="badge now">{texts.runningNow}</span>}
-        <button
-          type="button"
-          className="icon-button small plain"
-          aria-label={texts.moveUp}
-          title={texts.moveUp}
-          disabled={number === 1}
-          onClick={() => onMove(-1)}
-        >
-          <ChevronUp />
-        </button>
-        <button
-          type="button"
-          className="icon-button small plain"
-          aria-label={texts.moveDown}
-          title={texts.moveDown}
-          disabled={number === count}
-          onClick={() => onMove(1)}
-        >
-          <ChevronDown />
-        </button>
-        <button
-          type="button"
-          className="icon-button small plain"
-          aria-label={texts.removeStep}
-          title={texts.removeStep}
-          onClick={onRemove}
-        >
-          <CloseIcon />
-        </button>
-      </div>
-      {open && <StepEditor step={step} library={library} targets={targets} onChange={onChange} onChooseSound={onChooseSound} />}
-    </li>
   );
 }
 
@@ -744,8 +689,8 @@ function SecondsField(props: { label: string; seconds: number; onDone: (seconds:
 
 type Kind = keyof Texts["stepKinds"];
 
-/** The steps to add; a sound is chosen first */
-function AddStep(props: { disabled: boolean; firstTarget: string; onAdd: (step: Step | null) => void }) {
+/** The steps to add; a sound is chosen first. On the time line, only the actions: sounds have their own button. */
+function AddStep(props: { disabled: boolean; firstTarget: string; actionsOnly?: boolean; onAdd: (step: Step | null) => void }) {
   const texts = useTexts();
   const [open, setOpen] = useState(false);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
@@ -757,7 +702,7 @@ function AddStep(props: { disabled: boolean; firstTarget: string; onAdd: (step: 
     if (kind === "goToPage") return { type: "goToPage", page: props.firstTarget };
     return { type: "switch", switch: kind, state: "on" };
   };
-  const kinds: { kind: Kind; icon: ReactNode; colour: Rgb }[] = [
+  const all: { kind: Kind; icon: ReactNode; colour: Rgb }[] = [
     { kind: "sound", icon: <SoundIcon />, colour: SOUND_COLOUR },
     { kind: "wait", icon: <ClockIcon />, colour: WAIT_COLOUR },
     { kind: "voice", icon: <VoiceIcon />, colour: VOICE_COLOUR },
@@ -765,6 +710,7 @@ function AddStep(props: { disabled: boolean; firstTarget: string; onAdd: (step: 
     { kind: "stopSounds", icon: <StopIcon />, colour: ACTION_COLOURS.stopSounds },
     { kind: "goToPage", icon: <GoToIcon />, colour: ACTION_COLOURS.goToPage },
   ];
+  const kinds = props.actionsOnly ? all.filter(({ kind }) => kind !== "sound" && kind !== "wait") : all;
   return (
     <div className="anchor add-step" ref={menu}>
       <button
@@ -775,7 +721,7 @@ function AddStep(props: { disabled: boolean; firstTarget: string; onAdd: (step: 
         onClick={() => setOpen(!open)}
       >
         <PlusIcon />
-        {texts.addStep}
+        {props.actionsOnly ? texts.addAction : texts.addStep}
       </button>
       {open && (
         <div className="step-kinds">

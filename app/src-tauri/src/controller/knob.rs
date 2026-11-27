@@ -13,7 +13,7 @@ const ROW_TIME: Duration = Duration::from_secs(4);
 const VOLUME_EVERY: Duration = Duration::from_millis(100);
 const VOICE_EVERY: Duration = Duration::from_millis(250);
 /// Voicemod asks its servers for the sounds' saved volumes, and they turn away requests too close together
-const READ_EVERY: Duration = Duration::from_secs(60);
+pub(super) const READ_EVERY: Duration = Duration::from_secs(60);
 /// How long Voicemod may take to confirm a voice the knob loaded
 const CONFIRM_TIME: Duration = Duration::from_secs(1);
 /// A sound's volume is saved in Voicemod once the knob has rested that long on it

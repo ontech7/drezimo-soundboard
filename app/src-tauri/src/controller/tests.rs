@@ -3,7 +3,7 @@ use super::*;
 use crate::custom_pages::{Content, CustomPad};
 use crate::display::screens::{self, FRAME, Progress, Screen, SoundState};
 use crate::knob::{self, Gesture, KnobSettings, PressAction, TurnAction};
-use crate::macros::{Again, Macro, Step, Switch, SwitchState};
+use crate::macros::{Again, Clip, Level, Macro, Step, Switch, SwitchState, TimedStep, Timeline};
 use crate::mixer::{Channel, gain};
 use crate::playback::GUESSED_LENGTH;
 use crate::press_again::PressAgain;
@@ -1389,6 +1389,7 @@ fn macro_item(id: &str, steps: Vec<Step>) -> Macro {
         repeat: 1,
         restore: false,
         steps,
+        timeline: None,
     }
 }
 
@@ -1403,6 +1404,227 @@ fn on_a_pad(controller: &mut Controller, item: Macro) {
 fn requests_at(controller: &mut Controller, at: Instant) -> Vec<Request> {
     controller.update(at);
     requests(&controller.take_outputs()).into_iter().cloned().collect()
+}
+
+fn clip(id: &str, track: u8, at: u32) -> Clip {
+    Clip {
+        id: id.into(),
+        name: String::new(),
+        track,
+        at,
+        cut: None,
+        volume: Vec::new(),
+    }
+}
+
+#[test]
+fn a_macro_on_its_time_line_starts_each_sound_at_its_time() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a"), sound("b")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.playback.learn_length("a", Duration::from_secs(4));
+    controller.playback.learn_length("b", Duration::from_secs(1));
+    let timeline = Timeline {
+        clips: vec![
+            Clip {
+                cut: Some(2500),
+                volume: vec![Level { at: 0, percent: 0 }, Level { at: 1000, percent: 100 }],
+                ..clip("a", 0, 0)
+            },
+            clip("b", 1, 1000),
+        ],
+        actions: vec![TimedStep {
+            at: 500,
+            step: Step::Switch {
+                switch: Switch::MuteMic,
+                state: SwitchState::On,
+            },
+        }],
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let at = |millis| now + Duration::from_millis(millis);
+    let volume = |percent: f32| Request::SetSoundVolume {
+        id: "a".into(),
+        volume: percent / 100.0,
+    };
+
+    let outputs = press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert_eq!(
+        requests(&outputs),
+        [&play("a", true), &volume(0.0)],
+        "starts silent, by its curve"
+    );
+    assert_eq!(requests_at(&mut controller, at(100)), [volume(10.0)], "and rises");
+    assert_eq!(
+        requests_at(&mut controller, at(500)),
+        [Request::ToggleMuteMic, volume(50.0)]
+    );
+    assert_eq!(
+        requests_at(&mut controller, at(1000)),
+        [play("b", true), volume(100.0)],
+        "the second track's sound over the first"
+    );
+    assert_eq!(
+        controller
+            .macro_progress()
+            .map(|progress| (progress.step, progress.steps)),
+        Some((3, 3))
+    );
+    assert!(
+        requests_at(&mut controller, at(1100)).is_empty(),
+        "at its top, nothing more to send"
+    );
+    assert_eq!(
+        requests_at(&mut controller, at(2500)),
+        [Request::StopSound("a".into())],
+        "cut"
+    );
+    assert_eq!(
+        controller.macro_progress(),
+        None,
+        "over once its sounds are: b ended at 2 s, a was cut"
+    );
+}
+
+#[test]
+fn a_flat_volume_does_not_keep_the_controller_awake() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.playback.learn_length("a", Duration::from_secs(10));
+    let timeline = Timeline {
+        clips: vec![Clip {
+            volume: vec![Level { at: 0, percent: 50 }],
+            ..clip("a", 0, 0)
+        }],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    press(&mut controller, 0, true, now);
+    let later = now + Duration::from_millis(300);
+    controller.update(later);
+    assert!(
+        controller.next_update().is_none_or(|at| at > later),
+        "no wake-up in the past"
+    );
+}
+
+#[test]
+fn a_long_sound_keeps_its_macro_going_past_30_s() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    controller.voicemod_event(VoicemodEvent::SoundLengths(HashMap::from([("song".into(), 45.0)])), now);
+    controller.playback.learn_length("song", Duration::from_secs(45));
+    let timeline = Timeline {
+        clips: vec![clip("song", 0, 0)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    press(&mut controller, 0, true, now);
+    controller.update(now + Duration::from_secs(31));
+    assert!(controller.macro_progress().is_some(), "the song still plays");
+    controller.update(now + Duration::from_secs(46));
+    assert_eq!(controller.macro_progress(), None);
+}
+
+#[test]
+fn at_the_same_time_a_stop_comes_before_a_sound() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    let timeline = Timeline {
+        clips: vec![clip("a", 0, 0)],
+        actions: vec![TimedStep {
+            at: 0,
+            step: Step::StopSounds,
+        }],
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(
+        requests(&outputs).last(),
+        Some(&&play("a", true)),
+        "the sound after the stop"
+    );
+}
+
+#[test]
+fn a_time_line_without_the_bridge_plays_its_sounds_whole() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.playback.learn_length("a", Duration::from_secs(2));
+    let timeline = Timeline {
+        clips: vec![Clip {
+            cut: Some(500),
+            volume: vec![Level { at: 0, percent: 30 }],
+            ..clip("a", 0, 0)
+        }],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(requests(&outputs), [&play("a", true)], "no volume of its own");
+    assert!(
+        requests_at(&mut controller, now + Duration::from_millis(500)).is_empty(),
+        "no cut: it would stop every sound"
+    );
+}
+
+#[test]
+fn a_time_line_repeats_and_restarts_from_its_start() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("a")])]);
+    controller.playback.learn_length("a", Duration::from_secs(1));
+    let timeline = Timeline {
+        clips: vec![clip("a", 0, 200)],
+        actions: Vec::new(),
+    };
+    on_a_pad(
+        &mut controller,
+        Macro {
+            timeline: Some(timeline),
+            repeat: 2,
+            again: Again::Restart,
+            ..macro_item("macro-t", Vec::new())
+        },
+    );
+    let at = |millis| now + Duration::from_millis(millis);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert_eq!(requests_at(&mut controller, at(200)), [play("a", true)]);
+    controller.update(at(1300));
+    assert!(controller.macro_progress().is_some(), "a second round");
+    assert_eq!(
+        requests_at(&mut controller, at(1500)),
+        [play("a", true)],
+        "200 ms into it"
+    );
+    controller.update(at(2600));
+    assert_eq!(controller.macro_progress(), None, "two rounds");
 }
 
 #[test]

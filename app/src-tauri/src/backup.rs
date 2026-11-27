@@ -360,6 +360,13 @@ fn cut_missing(
         item.steps
             .retain(|step| !matches!(step, Step::GoToPage { page } if page_breaks(page, imported.macros)));
         cut += steps - item.steps.len();
+        if let Some(timeline) = &mut item.timeline {
+            let actions = timeline.actions.len();
+            timeline.actions.retain(
+                |action| !matches!(&action.step, Step::GoToPage { page } if page_breaks(page, imported.macros)),
+            );
+            cut += actions - timeline.actions.len();
+        }
     }
     cut
 }
@@ -759,6 +766,7 @@ mod tests {
             repeat: 1,
             restore: false,
             steps,
+            timeline: None,
         }
     }
 
