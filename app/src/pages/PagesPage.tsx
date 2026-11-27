@@ -6,6 +6,7 @@ import {
   type Action,
   type CustomPad,
   type CustomPage,
+  closedUp,
   emptyPage,
   type Library,
   type LibraryItem,
@@ -24,7 +25,7 @@ import {
   VOICE_COLOUR,
 } from "../customPages";
 import { type Texts, useTexts } from "../i18n";
-import { DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
+import { CheckIcon, DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
 import { useDismiss } from "../dismiss";
 import { Slider } from "../controls";
 import { ColourPicker, RenameField } from "../editing";
@@ -212,7 +213,12 @@ export function PagesPage({ view, open, shownPages, pressAgainByMode, singleStop
     pages.findIndex((page) => page.id === shownId)
   );
   const page = pages[index];
-  const savePage = (next: CustomPage) => save(pages.map((other, i) => (i === index ? next : other)));
+  // A page kept without gaps closes up at each change
+  const tidy = (next: CustomPage): CustomPage => (next.compact ? { ...next, pads: closedUp(next.pads) } : next);
+  const savePage = (next: CustomPage) => save(pages.map((other, i) => (i === index ? tidy(next) : other)));
+  // Where a pad is once the page closed up
+  const whereNow = (pads: (CustomPad | null)[], at: number) =>
+    page.compact && pads[at] ? closedUp(pads).indexOf(pads[at]) : at;
   const setPad = (pad: number, value: CustomPad | null) =>
     savePage({ ...page, pads: page.pads.map((other, i) => (i === pad ? value : other)) });
   const selectedPad = selected === null ? null : page.pads[selected];
@@ -231,13 +237,14 @@ export function PagesPage({ view, open, shownPages, pressAgainByMode, singleStop
       pads[at] = { ...content, colour: content.colour ?? before?.colour ?? null, pressAgain, volume };
     });
     savePage({ ...page, pads });
-    setSelected(start);
+    setSelected(whereNow(pads, start));
     setPicking(null);
   };
 
   const clear = (pad: number) => {
     setPad(pad, null);
-    setSelected((shown) => (shown === pad ? null : shown));
+    // Closing up, the pads after it move back one
+    setSelected((shown) => (shown === pad ? null : page.compact && shown !== null && shown > pad ? shown - 1 : shown));
   };
 
   const move = (from: number, to: number) => {
@@ -245,7 +252,7 @@ export function PagesPage({ view, open, shownPages, pressAgainByMode, singleStop
     const pads = [...page.pads];
     [pads[from], pads[to]] = [pads[to], pads[from]];
     savePage({ ...page, pads });
-    setSelected((shown) => (shown === from ? to : shown === to ? from : shown));
+    setSelected((shown) => (shown === from ? whereNow(pads, to) : shown === to ? whereNow(pads, from) : shown));
   };
 
   return (
@@ -263,6 +270,11 @@ export function PagesPage({ view, open, shownPages, pressAgainByMode, singleStop
           onAdd={() => add(emptyPage(texts.pageNumber(pages.length + 1)))}
           onAddFrom={() => setStartingFrom(true)}
           onRename={(name) => savePage({ ...page, name })}
+          compact={page.compact ?? false}
+          onCompact={() => {
+            savePage({ ...page, compact: !page.compact });
+            setSelected(null);
+          }}
           onDuplicate={() => {
             const copy = { ...page, id: newId(), name: shortened(texts.copyOf(page.name), MAX_PAGE_NAME) };
             save([...pages.slice(0, index + 1), copy, ...pages.slice(index + 1)]);
@@ -408,6 +420,8 @@ interface TabsProps {
   onAdd: () => void;
   onAddFrom: () => void;
   onRename: (name: string) => void;
+  compact: boolean;
+  onCompact: () => void;
   onDuplicate: () => void;
   onMove: (step: number) => void;
   onDelete: () => void;
@@ -513,6 +527,21 @@ function PageTabs(props: TabsProps) {
             <button type="button" onClick={run(() => setRenaming(true))}>
               {texts.rename}
             </button>
+            <button
+              type="button"
+              className="check-item"
+              role="menuitemcheckbox"
+              aria-checked={props.compact}
+              onClick={run(props.onCompact)}
+            >
+              <span className="check" aria-hidden="true">
+                {props.compact && <CheckIcon />}
+              </span>
+              <span className="text">
+                {texts.noGaps}
+                <span className="muted">{texts.noGapsText}</span>
+              </span>
+            </button>
             <button type="button" disabled={full} onClick={run(props.onDuplicate)}>
               {texts.duplicate}
             </button>
@@ -576,6 +605,8 @@ function PadGrid(props: GridProps) {
           i === selected ? "selected" : "",
           i === over ? "over" : "",
           shown?.locked || shown?.missing ? "locked" : "",
+          // As it moves at rest on Drezimo
+          pad?.animation && pad.animation !== "solid" ? `rest-${pad.animation}` : "",
         ];
         return (
           <button
@@ -788,7 +819,13 @@ function Inspector({
           onChange={(pressAgain) => onChange({ ...pad, pressAgain })}
         />
       )}
-      <ColourPicker colour={pad.colour} shown={shown.colour} onChange={(colour) => onChange({ ...pad, colour })} />
+      <ColourPicker
+        colour={pad.colour}
+        shown={shown.colour}
+        onChange={(colour) => onChange({ ...pad, colour })}
+        animation={pad.animation ?? "solid"}
+        onAnimation={(animation) => onChange({ ...pad, animation })}
+      />
       <button type="button" className="button secondary" onClick={onReplace}>
         {texts.change}
       </button>
@@ -874,12 +911,16 @@ function ModeField({ sound, mode, bridge }: { sound: string; mode: KindMode; bri
 function SoundboardChooser(props: { library: Library | null; onPick: (page: CustomPage) => void; onClose: () => void }) {
   const texts = useTexts();
   const soundboards = props.library?.soundboards.filter((soundboard) => soundboard.sounds.length > 0) ?? [];
-  const pick = (soundboard: Library["soundboards"][number]) => {
+  // A soundboard longer than a page comes in parts of 36, as the board shows it: one of them makes the page
+  const partsOf = (soundboard: Library["soundboards"][number]) => Math.ceil(soundboard.sounds.length / PAD_COUNT);
+  const pick = (soundboard: Library["soundboards"][number], part: number) => {
+    const parts = partsOf(soundboard);
     const pads: (CustomPad | null)[] = soundboard.sounds
-      .slice(0, PAD_COUNT)
+      .slice(part * PAD_COUNT, (part + 1) * PAD_COUNT)
       .map((sound) => ({ kind: "sound", id: sound.id, name: sound.name, label: "", colour: null }));
     while (pads.length < PAD_COUNT) pads.push(null);
-    props.onPick({ id: newId(), name: shortened(soundboard.name, MAX_PAGE_NAME), pads });
+    const name = parts > 1 ? `${soundboard.name} ${part + 1}/${parts}` : soundboard.name;
+    props.onPick({ id: newId(), name: shortened(name, MAX_PAGE_NAME), pads });
   };
   let list: ReactNode;
   if (soundboards.length === 0) {
@@ -887,15 +928,46 @@ function SoundboardChooser(props: { library: Library | null; onPick: (page: Cust
   } else {
     list = (
       <div className="choices">
-        {soundboards.map((soundboard) => (
-          <button key={soundboard.id} type="button" className="choice" onClick={() => pick(soundboard)}>
-            <PadPicture picture={soundboard.sounds[0]?.picture} />
-            <span className="text">
-              <span className="name">{soundboard.name}</span>
-              <span className="muted">{texts.soundCount(soundboard.sounds.length)}</span>
-            </span>
-          </button>
-        ))}
+        {soundboards.map((soundboard) => {
+          const parts = partsOf(soundboard);
+          const about = (
+            <>
+              <PadPicture picture={soundboard.sounds[0]?.picture} />
+              <span className="text">
+                <span className="name">{soundboard.name}</span>
+                <span className="muted">
+                  {parts > 1
+                    ? texts.soundCountInParts(soundboard.sounds.length, parts)
+                    : texts.soundCount(soundboard.sounds.length)}
+                </span>
+              </span>
+            </>
+          );
+          if (parts === 1) {
+            return (
+              <button key={soundboard.id} type="button" className="choice" onClick={() => pick(soundboard, 0)}>
+                {about}
+              </button>
+            );
+          }
+          return (
+            <div key={soundboard.id} className="choice in-parts">
+              {about}
+              <span className="parts" role="group" aria-label={texts.whichPart(soundboard.name)}>
+                {Array.from({ length: parts }, (_, part) => (
+                  <button
+                    key={part}
+                    type="button"
+                    aria-label={texts.partOf(part + 1, parts, soundboard.name)}
+                    onClick={() => pick(soundboard, part)}
+                  >
+                    {part + 1}/{parts}
+                  </button>
+                ))}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }

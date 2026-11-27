@@ -122,7 +122,15 @@ function KnobScene({ gesture, story, shown, name, words, macro, pageName, wheel 
 
   return (
     <>
-      <KnobHalf key={`knob ${loop}`} pose={pose} caption={words.gestures[caption]} live={!STILL.includes(caption)} />
+      <KnobHalf
+        key={`knob ${loop}`}
+        pose={pose}
+        caption={words.gestures[caption]
+          .replace("{double}", words.seconds(story.doubleTapMs))
+          .replace("{long}", words.seconds(story.longPressMs))}
+        live={!STILL.includes(caption)}
+        hold={story.longPressMs}
+      />
       <Arrow fired={fired} />
       <ActionHalf
         key={`action ${loop}`}

@@ -1,7 +1,7 @@
 import type { Library, PageTarget } from "./customPages";
 import type { Texts } from "./i18n";
 import type { Macro } from "./macros";
-import type { KnobSettings, PressAction, TurnAction } from "./settings";
+import type { KnobGesture, KnobSettings, PressAction, TurnAction } from "./settings";
 
 /** A wheel's notch in the legacy `wheelDelta`, Chromium's and WebKit's alike, whatever the system's lines to scroll */
 const NOTCH_TICKS = 120;
@@ -65,7 +65,7 @@ export function usesWheel(knob: KnobSettings): boolean {
 }
 
 /** What a gesture does, as its select names it */
-export function actionName(texts: Texts, gesture: keyof KnobSettings, knob: KnobSettings): string {
+export function actionName(texts: Texts, gesture: KnobGesture, knob: KnobSettings): string {
   return gesture === "turn" || gesture === "holdTurn"
     ? texts.knobTab.turnActions[knob[gesture].action]
     : texts.knobTab.pressActions[knob[gesture].action];

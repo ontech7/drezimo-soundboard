@@ -42,13 +42,17 @@ export function useUpdateState(): UpdateState | null {
   return state;
 }
 
-export function useNews(): [News | null, () => void] {
-  const [news, setNews] = useState<News | null>(null);
+/** Undefined until known */
+export function useNews(): [News | null | undefined, () => void] {
+  const [news, setNews] = useState<News | null>();
 
   useEffect(() => {
     invoke<News | null>("news")
       .then(setNews)
-      .catch((error) => console.error("cannot read what is new", error));
+      .catch((error) => {
+        setNews(null);
+        console.error("cannot read what is new", error);
+      });
   }, []);
 
   const dismiss = () => {

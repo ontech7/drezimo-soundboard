@@ -5,6 +5,8 @@ import type { PressAction, TurnAction } from "../settings";
 /** The explanations' words: here rather than in i18n.ts, so that they load with them */
 export interface ExplainTexts {
   repeats: string;
+  /** A knob's time, such as 0.3 s: the captions say {double} and {long} for the double tap's and the long press's */
+  seconds: (millis: number) => string;
   /** Before the knob's select in the dialog */
   does: string;
   nothing: string;
@@ -91,6 +93,7 @@ export type SwitchAction = keyof ExplainTexts["switches"];
 
 const ENGLISH: ExplainTexts = {
   repeats: "It repeats while this window is open.",
+  seconds: (millis) => `${+(millis / 1000).toFixed(2)} s`,
   does: "Does",
   nothing: "Nothing happens",
   gestures: {
@@ -101,12 +104,12 @@ const ENGLISH: ExplainTexts = {
     turnBack: "…and turn it back too",
     released: "Let go",
     tap: "Tap",
-    waits: "It waits 0.3 s for a second tap…",
+    waits: "It waits {double} for a second tap…",
     tapped: "Tapped",
     tapFirst: "Tap…",
     tapAgain: "…and tap again",
-    tapAgainSoon: "…and tap again within 0.3 s",
-    holdLong: "Hold it down 0.6 s…",
+    tapAgainSoon: "…and tap again within {double}",
+    holdLong: "Hold it down {long}…",
     letGo: "…and let go",
   },
   sentences: {
@@ -237,6 +240,7 @@ const ENGLISH: ExplainTexts = {
 
 const ITALIAN: ExplainTexts = {
   repeats: "Si ripete finché la finestra è aperta.",
+  seconds: (millis) => `${String(+(millis / 1000).toFixed(2)).replace(".", ",")} s`,
   does: "Fa",
   nothing: "Non succede niente",
   gestures: {
@@ -247,12 +251,12 @@ const ITALIAN: ExplainTexts = {
     turnBack: "…e girala anche indietro",
     released: "Lasciata",
     tap: "Tocca",
-    waits: "Aspetta 0,3 s un secondo tocco…",
+    waits: "Aspetta {double} un secondo tocco…",
     tapped: "Tocco",
     tapFirst: "Tocca…",
     tapAgain: "…e tocca ancora",
-    tapAgainSoon: "…e tocca ancora, entro 0,3 s",
-    holdLong: "Tienila premuta 0,6 s…",
+    tapAgainSoon: "…e tocca ancora, entro {double}",
+    holdLong: "Tienila premuta {long}…",
     letGo: "…e lasciala",
   },
   sentences: {

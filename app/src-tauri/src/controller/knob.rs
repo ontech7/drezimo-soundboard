@@ -40,7 +40,9 @@ impl Controller {
         let settings = &self.knob_settings;
         let double_tap = settings.double_tap != PressAction::Nothing && self.menu.is_none() && !self.wheel_waits();
         let long_press = settings.long_press != PressAction::Nothing;
+        let times = (settings.double_tap_time(), settings.long_press_time());
         self.knob.set_waits(double_tap, long_press);
+        self.knob.set_times(times.0, times.1);
     }
 
     pub(super) fn knob_turned(&mut self, step: i8, now: Instant) {
@@ -132,9 +134,10 @@ impl Controller {
             match gesture {
                 // The open menu takes the turns and the taps, whatever the settings
                 Gesture::Turn(step) => match &mut self.menu {
+                    // Round the list: past the last comes the first again
                     Some(menu) => {
-                        let last = self.pages.len().saturating_sub(1) as isize;
-                        menu.selected = (menu.selected as isize + isize::from(step)).clamp(0, last) as usize;
+                        let count = self.pages.len().max(1) as isize;
+                        menu.selected = (menu.selected as isize + isize::from(step)).rem_euclid(count) as usize;
                         menu.until = now + MENU_TIME;
                     }
                     None => self.turn_action(settings.turn, step, false, now),

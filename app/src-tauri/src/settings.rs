@@ -107,6 +107,62 @@ impl OverlaySettings {
     }
 }
 
+/// When Drezimo's display shows on the PC screen
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ShowDisplay {
+    #[default]
+    Never,
+    Always,
+    /// While one of the actions picked is under way, and a moment after
+    OnActions,
+}
+
+/// Drezimo's display on the PC screen, as the Overlay page sets it
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ScreenDisplaySettings {
+    pub when: ShowDisplay,
+    /// The actions it shows with: the soundboard menu open, a volume the knob changes, the knob held (a peek, the
+    /// row overview, the action wheel), a page change
+    pub on_menu: bool,
+    pub on_volumes: bool,
+    pub on_knob: bool,
+    pub on_page: bool,
+    /// Its own place and size; otherwise the overlay's place, beside it
+    pub own_look: bool,
+    pub anchor: Anchor,
+    /// The screen's pixels for each of the display's dots, at a 100 % scale
+    pub size: u8,
+    /// The latest keys, pads and knob steps below it
+    pub inputs: bool,
+}
+
+impl Default for ScreenDisplaySettings {
+    fn default() -> Self {
+        Self {
+            when: ShowDisplay::Never,
+            on_menu: true,
+            on_volumes: true,
+            on_knob: false,
+            on_page: false,
+            own_look: false,
+            anchor: Anchor::BottomRight,
+            size: 2,
+            inputs: false,
+        }
+    }
+}
+
+impl ScreenDisplaySettings {
+    pub fn checked(self) -> Self {
+        Self {
+            size: self.size.clamp(2, 3),
+            ..self
+        }
+    }
+}
+
 impl Default for OverlaySettings {
     fn default() -> Self {
         Self {
@@ -132,6 +188,8 @@ pub struct Settings {
     #[serde(deserialize_with = "by_mode_or_default")]
     pub press_again_by_mode: ByMode,
     pub overlay: OverlaySettings,
+    /// Drezimo's display on the PC screen
+    pub screen_display: ScreenDisplaySettings,
     /// Shows the window's page of technical details
     pub diagnostics: bool,
     /// The welcome tour was seen through or skipped: until then the app opens its window at start, the tour on top
@@ -154,6 +212,7 @@ impl Default for Settings {
             led_brightness: 50,
             press_again_by_mode: ByMode::default(),
             overlay: OverlaySettings::default(),
+            screen_display: ScreenDisplaySettings::default(),
             diagnostics: false,
             tour_seen: false,
             macro_guide_seen: false,
@@ -170,6 +229,7 @@ impl Settings {
     pub fn checked(mut self) -> Self {
         self.led_brightness = self.led_brightness.clamp(10, 100);
         self.overlay = self.overlay.checked();
+        self.screen_display = self.screen_display.checked();
         self.knob = self.knob.checked();
         self.wheel = self.wheel.checked();
         self.shown_pages = self.shown_pages.checked();

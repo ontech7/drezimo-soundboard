@@ -16,7 +16,10 @@ import { VirtualKnob } from "./VirtualKnob";
 import { saveSettings, useSettings } from "./settings";
 import { connections, type PageId, Sidebar } from "./Sidebar";
 import { useStatus } from "./status";
+import { changelog, hasChangelog } from "./news/changelog";
+import { WhatsNew } from "./news/WhatsNew";
 import { Tour } from "./tour/Tour";
+import { useNews } from "./updates";
 import { windowReady } from "./window";
 
 const HINT_TIME = 8000;
@@ -37,7 +40,10 @@ export default function App() {
   const [hint, setHint] = useState(false);
   // As the tour: until opened or closed here, the Macro guide shows with the section while not seen yet
   const [macroGuide, setMacroGuide] = useState<boolean | null>(null);
-  const ready = status !== null && settings !== null;
+  // The news of the version just installed, once; or again from Settings
+  const [news, dismissNews] = useNews();
+  const [newsAgain, setNewsAgain] = useState<string | null>(null);
+  const ready = status !== null && settings !== null && news !== undefined;
   const language = settings?.shownLanguage ?? "english";
 
   // The first frame waits for the status and the settings, so the window never shows a state that changes at once
@@ -45,13 +51,17 @@ export default function App() {
     if (ready) windowReady();
   }, [ready]);
 
+  const tourShown = settings !== null && (tour ?? !settings.tourSeen);
+  const newsVersion = newsAgain ?? (news && hasChangelog(news.version) ? news.version : null);
+  const newsShown = newsVersion && !tourShown ? changelog(newsVersion, language) : null;
+
+  // The hint waits for the news to close, so it is seen
+  const hintShown = hint && !newsShown;
   useEffect(() => {
-    if (!hint) return;
+    if (!hintShown) return;
     const timer = setTimeout(() => setHint(false), HINT_TIME);
     return () => clearTimeout(timer);
-  }, [hint]);
-
-  const tourShown = settings !== null && (tour ?? !settings.tourSeen);
+  }, [hintShown]);
 
   // Closing the window with the tour on counts as having seen it: the window would open again at each start otherwise
   useEffect(() => {
@@ -86,7 +96,7 @@ export default function App() {
     <TextsContext.Provider value={texts}>
       <div className="app">
         <Sidebar pages={pages} page={shown} connections={connections(texts, status)} onSelect={open} />
-        <main>
+        <main tabIndex={-1}>
           <header className="page-header">
             {shown === "soundboard" ? <SoundboardTitle status={status} playable={!!view} /> : <h1>{texts.nav[shown]}</h1>}
             {shown === "soundboard" && (
@@ -145,7 +155,9 @@ export default function App() {
           )}
           {shown === "overlay" && <OverlayPage settings={settings} status={status} />}
           {shown === "diagnostics" && <DiagnosticsPage status={status} activity={activity} />}
-          {shown === "settings" && <SettingsPage settings={settings} status={status} onTour={() => setTour(true)} />}
+          {shown === "settings" && (
+            <SettingsPage settings={settings} status={status} onTour={() => setTour(true)} onNews={setNewsAgain} />
+          )}
         </main>
       </div>
       {tourShown && (
@@ -157,7 +169,17 @@ export default function App() {
           }}
         />
       )}
-      {hint && (
+      {newsVersion && newsShown && (
+        <WhatsNew
+          version={newsVersion}
+          changelog={newsShown}
+          onClose={() => {
+            setNewsAgain(null);
+            if (news) dismissNews();
+          }}
+        />
+      )}
+      {hintShown && (
         <div className="toast" role="status">
           {texts.tour.later}
           <button

@@ -1,7 +1,8 @@
 import type { Outcome } from "../pressAgain";
 import type { KnobSettings, PressAction, PressAgain, TurnAction } from "../settings";
 
-export type KnobGesture = keyof KnobSettings;
+export type { KnobGesture } from "../settings";
+import type { KnobGesture } from "../settings";
 export type Behaviour = Exclude<PressAgain, "voicemod">;
 
 /** What the knob's gesture does: a turn's action answers each detent, a press's each time it acts */
@@ -14,13 +15,23 @@ export interface KnobStory {
   press: PressAction | null;
   /** The tap's action, for a double tap or a long press that has none: a double tap is then two taps */
   borrowed: boolean;
-  /** The tap waits 0.3 s for a second one before it acts */
+  /** The tap waits for a second one before it acts */
   waits: boolean;
+  /** The knob's times, in milliseconds */
+  doubleTapMs: number;
+  longPressMs: number;
 }
 
 export function knobStory(gesture: KnobGesture, knob: KnobSettings): KnobStory {
   if (gesture === "turn" || gesture === "holdTurn") {
-    return { shown: { kind: "turn", action: knob[gesture].action }, press: null, borrowed: false, waits: false };
+    return {
+      shown: { kind: "turn", action: knob[gesture].action },
+      press: null,
+      borrowed: false,
+      waits: false,
+      doubleTapMs: knob.doubleTapMs,
+      longPressMs: knob.longPressMs,
+    };
   }
   const own = knob[gesture];
   const borrowed = gesture !== "tap" && own.action === "nothing" && knob.tap.action !== "nothing";
@@ -31,6 +42,8 @@ export function knobStory(gesture: KnobGesture, knob: KnobSettings): KnobStory {
     borrowed,
     // With no double-tap action a tap acts at once, and so does a long hold that counts as one
     waits: knob.doubleTap.action !== "nothing" && (gesture === "tap" || (gesture === "longPress" && borrowed)),
+    doubleTapMs: knob.doubleTapMs,
+    longPressMs: knob.longPressMs,
   };
 }
 

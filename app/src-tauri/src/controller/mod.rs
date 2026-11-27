@@ -4,8 +4,10 @@
 
 mod knob;
 mod overlay;
+mod overrides;
 mod running;
 mod screen;
+mod screen_display;
 mod wheel;
 mod window;
 
@@ -23,10 +25,12 @@ use crate::overlay::Content as OverlayContent;
 use crate::playback::{LoggedSound, Playback, State};
 use crate::press_again::{self, ByMode, Command, Outcome};
 use crate::protocol::{BoardMessage, COLUMNS, Effect, LED_COUNT, Led, PAD_COUNT, ROWS};
+use crate::settings::ScreenDisplaySettings;
 use crate::soundboard::{self, Action, Pad, Page, PlaybackMode, ShownPages, Sound, Soundboard, Voice};
 use crate::voicemod::{Request, VoicemodEvent, VoicemodStatus};
 use crate::voicemod_log::{self, LogEvent, LogInput, LogLine, LogTracker};
 use crate::wheel::WheelSettings;
+pub use overrides::OwnOptions;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, RandomState};
@@ -42,6 +46,9 @@ const REFUSED_BLINK: Duration = Duration::from_millis(1200);
 const MIN_HOLD: Duration = Duration::from_millis(200);
 /// How long the soundboard menu stays open after the knob last moved
 const MENU_TIME: Duration = Duration::from_secs(6);
+/// The options a new bridge connection reads for the macros, unless read this recently: Voicemod's servers turn
+/// away reads too close together
+const OPTIONS_READ_AGAIN: Duration = Duration::from_secs(10);
 /// How long a peeked name stays after the press
 const PEEK_TIME: Duration = Duration::from_millis(2500);
 
@@ -79,6 +86,10 @@ pub enum Output {
     Log(String),
     /// What the knob just did, for the window's list of key presses
     Gesture(Gesture),
+    /// The sounds whose options a macro changed in Voicemod, as they were, to keep in case the app closes meanwhile
+    Overrides(HashMap<String, OwnOptions>),
+    /// Whether Drezimo's display shows on the PC screen now
+    ScreenDisplay(bool),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -234,6 +245,20 @@ pub struct Controller {
     overlay_hidden: bool,
     /// What the overlay shows, as sent
     overlay: Option<OverlayContent>,
+    /// The sounds whose own options a macro turned off in Voicemod, until put back
+    overrides: HashMap<String, overrides::Override>,
+    /// Those put back a moment ago, as they were, and when
+    restored: HashMap<String, (OwnOptions, Instant)>,
+    /// When Drezimo's display shows on the PC screen
+    screen_display: ScreenDisplaySettings,
+    /// Until when it shows after its last action, or for the Overlay page's preview
+    display_until: Option<Instant>,
+    display_preview_until: Option<Instant>,
+    display_shown: bool,
+    /// The page last seen, to tell a page change
+    display_page: Option<(String, usize)>,
+    /// One of its actions was under way at the last update
+    display_wanted_before: bool,
     /// When `update` has something to do without any input
     next_update: Option<Instant>,
     outputs: Vec<Output>,
@@ -294,6 +319,14 @@ impl Default for Controller {
             overlay_always: false,
             overlay_hidden: false,
             overlay: None,
+            overrides: HashMap::new(),
+            restored: HashMap::new(),
+            screen_display: ScreenDisplaySettings::default(),
+            display_until: None,
+            display_preview_until: None,
+            display_shown: false,
+            display_page: None,
+            display_wanted_before: false,
             next_update: None,
             outputs: Vec::new(),
         }
@@ -473,6 +506,16 @@ impl Controller {
                 self.single_stop = there;
                 self.volumes_forgotten();
                 self.read_sound_volumes(now);
+                // A new connection knows no sound's options: a macro's first play changes them from those read now
+                if there {
+                    self.overrides_reconnected();
+                    if self.macros.iter().any(|item| item.timeline.is_some())
+                        && self.volumes_read.is_none_or(|read| now >= read + OPTIONS_READ_AGAIN)
+                    {
+                        self.volumes_read = Some(now);
+                        self.request(Request::ReadSoundVolumes);
+                    }
+                }
                 self.follow_muted_play();
             }
             VoicemodEvent::MixerGain {
@@ -493,6 +536,7 @@ impl Controller {
             }
             VoicemodEvent::SoundVolumes(volumes) => self.mixer.sound_volumes(volumes),
             VoicemodEvent::SoundChanged => self.request(Request::ReadSoundboards),
+            VoicemodEvent::OptionsApplied { sound, changed } => self.override_applied(&sound, changed, now),
             // Only for the window (src/pictures.rs) and the status
             VoicemodEvent::SoundLengths(lengths) => {
                 self.file_lengths = lengths
@@ -522,7 +566,9 @@ impl Controller {
         if self.playback.update(now) {
             self.resync(now);
         }
+        self.expire_overrides(now);
         self.advance_macro(now);
+        self.restore_sounds(now);
         self.menu = self.menu.take().filter(|menu| menu.until > now);
         // A peek lasts while the knob is held, its blink only its time
         self.peek = self.peek.take().filter(|peek| peek.until > now || self.knob.is_down());
@@ -543,6 +589,8 @@ impl Controller {
             self.overlay = overlay;
         }
 
+        self.update_screen_display(now);
+
         let flashes = self.flashes.values().chain(self.refused.values()).copied();
         let releases = self.releases.iter().map(|(at, _)| *at);
         let menu_end = self.menu.as_ref().map(|menu| menu.until);
@@ -558,6 +606,8 @@ impl Controller {
             .chain(self.overlay_until)
             .chain(self.wheel_until())
             .chain(self.macro_wake())
+            .chain(self.override_wake())
+            .chain(self.screen_display_wake())
             .chain(self.knob_wake())
             .min();
     }
@@ -1003,6 +1053,7 @@ impl Controller {
             .flat_map(|soundboard| &soundboard.sounds)
             .map(|sound| (sound.id.clone(), sound.clone()))
             .collect();
+        self.keep_override_flags();
         self.pages = soundboard::pages(
             &self.soundboards,
             &self.voices,
@@ -1211,7 +1262,15 @@ impl Controller {
     /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
     fn content_led(&self, pad: u8, now: Instant) -> Led {
         let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
-        let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
+        let animation = self
+            .pages
+            .get(self.page)
+            .map(|page| page.animation(pad))
+            .unwrap_or_default();
+        let at_rest = |usual| Led {
+            color: colour.unwrap_or(usual),
+            effect: animation,
+        };
         match self.pad_at(pad) {
             None => Led::OFF,
             Some(content) if !content.enabled() => Led::solid(DIM_RED),
@@ -1226,14 +1285,21 @@ impl Controller {
                 },
             },
             Some(Pad::Macro { id, .. }) => {
-                let own = self
-                    .macros
-                    .iter()
-                    .find(|item| item.id == *id)
-                    .and_then(|item| item.colour);
-                let color = colour.or(own).unwrap_or(AMBER);
+                let item = self.macros.iter().find(|item| item.id == *id);
+                let color = colour.or(item.and_then(|item| item.colour)).unwrap_or(AMBER);
                 let running = self.running.as_ref().is_some_and(|running| running.item.id == *id);
-                let effect = if running { Effect::Breathe } else { Effect::Solid };
+                // Its pad's own animation, else the macro's; breathing while it runs
+                let rest = if animation.is_solid() {
+                    item.map(|item| item.animation).unwrap_or_default()
+                } else {
+                    animation
+                };
+                // Running, it breathes, or blinks when it breathes at rest
+                let effect = match (running, rest) {
+                    (true, Effect::Breathe) => Effect::Blink,
+                    (true, _) => Effect::Breathe,
+                    (false, _) => rest,
+                };
                 Led { color, effect }
             }
             Some(Pad::Action { action, page, .. }) => {
@@ -1253,7 +1319,14 @@ impl Controller {
                     Action::ResetVolumes => self.single_stop,
                 };
                 let color = colour.unwrap_or(action_colour(*action));
-                Led::solid(if on { color } else { color.map(|level| level / 4) })
+                if on {
+                    Led {
+                        color,
+                        effect: animation,
+                    }
+                } else {
+                    Led::solid(color.map(|level| level / 4))
+                }
             }
         }
     }

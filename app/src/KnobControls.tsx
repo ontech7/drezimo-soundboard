@@ -1,5 +1,5 @@
 import { lazy, type ReactNode, Suspense, useState } from "react";
-import { Row, Section } from "./controls";
+import { Row, Section, Slider } from "./controls";
 import { pageTargets, useCustomPages, useLibrary } from "./customPages";
 import { useTexts } from "./i18n";
 import { BRIDGE_ACTIONS, goneTarget, PRESS_ACTIONS, TURN_ACTIONS, usesWheel } from "./knob";
@@ -139,8 +139,33 @@ export function KnobTab({ settings, status }: { settings: SettingsView; status: 
         {turnRow("turn")}
         {turnRow("holdTurn")}
         {pressRow("tap")}
-        {pressRow("doubleTap", knob.doubleTap.action === "nothing" ? undefined : knobTexts.tapWaits)}
-        {pressRow("longPress", knobTexts.longPressHint)}
+        {pressRow(
+          "doubleTap",
+          knob.doubleTap.action === "nothing" ? undefined : knobTexts.tapWaits(knobTexts.seconds(knob.doubleTapMs))
+        )}
+        {pressRow("longPress", knobTexts.longPressHint(knobTexts.seconds(knob.longPressMs)))}
+        <Row label={knobTexts.doubleTapTime} text={knobTexts.timesText}>
+          <Slider
+            label={knobTexts.doubleTapTime}
+            value={knob.doubleTapMs}
+            min={200}
+            max={1000}
+            step={50}
+            format={knobTexts.seconds}
+            onCommit={(doubleTapMs) => saveSettings({ ...settings, knob: { ...knob, doubleTapMs } })}
+          />
+        </Row>
+        <Row label={knobTexts.longPressTime}>
+          <Slider
+            label={knobTexts.longPressTime}
+            value={knob.longPressMs}
+            min={400}
+            max={2000}
+            step={100}
+            format={knobTexts.seconds}
+            onCommit={(longPressMs) => saveSettings({ ...settings, knob: { ...knob, longPressMs } })}
+          />
+        </Row>
         <div className="knob-notes muted">
           {usesVolumes && !bridge && <p className="warning">{knobTexts.bridgeMissing}</p>}
           {usesVolumes && <p>{knobTexts.volumesNote}</p>}

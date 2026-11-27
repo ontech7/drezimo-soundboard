@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Library, Rgb } from "./customPages";
+import type { LedAnimation, Library, Rgb } from "./customPages";
 import { useSaved } from "./saved";
 
 /** Voicemod's switches a macro can set (src-tauri/src/macros.rs) */
@@ -51,6 +51,8 @@ export interface Macro {
   name: string;
   /** The LED at rest on its pads */
   colour: Rgb | null;
+  /** How it moves at rest, unless a pad has its own */
+  animation?: LedAnimation;
   /** What a press does while it runs */
   again: "stop" | "restart";
   /** How many times it runs; 0 for until stopped */

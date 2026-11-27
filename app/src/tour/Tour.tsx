@@ -134,7 +134,7 @@ export function Tour({ onClose }: { onClose: (finished: boolean) => void }) {
   );
 }
 
-function Stage({ children }: { children: ReactNode }) {
+export function Stage({ children }: { children: ReactNode }) {
   const well = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 

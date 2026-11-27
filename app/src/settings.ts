@@ -36,6 +36,8 @@ export interface Settings {
   /** By the sound's mode, unless picked for a pad in the Pages editor */
   pressAgainByMode: PressAgainByMode;
   overlay: OverlaySettings;
+  /** Drezimo's display on the PC screen */
+  screenDisplay: ScreenDisplaySettings;
   /** Shows the Diagnostics page */
   diagnostics: boolean;
   /** The welcome tour was seen through or skipped */
@@ -59,6 +61,24 @@ export interface WheelSettings {
   /** In percent */
   size: number;
   opacity: number;
+}
+
+export type ShowDisplay = "never" | "always" | "onActions";
+
+/** Drezimo's display on the PC screen (src-tauri/src/settings.rs) */
+export interface ScreenDisplaySettings {
+  when: ShowDisplay;
+  /** The actions it shows with, and a moment after */
+  onMenu: boolean;
+  onVolumes: boolean;
+  onKnob: boolean;
+  onPage: boolean;
+  /** Its own place and size; otherwise the overlay's place, beside it */
+  ownLook: boolean;
+  anchor: Anchor;
+  /** The screen's pixels for each of the display's dots */
+  size: number;
+  inputs: boolean;
 }
 
 /** Which of Voicemod's pages the board shows after the user's own (src-tauri/src/soundboard.rs) */
@@ -110,12 +130,18 @@ export type PressAction =
   | { action: "macro"; macroId: string }
   | { action: "page"; page: string };
 
+/** The knob's gestures, each with what it does */
+export type KnobGesture = "turn" | "holdTurn" | "tap" | "doubleTap" | "longPress";
+
 export interface KnobSettings {
   turn: TurnAction;
   holdTurn: TurnAction;
   tap: PressAction;
   doubleTap: PressAction;
   longPress: PressAction;
+  /** How soon after a tap a second one makes a double tap, and how long a long press lasts, in milliseconds */
+  doubleTapMs: number;
+  longPressMs: number;
 }
 
 export interface SettingsView extends Settings {
@@ -158,13 +184,14 @@ export function useSettings(): SettingsView | null {
 
 export function saveSettings(view: Settings): void {
   // Only the settings themselves: the view's own fields stay out
-  const { language, ledBrightness, pressAgainByMode, overlay, diagnostics, tourSeen, macroGuideSeen } = view;
+  const { language, ledBrightness, pressAgainByMode, overlay, screenDisplay, diagnostics, tourSeen, macroGuideSeen } = view;
   const { muteForMeNoticeSeen, knob, wheel, shownPages } = view;
   const settings = {
     language,
     ledBrightness,
     pressAgainByMode,
     overlay,
+    screenDisplay,
     diagnostics,
     tourSeen,
     macroGuideSeen,
