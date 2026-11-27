@@ -17,10 +17,15 @@
   </head>
 
   <body>
+    <nav class="language" data-t-label="languageLabel">
+      <button type="button" data-language="it" lang="it">IT</button>
+      <button type="button" data-language="en" lang="en">EN</button>
+    </nav>
+
     <section class="hero" id="hero">
       <div class="stage">
-        <canvas id="scene" role="img" aria-label="The Drezimo in 3D"></canvas>
-        <img class="fallback" src="/images/case-shell.webp" alt="The Drezimo's enclosure" />
+        <canvas id="scene" role="img" data-t-label="sceneLabel"></canvas>
+        <img class="fallback" src="/images/case-shell.webp" alt="" data-t-alt="caseAlt" />
         <div class="vignette"></div>
 
         <div class="intro">

@@ -129,7 +129,8 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   // What the board is doing, as the page shows it.
   let loaded = false;
   let page = 0;
-  let line = t("oledReady");
+  // A text of the page's language at each frame, so a switch shows at once
+  let line = () => t("oledReady");
   let level = 0;
   let stoppedAt = -Infinity;
   const toggles = { [FN.mute]: false, [FN.voice]: false, [FN.hear]: false };
@@ -149,16 +150,17 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     lastPressAt = now;
     playKey(n, page);
     level = 1;
-    if (n <= 36) line = `PAD ${n}`;
+    if (n <= 36) line = () => `PAD ${n}`;
     else if (n === FN.prev || n === FN.next) turnPage(n === FN.next ? 1 : -1);
     else if (n === FN.stop) {
       stoppedAt = now;
-      line = t("oledStop");
+      line = () => t("oledStop");
       level = 0;
     } else {
       toggles[n] = !toggles[n];
       const label = { [FN.mute]: "oledMute", [FN.voice]: "oledVoice", [FN.hear]: "oledHear" } as const;
-      line = toggles[n] ? t(label[n]) : t("oledReady");
+      const shown = toggles[n] ? label[n] : "oledReady";
+      line = () => t(shown);
     }
 
     const colour = keyColour(pressed, now / 1000);
@@ -170,7 +172,7 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
   function turnPage(by: number) {
     page = (page + by + PAGES) % PAGES;
     knobTurn += by * (Math.PI / 10);
-    line = `${t("oledPage")} ${page + 1}`;
+    line = () => `${t("oledPage")} ${page + 1}`;
   }
 
   // Pointer: parallax, drag to turn, click or tap a key.
@@ -296,7 +298,7 @@ export function startHero(canvas: HTMLCanvasElement, reducedMotion: boolean, onR
     const showing = `${page}|${line}|${Math.round(level * 100)}`;
     if (showing !== drawn) {
       drawn = showing;
-      oled.draw({ page, pages: PAGES, line, level }, t("oledPage"));
+      oled.draw({ page, pages: PAGES, line: line(), level }, t("oledPage"));
     }
     composer.render();
   }

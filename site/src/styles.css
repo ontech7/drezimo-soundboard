@@ -520,6 +520,50 @@ h1 .spectrum {
   }
 }
 
+/* The language, IT or EN, always at hand. */
+.language {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 20;
+  display: flex;
+  padding: 3px;
+  border-radius: 99px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(14 14 16 / 70%);
+  backdrop-filter: blur(10px);
+}
+
+.language button {
+  min-width: 40px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 99px;
+  background: none;
+  color: var(--muted);
+  font: 650 12.5px var(--display);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.language button:hover {
+  color: var(--text);
+}
+
+.language button[aria-pressed="true"] {
+  background: var(--amber);
+  color: #1a1204;
+}
+
+.language button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
 /* The sections under the hero. */
 main {
   width: var(--wide);

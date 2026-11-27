@@ -1,4 +1,4 @@
-import { type Key, t } from "./i18n";
+import { type Key, onLanguage, t } from "./i18n";
 import { type Clip, type Playing, playTimeline, SOUNDS } from "./sound";
 
 /** What the macro shows and plays: the app's time line, with the page's own sounds */
@@ -106,26 +106,31 @@ function actions() {
 export function buildMacroEditor() {
   const editor = document.getElementById("macro-editor");
   if (!editor) return;
-  const names = t("sounds").split("|");
   const timeline = editor.querySelector<HTMLElement>(".timeline")!;
   const button = editor.querySelector<HTMLButtonElement>("#macro-play")!;
   const label = button.querySelector("span")!;
   const pad = editor.querySelector<HTMLButtonElement>("#macro-pad")!;
   const voice = editor.querySelector<HTMLElement>("#macro-voice")!;
-  voice.textContent = t("macroVoiceOn");
-  editor.querySelector("#macro-length")!.textContent = t("macroLength", { value: seconds(END) });
-
-  timeline.append(ruler());
-  for (let track = 0; track < TRACKS; track++) timeline.append(lane(track, names));
-  timeline.append(actions());
   const scroller = editor.querySelector<HTMLElement>(".scroller")!;
   const head = element("div", "playhead");
-  timeline.append(head);
-  const clips = [...timeline.querySelectorAll<HTMLElement>(".clip")];
-  const marks = [...timeline.querySelectorAll<HTMLElement>(".action")];
-
+  let clips: HTMLElement[] = [];
+  let marks: HTMLElement[] = [];
   let playing: Playing | null = null;
   let frame = 0;
+
+  // In the page's language, again when it changes: what plays goes on
+  const fill = () => {
+    const names = t("sounds").split("|");
+    voice.textContent = t("macroVoiceOn");
+    editor.querySelector("#macro-length")!.textContent = t("macroLength", { value: seconds(END) });
+    const lanes = Array.from({ length: TRACKS }, (_, track) => lane(track, names));
+    timeline.replaceChildren(ruler(), ...lanes, actions(), head);
+    clips = [...timeline.querySelectorAll<HTMLElement>(".clip")];
+    marks = [...timeline.querySelectorAll<HTMLElement>(".action")];
+    label.textContent = t(playing ? "macroStop" : "macroPlay");
+  };
+  fill();
+  onLanguage(fill);
 
   const draw = (at: number | null) => {
     editor.classList.toggle("running", at !== null);

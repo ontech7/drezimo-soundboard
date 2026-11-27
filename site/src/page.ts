@@ -1,4 +1,4 @@
-import { t } from "./i18n";
+import { onLanguage, t } from "./i18n";
 import { buildMacroEditor } from "./macro";
 import { playSound } from "./sound";
 
@@ -21,6 +21,7 @@ function flash(node: HTMLElement) {
 /** Two rows of sound names sliding past each other; a click on one plays it. Decoration for screen readers. */
 function buildTicker(reducedMotion: boolean) {
   const ticker = document.getElementById("ticker")!;
+  ticker.replaceChildren();
   ticker.setAttribute("aria-hidden", "true");
   const names = t("sounds").split("|");
   const half = Math.ceil(names.length / 2);
@@ -57,6 +58,7 @@ function buildMiniPads() {
 
 function buildMacro() {
   const macro = document.getElementById("mini-macro")!;
+  macro.replaceChildren();
   t("macroSteps")
     .split("|")
     .forEach((step, i) => {
@@ -69,6 +71,7 @@ function buildMacro() {
 /** The Macro editor's keys, as key caps */
 function buildKeys() {
   const keys = document.getElementById("macro-keys")!;
+  keys.replaceChildren();
   for (const key of t("macroKeys").split("|")) keys.append(element("kbd", "", key));
 }
 
@@ -77,6 +80,7 @@ const ENCORE_SOUNDS = [0, 3, 6, 7, 12, 17];
 /** The last section's six pads, each with one of the sounds from the ticker. */
 function buildPads() {
   const pads = document.getElementById("pads")!;
+  pads.replaceChildren();
   const names = t("sounds").split("|");
   ENCORE_SOUNDS.forEach((sound, column) => {
     const pad = element("button", "pad");
@@ -184,6 +188,12 @@ export function startPage(reducedMotion: boolean) {
   buildMacroEditor();
   buildKeys();
   buildPads();
+  onLanguage(() => {
+    buildTicker(reducedMotion);
+    buildMacro();
+    buildKeys();
+    buildPads();
+  });
   reveal(reducedMotion);
   spotlight();
   tiltShot(reducedMotion);
