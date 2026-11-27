@@ -736,6 +736,7 @@ mod tests {
             label: String::new(),
             colour: None,
             press_again: None,
+            volume: None,
         })
     }
 

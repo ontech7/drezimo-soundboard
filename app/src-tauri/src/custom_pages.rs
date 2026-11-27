@@ -62,6 +62,18 @@ pub struct CustomPad {
         skip_serializing_if = "Option::is_none"
     )]
     pub press_again: Option<PressAgain>,
+    /// A sound's volume when started from this pad, in percent: Voicemod's own when none, or when unreadable
+    #[serde(default, deserialize_with = "percent", skip_serializing_if = "Option::is_none")]
+    pub volume: Option<u8>,
+}
+
+/// A volume this app cannot read leaves the pad as it is, at Voicemod's own volume
+fn percent<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<u8>, D::Error> {
+    let value = Option::<Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| value.as_u64())
+        .filter(|percent| *percent <= 100)
+        .map(|percent| percent as u8))
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -216,10 +228,12 @@ pub fn checked(pages: Vec<CustomPage>) -> Vec<CustomPage> {
                 if let Content::Sound { name, .. } | Content::Voice { name, .. } = &mut pad.content {
                     *name = shortened(name, MAX_ITEM_NAME);
                 }
-                // Only a sound plays again
+                // Only a sound plays again, and has a volume
                 if !matches!(pad.content, Content::Sound { .. }) {
                     pad.press_again = None;
+                    pad.volume = None;
                 }
+                pad.volume = pad.volume.map(|volume| volume.min(100));
             }
             page
         })
@@ -359,8 +373,8 @@ mod tests {
     fn reads_and_writes_the_pages_file() {
         let json = r#"[{"id": "page-1", "name": "Gaming", "pads": [
             {"kind": "sound", "id": "s1", "name": "Honk", "label": "Fail", "colour": [255, 140, 40],
-                "pressAgain": "pause"},
-            null,
+                "pressAgain": "pause", "volume": 30},
+            {"kind": "sound", "id": "s2", "volume": 300},
             {"kind": "voice", "id": "v1", "pressAgain": "bounce"},
             {"kind": "action", "action": "muteMic"},
             {"kind": "action", "action": "goToPage", "page": "page-2"},
@@ -378,9 +392,13 @@ mod tests {
                 label: "Fail".into(),
                 colour: Some([255, 140, 40]),
                 press_again: Some(PressAgain::Pause),
+                volume: Some(30),
             })
         );
-        assert_eq!(pads[1], None);
+        assert!(
+            matches!(&pads[1], Some(CustomPad { volume: None, .. })),
+            "a volume it cannot read leaves the pad"
+        );
         assert!(
             matches!(&pads[2], Some(CustomPad { content: Content::Voice { id, .. }, press_again: None, .. }) if id == "v1")
         );
@@ -407,6 +425,7 @@ mod tests {
                 label: "  a label far too long for the display  ".into(),
                 colour: None,
                 press_again: Some(PressAgain::Stop),
+                volume: None,
             })],
         };
         let pages = checked(vec![

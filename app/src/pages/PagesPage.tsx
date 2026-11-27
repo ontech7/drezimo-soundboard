@@ -26,6 +26,7 @@ import {
 import { type Texts, useTexts } from "../i18n";
 import { DotsIcon, PlusIcon, PressAgainIcon, TrashIcon } from "../icons";
 import { useDismiss } from "../dismiss";
+import { Slider } from "../controls";
 import { ColourPicker, RenameField } from "../editing";
 import { type Macro, useMacros } from "../macros";
 import { MiniBoard } from "../MiniBoard";
@@ -224,8 +225,10 @@ export function PagesPage({ view, open, shownPages, pressAgainByMode, singleStop
       if (at === undefined) return;
       // A replaced pad keeps the colour picked for it, and a sound what it does when pressed again
       const before = pads[at];
-      const pressAgain = content.kind === "sound" && before?.kind === "sound" ? before.pressAgain : null;
-      pads[at] = { ...content, colour: content.colour ?? before?.colour ?? null, pressAgain };
+      const sound = content.kind === "sound" && before?.kind === "sound";
+      const pressAgain = sound ? before.pressAgain : null;
+      const volume = sound ? before.volume : null;
+      pads[at] = { ...content, colour: content.colour ?? before?.colour ?? null, pressAgain, volume };
     });
     savePage({ ...page, pads });
     setSelected(start);
@@ -770,6 +773,9 @@ function Inspector({
           />
         </div>
       )}
+      {pad.kind === "sound" && (
+        <VolumeField volume={pad.volume ?? null} bridge={singleStop} onChange={(volume) => onChange({ ...pad, volume })} />
+      )}
       {pad.kind === "sound" && mode && mode !== "Unknown" && (
         <ModeField key={pad.id} sound={pad.id} mode={mode} bridge={singleStop} />
       )}
@@ -790,6 +796,37 @@ function Inspector({
         <TrashIcon />
       </button>
     </section>
+  );
+}
+
+/** A sound's volume when started from this pad, or Voicemod's own */
+function VolumeField(props: { volume: number | null; bridge: boolean; onChange: (volume: number | null) => void }) {
+  const texts = useTexts();
+  const { volume, bridge, onChange } = props;
+  return (
+    <div
+      className={volume === null ? "field volume-field unset" : "field volume-field"}
+      title={bridge ? texts.padVolumeHint : texts.padVolumeNeedsBridge}
+    >
+      {texts.padVolume}
+      <div className="volume-control">
+        <Slider
+          label={texts.padVolume}
+          value={volume ?? 100}
+          min={0}
+          max={100}
+          step={5}
+          disabled={!bridge}
+          onCommit={(next) => onChange(next)}
+        />
+        {volume !== null && (
+          <button type="button" className="link" onClick={() => onChange(null)}>
+            {texts.padVolumeVoicemods}
+          </button>
+        )}
+      </div>
+      {volume === null && <span className="volume-own">{texts.padVolumeVoicemods}</span>}
+    </div>
   );
 }
 

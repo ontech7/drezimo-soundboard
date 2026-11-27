@@ -28,6 +28,8 @@ pub enum TurnAction {
     Rows,
     SoundboardForOthers,
     SoundboardForMe,
+    /// Both soundboard channels together, as one fader
+    SoundboardForEveryone,
     PlayingSound,
     Microphone,
     Voice,

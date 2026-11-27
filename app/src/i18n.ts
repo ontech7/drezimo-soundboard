@@ -147,6 +147,7 @@ const ENGLISH = {
       rows: "Scroll the rows of sounds",
       soundboardForOthers: "Soundboard volume for the others",
       soundboardForMe: "Soundboard volume for you",
+      soundboardForEveryone: "Soundboard volume for everyone",
       playingSound: "Volume of the sound playing",
       microphone: "Microphone volume",
       voice: "Change voice",
@@ -429,6 +430,11 @@ const ENGLISH = {
   change: "Change",
   clearPad: "Clear the pad",
   padOptions: "Pad options",
+  padVolume: "Volume on this pad",
+  padVolumeVoicemods: "As in Voicemod",
+  padVolumeHint:
+    "The sound starts at this volume when played from this pad; elsewhere it keeps its own, unless the knob changes it while it plays.",
+  padVolumeNeedsBridge: "Voicemod's bridge was not found: the sound plays at its own volume",
   modeInVoicemod: "Mode in Voicemod",
   modeInVoicemodHint:
     "What Voicemod does when the sound is pressed while it plays. Changed in Voicemod too, on every soundboard that has the sound.",
@@ -570,6 +576,8 @@ const ENGLISH = {
     muteForMe: "Mute for me",
     background: "Background",
     goToPage: "Go to page",
+    overlay: "Overlay",
+    resetVolumes: "Volumes back",
   },
   actionTexts: {
     stopSounds: "Stops every sound playing",
@@ -580,6 +588,8 @@ const ENGLISH = {
     muteForMe: "The others hear the sounds, you don't",
     background: "Turns the voice's background effects on or off",
     goToPage: "Opens a page you pick",
+    overlay: "Shows or hides the overlay on the computer",
+    resetVolumes: "Puts back the volumes changed with the knob",
   },
   tour: {
     label: "Welcome tour",
@@ -821,6 +831,7 @@ const ITALIAN: Texts = {
       rows: "Scorre le righe dei suoni",
       soundboardForOthers: "Volume soundboard per gli altri",
       soundboardForMe: "Volume soundboard per te",
+      soundboardForEveryone: "Volume soundboard per tutti",
       playingSound: "Volume del suono che suona",
       microphone: "Volume del microfono",
       voice: "Cambia voce",
@@ -1107,6 +1118,11 @@ const ITALIAN: Texts = {
   change: "Cambia",
   clearPad: "Svuota il pad",
   padOptions: "Opzioni del pad",
+  padVolume: "Volume su questo pad",
+  padVolumeVoicemods: "Come in Voicemod",
+  padVolumeHint:
+    "Il suono parte a questo volume quando lo suoni da questo pad; altrove resta il suo, a meno che la manopola lo cambi mentre suona.",
+  padVolumeNeedsBridge: "Il bridge di Voicemod non è stato trovato: il suono suona al suo volume",
   modeInVoicemod: "Modalità in Voicemod",
   modeInVoicemodHint:
     "Cosa fa Voicemod se premi il suono mentre suona. Cambia anche in Voicemod, su tutte le soundboard che hanno il suono.",
@@ -1246,6 +1262,8 @@ const ITALIAN: Texts = {
     muteForMe: "Non sentire",
     background: "Sottofondo",
     goToPage: "Vai a pagina",
+    overlay: "Overlay",
+    resetVolumes: "Rimetti volumi",
   },
   actionTexts: {
     stopSounds: "Ferma ogni suono in riproduzione",
@@ -1256,6 +1274,8 @@ const ITALIAN: Texts = {
     muteForMe: "Gli altri sentono i suoni, tu no",
     background: "Accende o spegne il sottofondo della voce",
     goToPage: "Apre una pagina che scegli",
+    overlay: "Mostra o nasconde l'overlay sul computer",
+    resetVolumes: "Rimette i volumi cambiati con la manopola",
   },
   tour: {
     label: "Tour di benvenuto",

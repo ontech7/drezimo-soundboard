@@ -41,6 +41,7 @@ pub struct Texts {
     pub volume: &'static str,
     pub soundboard_others: &'static str,
     pub soundboard_you: &'static str,
+    pub soundboard_all: &'static str,
     pub microphone: &'static str,
     /// The knob would change the volume of the sound playing, and none plays
     pub nothing_playing: &'static str,
@@ -79,6 +80,8 @@ struct Actions {
     mute_for_me: &'static str,
     background: &'static str,
     go_to_page: &'static str,
+    overlay: &'static str,
+    reset_volumes: &'static str,
 }
 
 impl Texts {
@@ -93,6 +96,8 @@ impl Texts {
             Action::MuteForMe => names.mute_for_me,
             Action::Background => names.background,
             Action::GoToPage => names.go_to_page,
+            Action::Overlay => names.overlay,
+            Action::ResetVolumes => names.reset_volumes,
         }
     }
 
@@ -156,6 +161,7 @@ pub const ENGLISH: Texts = Texts {
     volume: "VOLUME",
     soundboard_others: "SOUNDBOARD OTHERS",
     soundboard_you: "SOUNDBOARD YOU",
+    soundboard_all: "SOUNDBOARD ALL",
     microphone: "MICROPHONE",
     nothing_playing: "NO SOUND",
     not_available: "NOT AVAILABLE",
@@ -181,6 +187,8 @@ pub const ENGLISH: Texts = Texts {
         mute_for_me: "Mute for me",
         background: "Background",
         go_to_page: "Go to page",
+        overlay: "Overlay",
+        reset_volumes: "Volumes back",
     },
 };
 
@@ -210,6 +218,7 @@ pub const ITALIAN: Texts = Texts {
     volume: "VOLUME",
     soundboard_others: "SOUNDBOARD ALTRI",
     soundboard_you: "SOUNDBOARD TU",
+    soundboard_all: "SOUNDBOARD TUTTI",
     microphone: "MICROFONO",
     nothing_playing: "NESSUN SUONO",
     not_available: "NON DISPONIBILE",
@@ -235,6 +244,8 @@ pub const ITALIAN: Texts = Texts {
         mute_for_me: "Non sentire",
         background: "Sottofondo",
         go_to_page: "Vai a pagina",
+        overlay: "Overlay",
+        reset_volumes: "Rimetti volumi",
     },
 };
 

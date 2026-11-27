@@ -11,12 +11,7 @@ pub(super) const OVERLAY_TIME: Duration = Duration::from_secs(4);
 impl Controller {
     /// The overlay for `now`, or None while it is hidden.
     pub(super) fn overlay(&self, now: Instant) -> Option<Overlay> {
-        let always = self.overlay_always && !self.overlay_hidden;
-        let asked =
-            always || self.overlay_until.is_some_and(|until| until > now) || self.knob.is_down() || self.menu.is_some();
-        let wanted = asked && self.overlay_time.is_some();
-        let usable = self.board_connected && self.voicemod == VoicemodStatus::Connected;
-        let page = self.pages.get(self.page).filter(|_| wanted && usable)?;
+        let page = self.pages.get(self.page).filter(|_| self.overlay_shown(now))?;
         let cells = (0..PADS as u8)
             .map(|pad| {
                 let content = self.pad_at(pad);
@@ -32,6 +27,16 @@ impl Controller {
             counter: self.counter(),
             cells,
         })
+    }
+
+    /// Whether the overlay is on screen at `now`
+    pub(super) fn overlay_shown(&self, now: Instant) -> bool {
+        let always = self.overlay_always && !self.overlay_hidden;
+        let asked =
+            always || self.overlay_until.is_some_and(|until| until > now) || self.knob.is_down() || self.menu.is_some();
+        let wanted = asked && self.overlay_time.is_some();
+        let usable = self.board_connected && self.voicemod == VoicemodStatus::Connected;
+        wanted && usable && !self.pages.is_empty()
     }
 
     pub(super) fn show_overlay(&mut self, now: Instant) {

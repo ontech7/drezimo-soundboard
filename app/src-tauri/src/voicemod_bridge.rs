@@ -193,8 +193,10 @@ async fn serve(
                         on_event(BridgeEvent::Gain { channel, gain, enabled, ours });
                     }
                     Some(BridgeMessage::Resources(resources)) => {
-                        on_event(BridgeEvent::SoundVolumes(sound_volumes(&resources)));
-                        for (sound, changed) in options.read(&resources, Instant::now()) {
+                        let ready = options.read(&resources, Instant::now());
+                        // With the changes that waited for them: the volumes the knob just saved among them
+                        on_event(BridgeEvent::SoundVolumes(volumes(&options.known)));
+                        for (sound, changed) in ready {
                             socket.send(options_request(&stops.next_id(), &sound, changed)).await?;
                         }
                     }
@@ -539,12 +541,10 @@ fn sounds(resources: &Value) -> impl Iterator<Item = &Value> {
         .filter(|resource| resource["type"] == "sound")
 }
 
-fn sound_volumes(resources: &Value) -> HashMap<String, f32> {
-    sounds(resources)
-        .filter_map(|resource| {
-            let volume = resource["options"]["volume"].as_f64()?;
-            Some((resource["id"].as_str()?.to_string(), volume as f32))
-        })
+fn volumes(options: &HashMap<String, Map<String, Value>>) -> HashMap<String, f32> {
+    options
+        .iter()
+        .filter_map(|(sound, options)| Some((sound.clone(), options.get("volume")?.as_f64()? as f32)))
         .collect()
 }
 
@@ -1046,8 +1046,8 @@ mod tests {
             panic!("the resources");
         };
         let volumes = HashMap::from([("s1".to_string(), 0.5), ("s3".to_string(), 1.0)]);
-        assert_eq!(sound_volumes(&read), volumes);
         let options = all_options(&read);
+        assert_eq!(super::volumes(&options), volumes);
         assert_eq!(options.len(), 3, "every sound with options");
         assert_eq!(options["s1"]["loop"], false);
     }

@@ -16,6 +16,8 @@ const VOICE_EVERY: Duration = Duration::from_millis(250);
 const READ_EVERY: Duration = Duration::from_secs(60);
 /// How long Voicemod may take to confirm a voice the knob loaded
 const CONFIRM_TIME: Duration = Duration::from_secs(1);
+/// A sound's volume is saved in Voicemod once the knob has rested that long on it
+const SAVE_AFTER: Duration = Duration::from_secs(1);
 
 impl KnobSend {
     fn every(&self) -> Duration {
@@ -82,6 +84,7 @@ impl Controller {
         self.level = self.level.take().filter(|level| level.until > now);
         self.mixer.keep_playing(|sound| self.playback.state(sound).is_some());
         self.send_waiting(now);
+        self.save_sound_volumes(now);
         if self.volumes_read_waiting {
             self.read_sound_volumes(now);
         }
@@ -99,7 +102,9 @@ impl Controller {
             .map(|read| read + READ_EVERY);
         let row = self.row.as_ref().and_then(|row| row.until);
         let level = self.level.as_ref().map(|level| level.until);
+        let saves = self.sound_saves.values().map(|(_, at)| *at);
         waiting
+            .chain(saves)
             .chain(read)
             .chain(row)
             .chain(level)
@@ -145,6 +150,7 @@ impl Controller {
                 self.step_gain(Channel::SoundboardForOthers, texts.soundboard_others, step, now)
             }
             TurnAction::SoundboardForMe => self.step_gain(Channel::SoundboardForMe, texts.soundboard_you, step, now),
+            TurnAction::SoundboardForEveryone => self.step_everyone(step, now),
             TurnAction::Microphone => self.step_gain(Channel::Microphone, texts.microphone, step, now),
             TurnAction::PlayingSound => self.step_playing_sound(step, now),
             TurnAction::Voice => self.step_voice(step, now),
@@ -222,6 +228,32 @@ impl Controller {
         self.show_level(label.to_string(), percent, channel.max_percent(), now);
     }
 
+    /// Both soundboard channels a step together, as one fader: a sound started next starts from there too
+    fn step_everyone(&mut self, step: i8, now: Instant) {
+        if !self.can_change_volumes(now) {
+            return;
+        }
+        let mut shown = None;
+        for channel in [Channel::SoundboardForOthers, Channel::SoundboardForMe] {
+            // A channel not known yet, as one muted, stays as it is
+            let Some(percent) = self.mixer.step_gain(channel, step) else {
+                continue;
+            };
+            let gain = mixer::gain(percent);
+            let enabled = self.mixer.is_on(channel);
+            self.send_limited(
+                KnobSend::Channel(channel),
+                Request::SetGain { channel, gain, enabled },
+                now,
+            );
+            shown.get_or_insert(percent);
+        }
+        match shown {
+            Some(percent) => self.show_level(self.texts.soundboard_all.to_string(), percent, 100, now),
+            None => self.tell(self.texts.not_available, now),
+        }
+    }
+
     /// The latest sound started or resumed that still plays
     fn step_playing_sound(&mut self, step: i8, now: Instant) {
         if !self.can_change_volumes(now) {
@@ -238,8 +270,31 @@ impl Controller {
         let volume = f32::from(percent) / 100.0;
         let label = self.sound_name(&id).to_string();
         let request = Request::SetSoundVolume { id: id.clone(), volume };
+        self.sound_saves.insert(id.clone(), (volume, now + SAVE_AFTER));
         self.send_limited(KnobSend::Sound(id), request, now);
         self.show_level(label, percent, 100, now);
+    }
+
+    /// The volumes the knob rested on, saved in Voicemod as the sounds' own, as its own slider does: their next plays
+    /// start from them
+    fn save_sound_volumes(&mut self, now: Instant) {
+        let due: Vec<String> = self
+            .sound_saves
+            .iter()
+            .filter(|(_, (_, at))| *at <= now)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in due {
+            let Some((volume, _)) = self.sound_saves.remove(&id) else {
+                continue;
+            };
+            self.mixer.save_sound(&id, volume);
+            self.request(Request::SetSoundOptions {
+                id,
+                mode: None,
+                volume: Some(volume),
+            });
+        }
     }
 
     /// The favourite voices in the licence, else all of them, in turn
@@ -269,10 +324,12 @@ impl Controller {
         self.send_limited(KnobSend::Voice, Request::LoadVoice(voice.id), now);
     }
 
-    fn reset_volumes(&mut self, now: Instant) {
+    pub(super) fn reset_volumes(&mut self, now: Instant) {
         if !self.can_change_volumes(now) {
             return;
         }
+        // A volume the knob had not rested on yet is put back, not saved
+        self.sound_saves.clear();
         let reset = self.mixer.reset();
         for (channel, gain) in reset.channels {
             let enabled = self.mixer.is_on(channel);
@@ -390,5 +447,6 @@ impl Controller {
         self.mixer.set_on(Channel::SoundboardForMe, !self.switches.mute_for_me);
         self.knob_sent.retain(|target, _| *target == KnobSend::Voice);
         self.knob_waiting.retain(|target, _| *target == KnobSend::Voice);
+        self.sound_saves.clear();
     }
 }

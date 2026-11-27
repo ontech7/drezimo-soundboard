@@ -61,6 +61,7 @@ const RED: [u8; 3] = [255, 42, 42];
 const WHITE: [u8; 3] = [120, 120, 130];
 const AMBER: [u8; 3] = [255, 140, 0];
 const CYAN: [u8; 3] = [0, 200, 220];
+const PINK: [u8; 3] = [255, 60, 160];
 /// The peeked pad and the row the overview shows
 const HIGHLIGHT: [u8; 3] = [200, 200, 210];
 
@@ -190,6 +191,8 @@ pub struct Controller {
     knob: Gestures,
     knob_settings: KnobSettings,
     shown_pages: ShownPages,
+    /// The sounds' volumes the knob set, saved in Voicemod from then
+    sound_saves: HashMap<String, (f32, Instant)>,
     /// Turned, or held for a peek, since it went down: the overlay stays a little after it is let go
     knob_used: bool,
     row: Option<RowShown>,
@@ -259,6 +262,7 @@ impl Default for Controller {
             knob: Gestures::default(),
             knob_settings: KnobSettings::default(),
             shown_pages: ShownPages::default(),
+            sound_saves: HashMap::new(),
             knob_used: false,
             row: None,
             level: None,
@@ -695,7 +699,13 @@ impl Controller {
             self.held.insert(pad, None);
             if self.voicemod == VoicemodStatus::Connected {
                 self.act(action, page.as_deref(), now);
-                if !matches!(action, Action::StopSounds | Action::RandomVoice | Action::GoToPage) {
+                let tells_itself = [
+                    Action::StopSounds,
+                    Action::RandomVoice,
+                    Action::GoToPage,
+                    Action::ResetVolumes,
+                ];
+                if !tells_itself.contains(&action) {
                     self.last = Some((name, now));
                 }
             }
@@ -735,8 +745,24 @@ impl Controller {
 
         let outcome = self.outcome_at(pad, &sound);
         let active = self.playback.state(&sound.id).is_some();
-        for &command in press_again::on_press(outcome.does, sound.playback_mode, active, self.single_stop) {
+        let commands = press_again::on_press(outcome.does, sound.playback_mode, active, self.single_stop);
+        for &command in commands {
             self.command(command, &sound, now);
+        }
+        // Only a press that starts the sound, or a copy of it: not one that pauses, resumes or stops it
+        let restarts = matches!(
+            sound.playback_mode,
+            PlaybackMode::PlayRestart | PlaybackMode::PlayOverlap
+        );
+        let starts = commands.last() == Some(&Command::KeyDown) && (!active || commands.len() > 1 || restarts);
+        let own_volume = self.pages.get(self.page).and_then(|page| page.volume(pad));
+        if let Some(percent) = own_volume.filter(|_| self.single_stop && starts) {
+            let volume = f32::from(percent) / 100.0;
+            self.request(Request::SetSoundVolume {
+                id: sound.id.clone(),
+                volume,
+            });
+            self.mixer.play_at(&sound.id, volume);
         }
         self.sound_started();
         self.last = Some((sound.name.clone(), now));
@@ -825,6 +851,8 @@ impl Controller {
                     self.set_page(target, now);
                 }
             }
+            Action::Overlay => self.overlay_gesture(now),
+            Action::ResetVolumes => self.reset_volumes(now),
         }
     }
 
@@ -1110,7 +1138,7 @@ impl Controller {
             if usize::from(pad) / COLUMNS == row {
                 return Led::solid(HIGHLIGHT);
             }
-            let led = self.content_led(pad);
+            let led = self.content_led(pad, now);
             let dimmed = led.color.map(|level| (f32::from(level) * 0.2).round() as u8);
             return Led { color: dimmed, ..led };
         }
@@ -1133,12 +1161,12 @@ impl Controller {
         if self.flashes.contains_key(&pad) {
             return Led::solid(YELLOW);
         }
-        self.content_led(pad)
+        self.content_led(pad, now)
     }
 
     /// A sound blue, green while it plays; a voice purple, green while loaded; an action in its own colour, dim while
     /// what it switches is off. The user's colour, on their own pages, replaces the one at rest.
-    fn content_led(&self, pad: u8) -> Led {
+    fn content_led(&self, pad: u8, now: Instant) -> Led {
         let colour = self.pages.get(self.page).and_then(|page| page.colour(pad));
         let at_rest = |usual| Led::solid(colour.unwrap_or(usual));
         match self.pad_at(pad) {
@@ -1178,6 +1206,8 @@ impl Controller {
                     Action::GoToPage => page
                         .as_ref()
                         .is_some_and(|id| self.pages.iter().any(|page| page.soundboard_id == *id)),
+                    Action::Overlay => self.overlay_shown(now),
+                    Action::ResetVolumes => self.single_stop,
                 };
                 let color = colour.unwrap_or(action_colour(*action));
                 Led::solid(if on { color } else { color.map(|level| level / 4) })
@@ -1206,7 +1236,8 @@ fn action_colour(action: Action) -> [u8; 3] {
         Action::RandomVoice => PURPLE,
         Action::MuteForMe => AMBER,
         Action::Background => CYAN,
-        Action::GoToPage => WHITE,
+        Action::GoToPage | Action::ResetVolumes => WHITE,
+        Action::Overlay => PINK,
     }
 }
 

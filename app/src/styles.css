@@ -1585,6 +1585,35 @@ select:disabled {
   font-size: 13px;
 }
 
+.volume-field {
+  min-width: 170px;
+}
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+}
+
+.volume-control .slider {
+  flex: 1;
+}
+
+/* Until set, the sound keeps Voicemod's own volume: the slider only waits to be moved */
+.volume-field.unset .slider {
+  opacity: 0.45;
+}
+
+.volume-field.unset .slider:hover {
+  opacity: 1;
+}
+
+.volume-field .volume-own {
+  margin-top: -2px;
+  font-size: 11px;
+}
+
 /* The selected pad's menu, in the same cell of the grid */
 .pad-menu {
   z-index: 2;

@@ -41,6 +41,7 @@ export function ActionHalf(props: Props) {
       }
       case "soundboardForOthers":
       case "soundboardForMe":
+      case "soundboardForEveryone":
       case "microphone":
         return half(null, <Volume icon={shown.action} label={words.volumes[shown.action]} level={60 + 5 * beats.sum} />);
       case "playingSound":
@@ -169,6 +170,14 @@ const ICONS = {
       <path d="M9 18V6l11-2v12" />
       <circle cx="6.5" cy="18" r="2.5" />
       <circle cx="17.5" cy="16" r="2.5" />
+    </>
+  ),
+  soundboardForEveryone: (
+    <>
+      <path d="M6 4v16M12 4v16M18 4v16" />
+      <rect x="4" y="13" width="4" height="3" rx="1" />
+      <rect x="10" y="7" width="4" height="3" rx="1" />
+      <rect x="16" y="11" width="4" height="3" rx="1" />
     </>
   ),
   microphone: (

@@ -62,7 +62,16 @@ export function showsSoundboard(shown: ShownPages, soundboard: { id: string; cus
 
 /** What turning the knob does, plain or held down (src-tauri/src/knob.rs) */
 export interface TurnAction {
-  action: "page" | "rows" | "soundboardForOthers" | "soundboardForMe" | "playingSound" | "microphone" | "voice" | "nothing";
+  action:
+    | "page"
+    | "rows"
+    | "soundboardForOthers"
+    | "soundboardForMe"
+    | "soundboardForEveryone"
+    | "playingSound"
+    | "microphone"
+    | "voice"
+    | "nothing";
 }
 
 /** What a tap, a double tap or a long press does */

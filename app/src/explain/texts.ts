@@ -52,7 +52,7 @@ export interface ExplainTexts {
   /** Drezimo's display */
   pageCounter: (page: number, pages: number) => string;
   menuTitle: string;
-  volumes: { soundboardForOthers: string; soundboardForMe: string; microphone: string };
+  volumes: { soundboardForOthers: string; soundboardForMe: string; soundboardForEveryone: string; microphone: string };
   switches: Record<"muteMic" | "muteForMe" | "voiceChanger" | "hearMyself" | "background", [on: string, off: string]>;
   resetLabels: [string, string, string];
   sample: {
@@ -111,7 +111,10 @@ const ENGLISH: ExplainTexts = {
       rows: "Each detent lights the next row of pads white, or the one before: you read row by row which sounds are there.",
       soundboardForOthers: "Each detent turns up or down the sounds the others hear.",
       soundboardForMe: "Each detent turns up or down the sounds you hear, in your headphones.",
-      playingSound: "Each detent turns up or down the sound playing now, only that one.",
+      soundboardForEveryone:
+        "Each detent turns up or down the sounds for you and for the others together: the next sound starts where you left it.",
+      playingSound:
+        "Each detent turns up or down the sound playing now, only that one; it keeps that volume for its next plays.",
       microphone: "Each detent turns your microphone up or down.",
       voice: "Each detent loads the next voice; turning it left goes back to the one before.",
       nothing: "Turning it does nothing.",
@@ -161,7 +164,12 @@ const ENGLISH: ExplainTexts = {
   },
   pageCounter: (page, pages) => `PAGE ${page}/${pages}`,
   menuTitle: "SOUNDBOARDS",
-  volumes: { soundboardForOthers: "Soundboard, for others", soundboardForMe: "Soundboard, for you", microphone: "Microphone" },
+  volumes: {
+    soundboardForOthers: "Soundboard, for others",
+    soundboardForMe: "Soundboard, for you",
+    soundboardForEveryone: "Soundboard, for everyone",
+    microphone: "Microphone",
+  },
   switches: {
     muteMic: ["Microphone on", "Microphone muted"],
     muteForMe: ["You hear the sounds", "You don't hear the sounds"],
@@ -242,7 +250,10 @@ const ITALIAN: ExplainTexts = {
       rows: "Ogni scatto accende di bianco la riga di pad dopo, o quella prima: così leggi riga per riga quali suoni ci sono.",
       soundboardForOthers: "Ogni scatto alza o abbassa il volume dei suoni che sentono gli altri.",
       soundboardForMe: "Ogni scatto alza o abbassa il volume dei suoni che senti tu, in cuffia.",
-      playingSound: "Ogni scatto alza o abbassa il volume del suono che sta suonando, solo di quello.",
+      soundboardForEveryone:
+        "Ogni scatto alza o abbassa insieme i suoni per te e per gli altri: il suono dopo parte da dove l'hai lasciato.",
+      playingSound:
+        "Ogni scatto alza o abbassa il volume del suono che sta suonando, solo di quello; lo tiene anche per le volte dopo.",
       microphone: "Ogni scatto alza o abbassa il volume del tuo microfono.",
       voice: "Ogni scatto carica la voce dopo; girandola a sinistra torni a quella prima.",
       nothing: "Girandola non succede niente.",
@@ -292,7 +303,12 @@ const ITALIAN: ExplainTexts = {
   },
   pageCounter: (page, pages) => `PAGINA ${page}/${pages}`,
   menuTitle: "SOUNDBOARD",
-  volumes: { soundboardForOthers: "Soundboard, per gli altri", soundboardForMe: "Soundboard, per te", microphone: "Microfono" },
+  volumes: {
+    soundboardForOthers: "Soundboard, per gli altri",
+    soundboardForMe: "Soundboard, per te",
+    soundboardForEveryone: "Soundboard, per tutti",
+    microphone: "Microfono",
+  },
   switches: {
     muteMic: ["Microfono attivo", "Microfono muto"],
     muteForMe: ["Senti i suoni", "Non senti i suoni"],

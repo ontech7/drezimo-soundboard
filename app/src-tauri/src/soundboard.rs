@@ -158,6 +158,10 @@ pub enum Action {
     /// Voicemod's background effects, on and off
     Background,
     GoToPage,
+    /// Hides or shows the overlay while it shows always, else shows it for its time
+    Overlay,
+    /// Puts back the volumes the knob changed, as Voicemod has them
+    ResetVolumes,
 }
 
 /// What a pad does
@@ -220,6 +224,8 @@ pub struct Page {
     pub colours: Vec<Option<[u8; 3]>>,
     /// What a pad does when pressed again, where the user picked it for that pad
     pub presses: Vec<Option<PressAgain>>,
+    /// A sound's volume when started from that pad, in percent, where the user picked it
+    pub volumes: Vec<Option<u8>>,
 }
 
 impl Page {
@@ -229,6 +235,10 @@ impl Page {
 
     pub fn press_again(&self, pad: u8) -> Option<PressAgain> {
         self.presses.get(usize::from(pad)).copied().flatten()
+    }
+
+    pub fn volume(&self, pad: u8) -> Option<u8> {
+        self.volumes.get(usize::from(pad)).copied().flatten()
     }
 }
 
@@ -307,6 +317,7 @@ fn add_pages(pages: &mut Vec<Page>, soundboard_id: &str, name: &str, pads: Vec<P
             pads: page_pads,
             colours: Vec::new(),
             presses: Vec::new(),
+            volumes: Vec::new(),
         });
     }
 }
@@ -369,6 +380,8 @@ fn custom_page(
     colours.resize(PADS, None);
     let mut presses: Vec<Option<PressAgain>> = page.pads.iter().map(|slot| slot.as_ref()?.press_again).collect();
     presses.resize(PADS, None);
+    let mut volumes: Vec<Option<u8>> = page.pads.iter().map(|slot| slot.as_ref()?.volume).collect();
+    volumes.resize(PADS, None);
     Page {
         soundboard_id: page.id.clone(),
         name: page.name.clone(),
@@ -377,6 +390,7 @@ fn custom_page(
         pads,
         colours,
         presses,
+        volumes,
     }
 }
 
@@ -556,6 +570,7 @@ pub mod tests {
             label: String::new(),
             colour: None,
             press_again: None,
+            volume: None,
         })
     }
 

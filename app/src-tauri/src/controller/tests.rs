@@ -1117,6 +1117,162 @@ fn the_users_own_pages_come_first_and_follow_the_editor() {
 }
 
 #[test]
+fn a_pad_with_its_own_volume_starts_its_sound_there() {
+    let (mut controller, now) = ready(three_soundboards());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let quiet = CustomPad {
+        volume: Some(30),
+        ..custom_pad(Content::Sound {
+            id: "a1".into(),
+            name: String::new(),
+        })
+        .unwrap()
+    };
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(quiet)])]);
+    controller.go_to_page(0);
+    let outputs = press(&mut controller, 0, true, now);
+    assert_eq!(
+        requests(&outputs),
+        [
+            &play("a1", true),
+            &Request::SetSoundVolume {
+                id: "a1".into(),
+                volume: 0.3
+            }
+        ]
+    );
+}
+
+#[test]
+fn a_pads_own_volume_leaves_a_pause_alone() {
+    let song = Sound {
+        playback_mode: PlaybackMode::PlayPause,
+        ..sound("song")
+    };
+    let (mut controller, now) = ready(vec![soundboard("b", vec![song])]);
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let quiet = CustomPad {
+        volume: Some(30),
+        ..custom_pad(Content::Sound {
+            id: "song".into(),
+            name: String::new(),
+        })
+        .unwrap()
+    };
+    controller.set_custom_pages(vec![own_page("mine", vec![Some(quiet)])]);
+    controller.go_to_page(0);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    let later = now + Duration::from_secs(1);
+    let outputs = press(&mut controller, 0, true, later);
+    assert_eq!(
+        requests(&outputs),
+        [&play("song", true)],
+        "paused, at the volume it had"
+    );
+}
+
+#[test]
+fn putting_the_volumes_back_drops_a_save_on_its_way() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::PlayingSound,
+            tap: PressAction::ResetVolumes,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.voicemod_event(VoicemodEvent::SoundVolumes(HashMap::from([("song".into(), 0.5)])), now);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    turn(&mut controller, -2, now);
+    tap(&mut controller, now + Duration::from_millis(200));
+    controller.take_outputs();
+    controller.update(now + Duration::from_secs(2));
+    let saved = requests(&controller.take_outputs())
+        .into_iter()
+        .any(|request| matches!(request, Request::SetSoundOptions { .. }));
+    assert!(!saved, "the volume put back is not saved");
+}
+
+#[test]
+fn the_overlay_and_reset_pads_do_what_the_knob_does() {
+    let (mut controller, now) = ready_without_overlay(three_soundboards());
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    let pads = [Action::Overlay, Action::ResetVolumes].map(|kind| custom_pad(action(kind)));
+    controller.set_custom_pages(vec![own_page("mine", pads.to_vec())]);
+    controller.go_to_page(0);
+    controller.update(now);
+    controller.take_outputs();
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    assert!(controller.overlay(now).is_some(), "shown for its time");
+    let flashed = now + Duration::from_millis(300);
+    controller.update(flashed);
+    assert_eq!(
+        controller.board_view(flashed).unwrap().pads[0].led,
+        Led::solid([255, 60, 160]),
+        "lit while shown"
+    );
+    press(&mut controller, 1, true, now);
+    assert_eq!(home_name(&controller, now), "VOLUMES RESET");
+}
+
+#[test]
+fn the_knob_on_everyones_soundboard_moves_both_channels() {
+    let (mut controller, now) = ready(three_soundboards());
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::SoundboardForEveryone,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 0.25, 1.0], now);
+    let outputs = turn(&mut controller, -2, now);
+    assert_eq!(
+        requests(&outputs),
+        [
+            &set_gain(Channel::SoundboardForOthers, gain(90)),
+            &set_gain(Channel::SoundboardForMe, gain(40))
+        ]
+    );
+    let Screen::Level { label, percent, .. } = controller.screen(now).0 else {
+        panic!("the level");
+    };
+    assert_eq!((label.as_str(), percent), ("SOUNDBOARD ALL", 90));
+}
+
+#[test]
+fn the_knob_saves_a_sounds_volume_once_it_rests() {
+    let (mut controller, now) = ready(vec![soundboard("b", vec![sound("song")])]);
+    with_knob(
+        &mut controller,
+        KnobSettings {
+            turn: TurnAction::PlayingSound,
+            ..KnobSettings::default()
+        },
+    );
+    bridge(&mut controller, [1.0, 1.0, 1.0], now);
+    controller.voicemod_event(VoicemodEvent::SoundVolumes(HashMap::from([("song".into(), 0.5)])), now);
+    press(&mut controller, 0, true, now);
+    press(&mut controller, 0, false, now);
+    controller.take_outputs();
+    turn(&mut controller, -2, now);
+    let rested = now + Duration::from_secs(1);
+    assert_eq!(controller.next_update().map(|at| at <= rested), Some(true));
+    controller.update(rested);
+    let saved = Request::SetSoundOptions {
+        id: "song".into(),
+        mode: None,
+        volume: Some(0.4),
+    };
+    assert!(requests(&controller.take_outputs()).contains(&&saved));
+}
+
+#[test]
 fn action_pads_drive_voicemod() {
     let (mut controller, now) = ready(three_soundboards());
     voices(&mut controller, "dark", now);

@@ -8,7 +8,16 @@ import { type PressAgain, type ShownPages, showsSoundboard } from "./settings";
 
 /** What an action pad does (src-tauri/src/soundboard.rs) */
 export type Action =
-  "stopSounds" | "muteMic" | "voiceChanger" | "randomVoice" | "hearMyself" | "muteForMe" | "background" | "goToPage";
+  | "stopSounds"
+  | "muteMic"
+  | "voiceChanger"
+  | "randomVoice"
+  | "hearMyself"
+  | "muteForMe"
+  | "background"
+  | "goToPage"
+  | "overlay"
+  | "resetVolumes";
 
 export type Content =
   | { kind: "sound"; id: string; name: string }
@@ -25,6 +34,8 @@ export type CustomPad = Content & {
   colour: Rgb | null;
   /** A sound's, instead of the one set on the Drezimo page */
   pressAgain?: PressAgain | null;
+  /** A sound's volume when started from this pad, in percent: Voicemod's own when none */
+  volume?: number | null;
 };
 
 /** A page of the user's own (src-tauri/src/custom_pages.rs) */
@@ -70,6 +81,8 @@ export const ACTION_COLOURS: Record<Action, Rgb> = {
   muteForMe: [255, 140, 0],
   background: [0, 200, 220],
   goToPage: [120, 120, 130],
+  overlay: [255, 60, 160],
+  resetVolumes: [120, 120, 130],
 };
 
 export const MACRO_COLOUR: Rgb = [255, 140, 0];
@@ -104,6 +117,8 @@ export const ACTIONS: Action[] = [
   "muteForMe",
   "background",
   "goToPage",
+  "overlay",
+  "resetVolumes",
 ];
 
 // The Favourites and Voices pages' ids (src-tauri/src/soundboard.rs)

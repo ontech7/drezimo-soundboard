@@ -209,6 +209,12 @@ export const EditIcon = () => (
   </Icon>
 );
 
+export const ResetIcon = () => (
+  <Icon>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" />
+  </Icon>
+);
+
 export const LockIcon = () => (
   <Icon>
     <path d="M7 11V8a5 5 0 0 1 10 0v3" />
