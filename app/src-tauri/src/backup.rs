@@ -672,7 +672,7 @@ struct Whole {
 enum Part {
     Macros(Vec<Macro>),
     Pages(Vec<CustomPage>),
-    Settings(Settings),
+    Settings(Box<Settings>),
 }
 
 impl Whole {
@@ -681,7 +681,7 @@ impl Whole {
         [
             Part::Macros(self.macros),
             Part::Pages(self.pages),
-            Part::Settings(self.settings),
+            Part::Settings(Box::new(self.settings)),
         ]
     }
 }
@@ -704,7 +704,7 @@ fn put(app: &AppHandle, new: Whole, old: Whole) -> Result<(), String> {
     let applied = put_all(new, old, |part| match part {
         Part::Macros(macros) => macros::apply(app, macros).map(drop),
         Part::Pages(pages) => custom_pages::apply(app, pages).map(drop),
-        Part::Settings(settings) => settings::apply(app, settings).map(drop),
+        Part::Settings(settings) => settings::apply(app, *settings).map(drop),
     });
     applied.map_err(|_| "cannotWrite".to_string())
 }
@@ -766,6 +766,7 @@ mod tests {
             diagnostics: true,
             tour_seen: true,
             macro_guide_seen: true,
+            news_seen: None,
             mute_for_me_notice_seen: true,
             shown_pages: crate::soundboard::ShownPages {
                 only_mine: true,
@@ -1178,7 +1179,7 @@ mod tests {
             let (name, imported) = match &part {
                 Part::Macros(macros) => ("macros", !macros.is_empty()),
                 Part::Pages(pages) => ("pages", !pages.is_empty()),
-                Part::Settings(settings) => ("settings", *settings != Settings::default()),
+                Part::Settings(settings) => ("settings", **settings != Settings::default()),
             };
             applied.push((name, imported));
             // Another program holds pages.json a moment

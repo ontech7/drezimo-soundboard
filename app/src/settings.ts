@@ -44,6 +44,8 @@ export interface Settings {
   tourSeen: boolean;
   /** The Macro section's guide was seen */
   macroGuideSeen: boolean;
+  /** The latest version whose news were shown after an update */
+  newsSeen: string | null;
   /** The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered */
   muteForMeNoticeSeen: boolean;
   knob: KnobSettings;
@@ -185,7 +187,7 @@ export function useSettings(): SettingsView | null {
 export function saveSettings(view: Settings): void {
   // Only the settings themselves: the view's own fields stay out
   const { language, ledBrightness, pressAgainByMode, overlay, screenDisplay, diagnostics, tourSeen, macroGuideSeen } = view;
-  const { muteForMeNoticeSeen, knob, wheel, shownPages } = view;
+  const { muteForMeNoticeSeen, newsSeen, knob, wheel, shownPages } = view;
   const settings = {
     language,
     ledBrightness,
@@ -196,6 +198,7 @@ export function saveSettings(view: Settings): void {
     tourSeen,
     macroGuideSeen,
     muteForMeNoticeSeen,
+    newsSeen,
     knob,
     wheel,
     shownPages,
