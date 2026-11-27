@@ -1,10 +1,11 @@
 //! A macro's sounds play as its time line draws them, over each other and once each: for its run, the options Voicemod
 //! keeps for each of them (stop the other sounds when it starts, mute them while it plays, loop) are turned off through
-//! the bridge, then put back once the sound is quiet and no macro running uses it (docs/project.md, section 8). They are
+//! the bridge, and one it plays more than once overlaps itself, then put back once the sound is quiet and no macro running uses it (docs/project.md, section 8). They are
 //! kept in a file until Voicemod confirms them put back, so an app closed halfway puts them back at its next start.
 
 use super::{Controller, Output};
 use crate::macros::Macro;
+use crate::soundboard::PlaybackMode;
 use crate::voicemod::{Request, VoicemodStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -27,11 +28,14 @@ pub struct OwnOptions {
     pub stops_others: bool,
     pub mutes_others: bool,
     pub loops: bool,
+    /// What a press does while it plays, for one the macro plays over itself
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PlaybackMode>,
 }
 
 impl OwnOptions {
     fn any(self) -> bool {
-        self.stops_others || self.mutes_others || self.loops
+        self.stops_others || self.mutes_others || self.loops || self.mode.is_some()
     }
 }
 
@@ -74,16 +78,35 @@ impl Controller {
         let Some(timeline) = &item.timeline else {
             return;
         };
-        let ids: HashSet<String> = timeline.clips.iter().map(|clip| clip.id.clone()).collect();
+        let mut ids = HashSet::new();
+        let mut repeated = HashSet::new();
+        for clip in &timeline.clips {
+            if !ids.insert(clip.id.clone()) {
+                repeated.insert(clip.id.clone());
+            }
+        }
         let mut changed = false;
         for id in ids {
-            // Being put back, it is turned off again: the answer to that decides
+            // Played again while it plays, Voicemod would restart, stop or pause it but for overlapping
+            let mode = self
+                .sounds
+                .get(&id)
+                .map(|sound| sound.playback_mode)
+                .filter(|mode| repeated.contains(&id) && *mode != PlaybackMode::PlayOverlap);
             if let Some(found) = self.overrides.get_mut(&id) {
-                if matches!(found.state, State::Restoring(_)) {
+                // Changed for another macro, it now overlaps itself too
+                let more = mode.is_some() && found.own.mode.is_none();
+                if more {
+                    found.own.mode = mode;
+                    changed = true;
+                }
+                // Being put back, it is changed again: the answer to that decides
+                if more || matches!(found.state, State::Restoring(_)) {
                     found.state = State::Asked(now);
                     found.tries = 0;
+                    let own = found.own;
                     self.send_override(&id, false, now);
-                    self.quiet_sound(&id);
+                    self.quiet_sound(&id, own);
                 }
                 continue;
             }
@@ -94,13 +117,14 @@ impl Controller {
                 stops_others: sound.stop_other_sounds,
                 mutes_others: sound.mute_other_sounds,
                 loops: sound.looped,
+                mode,
             };
             if !own.any() {
                 continue;
             }
             self.overrides.insert(id.clone(), Override::new(own, State::Asked(now)));
             self.send_override(&id, false, now);
-            self.quiet_sound(&id);
+            self.quiet_sound(&id, own);
             changed = true;
         }
         if changed {
@@ -122,16 +146,20 @@ impl Controller {
             stops_others: own.stops_others.then_some(back),
             mutes_others: own.mutes_others.then_some(back),
             loops: own.loops.then_some(back),
+            mode: own.mode.map(|mode| if back { mode } else { PlaybackMode::PlayOverlap }),
             restore: back,
         });
     }
 
-    /// What plays follows the options the macro gives the sound: it no longer stops, mutes or loops
-    fn quiet_sound(&mut self, id: &str) {
+    /// What plays follows the options the macro gives the sound: it no longer stops, mutes or loops, and overlaps itself
+    fn quiet_sound(&mut self, id: &str, own: OwnOptions) {
         if let Some(sound) = self.sounds.get_mut(id) {
             sound.stop_other_sounds = false;
             sound.mute_other_sounds = false;
             sound.looped = false;
+            if own.mode.is_some() {
+                sound.playback_mode = PlaybackMode::PlayOverlap;
+            }
         }
     }
 
@@ -141,6 +169,9 @@ impl Controller {
             sound.stop_other_sounds |= own.stops_others;
             sound.mute_other_sounds |= own.mutes_others;
             sound.looped |= own.loops;
+            if let Some(mode) = own.mode {
+                sound.playback_mode = mode;
+            }
         }
     }
 
@@ -300,14 +331,14 @@ impl Controller {
     /// Voicemod's soundboards came: a sound a macro changed keeps what the macro gives it, one put back a moment ago
     /// what Voicemod has again, until a read shows it so
     pub(super) fn keep_override_flags(&mut self) {
-        let changed: Vec<String> = self
+        let changed: Vec<(String, OwnOptions)> = self
             .overrides
             .iter()
             .filter(|(_, found)| !matches!(found.state, State::Restoring(_)))
-            .map(|(id, _)| id.clone())
+            .map(|(id, found)| (id.clone(), found.own))
             .collect();
-        for id in changed {
-            self.quiet_sound(&id);
+        for (id, own) in changed {
+            self.quiet_sound(&id, own);
         }
         let restored: Vec<(String, OwnOptions)> =
             self.restored.iter().map(|(id, (own, _))| (id.clone(), *own)).collect();
@@ -317,6 +348,7 @@ impl Controller {
                 (!own.stops_others || sound.stop_other_sounds)
                     && (!own.mutes_others || sound.mute_other_sounds)
                     && (!own.loops || sound.looped)
+                    && own.mode.is_none_or(|mode| sound.playback_mode == mode)
             });
             if back {
                 self.restored.remove(&id);

@@ -342,6 +342,8 @@ const ENGLISH = {
   news: {
     updatedTo: (version: string) => `Updated to ${version}`,
     done: "Got it",
+    andFixes: "And these fixes",
+    fixes: "Fixes in this update",
     label: "What's new",
     settingText: "This version's news, as shown after the update.",
     open: "See again",
@@ -1211,6 +1213,8 @@ const ITALIAN: Texts = {
   news: {
     updatedTo: (version: string) => `Aggiornata alla ${version}`,
     done: "Ho capito",
+    andFixes: "E queste correzioni",
+    fixes: "Correzioni di questo aggiornamento",
     label: "Novità",
     settingText: "Le novità di questa versione, come dopo l'aggiornamento.",
     open: "Rivedi",

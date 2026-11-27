@@ -196,6 +196,8 @@ pub struct Settings {
     pub tour_seen: bool,
     /// The Macro section's guide was seen: until then it opens with the section
     pub macro_guide_seen: bool,
+    /// The latest version whose news the window showed after an update: those of the versions since show next time
+    pub news_seen: Option<String>,
     /// The notice that only the others hear the sounds, while Voicemod's Mute for me is on, was answered
     pub mute_for_me_notice_seen: bool,
     pub knob: KnobSettings,
@@ -216,6 +218,7 @@ impl Default for Settings {
             diagnostics: false,
             tour_seen: false,
             macro_guide_seen: false,
+            news_seen: None,
             mute_for_me_notice_seen: false,
             knob: KnobSettings::default(),
             wheel: WheelSettings::default(),

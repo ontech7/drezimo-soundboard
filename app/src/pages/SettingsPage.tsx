@@ -4,7 +4,7 @@ import { BackupCard } from "../BackupCard";
 import { Row, Section, Segmented, Toggle } from "../controls";
 import { type Texts, useTexts } from "../i18n";
 import { type Language, type SettingsView, saveSettings } from "../settings";
-import { changelog } from "../news/changelog";
+import { newsOfLine } from "../news/changelog";
 import type { Status } from "../status";
 import { type UpdateState, useUpdateState } from "../updates";
 
@@ -145,7 +145,7 @@ export function SettingsPage({ settings, status, onTour, onNews }: Props) {
           <Row label={texts.version}>
             <span className="value">{about.version}</span>
           </Row>
-          {changelog(about.version, settings.shownLanguage) && (
+          {newsOfLine(about.version, settings.shownLanguage) && (
             <Row label={texts.news.label} text={texts.news.settingText}>
               <button type="button" className="button secondary" onClick={() => onNews(about.version)}>
                 {texts.news.open}
